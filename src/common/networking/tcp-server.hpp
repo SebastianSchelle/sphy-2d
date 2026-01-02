@@ -1,12 +1,9 @@
 #ifndef TCP_SERVER_HPP
 #define TCP_SERVER_HPP
 
-#include <boost/asio.hpp>
 #include <std-inc.hpp>
-#include <logging.hpp>
 
-using boost::asio::ip::tcp;
-
+static const size_t TCP_REC_BUF_LEN = 1024;
 
 class TcpConnection : public std::enable_shared_from_this<TcpConnection>
 {
@@ -27,8 +24,7 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection>
     void handle_write();
 
     tcp::socket socket_;
-    enum { max_length = 1024 };
-    char data_[max_length];
+    char recvBuf[TCP_REC_BUF_LEN];
 };
 
 class TcpServer
@@ -41,6 +37,7 @@ class TcpServer
 
     void HandleAccept(TcpConnection::pointer new_connection,
                        const boost::system::error_code& error);
+
 
     boost::asio::io_context& io_context_;
     tcp::acceptor acceptor_;

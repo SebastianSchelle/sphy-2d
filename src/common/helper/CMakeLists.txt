@@ -1,6 +1,7 @@
 set(HELPER_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/config-manager
+    thirdparty/bitsery/include
 )
 
 set(HELPER_SOURCES
@@ -9,9 +10,12 @@ set(HELPER_SOURCES
     config-manager/config-node.cpp
 )
 
+set(LIBS_PUB
+    yaml-cpp
+    spdlog
+    bitsery
+)
+
 add_library(helper OBJECT ${HELPER_SOURCES})
-
 target_include_directories(helper PUBLIC ${HELPER_INC_PUBLIC})
-
-target_link_libraries(helper PUBLIC yaml-cpp)
-target_link_libraries(helper PUBLIC spdlog)
+target_link_libraries(helper PUBLIC ${LIBS_PUB})

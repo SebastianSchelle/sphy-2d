@@ -14,7 +14,7 @@
 namespace logging
 {
 
-inline void createLogger(std::string logFile)
+inline void createLogger(std::string logFile, uint8_t level)
 {
     spdlog::init_thread_pool(8192, 1);
     auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
@@ -25,7 +25,7 @@ inline void createLogger(std::string logFile)
         "mainlogger", sinks.begin(), sinks.end(), spdlog::thread_pool(),
         spdlog::async_overflow_policy::block);
     spdlog::set_default_logger(logger);
-    spdlog::set_level(spdlog::level::debug);
+    spdlog::set_level(static_cast<spdlog::level::level_enum>(level));
 }
 
 } // namespace logging

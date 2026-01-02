@@ -1,3 +1,3 @@
-./scripts/build.sh
-cd deploy/test-server
+./scripts/build.sh &&
+cd deploy/test-server &&
 ./test-server

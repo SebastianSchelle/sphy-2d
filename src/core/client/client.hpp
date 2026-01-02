@@ -1,0 +1,38 @@
+#ifndef CLIENT_HPP
+#define CLIENT_HPP
+
+#include <sphy-2d.hpp>
+// #include <tcp-client.hpp>
+#include <config-manager/config-manager.hpp>
+#include <udp-client.hpp>
+#include <model.hpp>
+
+namespace sphyc
+{
+
+class Client
+{
+  public:
+    Client();
+    ~Client();
+    void startClient();
+    void startUdpTcp();
+
+  private:
+    void scheduleSend();
+    void udpReceive(const char* data, size_t length);
+    void tcpReceive(const char* data, size_t length);
+
+    Model model;
+    std::unique_ptr<UdpClient> udpClient;
+    // std::unique_ptr<TcpClient> tcpClient;
+    boost::asio::io_context ioContext;
+    std::thread ioThread;
+    boost::asio::signal_set signals;
+    cfg::ConfigManager config;
+    boost::asio::steady_timer sendTimer;
+};
+
+}  // namespace sphys
+
+#endif

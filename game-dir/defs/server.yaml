@@ -1,2 +1,5 @@
-port-tcp: 8080
-port-udp: 8081
+loglevel: 1
+connection:
+  serv-port-tcp: 29200
+  serv-port-udp: 29201
+engine: engine.yaml

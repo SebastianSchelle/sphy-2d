@@ -9,12 +9,11 @@ set(SERVER_INC_PRIVATE
 set(SERVER_SOURCES
     engine.cpp
     server.cpp
-    comms/tcp-server.cpp
-    comms/udp-server.cpp
 )
 
 set(LIBS_PUB
     helper
+    networking
     concurrentqueue
 )
 

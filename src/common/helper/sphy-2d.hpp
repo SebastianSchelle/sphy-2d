@@ -2,7 +2,6 @@
 #define SPHY_2D_HPP
 
 #include "std-inc.hpp"
-#include "logging.hpp"
 
 void sayHello();
 

@@ -3,8 +3,8 @@
 
 #include <boost/asio.hpp>
 #include <boost/asio/ip/address.hpp>
-#include <comms/tcp-server.hpp>
-#include <comms/udp-server.hpp>
+#include <tcp-server.hpp>
+#include <udp-server.hpp>
 #include <config-manager/config-manager.hpp>
 #include <engine.hpp>
 

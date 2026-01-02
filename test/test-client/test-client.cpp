@@ -1,5 +1,4 @@
-#include <sphy-client.hpp>
+#include <test-client.hpp>
 
-int main(int argc, char *argv[]) {
-    sphyc::test(argc, argv);
-}
+TestClient::TestClient() : sphyc::Client() {}
+TestClient::~TestClient() {}

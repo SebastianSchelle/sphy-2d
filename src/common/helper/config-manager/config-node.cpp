@@ -64,6 +64,7 @@ nodeVal_t ConfigBranch::get(std::vector<string>& path) const
             return child->second->get(path);
         }
     }
+    LG_E("Config branch {} not found", name.c_str());
     return nodeVal_t(0.0f);
 }
 
@@ -76,8 +77,10 @@ void ConfigBranch::set(std::vector<string>& path, nodeVal_t value)
         {
             path.pop_back();
             child->second->set(path, value);
+            return;
         }
     }
+    LG_E("Config branch {} not found", name.c_str());
 }
 
 void ConfigBranch::addDefs(YAML::Node& node, const string& file)
@@ -153,11 +156,13 @@ ConfigLeaf::~ConfigLeaf() {}
 nodeVal_t ConfigLeaf::get(std::vector<string>& path) const
 {
     return value;
+    LG_D("Get config leaf {} to {}", name.c_str(), std::get<float>(value));
 }
 
 void ConfigLeaf::set(std::vector<string>& path, nodeVal_t value)
 {
     this->value = value;
+    LG_D("Set config leaf {} to {}", name.c_str(), std::get<float>(value));
 }
 
 }  // namespace cfg

@@ -1,0 +1,20 @@
+#ifndef WORLD_DEF_HPP
+#define WORLD_DEF_HPP
+
+#include <std-inc.hpp>
+
+namespace def
+{
+struct WorldShape
+{
+    int numSectorX;
+    int numSectorY;
+    float sectorSize;
+};
+
+EXT_SER(WorldShape, s.value4b(o.numSectorX); s.value4b(o.numSectorY);
+        s.value4b(o.sectorSize, 100);)
+
+}  // namespace def
+
+#endif

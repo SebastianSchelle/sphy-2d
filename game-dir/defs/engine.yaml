@@ -1,4 +1,2 @@
 
-engine:
-  threads: 5
-test: test.yaml
+threads: 5

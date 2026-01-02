@@ -1,8 +1,4 @@
 #include "tcp-server.hpp"
-#include <chrono>
-#include <thread>
-
-using boost::asio::ip::tcp;
 
 TcpConnection::pointer
 TcpConnection::create(boost::asio::io_context& io_context)
@@ -29,12 +25,12 @@ void TcpConnection::doRead()
 {
     auto self(shared_from_this());
     socket_.async_read_some(
-        boost::asio::buffer(data_, max_length),
+        boost::asio::buffer(recvBuf, TCP_REC_BUF_LEN),
         [this, self](boost::system::error_code ec, std::size_t length)
         {
             if (!ec)
             {
-                std::string received(data_, length);
+                std::string received(recvBuf, length);
                 LG_D("Received: {}", received);
 
                 // Echo or process

@@ -8,23 +8,9 @@
 #include <sphy-2d.hpp>
 
 using moodycamel::ConcurrentQueue;
-namespace asio = boost::asio;
 
 namespace sphys
 {
-
-enum class SendType
-{
-    UDP,
-    TCP
-};
-
-typedef struct
-{
-    SendType type;
-    asio::ip::address address;
-    con::vector<uint8_t> data;
-} SendRequest;
 
 class Engine
 {
@@ -32,12 +18,12 @@ class Engine
     Engine();
     ~Engine();
     void start();
-    ConcurrentQueue<SendRequest> sendQueue;
+    ConcurrentQueue<CmdQueueData> sendQueue;
+    ConcurrentQueue<CmdQueueData> receiveQueue;
 
   private:
     void engineLoop();
 
-    cfg::ConfigManager configManager;
     std::thread engineThread;
 };
 

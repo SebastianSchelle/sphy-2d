@@ -1,12 +1,12 @@
-#include "config-manager/config-manager.hpp"
+#include "bitsery/serializer.h"
 #include <engine.hpp>
 #include <server.hpp>
+#include <protocol.hpp>
 
 namespace sphys
 {
 
 Engine::Engine()
-    : configManager("defs/config-server.yaml")
 {
 }
 
@@ -21,15 +21,11 @@ void Engine::engineLoop()
 {
     while(true)
     {
-        SendRequest req;
-        req.address = asio::ip::address::from_string("0.0.0.0");
-        req.type = SendType::UDP;
-        for(char c : "Hello World!\n")
-        {
-            req.data.push_back(c);
-        }
-        //SendRequest request;
-        sendQueue.enqueue(req);
+        PREP_SREQ_S(SendType::UDP, 0, prot::cmd::CMD_LOG, 0, 14)
+        std::string str = "Hello World!\n";
+        cmdser.text1b(str, str.size());
+        cmdData.data.resize(cmdser.adapter().writtenBytesCount());
+        sendQueue.enqueue(cmdData);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
