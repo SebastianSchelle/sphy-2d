@@ -3,6 +3,9 @@
 
 #include <std-inc.hpp>
 
+namespace net
+{
+
 static const size_t TCP_REC_BUF_LEN = 1024;
 
 class TcpConnection : public std::enable_shared_from_this<TcpConnection>
@@ -42,5 +45,7 @@ class TcpServer
     boost::asio::io_context& io_context_;
     tcp::acceptor acceptor_;
 };
+
+}  // namespace net
 
 #endif  // TCP_SERVER_HPP

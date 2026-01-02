@@ -2,19 +2,22 @@
 #define UDP_CLIENT_HPP
 
 #include <std-inc.hpp>
+#include <net-shared.hpp>
 
 static const size_t UDP_REC_BUF_LEN = 1024;
 
+namespace net
+{
+
 class UdpClient
 {
-  typedef std::function<void(const char* data, size_t length)> ReceiveCallback;
   public:
     UdpClient(boost::asio::io_context& io_context,
               int port,
               udp::endpoint endpoint,
               ReceiveCallback receiveCallback);
 
-    void sendMessage(const con::vector<uint8_t> data);
+    void sendMessage(const std::vector<uint8_t>& data);
 
     void sendMessageTo(udp::endpoint endpoint, const con::vector<uint8_t> data);
 
@@ -29,5 +32,7 @@ class UdpClient
     char recvBuf[UDP_REC_BUF_LEN];
     ReceiveCallback receiveCallback;
 };
+
+}  // namespace net
 
 #endif

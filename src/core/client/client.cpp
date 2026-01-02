@@ -11,6 +11,10 @@ Client::Client()
     uint8_t logLevel =
         static_cast<uint8_t>(std::get<float>(config.get({"loglevel"})));
     logging::createLogger("logs/logClient.txt", logLevel);
+
+    // Setup for testing
+    clientInfo.uuid = "1234abcd1234abcd";
+
     startClient();
 }
 Client::~Client() {}
@@ -44,7 +48,7 @@ void Client::startUdpTcp()
         });
 
     // tcpClient = std::make_unique<TcpClient>(ioContext, portTcp);
-    udpClient = std::make_unique<UdpClient>(
+    udpClient = std::make_unique<net::UdpClient>(
         ioContext,
         portUdp,
         udp::endpoint(boost::asio::ip::address::from_string(serverIp),
@@ -68,25 +72,21 @@ void Client::scheduleSend()
     sendTimer.async_wait(
         [this](boost::system::error_code ec)
         {
-            /*if (!ec)
+            if (!ec)
             {
-                SendRequest sendRequest;
-                // while (engine.sendQueue.try_dequeue(sendRequest))
+                CmdQueueData sendData;
+                while (model.sendQueue.try_dequeue(sendData))
                 {
-                    sendRequest.data.push_back('H');
-                    sendRequest.data.push_back('e');
-                    sendRequest.data.push_back('l');
-                    sendRequest.data.push_back('l');
-                    sendRequest.data.push_back('o');
-                    sendRequest.data.push_back('\n');
-                    udpClient->sendMessage(sendRequest.data);
+                    bitsery::Serializer<OutputAdapter> cmdser(OutputAdapter(sendData.data));
+                    cmdser.text1b(clientInfo.uuid, 16);
+                    udpClient->sendMessage(sendData.data);
                 }
                 scheduleSend();  // schedule next check
             }
             else
             {
                 LG_E("Send timer aborted");
-            }*/
+            }
         });
 }
 

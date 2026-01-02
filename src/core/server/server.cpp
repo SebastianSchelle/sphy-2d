@@ -29,9 +29,15 @@ void Server::startUdpTcp()
             ioContext.stop();  // Stop all IO operations
         });
 
-    tcpServer = std::make_unique<TcpServer>(ioContext, portTcp);
+    tcpServer = std::make_unique<net::TcpServer>(ioContext, portTcp);
     LG_D("Setup socket on port-tcp={}", portTcp);
-    udpServer = std::make_unique<UdpServer>(ioContext, portUdp);
+    udpServer =
+        std::make_unique<net::UdpServer>(ioContext,
+                                         portUdp,
+                                         std::bind(&Server::udpReceive,
+                                                   this,
+                                                   std::placeholders::_1,
+                                                   std::placeholders::_2));
     LG_D("Setup socket on port-udp={}", portUdp);
 
     ioThread = std::thread([this]() { ioContext.run(); });
@@ -64,7 +70,6 @@ void Server::scheduleSend()
                 {
                     if (sendRequest.sendType == SendType::UDP)
                     {
-                        LG_D("Sending UDP message to {}", sendRequest.data.size());
                         udpServer->sendMessage(
                             asio::ip::address::from_string("0.0.0.0"),
                             29203,
@@ -85,5 +90,29 @@ void Server::scheduleSend()
             }
         });
 }
+
+
+void Server::udpReceive(const char* data, size_t length)
+{
+    if (length > 5)
+    {
+        CmdQueueData cmdData;
+        cmdData.sendType = SendType::UDP;
+        cmdData.data.insert(cmdData.data.end(), data, data + length);
+        engine.receiveQueue.enqueue(cmdData);
+    }
+}
+
+void Server::tcpReceive(const char* data, size_t length)
+{
+    if (length > 5)
+    {
+        CmdQueueData cmdData;
+        cmdData.sendType = SendType::TCP;
+        cmdData.data.insert(cmdData.data.end(), data, data + length);
+        engine.receiveQueue.enqueue(cmdData);
+    }
+}
+
 
 }  // namespace sphys

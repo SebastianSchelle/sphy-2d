@@ -22,6 +22,14 @@ void Model::modelLoop()
         {
             parseCommand(recQueueData.data);
         }
+
+        // Send some stuff to server
+        CMDAT_PREP_C(SendType::UDP, prot::cmd::CMD_LOG, 0)
+        std::string str = "Hello World!";
+        cmdser.text1b(str, str.size());
+        CMDAT_FIN_C()
+        sendQueue.enqueue(cmdData);
+
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
@@ -43,7 +51,7 @@ void Model::parseCommand(std::vector<uint8_t> data)
         {
             std::string str;
             cmddes.text1b(str, len);
-            LG_I("Received (len={}): {}", len, str);
+            LG_I("Log from server: {}", str);
             break;
         }
         default:

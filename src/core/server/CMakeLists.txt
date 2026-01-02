@@ -1,5 +1,6 @@
 set(SERVER_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
+    src/common/data-definitions
 )
 
 set(SERVER_INC_PRIVATE

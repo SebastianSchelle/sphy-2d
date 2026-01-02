@@ -1,5 +1,7 @@
 #include "udp-client.hpp"
 
+namespace net
+{
 
 UdpClient::UdpClient(boost::asio::io_context& io_context,
                      int port,
@@ -13,20 +15,28 @@ UdpClient::UdpClient(boost::asio::io_context& io_context,
     startReceive();
 }
 
-void UdpClient::sendMessage(const con::vector<uint8_t> data)
+void UdpClient::sendMessage(const std::vector<uint8_t>& data)
 {
-    socket.send_to(boost::asio::buffer(data), devServerEndpoint);
+    socket.async_send_to(
+        boost::asio::buffer(data),
+        devServerEndpoint,
+        [this](const boost::system::error_code& ec, std::size_t bytes)
+        {
+            if (ec)
+            {
+                LG_W("Send failed: {}", ec.message());
+            }
+        });
 }
 
 void UdpClient::sendMessageTo(udp::endpoint endpoint,
-                               const con::vector<uint8_t> data)
+                              const con::vector<uint8_t> data)
 {
     socket.send_to(boost::asio::buffer(data), endpoint);
 }
 
 void UdpClient::startReceive()
 {
-    LG_D("Starting receive from {}", devServerEndpoint.address().to_string());
     socket.async_receive_from(
         boost::asio::buffer(recvBuf, UDP_REC_BUF_LEN),
         devServerEndpoint,
@@ -51,3 +61,4 @@ void UdpClient::handleReceive(const boost::system::error_code& error,
     startReceive();
 }
 
+}  // namespace net

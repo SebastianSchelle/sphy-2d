@@ -2,10 +2,7 @@ set(LIB_NAME sphy-2d-client)
 
 set(CLIENT_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-set(CLIENT_INC_PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/src/common/data-definitions
 )
 
 set(CLIENT_INC_PRIVATE

@@ -1,5 +1,8 @@
 #include "tcp-server.hpp"
 
+namespace net
+{
+
 TcpConnection::pointer
 TcpConnection::create(boost::asio::io_context& io_context)
 {
@@ -71,8 +74,7 @@ TcpServer::TcpServer(boost::asio::io_context& io_context, int port)
 
 void TcpServer::StartAccept()
 {
-    TcpConnection::pointer new_connection =
-        TcpConnection::create(io_context_);
+    TcpConnection::pointer new_connection = TcpConnection::create(io_context_);
 
     acceptor_.async_accept(
         new_connection->socket(),
@@ -81,7 +83,7 @@ void TcpServer::StartAccept()
 }
 
 void TcpServer::HandleAccept(TcpConnection::pointer new_connection,
-                               const boost::system::error_code& error)
+                             const boost::system::error_code& error)
 {
     if (!error)
     {
@@ -90,3 +92,5 @@ void TcpServer::HandleAccept(TcpConnection::pointer new_connection,
 
     StartAccept();
 }
+
+}  // namespace net

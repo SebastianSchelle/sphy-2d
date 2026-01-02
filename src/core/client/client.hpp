@@ -6,6 +6,8 @@
 #include <config-manager/config-manager.hpp>
 #include <udp-client.hpp>
 #include <model.hpp>
+#include <client-def.hpp>
+#include <protocol.hpp>
 
 namespace sphyc
 {
@@ -24,13 +26,14 @@ class Client
     void tcpReceive(const char* data, size_t length);
 
     Model model;
-    std::unique_ptr<UdpClient> udpClient;
+    std::unique_ptr<net::UdpClient> udpClient;
     // std::unique_ptr<TcpClient> tcpClient;
     boost::asio::io_context ioContext;
     std::thread ioThread;
     boost::asio::signal_set signals;
     cfg::ConfigManager config;
     boost::asio::steady_timer sendTimer;
+    def::ClientInfo clientInfo;
 };
 
 }  // namespace sphys

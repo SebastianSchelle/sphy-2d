@@ -26,14 +26,16 @@ class Server
 
   private:
     void scheduleSend();
+    void udpReceive(const char* data, size_t length);
+    void tcpReceive(const char* data, size_t length);
 
     sphys::Engine engine;
     cfg::ConfigManager config;
     boost::asio::io_context ioContext;
     std::thread ioThread;
     asio::steady_timer sendTimer;
-    std::unique_ptr<UdpServer> udpServer;
-    std::unique_ptr<TcpServer> tcpServer;
+    std::unique_ptr<net::UdpServer> udpServer;
+    std::unique_ptr<net::TcpServer> tcpServer;
     boost::asio::signal_set signals;
 };
 

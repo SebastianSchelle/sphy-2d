@@ -23,6 +23,7 @@ class Engine
 
   private:
     void engineLoop();
+    void parseCommand(std::vector<uint8_t> data);
 
     std::thread engineThread;
 };

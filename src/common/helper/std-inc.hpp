@@ -35,7 +35,6 @@ enum class SendType
 typedef struct
 {
     SendType sendType;
-    char uuid[16];
     uint8_t clientId;
     std::vector<uint8_t> data;
 } CmdQueueData;
