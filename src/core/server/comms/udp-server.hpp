@@ -5,12 +5,13 @@
 #include <std-inc.hpp>
 
 using boost::asio::ip::udp;
+using boost::asio::ip::address;
 
 class UdpServer
 {
   public:
     UdpServer(boost::asio::io_context& io_context, int port);
-    void sendMessage();
+    void sendMessage(address address, con::vector<uint8_t> data);
   private:
     void StartReceive();
 

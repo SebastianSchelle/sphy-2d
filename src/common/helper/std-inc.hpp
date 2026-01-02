@@ -12,7 +12,9 @@
 #include <string>
 #include <iostream>
 #include <array>
+#include <boost/container/vector.hpp>
 
 using std::string;
+namespace con = boost::container;
 
 #endif

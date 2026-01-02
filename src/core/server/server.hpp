@@ -2,10 +2,11 @@
 #define SERVER_HPP
 
 #include <boost/asio.hpp>
-#include <config-manager/config-manager.hpp>
-#include <engine.hpp>
+#include <boost/asio/ip/address.hpp>
 #include <comms/tcp-server.hpp>
 #include <comms/udp-server.hpp>
+#include <config-manager/config-manager.hpp>
+#include <engine.hpp>
 
 namespace asio = boost::asio;
 using tcp = asio::ip::tcp;
@@ -21,8 +22,9 @@ class Server
     ~Server();
     void startUdpTcp();
     void startServer();
+    void startEngine();
 
-    private:
+  private:
     void scheduleSend();
 
     sphys::Engine engine;

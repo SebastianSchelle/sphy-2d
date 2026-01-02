@@ -37,8 +37,14 @@ void Server::startUdpTcp()
 void Server::startServer()
 {
     startUdpTcp();
+    startEngine();
     ioThread.join();
     spdlog::shutdown();
+}
+
+void Server::startEngine()
+{
+    engine.start();
 }
 
 void Server::scheduleSend()
@@ -49,7 +55,11 @@ void Server::scheduleSend()
         {
             if (!ec)
             {
-                udpServer->sendMessage();
+                SendRequest sendRequest;
+                while(engine.sendQueue.try_dequeue(sendRequest))
+                {
+                    udpServer->sendMessage(sendRequest.address, sendRequest.data);
+                }
                 scheduleSend();  // schedule next check
             } else {
                 LG_E("Send timer aborted");

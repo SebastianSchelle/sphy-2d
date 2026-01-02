@@ -39,13 +39,9 @@ void UdpServer::handleSend(std::shared_ptr<std::string> message)
 {
 }
 
-void UdpServer::sendMessage()
+void UdpServer::sendMessage(address address, con::vector<uint8_t> data)
 {
-    if(remote_endpoint_.address().is_unspecified())
-    {
-        LG_E("Remote endpoint is unspecified");
-        return;
-    }
-    socket_.send_to(boost::asio::buffer("hello world"), remote_endpoint_);
+    udp::endpoint endpoint(address, 8088);
+    socket_.send_to(boost::asio::buffer(data), endpoint);
 }
 
