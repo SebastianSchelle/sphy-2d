@@ -1,0 +1,11 @@
+CompileFlags:
+  Add: [-std=c++20]
+
+Format:
+  # Use the .clang-format file in the project root
+  # Note: .clangd cannot embed all formatting options directly,
+  # so it references the .clang-format file which contains
+  # all your detailed formatting rules
+  Style: file
+  FallbackStyle: LLVM
+

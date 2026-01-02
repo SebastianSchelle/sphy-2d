@@ -1,0 +1,12 @@
+[submodule "thirdparty/yaml-cpp"]
+	path = thirdparty/yaml-cpp
+	url = https://github.com/jbeder/yaml-cpp.git
+[submodule "spflog"]
+	path = spflog
+	url = https://github.com/gabime/spdlog.git
+[submodule "thirdparty/spdlog"]
+	path = thirdparty/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "thirdparty/concurrentqueue"]
+	path = thirdparty/concurrentqueue
+	url = https://github.com/cameron314/concurrentqueue.git

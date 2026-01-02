@@ -1,9 +1,8 @@
 #ifndef SPHY_2D_HPP
 #define SPHY_2D_HPP
 
-#include <iostream>
-#include <vector>
-#include <memory>
+#include "std-inc.hpp"
+#include "logging.hpp"
 
 void sayHello();
 
