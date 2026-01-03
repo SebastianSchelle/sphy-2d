@@ -6,6 +6,9 @@
 #include <concurrentqueue.h>
 #include <config-manager/config-manager.hpp>
 #include <sphy-2d.hpp>
+#include <item-lib.hpp>
+#include <client-def.hpp>
+#include <net-shared.hpp>
 
 using moodycamel::ConcurrentQueue;
 
@@ -18,14 +21,16 @@ class Engine
     Engine();
     ~Engine();
     void start();
-    ConcurrentQueue<CmdQueueData> sendQueue;
-    ConcurrentQueue<CmdQueueData> receiveQueue;
+    void registerClient(const std::string &uuid, const std::string &name);
+    ConcurrentQueue<net::CmdQueueData> sendQueue;
+    ConcurrentQueue<net::CmdQueueData> receiveQueue;
 
   private:
     void engineLoop();
-    void parseCommand(std::vector<uint8_t> data);
+    void parseCommand(const net::CmdQueueData& cmdData);
 
     std::thread engineThread;
+    con::ItemLib<def::ClientInfo> clientLib;
 };
 
 }  // namespace sphys

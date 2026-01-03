@@ -10,10 +10,10 @@ Client::Client()
 {
     uint8_t logLevel =
         static_cast<uint8_t>(std::get<float>(config.get({"loglevel"})));
-    logging::createLogger("logs/logClient.txt", logLevel);
+    debug::createLogger("logs/logClient.txt", logLevel);
 
     // Setup for testing
-    clientInfo.uuid = "1234abcd1234abcd";
+    clientInfo.token = "1234abcd1234abcd";
 
     startClient();
 }
@@ -31,8 +31,6 @@ void Client::startUdpTcp()
 {
     int portUdp = static_cast<int>(
         std::get<float>(config.get({"connection", "client-port-udp"})));
-    int portTcp = static_cast<int>(
-        std::get<float>(config.get({"connection", "client-port-tcp"})));
     int servPortUdp = static_cast<int>(
         std::get<float>(config.get({"connection", "serv-port-udp"})));
     int servPortTcp = static_cast<int>(
@@ -62,7 +60,27 @@ void Client::startUdpTcp()
          servPortUdp,
          portUdp);
 
+    tcpClient = std::make_unique<net::TcpClient>(
+        ioContext,
+        tcp::endpoint(boost::asio::ip::address::from_string(serverIp),
+                      servPortTcp),
+        std::bind(&Client::tcpReceive,
+                  this,
+                  std::placeholders::_1,
+                  std::placeholders::_2));
+    LG_D("Setup tcp socket to server at {}:{} on port {}",
+         serverIp,
+         servPortTcp,
+         portUdp);
+
     ioThread = std::thread([this]() { ioContext.run(); });
+
+    CMDAT_PREP(net::SendType::TCP, 0, prot::cmd::CONNECT, 0)
+    std::string token = "1234abcd1234abcd";
+    cmdser.text1b(token, token.size());
+    CMDAT_FIN()
+    model.sendQueue.enqueue(cmdData);
+
     scheduleSend();
 }
 
@@ -74,12 +92,19 @@ void Client::scheduleSend()
         {
             if (!ec)
             {
-                CmdQueueData sendData;
+                net::CmdQueueData sendData;
                 while (model.sendQueue.try_dequeue(sendData))
                 {
-                    bitsery::Serializer<OutputAdapter> cmdser(OutputAdapter(sendData.data));
-                    cmdser.text1b(clientInfo.uuid, 16);
-                    udpClient->sendMessage(sendData.data);
+                    if(sendData.sendType == net::SendType::UDP)
+                    {
+                        bitsery::Serializer<OutputAdapter> cmdser(OutputAdapter(sendData.data));
+                        cmdser.text1b(clientInfo.token, 16);
+                        udpClient->sendMessage(sendData.data);
+                    }
+                    else if(sendData.sendType == net::SendType::TCP)
+                    {
+                        tcpClient->sendMessage(sendData.data);
+                    }
                 }
                 scheduleSend();  // schedule next check
             }
@@ -94,8 +119,8 @@ void Client::udpReceive(const char* data, size_t length)
 {
     if (length > 5)
     {
-        CmdQueueData cmdData;
-        cmdData.sendType = SendType::UDP;
+        net::CmdQueueData cmdData;
+        cmdData.sendType = net::SendType::UDP;
         cmdData.data.insert(cmdData.data.end(), data, data + length);
         model.receiveQueue.enqueue(cmdData);
     }
@@ -105,8 +130,8 @@ void Client::tcpReceive(const char* data, size_t length)
 {
     if (length > 5)
     {
-        CmdQueueData cmdData;
-        cmdData.sendType = SendType::TCP;
+        net::CmdQueueData cmdData;
+        cmdData.sendType = net::SendType::TCP;
         cmdData.data.insert(cmdData.data.end(), data, data + length);
         model.receiveQueue.enqueue(cmdData);
     }

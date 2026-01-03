@@ -11,7 +11,7 @@
 #define LG_E(...) spdlog::critical(__VA_ARGS__);
 #define LG_W(...) spdlog::warn(__VA_ARGS__);
 
-namespace logging
+namespace debug
 {
 
 inline void createLogger(std::string logFile, uint8_t level)
@@ -28,6 +28,6 @@ inline void createLogger(std::string logFile, uint8_t level)
     spdlog::set_level(static_cast<spdlog::level::level_enum>(level));
 }
 
-} // namespace logging
+} // namespace debug
 
 #endif

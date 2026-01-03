@@ -4,9 +4,9 @@ namespace net
 {
 
 TcpConnection::pointer
-TcpConnection::create(boost::asio::io_context& io_context)
+TcpConnection::create(boost::asio::io_context& io_context, ReceiveCallbackConn receiveCallback)
 {
-    return pointer(new TcpConnection(io_context));
+    return pointer(new TcpConnection(io_context, receiveCallback));
 }
 
 tcp::socket& TcpConnection::socket()
@@ -16,11 +16,18 @@ tcp::socket& TcpConnection::socket()
 
 void TcpConnection::start()
 {
+    running = true;
     doRead();
 }
 
-TcpConnection::TcpConnection(boost::asio::io_context& io_context)
-    : socket_(io_context)
+void TcpConnection::close()
+{
+    running = false;
+    socket_.shutdown(tcp::socket::shutdown_both);
+}
+
+TcpConnection::TcpConnection(boost::asio::io_context& io_context, ReceiveCallbackConn receiveCallback)
+    : socket_(io_context), receiveCallback(receiveCallback)
 {
 }
 
@@ -31,16 +38,18 @@ void TcpConnection::doRead()
         boost::asio::buffer(recvBuf, TCP_REC_BUF_LEN),
         [this, self](boost::system::error_code ec, std::size_t length)
         {
-            if (!ec)
+            if (!ec && length > 0 && running)
             {
-                std::string received(recvBuf, length);
-                LG_D("Received: {}", received);
-
-                // Echo or process
-                doWrite("Echo: " + received);
-
-                // Continue reading
+                if(receiveCallback)
+                {
+                    receiveCallback(recvBuf, length, self);
+                }
+                else
+                {
+                    LG_D("Received: {}", std::string(recvBuf, length));
+                }
                 doRead();
+                close();
             }
             else
             {
@@ -64,9 +73,10 @@ void TcpConnection::doWrite(const std::string& msg)
         });
 }
 
-TcpServer::TcpServer(boost::asio::io_context& io_context, int port)
+TcpServer::TcpServer(boost::asio::io_context& io_context, int port, ReceiveCallbackConn receiveCallback)
     : io_context_(io_context),
-      acceptor_(io_context, tcp::endpoint(tcp::v4(), port))
+      acceptor_(io_context, tcp::endpoint(tcp::v4(), port)),
+      receiveCallback(receiveCallback)
 {
     LG_D("Starting TCP server on port {}", port);
     StartAccept();
@@ -74,7 +84,7 @@ TcpServer::TcpServer(boost::asio::io_context& io_context, int port)
 
 void TcpServer::StartAccept()
 {
-    TcpConnection::pointer new_connection = TcpConnection::create(io_context_);
+    TcpConnection::pointer new_connection = TcpConnection::create(io_context_, receiveCallback);
 
     acceptor_.async_accept(
         new_connection->socket(),

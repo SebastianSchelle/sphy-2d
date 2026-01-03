@@ -3,6 +3,8 @@
 
 #include <std-inc.hpp>
 #include <concurrentqueue.h>
+#include <client-def.hpp>
+#include <net-shared.hpp>
 
 using moodycamel::ConcurrentQueue;
 
@@ -17,12 +19,17 @@ class Model
     void start();
     void parseCommand(std::vector<uint8_t> data);
 
-    ConcurrentQueue<CmdQueueData> sendQueue;
-    ConcurrentQueue<CmdQueueData> receiveQueue;
+    ConcurrentQueue<net::CmdQueueData> sendQueue;
+    ConcurrentQueue<net::CmdQueueData> receiveQueue;
 
   private:
     void modelLoop();
+    void modelLoopMenu();
+    void modelLoopGame();
+    void timeSync();
     std::thread modelThread;
+    def::TimeSync timeSyncData;
+    ConnectionState connectionState = ConnectionState::DISCONNECTED;
 };
 
 }  // namespace sphyc

@@ -8,11 +8,26 @@ namespace def
 
 typedef struct
 {
-    std::string uuid;
+    std::string token;
     std::string name;
+    int portUdp;
+    int portTcp;
+    std::string address;
 } ClientInfo;
 
-EXT_SER(ClientInfo, s.text1b(o.uuid, 16); s.text1b(o.name, o.name.size());)
+typedef struct
+{
+    tim::Timepoint t0;
+    tim::Timepoint t1;
+    tim::Timepoint t2;
+    uint8_t cnt;
+    bool waiting = false;
+    float latency[10];
+    float offset[10];
+    float serverOffset;
+} TimeSync;
+
+EXT_SER(ClientInfo, s.text1b(o.token, 16); s.text1b(o.name, o.name.size());)
 
 }  // namespace def
 

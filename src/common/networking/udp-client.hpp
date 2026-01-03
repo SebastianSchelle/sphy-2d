@@ -1,8 +1,8 @@
 #ifndef UDP_CLIENT_HPP
 #define UDP_CLIENT_HPP
 
-#include <std-inc.hpp>
 #include <net-shared.hpp>
+#include <std-inc.hpp>
 
 static const size_t UDP_REC_BUF_LEN = 1024;
 
@@ -19,7 +19,7 @@ class UdpClient
 
     void sendMessage(const std::vector<uint8_t>& data);
 
-    void sendMessageTo(udp::endpoint endpoint, const con::vector<uint8_t> data);
+    void sendMessageTo(udp::endpoint endpoint, const std::vector<uint8_t> data);
 
     void startReceive();
 

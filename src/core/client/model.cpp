@@ -15,23 +15,63 @@ void Model::start()
 
 void Model::modelLoop()
 {
+
     while (true)
     {
-        CmdQueueData recQueueData;
-        while (receiveQueue.try_dequeue(recQueueData))
+        if (connectionState == ConnectionState::DISCONNECTED)
         {
-            parseCommand(recQueueData.data);
+            modelLoopMenu();
         }
-
-        // Send some stuff to server
-        CMDAT_PREP_C(SendType::UDP, prot::cmd::CMD_LOG, 0)
-        std::string str = "Hello World!";
-        cmdser.text1b(str, str.size());
-        CMDAT_FIN_C()
-        sendQueue.enqueue(cmdData);
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        else if (connectionState == ConnectionState::CONNECTED)
+        {
+            modelLoopGame();
+        }
     }
+}
+
+void Model::timeSync()
+{
+    LG_D("Attempting time sync");
+    timeSyncData.t0 = tim::getCurrentTimeU();
+    timeSyncData.waiting = true;
+    CMDAT_PREP_TOKEN(net::SendType::UDP, prot::cmd::TIME_SYNC, 0)
+    CMDAT_FIN_TOKEN()
+    sendQueue.enqueue(cmdData);
+}
+
+void Model::modelLoopMenu()
+{
+    while (true)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+}
+
+void Model::modelLoopGame()
+{
+    static tim::Timepoint lastTSync = tim::getCurrentTimeU();
+
+    tim::Timepoint now = tim::getCurrentTimeU();
+    net::CmdQueueData recQueueData;
+    while (receiveQueue.try_dequeue(recQueueData))
+    {
+        parseCommand(recQueueData.data);
+    }
+
+    // Send some stuff to server
+    CMDAT_PREP_TOKEN(net::SendType::UDP, prot::cmd::LOG, 0)
+    std::string str = "Hello World!";
+    cmdser.text1b(str, str.size());
+    CMDAT_FIN_TOKEN()
+    sendQueue.enqueue(cmdData);
+
+    if (tim::durationU(lastTSync, now) > 2000000)
+    {
+        //timeSync();
+        lastTSync = now;
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 }
 
 void Model::parseCommand(std::vector<uint8_t> data)
@@ -47,11 +87,21 @@ void Model::parseCommand(std::vector<uint8_t> data)
 
     switch (cmd)
     {
-        case prot::cmd::CMD_LOG:
+        case prot::cmd::LOG:
         {
             std::string str;
             cmddes.text1b(str, len);
             LG_I("Log from server: {}", str);
+            break;
+        }
+        case prot::cmd::TIME_SYNC:
+        {
+            if(timeSyncData.waiting && flags & CMD_FLAG_RESP && len == 8)
+            {
+
+                timeSyncData.t1 = tim::getCurrentTimeU();
+                timeSyncData.waiting = false;
+            }
             break;
         }
         default:

@@ -9,7 +9,7 @@ Server::Server()
 {
     uint8_t logLevel =
         static_cast<uint8_t>(std::get<float>(config.get({"loglevel"})));
-    logging::createLogger("logs/logServer.txt", logLevel);
+    debug::createLogger("logs/logServer.txt", logLevel);
     startServer();
 }
 Server::~Server() {}
@@ -29,8 +29,16 @@ void Server::startUdpTcp()
             ioContext.stop();  // Stop all IO operations
         });
 
-    tcpServer = std::make_unique<net::TcpServer>(ioContext, portTcp);
+    tcpServer =
+        std::make_unique<net::TcpServer>(ioContext,
+                                         portTcp,
+                                         std::bind(&Server::tcpReceive,
+                                                   this,
+                                                   std::placeholders::_1,
+                                                   std::placeholders::_2,
+                                                   std::placeholders::_3));
     LG_D("Setup socket on port-tcp={}", portTcp);
+
     udpServer =
         std::make_unique<net::UdpServer>(ioContext,
                                          portUdp,
@@ -65,17 +73,17 @@ void Server::scheduleSend()
         {
             if (!ec)
             {
-                CmdQueueData sendRequest;
+                net::CmdQueueData sendRequest;
                 while (engine.sendQueue.try_dequeue(sendRequest))
                 {
-                    if (sendRequest.sendType == SendType::UDP)
+                    if (sendRequest.sendType == net::SendType::UDP)
                     {
                         udpServer->sendMessage(
                             asio::ip::address::from_string("0.0.0.0"),
-                            29203,
+                            29202,
                             sendRequest.data);
                     }
-                    else if (sendRequest.sendType == SendType::TCP)
+                    else if (sendRequest.sendType == net::SendType::TCP)
                     {
                         // tcpServer->sendMessage(
                         //     asio::ip::address::from_string("0.0.0.0"), 29202,
@@ -96,19 +104,22 @@ void Server::udpReceive(const char* data, size_t length)
 {
     if (length > 5)
     {
-        CmdQueueData cmdData;
-        cmdData.sendType = SendType::UDP;
+        net::CmdQueueData cmdData;
+        cmdData.sendType = net::SendType::UDP;
         cmdData.data.insert(cmdData.data.end(), data, data + length);
         engine.receiveQueue.enqueue(cmdData);
     }
 }
 
-void Server::tcpReceive(const char* data, size_t length)
+void Server::tcpReceive(const char* data,
+                        size_t length,
+                        std::shared_ptr<net::TcpConnection> connection)
 {
     if (length > 5)
     {
-        CmdQueueData cmdData;
-        cmdData.sendType = SendType::TCP;
+        net::CmdQueueData cmdData;
+        cmdData.sendType = net::SendType::TCP;
+        cmdData.tcpConnection = connection;
         cmdData.data.insert(cmdData.data.end(), data, data + length);
         engine.receiveQueue.enqueue(cmdData);
     }

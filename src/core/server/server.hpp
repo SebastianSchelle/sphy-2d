@@ -27,7 +27,7 @@ class Server
   private:
     void scheduleSend();
     void udpReceive(const char* data, size_t length);
-    void tcpReceive(const char* data, size_t length);
+    void tcpReceive(const char* data, size_t length, std::shared_ptr<net::TcpConnection> connection);
 
     sphys::Engine engine;
     cfg::ConfigManager config;

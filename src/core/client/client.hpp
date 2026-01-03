@@ -5,6 +5,7 @@
 // #include <tcp-client.hpp>
 #include <config-manager/config-manager.hpp>
 #include <udp-client.hpp>
+#include <tcp-client.hpp>
 #include <model.hpp>
 #include <client-def.hpp>
 #include <protocol.hpp>
@@ -27,7 +28,7 @@ class Client
 
     Model model;
     std::unique_ptr<net::UdpClient> udpClient;
-    // std::unique_ptr<TcpClient> tcpClient;
+    std::unique_ptr<net::TcpClient> tcpClient;
     boost::asio::io_context ioContext;
     std::thread ioThread;
     boost::asio::signal_set signals;

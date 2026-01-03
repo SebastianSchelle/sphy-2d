@@ -30,7 +30,7 @@ void UdpClient::sendMessage(const std::vector<uint8_t>& data)
 }
 
 void UdpClient::sendMessageTo(udp::endpoint endpoint,
-                              const con::vector<uint8_t> data)
+                              const std::vector<uint8_t> data)
 {
     socket.send_to(boost::asio::buffer(data), endpoint);
 }
