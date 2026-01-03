@@ -6,21 +6,43 @@ namespace sphyc
 
 Model::Model() {}
 
-Model::~Model() {}
+Model::~Model()
+{
+    stop();
+    wait();  // Ensure thread is joined
+}
 
 void Model::start()
 {
+    running = true;
     modelThread = std::thread([this]() { modelLoop(); });
+}
+
+void Model::stop()
+{
+    running = false;
+}
+
+void Model::wait()
+{
+    if (modelThread.joinable())
+    {
+        modelThread.join();
+    }
 }
 
 void Model::modelLoop()
 {
-    while (true)
+    while (running)
     {
         net::CmdQueueData recQueueData;
         while (receiveQueue.try_dequeue(recQueueData))
         {
             parseCommand(recQueueData.data);
+        }
+        if (!running)
+        {
+            break;
         }
         if (connectionState == ConnectionState::DISCONNECTED)
         {

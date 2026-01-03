@@ -13,3 +13,18 @@
 [submodule "thirdparty/bitsery"]
 	path = thirdparty/bitsery
 	url = https://github.com/fraillt/bitsery.git
+[submodule "thirdparty/glfw"]
+	path = thirdparty/glfw
+	url = https://github.com/glfw/glfw.git
+[submodule "thirdparty/bgfx"]
+	path = thirdparty/bgfx
+	url = https://github.com/bkaradzic/bgfx.cmake.git
+[submodule "thirdparty/glm"]
+	path = thirdparty/glm
+	url = https://github.com/g-truc/glm.git
+[submodule "thirdparty/rmlui"]
+	path = thirdparty/rmlui
+	url = https://github.com/mikke89/RmlUi.git
+[submodule "thirdparty/freetype"]
+	path = thirdparty/freetype
+	url = https://github.com/freetype/freetype.git

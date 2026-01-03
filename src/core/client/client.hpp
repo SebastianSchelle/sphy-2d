@@ -19,7 +19,9 @@ class Client
     Client();
     ~Client();
     void startClient();
-    void startUdpTcp();
+    void connectToServer();
+    void shutdown();
+    void wait();  // Wait for model thread to finish
 
   private:
     void scheduleSend();
@@ -35,6 +37,8 @@ class Client
     cfg::ConfigManager config;
     boost::asio::steady_timer sendTimer;
     net::ClientInfo clientInfo;
+    std::atomic<bool> shuttingDown{false};
+    std::atomic<bool> spdlogShutdown{false};
 };
 
 }  // namespace sphys

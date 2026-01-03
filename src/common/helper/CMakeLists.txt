@@ -1,7 +1,10 @@
+set(THIRPARTY_DIR ${CMAKE_SOURCE_DIR}/thirdparty)
+
 set(HELPER_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/config-manager
-    thirdparty/bitsery/include
+    ${THIRPARTY_DIR}/bitsery/include
+    ${THIRPARTY_DIR}/glm
 )
 
 set(HELPER_SOURCES

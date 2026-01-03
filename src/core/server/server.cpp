@@ -4,7 +4,7 @@ namespace sphys
 {
 
 Server::Server()
-    : config("defs/server.yaml"), sendTimer(ioContext),
+    : config("modules/core/defs/server.yaml"), sendTimer(ioContext),
       signals(ioContext, SIGINT, SIGTERM)
 {
     uint8_t logLevel =

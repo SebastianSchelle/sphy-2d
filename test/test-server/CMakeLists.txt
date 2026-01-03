@@ -13,13 +13,14 @@ set(SOURCES
 add_executable(${EXEC_NAME_TS} ${SOURCES})
 target_include_directories(${EXEC_NAME_TS} PUBLIC ${INC})
 target_link_libraries(${EXEC_NAME_TS} PUBLIC sphy-2d-server)
+add_dependencies(${EXEC_NAME_TS} cpm_ts)
 
 message(STATUS "server deploy directory: ${DEPLOY_DIR_TS}")
 
 add_custom_command(TARGET ${EXEC_NAME_TS} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${EXEC_NAME_TS}> ${DEPLOY_DIR_TS}
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${EXEC_NAME_TS}> ${DEPLOY_DIR_TS}/${EXEC_NAME_TS}
 )
 
-add_custom_command(TARGET ${EXEC_NAME_TS} PRE_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/game-dir ${DEPLOY_DIR_TS}
+add_custom_target(cpm_ts ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/game-dir ${DEPLOY_DIR_TS}/modules/core
 )

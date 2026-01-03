@@ -1,0 +1,39 @@
+<rml>
+<head>
+    <title>RmlUi Test</title>
+</head>
+
+<body style="font-family: sans-serif; font-size: 18px; padding: 20px;">
+
+    <div style="
+        width: 300px;
+        padding: 20px;
+        background-color: #2e2e2e;
+        color: white;
+    ">
+
+        <div style="margin-bottom: 10px;">
+            RmlUi is working.
+        </div>
+
+        <button style="
+            display: block;
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 10px;
+        ">
+            Button One
+        </button>
+
+        <button style="
+            display: block;
+            width: 100%;
+            padding: 10px;
+        ">
+            Button Two
+        </button>
+
+    </div>
+
+</body>
+</rml>

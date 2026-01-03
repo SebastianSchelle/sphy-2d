@@ -1,9 +1,9 @@
 #ifndef TEST_SERVER_HPP
 #define TEST_SERVER_HPP
 
-#include <client.hpp>
+#include <main-window.hpp>
 
-class TestClient : public sphyc::Client {
+class TestClient : public ui::MainWindow {
   public:
     TestClient();
     ~TestClient();

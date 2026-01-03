@@ -3,6 +3,6 @@
 
 #include "std-inc.hpp"
 
-void sayHello();
+
 
 #endif

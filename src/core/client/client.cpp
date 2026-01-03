@@ -1,11 +1,10 @@
 #include <client.hpp>
-#include <iostream>
 
 namespace sphyc
 {
 
 Client::Client()
-    : model(), config("defs/client.yaml"), sendTimer(ioContext),
+    : model(), config("modules/core/defs/client.yaml"), sendTimer(ioContext),
       signals(ioContext, SIGINT, SIGTERM)
 {
     uint8_t logLevel =
@@ -14,20 +13,71 @@ Client::Client()
 
     // Setup for testing
     clientInfo.token = "1234abcd1234abcd";
+    
 
     startClient();
 }
-Client::~Client() {}
+Client::~Client()
+{
+    shutdown();
+    // Ensure threads are joined in destructor
+    model.wait();
+    if (ioThread.joinable())
+    {
+        ioThread.join();
+    }
+    // Shutdown spdlog only once
+    if (!spdlogShutdown.exchange(true))
+    {
+        spdlog::shutdown();
+    }
+}
 
 void Client::startClient()
 {
-    startUdpTcp();
+    signals.async_wait(
+        [this](const boost::system::error_code&, int)
+        {
+            LG_I("Signal received, shutting down...");
+            shutdown();
+        });
+
+    // Start ioContext in background thread for signal handling
+    ioThread = std::thread([this]() { ioContext.run(); });
+
     model.start();
-    ioThread.join();
-    spdlog::shutdown();
 }
 
-void Client::startUdpTcp()
+void Client::shutdown()
+{
+    if (shuttingDown.exchange(true))
+    {
+        return;  // Already shutting down
+    }
+    LG_I("Shutting down client...");
+    ioContext.stop();  // Stop all IO operations (will cause ioContext.run() to return)
+    model.stop();      // Stop model thread (sets flag, doesn't join)
+    // Don't join threads here - signal handler might be called from ioThread itself
+    // Threads will be joined in wait() or destructor
+}
+
+void Client::wait()
+{
+    // Wait for model thread to finish (will finish when shutdown is called)
+    model.wait();
+    // Now join ioThread (ioContext.run() has returned after stop())
+    if (ioThread.joinable())
+    {
+        ioThread.join();
+    }
+    // Shutdown spdlog only once
+    if (!spdlogShutdown.exchange(true))
+    {
+        spdlog::shutdown();
+    }
+}
+
+void Client::connectToServer()
 {
     int portUdp = static_cast<int>(
         std::get<float>(config.get({"connection", "client-port-udp"})));
@@ -37,13 +87,6 @@ void Client::startUdpTcp()
         std::get<float>(config.get({"connection", "serv-port-tcp"})));
     string serverIp =
         std::get<std::string>(config.get({"connection", "server-ip"}));
-
-    signals.async_wait(
-        [&](const boost::system::error_code&, int)
-        {
-            LG_I("Signal received, shutting down...");
-            ioContext.stop();  // Stop all IO operations
-        });
 
     // tcpClient = std::make_unique<TcpClient>(ioContext, portTcp);
     udpClient = std::make_unique<net::UdpClient>(
@@ -73,7 +116,8 @@ void Client::startUdpTcp()
          servPortTcp,
          portUdp);
 
-    ioThread = std::thread([this]() { ioContext.run(); });
+    // ioContext is already running in ioThread for signal handling
+    // No need to start a new thread
 
     CMDAT_PREP(net::SendType::TCP, prot::cmd::CONNECT, 0)
     std::string token = "1234abcd1234abcd";
@@ -83,6 +127,7 @@ void Client::startUdpTcp()
     model.sendQueue.enqueue(cmdData);
 
     scheduleSend();
+    // Don't join ioThread here - it's already running and will be joined in shutdown()
 }
 
 void Client::scheduleSend()

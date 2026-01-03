@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Client",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/deploy/test-client/test-client",
+            "args": [],
+            "cwd": "${workspaceFolder}/deploy/test-client",
+            "stopOnEntry": false
+        }
+    ]
+}
