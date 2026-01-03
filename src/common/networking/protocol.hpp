@@ -10,10 +10,9 @@ using Buffer = std::vector<uint8_t>;
 using OutputAdapter = bitsery::OutputBufferAdapter<Buffer>;
 using InputAdapter = bitsery::InputBufferAdapter<Buffer>;
 
-#define CMDAT_PREP(sType, cId, cmd, flags)                                     \
+#define CMDAT_PREP(sType, cmd, flags)                                     \
     net::CmdQueueData cmdData;                                                 \
     cmdData.sendType = sType;                                                  \
-    cmdData.clientId = cId;                                                    \
     bitsery::Serializer<OutputAdapter> cmdser(OutputAdapter(cmdData.data));    \
     cmdser.value2b((uint16_t)cmd);                                             \
     cmdser.value1b((uint8_t)flags);                                            \

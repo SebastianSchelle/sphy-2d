@@ -28,7 +28,7 @@ class Model
     void modelLoopGame();
     void timeSync();
     std::thread modelThread;
-    def::TimeSync timeSyncData;
+    net::TimeSync timeSyncData;
     ConnectionState connectionState = ConnectionState::DISCONNECTED;
 };
 

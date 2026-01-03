@@ -79,15 +79,12 @@ void Server::scheduleSend()
                     if (sendRequest.sendType == net::SendType::UDP)
                     {
                         udpServer->sendMessage(
-                            asio::ip::address::from_string("0.0.0.0"),
-                            29202,
+                            sendRequest.udpEndpoint,
                             sendRequest.data);
                     }
                     else if (sendRequest.sendType == net::SendType::TCP)
                     {
-                        // tcpServer->sendMessage(
-                        //     asio::ip::address::from_string("0.0.0.0"), 29202,
-                        //     sendRequest.data);
+                        sendRequest.tcpConnection->sendMessage(sendRequest.data);
                     }
                 }
                 scheduleSend();  // schedule next check
@@ -102,7 +99,7 @@ void Server::scheduleSend()
 
 void Server::udpReceive(const char* data, size_t length)
 {
-    if (length > 5)
+    if (length >= 21)
     {
         net::CmdQueueData cmdData;
         cmdData.sendType = net::SendType::UDP;
@@ -115,7 +112,7 @@ void Server::tcpReceive(const char* data,
                         size_t length,
                         std::shared_ptr<net::TcpConnection> connection)
 {
-    if (length > 5)
+    if (length >= 5)
     {
         net::CmdQueueData cmdData;
         cmdData.sendType = net::SendType::TCP;

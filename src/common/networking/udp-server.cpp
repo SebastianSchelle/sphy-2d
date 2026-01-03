@@ -37,12 +37,9 @@ void UdpServer::handleReceive(const boost::system::error_code& error,
     startReceive();
 }
 
-void UdpServer::sendMessage(asio::ip::address address,
-                            int port,
+void UdpServer::sendMessage(udp::endpoint endpoint,
                             const std::vector<uint8_t>& data)
 {
-    udp::endpoint endpoint(address, port);
-
     socket_.async_send_to(
         boost::asio::buffer(data),
         endpoint,

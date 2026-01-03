@@ -17,7 +17,8 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection>
                           ReceiveCallbackConn receiveCallback);
 
     tcp::socket& socket();
-
+    
+    void sendMessage(const std::vector<uint8_t>& data);
     void start();
     void close();
 
@@ -26,7 +27,6 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection>
                   ReceiveCallbackConn receiveCallback);
 
     void doRead();
-    void doWrite(const std::string& msg);
     void handle_write();
 
     tcp::socket socket_;

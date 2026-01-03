@@ -25,10 +25,37 @@ enum class SendType
 typedef struct
 {
     SendType sendType;
-    uint8_t clientId;
+    int udpPort;
+    udp::endpoint udpEndpoint;
     std::shared_ptr<TcpConnection> tcpConnection;
     std::vector<uint8_t> data;
 } CmdQueueData;
+
+typedef struct
+{
+    std::string token;
+    std::string name;
+    int portUdp;
+    asio::ip::address address;
+    udp::endpoint udpEndpoint;
+    std::shared_ptr<TcpConnection> connection;
+} ClientInfo;
+
+//EXT_SER(ClientInfo, s.text1b(o.token, 16); s.text1b(o.name, o.name.size());
+//        s.value2b(o.portUdp);
+//        s.text1b(o.address, o.address.size());)
+
+typedef struct
+{
+    tim::Timepoint t0;
+    tim::Timepoint t1;
+    tim::Timepoint t2;
+    uint8_t cnt;
+    bool waiting = false;
+    float latency[10];
+    float offset[10];
+    float serverOffset;
+} TimeSync;
 
 
 }  // namespace net

@@ -34,7 +34,7 @@ class Client
     boost::asio::signal_set signals;
     cfg::ConfigManager config;
     boost::asio::steady_timer sendTimer;
-    def::ClientInfo clientInfo;
+    net::ClientInfo clientInfo;
 };
 
 }  // namespace sphys

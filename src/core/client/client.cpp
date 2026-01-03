@@ -75,9 +75,10 @@ void Client::startUdpTcp()
 
     ioThread = std::thread([this]() { ioContext.run(); });
 
-    CMDAT_PREP(net::SendType::TCP, 0, prot::cmd::CONNECT, 0)
+    CMDAT_PREP(net::SendType::TCP, prot::cmd::CONNECT, 0)
     std::string token = "1234abcd1234abcd";
     cmdser.text1b(token, token.size());
+    cmdser.value2b((uint16_t)portUdp);
     CMDAT_FIN()
     model.sendQueue.enqueue(cmdData);
 
@@ -128,7 +129,7 @@ void Client::udpReceive(const char* data, size_t length)
 
 void Client::tcpReceive(const char* data, size_t length)
 {
-    if (length > 5)
+    if (length >= 5)
     {
         net::CmdQueueData cmdData;
         cmdData.sendType = net::SendType::TCP;

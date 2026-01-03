@@ -15,9 +15,13 @@ void Model::start()
 
 void Model::modelLoop()
 {
-
     while (true)
     {
+        net::CmdQueueData recQueueData;
+        while (receiveQueue.try_dequeue(recQueueData))
+        {
+            parseCommand(recQueueData.data);
+        }
         if (connectionState == ConnectionState::DISCONNECTED)
         {
             modelLoopMenu();
@@ -41,22 +45,13 @@ void Model::timeSync()
 
 void Model::modelLoopMenu()
 {
-    while (true)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
 void Model::modelLoopGame()
 {
     static tim::Timepoint lastTSync = tim::getCurrentTimeU();
-
     tim::Timepoint now = tim::getCurrentTimeU();
-    net::CmdQueueData recQueueData;
-    while (receiveQueue.try_dequeue(recQueueData))
-    {
-        parseCommand(recQueueData.data);
-    }
 
     // Send some stuff to server
     CMDAT_PREP_TOKEN(net::SendType::UDP, prot::cmd::LOG, 0)
@@ -67,11 +62,11 @@ void Model::modelLoopGame()
 
     if (tim::durationU(lastTSync, now) > 2000000)
     {
-        //timeSync();
+        // timeSync();
         lastTSync = now;
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
 }
 
 void Model::parseCommand(std::vector<uint8_t> data)
@@ -96,11 +91,19 @@ void Model::parseCommand(std::vector<uint8_t> data)
         }
         case prot::cmd::TIME_SYNC:
         {
-            if(timeSyncData.waiting && flags & CMD_FLAG_RESP && len == 8)
+            if (timeSyncData.waiting && flags & CMD_FLAG_RESP && len == 8)
             {
-
                 timeSyncData.t1 = tim::getCurrentTimeU();
                 timeSyncData.waiting = false;
+            }
+            break;
+        }
+        case prot::cmd::CONNECT:
+        {
+            if (flags & CMD_FLAG_RESP)
+            {
+                LG_I("Authentication successful");
+                connectionState = ConnectionState::CONNECTED;
             }
             break;
         }

@@ -30,7 +30,8 @@ class Engine
     void parseCommand(const net::CmdQueueData& cmdData);
 
     std::thread engineThread;
-    con::ItemLib<def::ClientInfo> clientLib;
+    con::ItemLib<net::ClientInfo> clientLib;
+    std::vector<int> activeClientIdxs;
 };
 
 }  // namespace sphys

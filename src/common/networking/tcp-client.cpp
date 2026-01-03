@@ -9,19 +9,19 @@ TcpClient::TcpClient(boost::asio::io_context& io_context,
     : socket(io_context), devServerEndpoint(endpoint), receiveCallback(receiveCallback)
 {
     socket.connect(devServerEndpoint);
+    startReceive();
 }
 
 void TcpClient::sendMessage(const std::vector<uint8_t>& data)
 {
     LG_D("Sending TCP message");
-    socket.async_send(boost::asio::buffer(data),
-                      [this](const boost::system::error_code& ec,
-                             std::size_t bytes) {
-                                if(ec)
-                                {
-                                    LG_W("TCP send failed: {}", ec.message());
-                                }
-                             });
+    try{
+        size_t bytesSent = socket.send(boost::asio::buffer(data));
+    }
+    catch(const std::exception& e)
+    {
+        LG_W("TCP send failed: {}", e.what());
+    }
 }
 
 void TcpClient::startReceive()
@@ -37,7 +37,19 @@ void TcpClient::handleReceive(const boost::system::error_code& error,
 {
     if (!error && bytes_received > 0)
     {
-        receiveCallback(recvBuf, bytes_received);
+        if(receiveCallback)
+        {
+            receiveCallback(recvBuf, bytes_received);
+        }
+        else
+        {
+            LG_D("Received: {}", std::string(recvBuf, bytes_received));
+        }
+        startReceive();
+    }
+    else
+    {
+        LG_E("TCP receive failed: {}", error.message());
     }
 }
 

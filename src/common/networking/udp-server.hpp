@@ -15,9 +15,7 @@ class UdpServer
     UdpServer(boost::asio::io_context& io_context,
               int port,
               ReceiveCallback receiveCallback);
-    void sendMessage(asio::ip::address address,
-                     int port,
-                     const std::vector<uint8_t>& data);
+    void sendMessage(udp::endpoint endpoint, const std::vector<uint8_t>& data);
 
   private:
     void startReceive();
