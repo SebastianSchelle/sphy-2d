@@ -9,6 +9,15 @@
             "args": [],
             "cwd": "${workspaceFolder}/deploy/test-client",
             "stopOnEntry": false
+        },
+        {
+            "name": "Debug Server",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/deploy/test-server/test-server",
+            "args": [],
+            "cwd": "${workspaceFolder}/deploy/test-server",
+            "stopOnEntry": false
         }
     ]
 }
