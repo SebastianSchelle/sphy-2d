@@ -2,3 +2,6 @@ build
 compile_commands.json
 .cache
 deploy
+core-common
+core-client
+core-server

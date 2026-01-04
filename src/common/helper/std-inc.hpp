@@ -2,6 +2,8 @@
 #define STD_INC_HPP
 
 #include <array>
+#include <variant>
+#include <filesystem>
 #include <bitsery/adapter/buffer.h>
 #include <bitsery/bitsery.h>
 #include <bitsery/traits/string.h>
@@ -12,17 +14,14 @@
 #include <boost/date_time/posix_time/posix_time_config.hpp>
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
-#include <filesystem>
-#include <functional>
-#include <iostream>
+#include <glm/glm.hpp>
 #include <logging.hpp>
 #include <memory.h>
-#include <memory>
 #include <string>
-#include <unordered_map>
-#include <variant>
-#include <vector>
-#include <glm/glm.hpp>
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
+#include <fstream>
 
 using std::string;
 
@@ -61,4 +60,17 @@ inline long durationU(Timepoint t1, Timepoint t2)
 }
 
 }  // namespace tim
+
+
+namespace sec
+{
+
+inline std::string uuid()
+{
+    boost::uuids::uuid uuid = boost::uuids::random_generator()();
+    return std::string(uuid.begin(), uuid.end());
+}
+
+}  // namespace sec
+
 #endif

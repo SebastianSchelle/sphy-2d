@@ -1,6 +1,0 @@
-loglevel: 1
-connection:
-  server-ip: 127.0.0.1
-  serv-port-tcp: 29200
-  serv-port-udp: 29201
-  client-port-udp: 29202

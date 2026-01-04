@@ -24,5 +24,6 @@ add_custom_command(TARGET ${EXEC_NAME_TC} POST_BUILD
 )
 
 add_custom_target(cpm_tc ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/game-dir ${DEPLOY_DIR_TC}/modules/core
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/core-common ${DEPLOY_DIR_TC}/modules/core
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/core-client ${DEPLOY_DIR_TC}/modules/core
 )

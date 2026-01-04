@@ -2,6 +2,8 @@
 
 #include "RmlUi/Core/Core.h"
 #include "bgfx/defines.h"
+#include "shader.hpp"
+#include "vertex-defines.hpp"
 #include <bgfx/platform.h>
 #include <bx/bx.h>
 #include <main-window.hpp>
@@ -161,6 +163,7 @@ bool MainWindow::createWindow()
 
 bool MainWindow::setupRenderEngine()
 {
+    renderEngine.init();
     return true;
 }
 
@@ -191,17 +194,28 @@ bool MainWindow::setupRmlUi()
         return false;
     }
 
-    Rml::ElementDocument* document = rmlContext->LoadDocument("modules/core/assets/ui/test.rml");
-    if(document)
-    {
-        LG_I("Loaded document test.rml");
-        document->Show();
-    }
+    // Rml::ElementDocument* document =
+    //     rmlContext->LoadDocument("modules/core/assets/ui/test.rml");
+    // if (document)
+    // {
+    //     LG_I("Loaded document test.rml");
+    //     document->Show();
+    // }
     return true;
 }
 
 void MainWindow::winLoop()
 {
+    gfx::VertexPosColTex vertexData[3] = {
+        {0.0f, 0.0f, 0xffffffff, 0.0f, 0.0f},
+        {1.0f, 0.0f, 0xffffffff, 1.0f, 0.0f},
+        {0.0f, 1.0f, 0xffffffff, 0.0f, 1.0f},
+    };
+    uint16_t indexData[3] = {0, 1, 2};
+
+    uint32_t geometryHandle = renderEngine.compileGeometry(
+        vertexData, 3, indexData, 3, gfx::VertexPosColTex::ms_decl);
+
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -210,7 +224,7 @@ void MainWindow::winLoop()
 
         rmlContext->Update();
 
-        bool showStats = true;
+        bool showStats = false;
         bgfx::setDebug(showStats ? BGFX_DEBUG_STATS | BGFX_DEBUG_TEXT : 0);
         bgfx::touch(0);
 
@@ -220,7 +234,15 @@ void MainWindow::winLoop()
                            1.0f,
                            0);
 
-        rmlContext->Render();
+        renderEngine.renderCompiledGeometry(
+            geometryHandle, glm::vec2(0.0f, 0.0f), 0);
+
+        // bgfx::setVertexBuffer(0, vbh);
+        // bgfx::setIndexBuffer(ibh);
+        // float translation[] = {0.0f, 0.0f, 0.0f, 0.0f};
+        // bgfx::setUniform(u_translation, &translation);
+        // bgfx::submit(0, shaderProgram.getHandle());
+        // rmlContext->Render();
         bgfx::frame();
     }
 }
@@ -263,6 +285,7 @@ void MainWindow::handleWinResize()
             (uint32_t)wInfo.width, (uint32_t)wInfo.height, BGFX_RESET_VSYNC);
         bgfx::setViewRect(kClearView, 0, 0, bgfx::BackbufferRatio::Equal);
         LG_I("Resize window to ({}, {})", wInfo.width, wInfo.height)
+        renderEngine.setWindowSize(wInfo.width, wInfo.height);
     }
 }
 

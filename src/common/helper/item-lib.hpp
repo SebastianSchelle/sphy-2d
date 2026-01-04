@@ -6,123 +6,163 @@
 namespace con
 {
 
-/**
- * @class ItemLib
- * @brief
- */
+template <class T> struct ItemWrapper
+{
+    T item;
+    bool alive;
+    uint16_t generation;
+};
+
+struct IdxUuid
+{
+    int idx;
+    std::string uuid;
+};
+
 template <class T> class ItemLib
 {
   public:
-    /**
-     * @brief default constructor.
-     */
     ItemLib() {}
-
-    /**
-     * @brief default destructor.
-     */
     virtual ~ItemLib() {}
 
-    /**
-     * @brief Add item to game lib.
-     * @param name Name of the item.
-     * @param item Item.
-     * @return -1 if failed, index of item if successful.
-     */
-    int addItem(const std::string &name, const T &item);
+    int addItem(const std::string& name, const T& item);
+    IdxUuid addWithRandomKey(const T& item);
+    void removeItem(int idx);
 
-    /**
-     * @brief Get index of the library item.
-     * @param name Name of the item.
-     * @return -1 if not in library, index if found.
-     */
-    int getIndex(const std::string &name);
+    int getIndex(const std::string& name) const;
+    T* getItem(int idx);
+    ItemWrapper<T>* getWrappedItem(int idx);
+    uint16_t getGeneration(int idx) const;
 
-    /**
-     * @brief Get item at index.
-     * @param idx Index of item.
-     * @return pointer to item. Return nullptr if index invalid.
-     * @see getIndex
-     */
-    T *getItem(int idx);
-
-    /**
-     * @brief Get library size.
-     * @return Library size.
-     */
-    int size() { return items.size(); }
-
-    void syncWithServer() {
-        uint16_t i = 0;
-        while(syncMap.contains(i)) {
-            std::string name = syncMap[i];
-            if(!idMap.contains(name))
-            {
-                LG_E("Connect failed. Client is missing library item {}", name);
-                // todo: trigger disconnect
-                return;
-            }
-            if(idMap[name] == i) {
-                LG_D("Library item {} is already in the right position", name);
-            }
-            else
-            {
-                LG_D("Swap library item {} to position {}", name, i);
-            }
-            ++i;
-        }
+    int size() const
+    {
+        return items.size();
+    }
+    int getFreeSlotCount() const
+    {
+        return freeSlots.size();
     }
 
-    const std::unordered_map<std::string, int> &getIdMap() const { return idMap; };
-
-    std::unordered_map<int, std::string> syncMap;
+    // const std::unordered_map<std::string, int> &getIdMap() const { return
+    // idMap; };
 
   protected:
   private:
-    std::unordered_map<std::string, int>
-        idMap; /**< Map from item name to index. Named access should only be
-                  used if needed. */
-    std::vector<T> items; /**< Vector of library items. Index should be used
-                             over name whenever possible. */
+    std::unordered_map<std::string, int> idMap;
+    std::vector<ItemWrapper<T>> items;
+    std::vector<int> freeSlots;
 };
 
 template <class T>
-int ItemLib<T>::addItem(const std::string &name, const T &item)
+int ItemLib<T>::addItem(const std::string& name, const T& item)
 {
     auto it = idMap.find(name);
-    if (it != idMap.end()) {
+    if (it != idMap.end())
+    {
         // Replace old item
         int idx = it->second;
-        items[idx] = item;
+        items[idx].item = item;
+        items[idx].alive = true;
+        items[idx].generation++;
         return idx;
-    } else {
-        // Add new item
-        items.push_back(item);
-        int idx = items.size() - 1;
+    }
+    else
+    {
+        int idx;
+        if (freeSlots.empty())
+        {
+            ItemWrapper<T> wrapper = {item, true, 1};
+            items.push_back(wrapper);
+            idx = items.size() - 1;
+        }
+        else
+        {
+            idx = freeSlots.back();
+            freeSlots.pop_back();
+            items[idx].item = item;
+            items[idx].alive = true;
+            items[idx].generation++;
+        }
+
         idMap[name] = idx;
         return idx;
     }
 }
 
-template <class T> int ItemLib<T>::getIndex(const std::string &name)
+template <class T> IdxUuid ItemLib<T>::addWithRandomKey(const T& item)
+{
+    std::string uuid = sec::uuid();
+    int idx = addItem(uuid, item);
+    return IdxUuid{idx, uuid};
+}
+
+template <class T> int ItemLib<T>::getIndex(const std::string& name) const
 {
     auto it = idMap.find(name);
-    if (it != idMap.end()) {
+    if (it != idMap.end())
+    {
         return it->second;
-    } else {
+    }
+    else
+    {
         return -1;
     }
 }
 
-template <class T> T *ItemLib<T>::getItem(int idx)
+template <class T> ItemWrapper<T>* ItemLib<T>::getWrappedItem(int idx)
 {
-    if (idx < items.size()) {
-        return &items.at(idx);
-    } else {
+    if (idx < items.size() && idx >= 0 && items[idx].alive)
+    {
+        return &items[idx];
+    }
+    else
+    {
         return nullptr;
     }
 }
 
-} // namespace ilib
+template <class T> T* ItemLib<T>::getItem(int idx)
+{
+    ItemWrapper<T>* wrapper = getWrappedItem(idx);
+    if (wrapper)
+    {
+        return &wrapper->item;
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+
+template <class T> uint16_t ItemLib<T>::getGeneration(int idx) const
+{
+    if (idx < items.size() && idx >= 0 && items[idx].alive)
+    {
+        return items[idx].generation;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+template <class T> void ItemLib<T>::removeItem(int idx)
+{
+    if (idx < items.size() && idx >= 0 && items[idx].alive)
+    {
+        items[idx].alive = false;
+        freeSlots.push_back(idx);
+        for (const auto& [key, value] : idMap)
+        {
+            if (value == idx)
+            {
+                idMap.erase(key);
+                break;
+            }
+        }
+    }
+}
+
+}  // namespace con
 
 #endif
