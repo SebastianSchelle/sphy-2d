@@ -7,7 +7,6 @@ SAMPLER2D(u_texColor,  0);
 
 void main()
 {
-    vec4 texColor = texture2D(u_texColor, v_texcoord0);
-    //gl_FragColor = texColor * v_color0;
-    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+    // Use vertex color directly for now (texture support can be added later)
+    gl_FragColor = v_color0;
 }

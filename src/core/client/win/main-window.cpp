@@ -164,6 +164,7 @@ bool MainWindow::createWindow()
 bool MainWindow::setupRenderEngine()
 {
     renderEngine.init();
+    renderEngine.setWindowSize(wInfo.width, wInfo.height);
     return true;
 }
 
@@ -194,13 +195,13 @@ bool MainWindow::setupRmlUi()
         return false;
     }
 
-    // Rml::ElementDocument* document =
-    //     rmlContext->LoadDocument("modules/core/assets/ui/test.rml");
-    // if (document)
-    // {
-    //     LG_I("Loaded document test.rml");
-    //     document->Show();
-    // }
+    Rml::ElementDocument* document =
+        rmlContext->LoadDocument("modules/core/assets/ui/test.rml");
+    if (document)
+    {
+        LG_I("Loaded document test.rml");
+        document->Show();
+    }
     return true;
 }
 
@@ -208,13 +209,17 @@ void MainWindow::winLoop()
 {
     gfx::VertexPosColTex vertexData[3] = {
         {0.0f, 0.0f, 0xffffffff, 0.0f, 0.0f},
-        {1.0f, 0.0f, 0xffffffff, 1.0f, 0.0f},
-        {0.0f, 1.0f, 0xffffffff, 0.0f, 1.0f},
+        {20.0f, 0.0f, 0xffffffff, 1.0f, 0.0f},
+        {0.0f, 20.0f, 0xffffffff, 0.0f, 1.0f},
     };
     uint16_t indexData[3] = {0, 1, 2};
 
     uint32_t geometryHandle = renderEngine.compileGeometry(
-        vertexData, 3, indexData, 3, gfx::VertexPosColTex::ms_decl);
+        vertexData,
+        3 * sizeof(gfx::VertexPosColTex),
+        indexData,
+        3 * sizeof(uint16_t),
+        gfx::VertexPosColTex::ms_decl);
 
     while (!glfwWindowShouldClose(window))
     {
@@ -237,12 +242,7 @@ void MainWindow::winLoop()
         renderEngine.renderCompiledGeometry(
             geometryHandle, glm::vec2(0.0f, 0.0f), 0);
 
-        // bgfx::setVertexBuffer(0, vbh);
-        // bgfx::setIndexBuffer(ibh);
-        // float translation[] = {0.0f, 0.0f, 0.0f, 0.0f};
-        // bgfx::setUniform(u_translation, &translation);
-        // bgfx::submit(0, shaderProgram.getHandle());
-        // rmlContext->Render();
+        rmlContext->Render();
         bgfx::frame();
     }
 }

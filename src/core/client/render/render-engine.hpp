@@ -45,8 +45,11 @@ class RenderEngine
     void releaseGeometry(uint32_t handle);
     void renderCompiledGeometry(uint32_t handle,
                                 const glm::vec2& translation,
-                                uint32_t textureHandle);
+                                uint32_t textureHandle,
+                                bgfx::ViewId viewId = 0);
     void setWindowSize(int width, int height);
+    void setScissor(int x, int y, int width, int height);
+    void enableScissor(bool enable);
 
   private:
     void updateOrtho();
@@ -60,6 +63,11 @@ class RenderEngine
     int winWidth;
     int winHeight;
     float ortho[16];
+    bool scissorEnabled = false;
+    int scissorX = 0;
+    int scissorY = 0;
+    int scissorWidth = 0;
+    int scissorHeight = 0;
 };
 
 }  // namespace gfx

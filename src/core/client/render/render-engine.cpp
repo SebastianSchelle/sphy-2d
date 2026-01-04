@@ -57,12 +57,15 @@ void RenderEngine::init()
         u_texColor =
             bgfx::createUniform("u_texColor", bgfx::UniformType::Sampler);
     }
-    // if (!bgfx::isValid(u_proj))
-    // {
-    //     u_proj =
-    //         bgfx::createUniform("u_proj2", bgfx::UniformType::Mat4);
-    // }
 
+    if (!bgfx::isValid(u_proj))
+    {
+        u_proj = bgfx::createUniform("u_myproj", bgfx::UniformType::Mat4);
+    }
+
+    // Initialize with default size (will be updated when window size is known)
+    winWidth = 800;
+    winHeight = 600;
     updateOrtho();
 }
 
@@ -103,7 +106,8 @@ void RenderEngine::releaseGeometry(uint32_t handle)
 
 void RenderEngine::renderCompiledGeometry(uint32_t handle,
                                           const glm::vec2& translation,
-                                          uint32_t textureHandle)
+                                          uint32_t textureHandle,
+                                          bgfx::ViewId viewId)
 {
     uint16_t index = handle & 0xffff;
     uint16_t generation = handle >> 16;
@@ -115,17 +119,67 @@ void RenderEngine::renderCompiledGeometry(uint32_t handle,
         return;
     }
     const Geometry& geometry = wrapper->item;
-    LG_W("Rendering geometry: {} {}",
-         geometry.getVbh().idx,
-         geometry.getIbh().idx);
 
+    // Set view rect to full window
+    bgfx::setViewRect(viewId, 0, 0, (uint16_t)winWidth, (uint16_t)winHeight);
+
+    // Set view transform (identity view, ortho projection)
+    float view[16];
+    bx::mtxIdentity(view);
+    bgfx::setViewTransform(viewId, view, ortho);
+
+    // Set uniforms
     float trArr[] = {translation.x, translation.y, 0.0f, 0.0f};
-    bgfx::setUniform(u_translation, &translation);
-    // bgfx::setUniform(u_proj, ortho);
+    bgfx::setUniform(u_translation, trArr);
+    bgfx::setUniform(u_proj, ortho);
 
+    // Set texture if valid
+    if (textureHandle != 0 && bgfx::isValid(u_texColor))
+    {
+        bgfx::TextureHandle texHandle;
+        texHandle.idx = (uint16_t)textureHandle;
+        bgfx::setTexture(0, u_texColor, texHandle);
+    }
+    else
+    {
+        // Set a white texture if no texture is provided
+        // This is a workaround - ideally we'd have a default white texture
+    }
+
+    // Set scissor region if enabled
+    if (scissorEnabled)
+    {
+        bgfx::setScissor(scissorX, scissorY, scissorWidth, scissorHeight);
+    }
+    else
+    {
+        // Disable scissor - use full viewport
+        bgfx::setScissor(0, 0, (uint16_t)winWidth, (uint16_t)winHeight);
+    }
+
+    // Set render state (alpha blending for UI, no depth test, write RGB and A)
+    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
+                    BGFX_STATE_BLEND_ALPHA | BGFX_STATE_MSAA);
+
+    // Set vertex and index buffers
     bgfx::setVertexBuffer(0, geometry.getVbh());
     bgfx::setIndexBuffer(geometry.getIbh());
-    bgfx::submit(0, compiledShaderLib.getItem(0)->getHandle());
+
+    // Submit to the specified view
+    bgfx::submit(viewId, compiledShaderLib.getItem(0)->getHandle());
+}
+
+void RenderEngine::setScissor(int x, int y, int width, int height)
+{
+    scissorX = x;
+    scissorY = y;
+    scissorWidth = width;
+    scissorHeight = height;
+}
+
+void RenderEngine::enableScissor(bool enable)
+{
+    scissorEnabled = enable;
 }
 
 void RenderEngine::setWindowSize(int width, int height)
