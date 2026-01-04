@@ -248,7 +248,7 @@ class ShelfAllocator
                     {
                         headRoom += shelves.back().getHeight();
                         shelves.pop_back();
-                        // sortedShelves.erase(shelfId);
+                        sortedShelves.erase(shelfId);
                     }
                 }
             }

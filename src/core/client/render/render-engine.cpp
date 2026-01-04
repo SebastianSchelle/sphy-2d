@@ -11,11 +11,13 @@ Geometry::Geometry(const void* vertexData,
                    size_t vDatSize,
                    const void* indexData,
                    size_t iDatSize,
-                   bgfx::VertexLayout& vertLayout)
+                   bgfx::VertexLayout& vertLayout,
+                   bool use32BitIndices)
 {
     vbh = bgfx::createVertexBuffer(bgfx::makeRef(vertexData, vDatSize),
                                    vertLayout);
-    ibh = bgfx::createIndexBuffer(bgfx::makeRef(indexData, iDatSize));
+    uint32_t flags = use32BitIndices ? BGFX_BUFFER_INDEX32 : 0;
+    ibh = bgfx::createIndexBuffer(bgfx::makeRef(indexData, iDatSize), flags);
 }
 
 void Geometry::destroy()
@@ -34,7 +36,7 @@ bgfx::IndexBufferHandle Geometry::getIbh() const
     return ibh;
 }
 
-RenderEngine::RenderEngine() {}
+RenderEngine::RenderEngine(cfg::ConfigManager& config) : config(config) {}
 
 RenderEngine::~RenderEngine() {}
 
@@ -45,6 +47,23 @@ void RenderEngine::init()
     ShaderProgram shaderProgram("modules/core/shader/vs_rmlui.bin",
                                 "modules/core/shader/fs_rmlui.bin");
     compiledShaderLib.addItem("rmlui", shaderProgram);
+
+    int texWidth =
+        static_cast<int>(std::get<float>(config.get({"gfx", "tex-width"})));
+    int texHeight =
+        static_cast<int>(std::get<float>(config.get({"gfx", "tex-height"})));
+    int texLayerCnt =
+        static_cast<int>(std::get<float>(config.get({"gfx", "tex-layer-cnt"})));
+    int texBucketSize = static_cast<int>(
+        std::get<float>(config.get({"gfx", "tex-bucket-size"})));
+    float texExcessHeightThreshold = static_cast<float>(
+        std::get<float>(config.get({"gfx", "tex-excess-height-threshold"})));
+
+    textureLoader.init(texWidth,
+                       texHeight,
+                       texLayerCnt,
+                       texBucketSize,
+                       texExcessHeightThreshold);
 
     if (!bgfx::isValid(u_translation))
     {
@@ -73,19 +92,11 @@ uint32_t RenderEngine::compileGeometry(const void* vertexData,
                                        size_t vDatSize,
                                        const void* indexData,
                                        size_t iDatSize,
-                                       bgfx::VertexLayout& vertLayout)
+                                       bgfx::VertexLayout& vertLayout,
+                                       bool use32BitIndices)
 {
-    VertexPosColTex* vertex = (VertexPosColTex*)vertexData;
-    // for (int i = 0; i < vDatSize; ++i)
-    // {
-    //     LG_D("position: {}, {} color: {}, texcoord: {}, {}",
-    //          vertex[i].x,
-    //          vertex[i].y,
-    //          vertex[i].rgba,
-    //          vertex[i].u,
-    //          vertex[i].v);
-    // }
-    Geometry geometry(vertexData, vDatSize, indexData, iDatSize, vertLayout);
+    Geometry geometry(
+        vertexData, vDatSize, indexData, iDatSize, vertLayout, use32BitIndices);
     con::IdxUuid idxUuid = compiledGeometryLib.addWithRandomKey(geometry);
     uint16_t gen = compiledGeometryLib.getGeneration(idxUuid.idx);
     return (uint32_t)(gen << 16) | (uint32_t)idxUuid.idx;
@@ -120,13 +131,15 @@ void RenderEngine::renderCompiledGeometry(uint32_t handle,
     }
     const Geometry& geometry = wrapper->item;
 
-    // Set view rect to full window
-    bgfx::setViewRect(viewId, 0, 0, (uint16_t)winWidth, (uint16_t)winHeight);
-
-    // Set view transform (identity view, ortho projection)
+    // Set view transform (identity view, identity projection - we use uniform
+    // for projection) Note: View rect should be set once per frame, not per
+    // draw call
     float view[16];
+    float proj[16];
     bx::mtxIdentity(view);
-    bgfx::setViewTransform(viewId, view, ortho);
+    bx::mtxIdentity(proj);  // Use identity projection in view transform, we use
+                            // uniform instead
+    bgfx::setViewTransform(viewId, view, proj);
 
     // Set uniforms
     float trArr[] = {translation.x, translation.y, 0.0f, 0.0f};
@@ -140,26 +153,34 @@ void RenderEngine::renderCompiledGeometry(uint32_t handle,
         texHandle.idx = (uint16_t)textureHandle;
         bgfx::setTexture(0, u_texColor, texHandle);
     }
-    else
-    {
-        // Set a white texture if no texture is provided
-        // This is a workaround - ideally we'd have a default white texture
-    }
 
-    // Set scissor region if enabled
+    // Set scissor region if enabled (per-draw scissor)
+    // Only set scissor when enabled - don't set it when disabled to avoid
+    // clipping
     if (scissorEnabled)
     {
-        bgfx::setScissor(scissorX, scissorY, scissorWidth, scissorHeight);
-    }
-    else
-    {
-        // Disable scissor - use full viewport
-        bgfx::setScissor(0, 0, (uint16_t)winWidth, (uint16_t)winHeight);
+        bgfx::setScissor((uint16_t)scissorRegion.Left(),
+                         (uint16_t)scissorRegion.Top(),
+                         (uint16_t)scissorRegion.Width(),
+                         (uint16_t)scissorRegion.Height());
     }
 
-    // Set render state (alpha blending for UI, no depth test, write RGB and A)
-    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
-                    BGFX_STATE_BLEND_ALPHA | BGFX_STATE_MSAA);
+    // Set render state
+    uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
+                     | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,
+                                             BGFX_STATE_BLEND_INV_SRC_ALPHA);
+
+    // Set stencil test if clip mask is enabled
+    uint32_t fstencil = BGFX_STENCIL_NONE;
+    if (clipMaskEnabled)
+    {
+        fstencil = BGFX_STENCIL_TEST_EQUAL | BGFX_STENCIL_FUNC_REF(stencilRef)
+                   | BGFX_STENCIL_FUNC_RMASK(0xff) | BGFX_STENCIL_OP_FAIL_S_KEEP
+                   | BGFX_STENCIL_OP_FAIL_Z_KEEP | BGFX_STENCIL_OP_PASS_Z_KEEP;
+    }
+
+    bgfx::setStencil(fstencil, BGFX_STENCIL_NONE);
+    bgfx::setState(state);
 
     // Set vertex and index buffers
     bgfx::setVertexBuffer(0, geometry.getVbh());
@@ -169,17 +190,97 @@ void RenderEngine::renderCompiledGeometry(uint32_t handle,
     bgfx::submit(viewId, compiledShaderLib.getItem(0)->getHandle());
 }
 
-void RenderEngine::setScissor(int x, int y, int width, int height)
-{
-    scissorX = x;
-    scissorY = y;
-    scissorWidth = width;
-    scissorHeight = height;
-}
-
 void RenderEngine::enableScissor(bool enable)
 {
     scissorEnabled = enable;
+}
+
+void RenderEngine::setScissorRegion(const Rml::Rectanglei& region)
+{
+    scissorRegion = region;
+}
+
+void RenderEngine::enableClipMask(bool enable)
+{
+    clipMaskEnabled = enable;
+}
+
+void RenderEngine::renderToClipMask(Rml::ClipMaskOperation operation,
+                                    uint32_t geometryHandle,
+                                    const glm::vec2& translation,
+                                    bgfx::ViewId viewId)
+{
+    uint16_t index = geometryHandle & 0xffff;
+    uint16_t generation = geometryHandle >> 16;
+    con::ItemWrapper<Geometry>* wrapper =
+        compiledGeometryLib.getWrappedItem(index);
+    if (!wrapper || !wrapper->alive || wrapper->generation != generation)
+    {
+        LG_W("Invalid geometry handle for clip mask: {}", index);
+        return;
+    }
+    const Geometry& geometry = wrapper->item;
+
+    // Set view transform
+    float view[16];
+    float proj[16];
+    bx::mtxIdentity(view);
+    bx::mtxIdentity(proj);
+    bgfx::setViewTransform(viewId, view, proj);
+
+    // Set uniforms
+    float trArr[] = {translation.x, translation.y, 0.0f, 0.0f};
+    bgfx::setUniform(u_translation, trArr);
+    bgfx::setUniform(u_proj, ortho);
+
+    // Set vertex and index buffers
+    bgfx::setVertexBuffer(0, geometry.getVbh());
+    bgfx::setIndexBuffer(geometry.getIbh());
+
+    // Configure stencil based on operation
+    uint32_t fstencil = BGFX_STENCIL_NONE;
+    uint8_t writeValue = 1;
+
+    switch (operation)
+    {
+        case Rml::ClipMaskOperation::Set:
+            // Clear stencil to 0, then write 1 where geometry is
+            bgfx::setViewClear(viewId, BGFX_CLEAR_STENCIL, 0, 1.0f, 0);
+            fstencil =
+                BGFX_STENCIL_TEST_ALWAYS | BGFX_STENCIL_FUNC_REF(writeValue)
+                | BGFX_STENCIL_FUNC_RMASK(0xff) | BGFX_STENCIL_OP_FAIL_S_REPLACE
+                | BGFX_STENCIL_OP_FAIL_Z_REPLACE
+                | BGFX_STENCIL_OP_PASS_Z_REPLACE;
+            stencilRef = writeValue;
+            break;
+
+        case Rml::ClipMaskOperation::SetInverse:
+            // Clear stencil to 1, then write 0 where geometry is
+            bgfx::setViewClear(viewId, BGFX_CLEAR_STENCIL, 0, 1.0f, 1);
+            writeValue = 0;
+            fstencil =
+                BGFX_STENCIL_TEST_ALWAYS | BGFX_STENCIL_FUNC_REF(writeValue)
+                | BGFX_STENCIL_FUNC_RMASK(0xff) | BGFX_STENCIL_OP_FAIL_S_REPLACE
+                | BGFX_STENCIL_OP_FAIL_Z_REPLACE
+                | BGFX_STENCIL_OP_PASS_Z_REPLACE;
+            stencilRef = 0;
+            break;
+
+        case Rml::ClipMaskOperation::Intersect:
+            // Increment stencil where geometry is
+            fstencil =
+                BGFX_STENCIL_TEST_ALWAYS | BGFX_STENCIL_FUNC_REF(0)
+                | BGFX_STENCIL_FUNC_RMASK(0xff) | BGFX_STENCIL_OP_FAIL_S_KEEP
+                | BGFX_STENCIL_OP_FAIL_Z_KEEP | BGFX_STENCIL_OP_PASS_Z_INCRSAT;
+            stencilRef++;
+            break;
+    }
+
+    // Render to stencil only (no color writes)
+    bgfx::setStencil(fstencil, BGFX_STENCIL_NONE);
+    bgfx::setState(0);  // No color/depth writes, just stencil
+
+    bgfx::submit(viewId, compiledShaderLib.getItem(0)->getHandle());
 }
 
 void RenderEngine::setWindowSize(int width, int height)
@@ -200,6 +301,17 @@ void RenderEngine::updateOrtho()
                  1000.0f,           // far
                  0.0f,              // offset
                  bgfx::getCaps()->homogeneousDepth);
+}
+
+uint32_t RenderEngine::loadTexture(const std::string& name,
+                                   const std::string& type,
+                                   const std::string& path,
+                                   uint16_t width,
+                                   uint16_t height)
+{
+    // TextureLoader::loadTexture doesn't need width/height as it reads them
+    // from the file
+    return textureLoader.loadTexture(name, type, path);
 }
 
 }  // namespace gfx
