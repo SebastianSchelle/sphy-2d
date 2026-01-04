@@ -16,7 +16,7 @@ namespace sphyc
 class Client
 {
   public:
-    Client();
+    Client(cfg::ConfigManager& config);
     ~Client();
     void startClient();
     void connectToServer();
@@ -34,7 +34,7 @@ class Client
     boost::asio::io_context ioContext;
     std::thread ioThread;
     boost::asio::signal_set signals;
-    cfg::ConfigManager config;
+    cfg::ConfigManager& config;
     boost::asio::steady_timer sendTimer;
     net::ClientInfo clientInfo;
     std::atomic<bool> shuttingDown{false};

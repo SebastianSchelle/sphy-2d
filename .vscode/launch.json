@@ -18,6 +18,15 @@
             "args": [],
             "cwd": "${workspaceFolder}/deploy/test-server",
             "stopOnEntry": false
+        },
+        {
+            "name": "Debug Storage Allocator",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/test-shelf-allocator",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "stopOnEntry": false
         }
     ]
 }

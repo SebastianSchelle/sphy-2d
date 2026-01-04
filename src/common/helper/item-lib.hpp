@@ -43,6 +43,18 @@ template <class T> class ItemLib
         return freeSlots.size();
     }
 
+    uint32_t wrappedIdx(int idx, uint16_t generation)
+    {
+        if (idx < items.size() && idx >= 0 && items[idx].alive)
+        {
+            return ((uint32_t)items[idx].generation << 16) | (uint16_t)idx;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+
     // const std::unordered_map<std::string, int> &getIdMap() const { return
     // idMap; };
 

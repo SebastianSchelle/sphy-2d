@@ -3,20 +3,14 @@
 namespace sphyc
 {
 
-Client::Client()
-    : model(), config("modules/core/defs/client.yaml"), sendTimer(ioContext),
+Client::Client(cfg::ConfigManager& config)
+    : model(), config(config), sendTimer(ioContext),
       signals(ioContext, SIGINT, SIGTERM)
 {
-    uint8_t logLevel =
-        static_cast<uint8_t>(std::get<float>(config.get({"loglevel"})));
-    debug::createLogger("logs/logClient.txt", logLevel);
-
     // Setup for testing
     clientInfo.token = "1234abcd1234abcd";
-    
-
-    startClient();
 }
+
 Client::~Client()
 {
     shutdown();

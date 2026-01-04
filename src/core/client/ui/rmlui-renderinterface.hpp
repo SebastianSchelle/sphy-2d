@@ -28,6 +28,10 @@ class RmlUiRenderInterface : public Rml::RenderInterface
     void ReleaseTexture(Rml::TextureHandle texture) override;
     void EnableScissorRegion(bool enable) override;
     void SetScissorRegion(Rml::Rectanglei region) override;
+    void EnableClipMask(bool enable) override;
+    void RenderToClipMask(Rml::ClipMaskOperation operation,
+                          Rml::CompiledGeometryHandle geometry,
+                          Rml::Vector2f translation) override;
 
   private:
     gfx::RenderEngine* renderEngine;

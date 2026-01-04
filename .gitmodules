@@ -28,3 +28,6 @@
 [submodule "thirdparty/freetype"]
 	path = thirdparty/freetype
 	url = https://github.com/freetype/freetype.git
+[submodule "thirdparty/rectpack2D"]
+	path = thirdparty/rectpack2D
+	url = https://github.com/TeamHypersomnia/rectpack2D.git

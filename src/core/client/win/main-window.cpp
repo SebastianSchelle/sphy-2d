@@ -67,8 +67,13 @@ void MouseState::processMouseButton(uint8_t i)
     }
 }
 
-MainWindow::MainWindow() : rmlUiRenderInterface(&renderEngine)
+MainWindow::MainWindow()
+    : config("modules/core/defs/client.yaml"), renderEngine(config),
+      rmlUiRenderInterface(&renderEngine), client(config)
 {
+    uint8_t logLevel =
+        static_cast<uint8_t>(std::get<float>(config.get({"loglevel"})));
+    debug::createLogger("logs/logClient.txt", logLevel);
     glfwSetErrorCallback(errorCallback);
 }
 
@@ -76,6 +81,8 @@ MainWindow::~MainWindow() {}
 
 void MainWindow::init()
 {
+    client.startClient();
+
     if (!glfwInit())
     {
         LG_E("GLFW initialization failed");
@@ -208,18 +215,18 @@ bool MainWindow::setupRmlUi()
 void MainWindow::winLoop()
 {
     gfx::VertexPosColTex vertexData[3] = {
-        {0.0f, 0.0f, 0xffffffff, 0.0f, 0.0f},
-        {20.0f, 0.0f, 0xffffffff, 1.0f, 0.0f},
-        {0.0f, 20.0f, 0xffffffff, 0.0f, 1.0f},
+        {0.0f, 0.0f, 0x110000ff, 0.0f, 0.0f},
+        {500.0f, 200.0f, 0xff00ff00, 1.0f, 0.0f},
+        {200.0f, 500.0f, 0xffff0000, 0.0f, 1.0f},
     };
     uint16_t indexData[3] = {0, 1, 2};
 
-    uint32_t geometryHandle = renderEngine.compileGeometry(
-        vertexData,
-        3 * sizeof(gfx::VertexPosColTex),
-        indexData,
-        3 * sizeof(uint16_t),
-        gfx::VertexPosColTex::ms_decl);
+    uint32_t geometryHandle =
+        renderEngine.compileGeometry(vertexData,
+                                     3 * sizeof(gfx::VertexPosColTex),
+                                     indexData,
+                                     3 * sizeof(uint16_t),
+                                     gfx::VertexPosColTex::ms_decl);
 
     while (!glfwWindowShouldClose(window))
     {
@@ -239,10 +246,10 @@ void MainWindow::winLoop()
                            1.0f,
                            0);
 
-        renderEngine.renderCompiledGeometry(
-            geometryHandle, glm::vec2(0.0f, 0.0f), 0);
-
         rmlContext->Render();
+        rmlUiRenderInterface.EnableScissorRegion(false);
+        renderEngine.renderCompiledGeometry(
+            geometryHandle, glm::vec2(0.0f, 0.0f), 0, kClearView);
         bgfx::frame();
     }
 }

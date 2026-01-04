@@ -2,10 +2,13 @@
 #define RENDER_ENGINE_HPP
 
 #include "std-inc.hpp"
+#include <RmlUi/Core/RenderInterface.h>
 #include <bgfx/bgfx.h>
 #include <bx/math.h>
+#include <config-manager.hpp>
 #include <item-lib.hpp>
 #include <shader.hpp>
+#include <texture.hpp>
 
 namespace gfx
 {
@@ -19,7 +22,8 @@ struct Geometry
              size_t vDatSize,
              const void* indexData,
              size_t iDatSize,
-             bgfx::VertexLayout& vertLayout);
+             bgfx::VertexLayout& vertLayout,
+             bool use32BitIndices = false);
 
     bgfx::VertexBufferHandle getVbh() const;
     bgfx::IndexBufferHandle getIbh() const;
@@ -33,7 +37,7 @@ struct Geometry
 class RenderEngine
 {
   public:
-    RenderEngine();
+    RenderEngine(cfg::ConfigManager& config);
     ~RenderEngine();
 
     void init();
@@ -41,18 +45,32 @@ class RenderEngine
                              size_t vDatSize,
                              const void* indexData,
                              size_t iDatSize,
-                             bgfx::VertexLayout& vertLayout);
+                             bgfx::VertexLayout& vertLayout,
+                             bool use32BitIndices = false);
     void releaseGeometry(uint32_t handle);
     void renderCompiledGeometry(uint32_t handle,
                                 const glm::vec2& translation,
                                 uint32_t textureHandle,
                                 bgfx::ViewId viewId = 0);
     void setWindowSize(int width, int height);
-    void setScissor(int x, int y, int width, int height);
     void enableScissor(bool enable);
+    void setScissorRegion(const Rml::Rectanglei& region);
+    void enableClipMask(bool enable);
+    void renderToClipMask(Rml::ClipMaskOperation operation,
+                          uint32_t geometryHandle,
+                          const glm::vec2& translation,
+                          bgfx::ViewId viewId);
+    uint32_t loadTexture(const std::string& name,
+                         const std::string& type,
+                         const std::string& path,
+                         uint16_t width,
+                         uint16_t height);
 
   private:
     void updateOrtho();
+
+    TextureLoader textureLoader;
+    cfg::ConfigManager& config;
 
     con::ItemLib<Geometry> compiledGeometryLib;
     con::ItemLib<ShaderProgram> compiledShaderLib;
@@ -64,10 +82,9 @@ class RenderEngine
     int winHeight;
     float ortho[16];
     bool scissorEnabled = false;
-    int scissorX = 0;
-    int scissorY = 0;
-    int scissorWidth = 0;
-    int scissorHeight = 0;
+    Rml::Rectanglei scissorRegion;
+    bool clipMaskEnabled = false;
+    uint8_t stencilRef = 1;  // Current stencil reference value for testing
 };
 
 }  // namespace gfx

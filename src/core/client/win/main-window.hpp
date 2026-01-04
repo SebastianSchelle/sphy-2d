@@ -9,7 +9,8 @@
 #include <sphy-2d.hpp>
 #include <render/render-engine.hpp>
 #include <ui/rmlui-renderinterface.hpp>
-
+#include <config-manager/config-manager.hpp>
+#include <render/texture.hpp>
 
 namespace ui
 {
@@ -74,6 +75,7 @@ class MainWindow
     gfx::RenderEngine renderEngine;
     gfx::RmlUiRenderInterface rmlUiRenderInterface;
     Rml::Context* rmlContext;
+    cfg::ConfigManager config;
 
 };
 

@@ -1,4 +1,5 @@
 #include "rmlui-renderinterface.hpp"
+#include "std-inc.hpp"
 #include "vertex-defines.hpp"
 
 namespace gfx
@@ -15,26 +16,27 @@ Rml::CompiledGeometryHandle
 RmlUiRenderInterface::CompileGeometry(Rml::Span<const Rml::Vertex> vertices,
                                       Rml::Span<const int> indices)
 {
-    LG_D("CompileGeometry: {} vertices, {} indices", vertices.size(), indices.size());
     std::vector<VertexPosColTex> vertexData;
     vertexData.reserve(vertices.size());
     for (size_t i = 0; i < vertices.size(); ++i)
     {
+        const auto& col = vertices[i].colour;
+        uint32_t rgba = ((uint32_t)col.red) | ((uint32_t)col.green << 8)
+                        | ((uint32_t)col.blue << 16)
+                        | ((uint32_t)col.alpha << 24);
         vertexData.push_back({vertices[i].position.x,
                               vertices[i].position.y,
-                              (uint32_t)((uint8_t)vertices[i].colour.red << 24 |
-                                         (uint8_t)vertices[i].colour.green << 16 |
-                                         (uint8_t)vertices[i].colour.blue << 8 |
-                                         (uint8_t)vertices[i].colour.alpha),
+                              rgba,
                               vertices[i].tex_coord.x,
                               vertices[i].tex_coord.y});
     }
-    uint32_t geometryHandle =
-        renderEngine->compileGeometry(&vertexData[0],
-                                      vertexData.size() * sizeof(VertexPosColTex),
-                                      indices.data(),
-                                      indices.size() * sizeof(int),
-                                      VertexPosColTex::ms_decl);
+    uint32_t geometryHandle = renderEngine->compileGeometry(
+        &vertexData[0],
+        vertexData.size() * sizeof(VertexPosColTex),
+        indices.data(),
+        indices.size() * sizeof(int),
+        VertexPosColTex::ms_decl,
+        true);  // RmlUI uses 32-bit int indices
     return (Rml::CompiledGeometryHandle)geometryHandle;
 }
 
@@ -42,11 +44,6 @@ void RmlUiRenderInterface::RenderGeometry(Rml::CompiledGeometryHandle geometry,
                                           Rml::Vector2f translation,
                                           Rml::TextureHandle texture)
 {
-    LG_D("RenderGeometry: handle={}, translation=({}, {}), texture={}",
-         (uint32_t)geometry,
-         translation.x,
-         translation.y,
-         (uint32_t)texture);
     uint32_t geometryHandle = (uint32_t)geometry;
     renderEngine->renderCompiledGeometry(
         geometryHandle,
@@ -64,7 +61,11 @@ Rml::TextureHandle
 RmlUiRenderInterface::LoadTexture(Rml::Vector2i& texture_dimensions,
                                   const Rml::String& source)
 {
-    //LG_D("LoadTexture");
+    renderEngine->loadTexture(sec::uuid(),
+                              "rmlui",
+                              source,
+                              texture_dimensions.x,
+                              texture_dimensions.y);
     return 0;
 }
 
@@ -72,29 +73,38 @@ Rml::TextureHandle
 RmlUiRenderInterface::GenerateTexture(Rml::Span<const Rml::byte> source,
                                       Rml::Vector2i source_dimensions)
 {
-    //LG_D("GenerateTexture");
+    LG_D("GenerateTexture");
     return 0;
 }
 
 void RmlUiRenderInterface::ReleaseTexture(Rml::TextureHandle texture)
 {
-    //LG_D("ReleaseTexture");
+    LG_D("ReleaseTexture");
 }
 
 void RmlUiRenderInterface::EnableScissorRegion(bool enable)
 {
-    LG_D("EnableScissorRegion: {}", enable);
     renderEngine->enableScissor(enable);
 }
 
 void RmlUiRenderInterface::SetScissorRegion(Rml::Rectanglei region)
 {
-    LG_D("SetScissorRegion: x={}, y={}, width={}, height={}",
-         region.Left(),
-         region.Top(),
-         region.Width(),
-         region.Height());
-    renderEngine->setScissor(region.Left(), region.Top(), region.Width(), region.Height());
+    renderEngine->setScissorRegion(region);
+}
+
+void RmlUiRenderInterface::EnableClipMask(bool enable)
+{
+    renderEngine->enableClipMask(enable);
+}
+
+void RmlUiRenderInterface::RenderToClipMask(
+    Rml::ClipMaskOperation operation,
+    Rml::CompiledGeometryHandle geometry,
+    Rml::Vector2f translation)
+{
+    uint32_t geometryHandle = (uint32_t)geometry;
+    renderEngine->renderToClipMask(
+        operation, geometryHandle, glm::vec2(translation.x, translation.y), 0);
 }
 
 }  // namespace gfx

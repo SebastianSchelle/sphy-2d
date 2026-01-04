@@ -22,6 +22,11 @@ void ConfigManager::addDefs(const string& file)
 nodeVal_t ConfigManager::get(std::vector<string> path) const
 {
     std::reverse(path.begin(), path.end());
+    if(!root)
+    {
+        LG_E("Config manager root is not initialized");
+        return nodeVal_t(0.0f);
+    }
     return root->get(path);
 }
 

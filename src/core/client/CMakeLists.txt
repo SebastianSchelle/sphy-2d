@@ -8,6 +8,7 @@ set(CLIENT_INC_PUBLIC
     ${CMAKE_SOURCE_DIR}/src/common/data-definitions
     ${THIRPARTY_DIR}/glfw/include
     ${THIRPARTY_DIR}/rmlui/Include
+    ${THIRPARTY_DIR}/rectpack2D/src
     ${BGFX_DIR}/bgfx/include
     ${BGFX_DIR}/bgfx/examples/common
     ${BGFX_DIR}/bgfx/3rdparty
@@ -26,6 +27,7 @@ set(CLIENT_SOURCES
     model.cpp
     win/main-window.cpp
     render/render-engine.cpp
+    render/texture.cpp
     render/shader.cpp
     ui/rmlui-renderinterface.cpp
 )
@@ -53,6 +55,7 @@ set(LIBS_PRIV
     glfw
     freetype
     RmlUi::RmlUi
+    rectpack2D
 )
 
 file(GLOB SHADER_SRC CONFIGURE_DEPENDS

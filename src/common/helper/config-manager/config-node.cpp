@@ -63,8 +63,9 @@ nodeVal_t ConfigBranch::get(std::vector<string>& path) const
             path.pop_back();
             return child->second->get(path);
         }
+        LG_E("Config branch {} not found", path.back())
     }
-    LG_E("Config branch {} not found", name.c_str());
+    LG_E("Config request ended in branch {}", name.c_str());
     return nodeVal_t(0.0f);
 }
 
