@@ -7,13 +7,29 @@
 namespace gfx
 {
 
+UvRect::UvRect(float xMin, float yMin, float xMax, float yMax)
+    : xMin(xMin), yMin(yMin), xMax(xMax), yMax(yMax)
+{
+    if(xMax <= xMin)
+    {
+        LG_E("xMax must be greater than xMin and yMax must be greater than yMin");
+        xMax = xMin + 1.0f;
+    }
+    if(yMax <= yMin)
+    {
+        LG_E("yMax must be greater than yMin");
+        yMax = yMin + 1.0f;
+    }
+}
+
 Texture::Texture(const std::string& name,
                  const std::string& path,
                  const TextureIdentifier& texIdent,
                  const StoragePtr& storagePtr,
-                 TextureAtlasHandle atlasHandle)
+                 TextureAtlasHandle atlasHandle,
+                 const UvRect& uvRect)
     : name(name), path(path), texIdent(texIdent), storagePtr(storagePtr),
-      atlasHandle(atlasHandle)
+      atlasHandle(atlasHandle), uvRect(uvRect)
 {
 }
 
@@ -245,7 +261,13 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
                           storagePtr.rect.height,
                           mem);
 
-    Texture texture(name, path, texIdent, storagePtr, atlasHandle);
+    UvRect uvRect {
+        (float)storagePtr.rect.x / (float)texWidth,
+        (float)storagePtr.rect.y / (float)texHeight,
+        (float)(storagePtr.rect.x + (float)storagePtr.rect.width) / (float)texWidth,
+        (float)(storagePtr.rect.y + (float)storagePtr.rect.height) / (float)texHeight
+    };
+    Texture texture(name, path, texIdent, storagePtr, atlasHandle, uvRect);
     int idx = textureLib.addItem(name, texture);
     TextureHandle handle = textureLib.getHandle(idx);
     LG_I("Texture has been added to GPU storage");

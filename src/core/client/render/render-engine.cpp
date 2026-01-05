@@ -65,14 +65,24 @@ void RenderEngine::init()
                        texBucketSize,
                        texExcessHeightThreshold);
 
-    // uint32_t fallbackTexHandle = textureLoader.loadTexture(
-    //     "fallback", "misc", "modules/core/texture/fallback.dds");
+    gfx::TextureHandle fallbackTexHandle = textureLoader.loadTexture(
+        "fallback", "misc", "modules/core/assets/textures/fallback.dds");
+    if (!fallbackTexHandle.isValid())
+    {
+        LG_E("Failed to load fallback texture");
+        return;
+    }
 
 
     if (!bgfx::isValid(u_translation))
     {
         u_translation =
             bgfx::createUniform("u_translation", bgfx::UniformType::Vec4);
+    }
+
+    if (!bgfx::isValid(u_uvRect))
+    {
+        u_uvRect = bgfx::createUniform("u_uvRect", bgfx::UniformType::Vec4);
     }
 
     if (!bgfx::isValid(u_texArray))
@@ -98,11 +108,11 @@ void RenderEngine::init()
 }
 
 GeometryHandle RenderEngine::compileGeometry(const void* vertexData,
-                                            size_t vDatSize,
-                                            const void* indexData,
-                                            size_t iDatSize,
-                                            bgfx::VertexLayout& vertLayout,
-                                            bool use32BitIndices)
+                                             size_t vDatSize,
+                                             const void* indexData,
+                                             size_t iDatSize,
+                                             bgfx::VertexLayout& vertLayout,
+                                             bool use32BitIndices)
 {
     Geometry geometry(
         vertexData, vDatSize, indexData, iDatSize, vertLayout, use32BitIndices);
@@ -121,9 +131,9 @@ void RenderEngine::releaseGeometry(GeometryHandle handle)
 }
 
 void RenderEngine::renderCompiledGeometry(GeometryHandle handle,
-                                         const glm::vec2& translation,
-                                         TextureHandle textureHandle,
-                                         bgfx::ViewId viewId)
+                                          const glm::vec2& translation,
+                                          TextureHandle textureHandle,
+                                          bgfx::ViewId viewId)
 {
     const Geometry* geometry = compiledGeometryLib.getItem(handle);
     if (!geometry)
@@ -144,15 +154,26 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle handle,
         }
     }
 
-    bgfx::setTexture(0, u_texArray, texture->getTexIdent().texHandle);
+    bgfx::setTexture(0,
+                     u_texArray,
+                     texture->getTexIdent().texHandle,
+                     BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
+                         | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT
+                         | BGFX_SAMPLER_MIP_POINT);
     float layerArr[] = {
         static_cast<float>(texture->getTexIdent().layerIdx), 0.0f, 0.0f, 0.0f};
     bgfx::setUniform(u_texLayer, layerArr);
+
+    const float* uvRect = reinterpret_cast<const float*>(&texture->getUvRect());
+    float uvRect2[] = {0.0f, 0.0f, 0.064f, 0.064f};
+    bgfx::setUniform(u_uvRect, uvRect2);
 
     // Set uniforms
     float trArr[] = {translation.x, translation.y, 0.0f, 0.0f};
     bgfx::setUniform(u_translation, trArr);
     bgfx::setUniform(u_proj, ortho);
+
+    LG_W("UV Rect: {} {} {} {}", uvRect[0], uvRect[1], uvRect[2], uvRect[3]);
 
     // Set render state
     uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A

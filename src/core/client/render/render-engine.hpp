@@ -79,6 +79,7 @@ class RenderEngine
     bgfx::UniformHandle u_proj = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_texArray = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_texLayer = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_uvRect = BGFX_INVALID_HANDLE;
 
     int winWidth;
     int winHeight;

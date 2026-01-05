@@ -38,8 +38,19 @@ class TextureAtlas
     con::alloc::ShelfAllocator shelfAllocator;
 };
 
-// Type alias for TextureAtlas handle - must use typename for nested template type
+// Type alias for TextureAtlas handle - must use typename for nested template
+// type
 using TextureAtlasHandle = typename con::ItemLib<TextureAtlas>::Handle;
+
+struct UvRect
+{
+  public:
+    UvRect(float xMin, float yMin, float xMax, float yMax);
+    float xMin;
+    float yMin;
+    float xMax;
+    float yMax;
+};
 
 class Texture
 {
@@ -48,7 +59,8 @@ class Texture
             const std::string& path,
             const TextureIdentifier& texIdent,
             const StoragePtr& storagePtr,
-            TextureAtlasHandle atlasHandle);
+            TextureAtlasHandle atlasHandle,
+            const UvRect& uvRect);
     ~Texture();
     const TextureIdentifier getTexIdent() const
     {
@@ -62,12 +74,17 @@ class Texture
     {
         return path;
     }
-    const TextureAtlasHandle getAtlasHandle() const {
-      return atlasHandle;
+    const TextureAtlasHandle getAtlasHandle() const
+    {
+        return atlasHandle;
     };
     const StoragePtr getStoragePtr() const
     {
         return storagePtr;
+    }
+    const UvRect& getUvRect() const
+    {
+        return uvRect;
     }
 
   private:
@@ -76,6 +93,7 @@ class Texture
     TextureIdentifier texIdent;
     StoragePtr storagePtr;
     TextureAtlasHandle atlasHandle;
+    UvRect uvRect;
 };
 
 using TextureHandle = typename con::ItemLib<Texture>::Handle;
@@ -114,19 +132,19 @@ class TextureLoader
 
   private:
     TextureHandle insertIntoAtlas(const std::string& name,
-                             const std::string& path,
-                             const std::string& type,
-                             int width,
-                             int height,
-                             StoragePtr& storagePtr,
-                             void* rgbaData);
+                                  const std::string& path,
+                                  const std::string& type,
+                                  int width,
+                                  int height,
+                                  StoragePtr& storagePtr,
+                                  void* rgbaData);
     TextureAtlasHandle createNewAtlas(const std::string& type);
     TextureHandle makeTexture(const std::string& name,
-                         const std::string& path,
-                         StoragePtr& storagePtr,
-                         TextureIdentifier texIdent,
-                         TextureAtlasHandle atlasHandle,
-                         void* rgbaData);
+                              const std::string& path,
+                              StoragePtr& storagePtr,
+                              TextureIdentifier texIdent,
+                              TextureAtlasHandle atlasHandle,
+                              void* rgbaData);
     std::unordered_map<std::string, std::vector<int>> atlasRegistry;
     con::ItemLib<TextureAtlas> textureAtlasLib;
     con::ItemLib<Texture> textureLib;

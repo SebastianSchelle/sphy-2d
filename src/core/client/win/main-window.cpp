@@ -214,18 +214,19 @@ bool MainWindow::setupRmlUi()
 
 void MainWindow::winLoop()
 {
-    gfx::VertexPosColTex vertexData[3] = {
-        {0.0f, 0.0f, 0x110000ff, 0.0f, 0.0f},
-        {500.0f, 200.0f, 0xff00ff00, 1.0f, 0.0f},
-        {200.0f, 500.0f, 0xffff0000, 0.0f, 1.0f},
+    gfx::VertexPosColTex vertexData[] = {
+        {200.0f, 200.0f, 0xffffffff, 0.0f, 0.0f},
+        {500.0f, 200.0f, 0xffffffff, 1.0f, 0.0f},
+        {200.0f, 500.0f, 0xffffffff, 0.0f, 1.0f},
+        {500.0f, 500.0f, 0xffffffff, 1.0f, 1.0f},
     };
-    uint16_t indexData[3] = {0, 1, 2};
+    uint16_t indexData[] = {0, 1, 2, 2, 1, 3};
 
     gfx::GeometryHandle geometryHandle =
         renderEngine.compileGeometry(vertexData,
-                                     3 * sizeof(gfx::VertexPosColTex),
+                                     4 * sizeof(gfx::VertexPosColTex),
                                      indexData,
-                                     3 * sizeof(uint16_t),
+                                     6 * sizeof(uint16_t),
                                      gfx::VertexPosColTex::ms_decl);
 
     while (!glfwWindowShouldClose(window))
@@ -246,8 +247,8 @@ void MainWindow::winLoop()
                            1.0f,
                            0);
 
-        //rmlContext->Render();
-        //rmlUiRenderInterface.EnableScissorRegion(false);
+        // rmlContext->Render();
+        // rmlUiRenderInterface.EnableScissorRegion(false);
         gfx::TextureHandle textureHandle = gfx::TextureHandle::Invalid();
         renderEngine.renderCompiledGeometry(
             geometryHandle, glm::vec2(0.0f, 0.0f), textureHandle, kClearView);

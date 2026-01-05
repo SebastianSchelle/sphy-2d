@@ -187,10 +187,17 @@ class ShelfAllocator
         : sortedShelves(
               [this](int a, int b)
               {
-                  if (shelves[a].getHeight() != shelves[b].getHeight())
-                      return shelves[a].getHeight() < shelves[b].getHeight();
-                  else
-                      return a < b; /* tie breaker */
+                // Safety check: if indices are out of bounds, use index comparison
+                // This can happen if sortedShelves contains stale indices after removals
+                if (a < 0 || b < 0 || a >= (int)shelves.size() || b >= (int)shelves.size())
+                {
+                    // Return consistent ordering for invalid indices
+                    return a < b;
+                }
+                if (shelves[a].getHeight() != shelves[b].getHeight())
+                    return shelves[a].getHeight() < shelves[b].getHeight();
+                else
+                    return a < b; /* tie breaker */
               })
     {
         shelfWidth = width;
@@ -204,6 +211,20 @@ class ShelfAllocator
 
     bool insertRect(StoragePtr& storagePtr)
     {
+        // Remove any stale indices from sortedShelves before iterating
+        auto it = sortedShelves.begin();
+        while (it != sortedShelves.end())
+        {
+            if (*it < 0 || *it >= (int)shelves.size())
+            {
+                it = sortedShelves.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+        
         for (auto& shelf : sortedShelves)
         {
             int shelfHeight = shelves[shelf].getHeight();
@@ -244,11 +265,12 @@ class ShelfAllocator
                 // shelf has been reset, check if this is the top most shelf
                 if (shelfId == shelves.size() - 1)
                 {
-                    while (shelves.back().isEmpty())
+                    while (!shelves.empty() && shelves.back().isEmpty())
                     {
+                        int backIndex = shelves.size() - 1;
                         headRoom += shelves.back().getHeight();
+                        sortedShelves.erase(backIndex);
                         shelves.pop_back();
-                        sortedShelves.erase(shelfId);
                     }
                 }
             }

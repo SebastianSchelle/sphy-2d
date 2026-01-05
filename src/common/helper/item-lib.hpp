@@ -38,7 +38,7 @@ template <class T> class ItemLib
         }
         bool isValid() const
         {
-            return idx != 0 && generation != 0;
+            return generation != 0;
         }
         uint16_t getIdx() const { return idx; }
         uint16_t getGeneration() const { return generation; }

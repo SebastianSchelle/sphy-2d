@@ -66,7 +66,6 @@ RmlUiRenderInterface::LoadTexture(Rml::Vector2i& texture_dimensions,
     TextureHandle textureHandle = renderEngine->loadTexture(sec::uuid(),
                                                             "rmlui",
                                                             source);
-    LG_D("Texture handle passed to RmlUi: {}", textureHandle.value());
     return (Rml::TextureHandle)textureHandle.value();
 }
 
