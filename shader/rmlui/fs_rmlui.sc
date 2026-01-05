@@ -3,11 +3,14 @@ $input v_texcoord0
 
 #include <bgfx_shader.sh>
 
-SAMPLER2D(u_texColor,  0);
+SAMPLER2DARRAY(u_texArray,  0);
+
+uniform vec4 u_texLayer;
 
 void main()
 {
-    vec4 texColor = texture2D(u_texColor, v_texcoord0);
-    //gl_FragColor = texColor * v_color0;
-    gl_FragColor = v_color0;
+    vec3 uvw = vec3(v_texcoord0.xy, u_texLayer.x);
+    vec4 texColor = texture2DArray(u_texArray, uvw);
+    gl_FragColor = texColor * v_color0;
+    //gl_FragColor = v_color0;
 }

@@ -27,7 +27,7 @@ struct Geometry
 
     bgfx::VertexBufferHandle getVbh() const;
     bgfx::IndexBufferHandle getIbh() const;
-    void destroy();
+    void destroy() const;
 
   private:
     bgfx::VertexBufferHandle vbh;
@@ -39,6 +39,12 @@ class RenderEngine
   public:
     RenderEngine(cfg::ConfigManager& config);
     ~RenderEngine();
+    
+    // Prevent copying and moving (contains BGFX handles and other resources)
+    RenderEngine(const RenderEngine&) = delete;
+    RenderEngine& operator=(const RenderEngine&) = delete;
+    RenderEngine(RenderEngine&&) = delete;
+    RenderEngine& operator=(RenderEngine&&) = delete;
 
     void init();
     uint32_t compileGeometry(const void* vertexData,
@@ -77,7 +83,9 @@ class RenderEngine
 
     bgfx::UniformHandle u_translation = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_proj = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle u_texColor = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_texArray = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_texLayer = BGFX_INVALID_HANDLE;
+
     int winWidth;
     int winHeight;
     float ortho[16];

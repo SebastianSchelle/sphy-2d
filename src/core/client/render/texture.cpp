@@ -85,7 +85,8 @@ TextureIdentifier TextureArray::getFreeTexture()
     return TextureIdentifier{INVALID_TEX_HANDLE, 0};
 }
 
-TextureLoader::TextureLoader() {}
+TextureLoader::TextureLoader() {
+}
 
 void TextureLoader::init(int texWidth,
                          int texHeight,
@@ -156,7 +157,7 @@ uint32_t TextureLoader::loadTexture(const std::string& name,
     storagePtr.rect.width = image->m_width;
     storagePtr.rect.height = image->m_height;
     uint32_t texId = insertIntoAtlas(
-        name, path, type, image->m_width, image->m_height, storagePtr);
+        name, path, type, image->m_width, image->m_height, storagePtr, image->m_data);
 
     if (texId != 0)
     {
@@ -173,7 +174,7 @@ uint32_t TextureLoader::loadTexture(const std::string& name,
                 if (atlas->insertTexture(storagePtr))
                 {
                     return makeTexture(
-                        name, path, storagePtr, atlas->getTexIdent(), atlasIdx);
+                        name, path, storagePtr, atlas->getTexIdent(), atlasIdx, image->m_data);
                 }
             }
         }
@@ -188,7 +189,8 @@ uint32_t TextureLoader::insertIntoAtlas(const std::string& name,
                                         const std::string& type,
                                         int width,
                                         int height,
-                                        StoragePtr& storagePtr)
+                                        StoragePtr& storagePtr,
+                                        void* rgbaData)
 {
     auto it = atlasRegistry.find(type);
     if (it != atlasRegistry.end())
@@ -202,7 +204,7 @@ uint32_t TextureLoader::insertIntoAtlas(const std::string& name,
                 if (atlas->insertTexture(storagePtr))
                 {
                     return makeTexture(
-                        name, path, storagePtr, atlas->getTexIdent(), entry);
+                        name, path, storagePtr, atlas->getTexIdent(), entry, rgbaData);
                 }
             }
         }
@@ -214,22 +216,40 @@ uint32_t TextureLoader::makeTexture(const std::string& name,
                                     const std::string& path,
                                     StoragePtr& storagePtr,
                                     TextureIdentifier texIdent,
-                                    int atlasId)
+                                    int atlasId,
+                                    void* rgbaData)
 {
+    // Update texture in VRAM
+    const bgfx::Memory* mem = bgfx::copy(
+        rgbaData, storagePtr.rect.width * storagePtr.rect.height * 4);
+
+    bgfx::updateTexture2D(texIdent.texHandle,
+                          texIdent.layerIdx,
+                          0,
+                          storagePtr.rect.x,
+                          storagePtr.rect.y,
+                          storagePtr.rect.width,
+                          storagePtr.rect.height,
+                          mem);
+
     Texture texture(name, path, texIdent, storagePtr, atlasId);
     int idx = textureLib.addItem(name, texture);
+    uint32_t wrapped = textureLib.wrappedIdx(idx);
     LG_I("Texture has been added to GPU storage");
     LG_I("GPU Texture handle: {}, Layer: {}",
          texture.getTexIdent().texHandle.idx,
          texture.getTexIdent().layerIdx);
-    LG_I("Texture name: {}, Path: {}, Lib idx: {}", name, path, idx);
+    LG_I("Texture name: {}, Path: {}, Lib idx: {}, Lib size: {}", 
+         name, path, idx, textureLib.size());
     LG_I("Atlas ID: {}, Pos: ({},{}) - {}x{}",
          atlasId,
          texture.getStoragePtr().rect.x,
          texture.getStoragePtr().rect.y,
          texture.getStoragePtr().rect.width,
          texture.getStoragePtr().rect.height);
-    return textureLib.wrappedIdx(idx, textureLib.getGeneration(idx));
+    LG_I("Wrapped texture handle: {} (idx: {}, gen: {})", 
+         wrapped, idx, textureLib.getGeneration(idx));
+    return wrapped;
 }
 
 int TextureLoader::createNewAtlas(const std::string& type)
@@ -271,6 +291,11 @@ int TextureLoader::createNewAtlas(const std::string& type)
     }
     textureArrays.push_back(textureArray);
     return createNewAtlas(type);
+}
+
+con::ItemLib<Texture>& TextureLoader::getTextureLib()
+{
+    return textureLib;
 }
 
 }  // namespace gfx

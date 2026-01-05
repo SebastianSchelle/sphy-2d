@@ -43,7 +43,7 @@ template <class T> class ItemLib
         return freeSlots.size();
     }
 
-    uint32_t wrappedIdx(int idx, uint16_t generation)
+    uint32_t wrappedIdx(int idx)
     {
         if (idx < items.size() && idx >= 0 && items[idx].alive)
         {

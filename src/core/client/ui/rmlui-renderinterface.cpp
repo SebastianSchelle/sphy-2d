@@ -61,12 +61,13 @@ Rml::TextureHandle
 RmlUiRenderInterface::LoadTexture(Rml::Vector2i& texture_dimensions,
                                   const Rml::String& source)
 {
-    renderEngine->loadTexture(sec::uuid(),
-                              "rmlui",
-                              source,
-                              texture_dimensions.x,
-                              texture_dimensions.y);
-    return 0;
+    uint32_t textureHandle = renderEngine->loadTexture(sec::uuid(),
+                                                       "rmlui",
+                                                       source,
+                                                       texture_dimensions.x,
+                                                       texture_dimensions.y);
+    LG_D("Texture handle passed to RmlUi: {}", textureHandle);
+    return (Rml::TextureHandle)textureHandle;
 }
 
 Rml::TextureHandle

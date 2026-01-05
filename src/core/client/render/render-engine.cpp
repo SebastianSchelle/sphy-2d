@@ -1,4 +1,5 @@
 #include "render-engine.hpp"
+#include "bgfx/bgfx.h"
 #include "vertex-defines.hpp"
 
 
@@ -20,7 +21,7 @@ Geometry::Geometry(const void* vertexData,
     ibh = bgfx::createIndexBuffer(bgfx::makeRef(indexData, iDatSize), flags);
 }
 
-void Geometry::destroy()
+void Geometry::destroy() const
 {
     bgfx::destroy(vbh);
     bgfx::destroy(ibh);
@@ -71,10 +72,15 @@ void RenderEngine::init()
             bgfx::createUniform("u_translation", bgfx::UniformType::Vec4);
     }
 
-    if (!bgfx::isValid(u_texColor))
+    if (!bgfx::isValid(u_texArray))
     {
-        u_texColor =
-            bgfx::createUniform("u_texColor", bgfx::UniformType::Sampler);
+        u_texArray =
+            bgfx::createUniform("u_texArray", bgfx::UniformType::Sampler);
+    }
+
+    if (!bgfx::isValid(u_texLayer))
+    {
+        u_texLayer = bgfx::createUniform("u_texLayer", bgfx::UniformType::Vec4);
     }
 
     if (!bgfx::isValid(u_proj))
@@ -106,7 +112,7 @@ void RenderEngine::releaseGeometry(uint32_t handle)
 {
     uint16_t index = handle & 0xffff;
     uint16_t generation = handle >> 16;
-    con::ItemWrapper<Geometry>* wrapper =
+    const con::ItemWrapper<Geometry>* wrapper =
         compiledGeometryLib.getWrappedItem(index);
     if (wrapper && wrapper->generation == generation && wrapper->alive)
     {
@@ -120,39 +126,58 @@ void RenderEngine::renderCompiledGeometry(uint32_t handle,
                                           uint32_t textureHandle,
                                           bgfx::ViewId viewId)
 {
-    uint16_t index = handle & 0xffff;
-    uint16_t generation = handle >> 16;
+    uint16_t geomIndex = handle & 0xffff;
+    uint16_t geomGeneration = handle >> 16;
+
+    uint16_t texIdx = textureHandle & 0xffff;
+    uint16_t texGeneration = textureHandle >> 16;
+
     con::ItemWrapper<Geometry>* wrapper =
-        compiledGeometryLib.getWrappedItem(index);
-    if (!wrapper || !wrapper->alive || wrapper->generation != generation)
+        compiledGeometryLib.getWrappedItem(geomIndex);
+    if (!wrapper || !wrapper->alive || wrapper->generation != geomGeneration)
     {
-        LG_W("Invalid geometry handle: {}", index);
+        LG_W("Invalid geometry handle: {}", geomIndex);
         return;
     }
     const Geometry& geometry = wrapper->item;
 
-    // Set view transform (identity view, identity projection - we use uniform
-    // for projection) Note: View rect should be set once per frame, not per
-    // draw call
-    float view[16];
-    float proj[16];
-    bx::mtxIdentity(view);
-    bx::mtxIdentity(proj);  // Use identity projection in view transform, we use
-                            // uniform instead
-    bgfx::setViewTransform(viewId, view, proj);
+    auto& texLib = textureLoader.getTextureLib();
+    LG_D("TextureLib size: {}, texIdx: {}, texGeneration: {}",
+         texLib.size(),
+         texIdx,
+         texGeneration);
+
+    con::ItemWrapper<Texture>* texWrapper = texLib.getWrappedItem(texIdx);
+
+    if (!texWrapper || !texWrapper->alive
+        || texWrapper->generation != texGeneration)
+    {
+        LG_W(
+            "Invalid texture handle: {} (lib size: {}, wrapper: {}, alive: {}, "
+            "gen: {} vs {})",
+            texIdx,
+            texLib.size(),
+            (void*)texWrapper,
+            texWrapper ? texWrapper->alive : false,
+            texWrapper ? texWrapper->generation : 0,
+            texGeneration);
+        return;
+    }
+    else
+    {
+        Texture& texture = texWrapper->item;
+        bgfx::setTexture(0, u_texArray, texture.getTexIdent().texHandle);
+        float layerArr[] = {static_cast<float>(texture.getTexIdent().layerIdx),
+                            0.0f,
+                            0.0f,
+                            0.0f};
+        bgfx::setUniform(u_texLayer, layerArr);
+    }
 
     // Set uniforms
     float trArr[] = {translation.x, translation.y, 0.0f, 0.0f};
     bgfx::setUniform(u_translation, trArr);
     bgfx::setUniform(u_proj, ortho);
-
-    // Set texture if valid
-    if (textureHandle != 0 && bgfx::isValid(u_texColor))
-    {
-        bgfx::TextureHandle texHandle;
-        texHandle.idx = (uint16_t)textureHandle;
-        bgfx::setTexture(0, u_texColor, texHandle);
-    }
 
     // Set scissor region if enabled (per-draw scissor)
     // Only set scissor when enabled - don't set it when disabled to avoid

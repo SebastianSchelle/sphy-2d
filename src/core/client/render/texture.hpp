@@ -2,9 +2,9 @@
 #define TEXTURE_HPP
 
 #include "item-lib.hpp"
+#include <bgfx/bgfx.h>
 #include <rectpack2D/rect_structs.h>
 #include <shelf-allocator.hpp>
-#include <bgfx/bgfx.h>
 
 namespace gfx
 {
@@ -28,11 +28,26 @@ class Texture
             const StoragePtr& storagePtr,
             int atlasId);
     ~Texture();
-    const TextureIdentifier getTexIdent() const { return texIdent; }
-    const std::string getName() const { return name; }
-    const std::string getPath() const { return path; }
-    const int getAtlasId() const { return atlasId; }
-    const StoragePtr getStoragePtr() const { return storagePtr; }
+    const TextureIdentifier getTexIdent() const
+    {
+        return texIdent;
+    }
+    const std::string getName() const
+    {
+        return name;
+    }
+    const std::string getPath() const
+    {
+        return path;
+    }
+    const int getAtlasId() const
+    {
+        return atlasId;
+    }
+    const StoragePtr getStoragePtr() const
+    {
+        return storagePtr;
+    }
 
   private:
     std::string name;
@@ -92,6 +107,7 @@ class TextureLoader
                          const std::string& type,
                          const std::string& path);
     void unloadTexture(uint32_t handle);
+    con::ItemLib<Texture>& getTextureLib();
 
   private:
     uint32_t insertIntoAtlas(const std::string& name,
@@ -99,13 +115,15 @@ class TextureLoader
                              const std::string& type,
                              int width,
                              int height,
-                             StoragePtr& storagePtr);
+                             StoragePtr& storagePtr,
+                             void* rgbaData);
     int createNewAtlas(const std::string& type);
     uint32_t makeTexture(const std::string& name,
                          const std::string& path,
                          StoragePtr& storagePtr,
                          TextureIdentifier texIdent,
-                         int atlasId);
+                         int atlasId,
+                         void* rgbaData);
     std::unordered_map<std::string, std::vector<int>> atlasRegistry;
     con::ItemLib<TextureAtlas> textureAtlasLib;
     con::ItemLib<Texture> textureLib;
