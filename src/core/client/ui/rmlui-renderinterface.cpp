@@ -63,9 +63,8 @@ Rml::TextureHandle
 RmlUiRenderInterface::LoadTexture(Rml::Vector2i& texture_dimensions,
                                   const Rml::String& source)
 {
-    TextureHandle textureHandle = renderEngine->loadTexture(sec::uuid(),
-                                                            "rmlui",
-                                                            source);
+    TextureHandle textureHandle =
+        renderEngine->loadTexture(sec::uuid(), "rmlui", source);
     return (Rml::TextureHandle)textureHandle.value();
 }
 
@@ -73,8 +72,13 @@ Rml::TextureHandle
 RmlUiRenderInterface::GenerateTexture(Rml::Span<const Rml::byte> source,
                                       Rml::Vector2i source_dimensions)
 {
-    LG_D("GenerateTexture");
-    return 0;
+    TextureHandle textureHandle =
+        renderEngine->generateTexture(sec::uuid(),
+                                      "rmlui",
+                                      source.data(),
+                                      source_dimensions.x,
+                                      source_dimensions.y);
+    return (Rml::TextureHandle)textureHandle.value();
 }
 
 void RmlUiRenderInterface::ReleaseTexture(Rml::TextureHandle texture)
@@ -84,14 +88,18 @@ void RmlUiRenderInterface::ReleaseTexture(Rml::TextureHandle texture)
 
 void RmlUiRenderInterface::EnableScissorRegion(bool enable)
 {
+    renderEngine->enableScissorRegion(enable);
 }
 
 void RmlUiRenderInterface::SetScissorRegion(Rml::Rectanglei region)
 {
+    renderEngine->setScissorRegion(glm::vec2(region.Left(), region.Top()),
+                                   glm::vec2(region.Width(), region.Height()));
 }
 
 void RmlUiRenderInterface::EnableClipMask(bool enable)
 {
+    LG_D("EnableClipMask");
 }
 
 void RmlUiRenderInterface::RenderToClipMask(
@@ -99,6 +107,7 @@ void RmlUiRenderInterface::RenderToClipMask(
     Rml::CompiledGeometryHandle geometry,
     Rml::Vector2f translation)
 {
+    LG_D("RenderToClipMask");
 }
 
 }  // namespace gfx

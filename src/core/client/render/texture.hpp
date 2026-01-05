@@ -127,6 +127,12 @@ class TextureLoader
     TextureHandle loadTexture(const std::string& name,
                               const std::string& type,
                               const std::string& path);
+    TextureHandle generateTexture(const std::string& name,
+                                  const std::string& type,
+                                  const void* data,
+                                  int width,
+                                  int height,
+                                  const std::string& path = "");
     void unloadTexture(uint32_t handle);
     con::ItemLib<Texture>& getTextureLib();
 
@@ -137,14 +143,14 @@ class TextureLoader
                                   int width,
                                   int height,
                                   StoragePtr& storagePtr,
-                                  void* rgbaData);
+                                  const void* rgbaData);
     TextureAtlasHandle createNewAtlas(const std::string& type);
     TextureHandle makeTexture(const std::string& name,
                               const std::string& path,
                               StoragePtr& storagePtr,
                               TextureIdentifier texIdent,
                               TextureAtlasHandle atlasHandle,
-                              void* rgbaData);
+                              const void* rgbaData);
     std::unordered_map<std::string, std::vector<int>> atlasRegistry;
     con::ItemLib<TextureAtlas> textureAtlasLib;
     con::ItemLib<Texture> textureLib;

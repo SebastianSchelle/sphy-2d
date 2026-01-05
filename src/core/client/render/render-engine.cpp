@@ -18,6 +18,10 @@ Geometry::Geometry(const void* vertexData,
                                    vertLayout);
     uint32_t flags = use32BitIndices ? BGFX_BUFFER_INDEX32 : 0;
     ibh = bgfx::createIndexBuffer(bgfx::makeRef(indexData, iDatSize), flags);
+    LG_D(
+        "Geometry created with {} vertices and {} indices",
+        vDatSize / vertLayout.getSize(1),
+        iDatSize / (use32BitIndices ? sizeof(uint32_t) : sizeof(uint16_t)));
 }
 
 void Geometry::destroy() const
@@ -160,20 +164,19 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle handle,
                      BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
                          | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT
                          | BGFX_SAMPLER_MIP_POINT);
+
     float layerArr[] = {
         static_cast<float>(texture->getTexIdent().layerIdx), 0.0f, 0.0f, 0.0f};
     bgfx::setUniform(u_texLayer, layerArr);
 
     const float* uvRect = reinterpret_cast<const float*>(&texture->getUvRect());
-    float uvRect2[] = {0.0f, 0.0f, 0.064f, 0.064f};
-    bgfx::setUniform(u_uvRect, uvRect2);
+    bgfx::setUniform(u_uvRect, uvRect);
 
-    // Set uniforms
     float trArr[] = {translation.x, translation.y, 0.0f, 0.0f};
     bgfx::setUniform(u_translation, trArr);
     bgfx::setUniform(u_proj, ortho);
 
-    LG_W("UV Rect: {} {} {} {}", uvRect[0], uvRect[1], uvRect[2], uvRect[3]);
+    // LG_W("UV Rect: {} {} {} {}", uvRect[0], uvRect[1], uvRect[2], uvRect[3]);
 
     // Set render state
     uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
@@ -215,6 +218,50 @@ TextureHandle RenderEngine::loadTexture(const std::string& name,
                                         const std::string& path)
 {
     return textureLoader.loadTexture(name, type, path);
+}
+
+TextureHandle RenderEngine::generateTexture(const std::string& name,
+                                            const std::string& type,
+                                            const void* data,
+                                            int width,
+                                            int height,
+                                            const std::string& path)
+{
+    return textureLoader.generateTexture(name, type, data, width, height, path);
+}
+
+void RenderEngine::setScissorRegion(const glm::vec2& position,
+                                    const glm::vec2& size)
+{
+    scissorRegionPosition = position;
+    scissorRegionSize = size;
+    if (scissorRegionEnabled)
+    {
+        bgfx::setScissor(scissorRegionPosition.x,
+                         scissorRegionPosition.y,
+                         scissorRegionSize.x,
+                         scissorRegionSize.y);
+    }
+    else
+    {
+        bgfx::setScissor(0, 0, winWidth, winHeight);
+    }
+}
+
+void RenderEngine::enableScissorRegion(bool enable)
+{
+    scissorRegionEnabled = enable;
+    if (scissorRegionEnabled)
+    {
+        bgfx::setScissor(scissorRegionPosition.x,
+                         scissorRegionPosition.y,
+                         scissorRegionSize.x,
+                         scissorRegionSize.y);
+    }
+    else
+    {
+        bgfx::setScissor(0, 0, winWidth, winHeight);
+    }
 }
 
 }  // namespace gfx

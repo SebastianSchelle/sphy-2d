@@ -203,7 +203,7 @@ bool MainWindow::setupRmlUi()
     }
 
     Rml::ElementDocument* document =
-        rmlContext->LoadDocument("modules/core/assets/ui/test.rml");
+        rmlContext->LoadDocument("modules/core/assets/ui/tutorial.rml");
     if (document)
     {
         LG_I("Loaded document test.rml");
@@ -247,11 +247,11 @@ void MainWindow::winLoop()
                            1.0f,
                            0);
 
-        // rmlContext->Render();
-        // rmlUiRenderInterface.EnableScissorRegion(false);
-        gfx::TextureHandle textureHandle = gfx::TextureHandle::Invalid();
-        renderEngine.renderCompiledGeometry(
-            geometryHandle, glm::vec2(0.0f, 0.0f), textureHandle, kClearView);
+        rmlContext->Render();
+        rmlUiRenderInterface.EnableScissorRegion(false);
+        //gfx::TextureHandle textureHandle = gfx::TextureHandle::Invalid();
+        //renderEngine.renderCompiledGeometry(
+        //    geometryHandle, glm::vec2(0.0f, 0.0f), textureHandle, kClearView);
         bgfx::frame();
     }
 }

@@ -42,7 +42,7 @@ class RenderEngine
   public:
     RenderEngine(cfg::ConfigManager& config);
     ~RenderEngine();
-    
+
     // Prevent copying and moving (contains BGFX handles and other resources)
     RenderEngine(const RenderEngine&) = delete;
     RenderEngine& operator=(const RenderEngine&) = delete;
@@ -51,11 +51,11 @@ class RenderEngine
 
     void init();
     GeometryHandle compileGeometry(const void* vertexData,
-                             size_t vDatSize,
-                             const void* indexData,
-                             size_t iDatSize,
-                             bgfx::VertexLayout& vertLayout,
-                             bool use32BitIndices = false);
+                                   size_t vDatSize,
+                                   const void* indexData,
+                                   size_t iDatSize,
+                                   bgfx::VertexLayout& vertLayout,
+                                   bool use32BitIndices = false);
     void releaseGeometry(GeometryHandle handle);
     void renderCompiledGeometry(GeometryHandle handle,
                                 const glm::vec2& translation,
@@ -63,8 +63,16 @@ class RenderEngine
                                 bgfx::ViewId viewId = 0);
     void setWindowSize(int width, int height);
     TextureHandle loadTexture(const std::string& name,
-                         const std::string& type,
-                         const std::string& path);
+                              const std::string& type,
+                              const std::string& path);
+    TextureHandle generateTexture(const std::string& name,
+                                  const std::string& type,
+                                  const void* data,
+                                  int width,
+                                  int height,
+                                  const std::string& path="");
+    void setScissorRegion(const glm::vec2& position, const glm::vec2& size);
+    void enableScissorRegion(bool enable);
 
   private:
     void updateOrtho();
@@ -84,6 +92,9 @@ class RenderEngine
     int winWidth;
     int winHeight;
     float ortho[16];
+    glm::vec2 scissorRegionPosition;
+    glm::vec2 scissorRegionSize;
+    bool scissorRegionEnabled;
 };
 
 }  // namespace gfx

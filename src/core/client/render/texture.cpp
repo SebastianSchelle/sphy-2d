@@ -10,12 +10,14 @@ namespace gfx
 UvRect::UvRect(float xMin, float yMin, float xMax, float yMax)
     : xMin(xMin), yMin(yMin), xMax(xMax), yMax(yMax)
 {
-    if(xMax <= xMin)
+    if (xMax <= xMin)
     {
-        LG_E("xMax must be greater than xMin and yMax must be greater than yMin");
+        LG_E(
+            "xMax must be greater than xMin and yMax must be greater than "
+            "yMin");
         xMax = xMin + 1.0f;
     }
-    if(yMax <= yMin)
+    if (yMax <= yMin)
     {
         LG_E("yMax must be greater than yMin");
         yMax = yMin + 1.0f;
@@ -166,18 +168,22 @@ TextureHandle TextureLoader::loadTexture(const std::string& name,
         bimg::imageFree(image);
         return TextureHandle::Invalid();
     }
+    return generateTexture(
+        name, type, image->m_data, image->m_width, image->m_height, path);
+}
 
-
+TextureHandle TextureLoader::generateTexture(const std::string& name,
+                                             const std::string& type,
+                                             const void* data,
+                                             int width,
+                                             int height,
+                                             const std::string& path)
+{
     StoragePtr storagePtr;
-    storagePtr.rect.width = image->m_width;
-    storagePtr.rect.height = image->m_height;
-    TextureHandle handle = insertIntoAtlas(name,
-                                           path,
-                                           type,
-                                           image->m_width,
-                                           image->m_height,
-                                           storagePtr,
-                                           image->m_data);
+    storagePtr.rect.width = width;
+    storagePtr.rect.height = height;
+    TextureHandle handle =
+        insertIntoAtlas(name, path, type, width, height, storagePtr, data);
 
     if (handle.isValid())
     {
@@ -198,7 +204,7 @@ TextureHandle TextureLoader::loadTexture(const std::string& name,
                                        storagePtr,
                                        atlas->getTexIdent(),
                                        atlasHandle,
-                                       image->m_data);
+                                       data);
                 }
             }
         }
@@ -214,7 +220,7 @@ TextureHandle TextureLoader::insertIntoAtlas(const std::string& name,
                                              int width,
                                              int height,
                                              StoragePtr& storagePtr,
-                                             void* rgbaData)
+                                             const void* rgbaData)
 {
     auto it = atlasRegistry.find(type);
     if (it != atlasRegistry.end())
@@ -227,7 +233,8 @@ TextureHandle TextureLoader::insertIntoAtlas(const std::string& name,
             {
                 if (atlas->insertTexture(storagePtr))
                 {
-                    TextureAtlasHandle atlasHandle = textureAtlasLib.getHandle(entry);
+                    TextureAtlasHandle atlasHandle =
+                        textureAtlasLib.getHandle(entry);
                     return makeTexture(name,
                                        path,
                                        storagePtr,
@@ -246,7 +253,7 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
                                          StoragePtr& storagePtr,
                                          TextureIdentifier texIdent,
                                          TextureAtlasHandle atlasHandle,
-                                         void* rgbaData)
+                                         const void* rgbaData)
 {
     // Update texture in VRAM
     const bgfx::Memory* mem = bgfx::copy(
@@ -261,12 +268,12 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
                           storagePtr.rect.height,
                           mem);
 
-    UvRect uvRect {
-        (float)storagePtr.rect.x / (float)texWidth,
-        (float)storagePtr.rect.y / (float)texHeight,
-        (float)(storagePtr.rect.x + (float)storagePtr.rect.width) / (float)texWidth,
-        (float)(storagePtr.rect.y + (float)storagePtr.rect.height) / (float)texHeight
-    };
+    UvRect uvRect{(float)storagePtr.rect.x / (float)texWidth,
+                  (float)storagePtr.rect.y / (float)texHeight,
+                  (float)(storagePtr.rect.x + (float)storagePtr.rect.width)
+                      / (float)texWidth,
+                  (float)(storagePtr.rect.y + (float)storagePtr.rect.height)
+                      / (float)texHeight};
     Texture texture(name, path, texIdent, storagePtr, atlasHandle, uvRect);
     int idx = textureLib.addItem(name, texture);
     TextureHandle handle = textureLib.getHandle(idx);

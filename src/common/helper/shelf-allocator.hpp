@@ -169,6 +169,7 @@ class Shelf
         }
         return count;
     }
+
   private:
     std::vector<Bucket> buckets;
     int shelfWidth;
@@ -185,19 +186,12 @@ class ShelfAllocator
                    int bucketSize,
                    float excessHeightThreshold = 0.7f)
         : sortedShelves(
-              [this](int a, int b)
+              [this](std::pair<int, int> a, std::pair<int, int> b)
               {
-                // Safety check: if indices are out of bounds, use index comparison
-                // This can happen if sortedShelves contains stale indices after removals
-                if (a < 0 || b < 0 || a >= (int)shelves.size() || b >= (int)shelves.size())
-                {
-                    // Return consistent ordering for invalid indices
-                    return a < b;
-                }
-                if (shelves[a].getHeight() != shelves[b].getHeight())
-                    return shelves[a].getHeight() < shelves[b].getHeight();
-                else
-                    return a < b; /* tie breaker */
+                  if (a.second != b.second)
+                      return a.second < b.second;
+                  else
+                      return a.first < b.first; /* tie breaker */
               })
     {
         shelfWidth = width;
@@ -215,7 +209,7 @@ class ShelfAllocator
         auto it = sortedShelves.begin();
         while (it != sortedShelves.end())
         {
-            if (*it < 0 || *it >= (int)shelves.size())
+            if (it->first < 0 || it->first >= (int)shelves.size())
             {
                 it = sortedShelves.erase(it);
             }
@@ -224,10 +218,10 @@ class ShelfAllocator
                 ++it;
             }
         }
-        
+
         for (auto& shelf : sortedShelves)
         {
-            int shelfHeight = shelves[shelf].getHeight();
+            int shelfHeight = shelves[shelf.first].getHeight();
             // std::cout << "Shelf id: " << shelf << " height: " << shelfHeight
             //           << " - rect height: " << storagePtr.rect.height
             //           << std::endl;
@@ -244,9 +238,9 @@ class ShelfAllocator
                         return true;
                     }
                 }
-                if (shelves[shelf].insertRect(storagePtr))
+                if (shelves[shelf.first].insertRect(storagePtr))
                 {
-                    storagePtr.shelfId = shelf;
+                    storagePtr.shelfId = shelf.first;
                     return true;
                 }
             }
@@ -269,7 +263,7 @@ class ShelfAllocator
                     {
                         int backIndex = shelves.size() - 1;
                         headRoom += shelves.back().getHeight();
-                        sortedShelves.erase(backIndex);
+                        sortedShelves.erase(std::make_pair(backIndex, shelves.back().getHeight()));
                         shelves.pop_back();
                     }
                 }
@@ -313,8 +307,9 @@ class ShelfAllocator
             shelves.push_back(
                 Shelf(shelfWidth, height, bucketSize, lastYoffs + lastHeight));
             Shelf* newShelf = &shelves.back();
+
             headRoom -= height;
-            sortedShelves.insert(shelves.size() - 1);
+            sortedShelves.insert(std::make_pair(shelves.size() - 1, height));
             return newShelf;
         }
         return nullptr;
@@ -324,7 +319,7 @@ class ShelfAllocator
     int shelfHeight;
     int bucketSize;
     std::vector<Shelf> shelves;
-    std::set<int, std::function<bool(int, int)>> sortedShelves;
+    std::set<std::pair<int, int>, std::function<bool(std::pair<int, int>, std::pair<int, int>)>> sortedShelves;
     int headRoom;
     float excessHeightThreshold = 0.8f;
 };
