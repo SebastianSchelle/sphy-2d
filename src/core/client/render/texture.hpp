@@ -19,6 +19,28 @@ struct TextureIdentifier
     uint8_t layerIdx;
 };
 
+class TextureAtlas
+{
+  public:
+    TextureAtlas(uint16_t width,
+                 uint16_t height,
+                 int bucketSize,
+                 TextureIdentifier texIdent,
+                 float excessHeightThreshold);
+    ~TextureAtlas();
+    bool insertTexture(StoragePtr& storagePtr);
+    const TextureIdentifier getTexIdent() const;
+
+  private:
+    TextureIdentifier texIdent;
+    uint16_t width;
+    uint16_t height;
+    con::alloc::ShelfAllocator shelfAllocator;
+};
+
+// Type alias for TextureAtlas handle - must use typename for nested template type
+using TextureAtlasHandle = typename con::ItemLib<TextureAtlas>::Handle;
+
 class Texture
 {
   public:
@@ -26,7 +48,7 @@ class Texture
             const std::string& path,
             const TextureIdentifier& texIdent,
             const StoragePtr& storagePtr,
-            int atlasId);
+            TextureAtlasHandle atlasHandle);
     ~Texture();
     const TextureIdentifier getTexIdent() const
     {
@@ -40,10 +62,9 @@ class Texture
     {
         return path;
     }
-    const int getAtlasId() const
-    {
-        return atlasId;
-    }
+    const TextureAtlasHandle getAtlasHandle() const {
+      return atlasHandle;
+    };
     const StoragePtr getStoragePtr() const
     {
         return storagePtr;
@@ -54,28 +75,10 @@ class Texture
     std::string path;
     TextureIdentifier texIdent;
     StoragePtr storagePtr;
-    int atlasId;
+    TextureAtlasHandle atlasHandle;
 };
 
-class TextureAtlas
-{
-  public:
-    TextureAtlas(uint16_t width,
-                 uint16_t height,
-                 int bucketSize,
-                 TextureIdentifier texIdent,
-                 float excessHeightThreshold);
-    ~TextureAtlas();
-    uint32_t getHandle() const;
-    bool insertTexture(StoragePtr& storagePtr);
-    const TextureIdentifier getTexIdent() const;
-
-  private:
-    TextureIdentifier texIdent;
-    uint16_t width;
-    uint16_t height;
-    con::alloc::ShelfAllocator shelfAllocator;
-};
+using TextureHandle = typename con::ItemLib<Texture>::Handle;
 
 class TextureArray
 {
@@ -103,26 +106,26 @@ class TextureLoader
               int texLayerCnt,
               int bucketSize,
               float excessHeightThreshold);
-    uint32_t loadTexture(const std::string& name,
-                         const std::string& type,
-                         const std::string& path);
+    TextureHandle loadTexture(const std::string& name,
+                              const std::string& type,
+                              const std::string& path);
     void unloadTexture(uint32_t handle);
     con::ItemLib<Texture>& getTextureLib();
 
   private:
-    uint32_t insertIntoAtlas(const std::string& name,
+    TextureHandle insertIntoAtlas(const std::string& name,
                              const std::string& path,
                              const std::string& type,
                              int width,
                              int height,
                              StoragePtr& storagePtr,
                              void* rgbaData);
-    int createNewAtlas(const std::string& type);
-    uint32_t makeTexture(const std::string& name,
+    TextureAtlasHandle createNewAtlas(const std::string& type);
+    TextureHandle makeTexture(const std::string& name,
                          const std::string& path,
                          StoragePtr& storagePtr,
                          TextureIdentifier texIdent,
-                         int atlasId,
+                         TextureAtlasHandle atlasHandle,
                          void* rgbaData);
     std::unordered_map<std::string, std::vector<int>> atlasRegistry;
     con::ItemLib<TextureAtlas> textureAtlasLib;

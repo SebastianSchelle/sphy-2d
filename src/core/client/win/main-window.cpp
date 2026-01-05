@@ -221,7 +221,7 @@ void MainWindow::winLoop()
     };
     uint16_t indexData[3] = {0, 1, 2};
 
-    uint32_t geometryHandle =
+    gfx::GeometryHandle geometryHandle =
         renderEngine.compileGeometry(vertexData,
                                      3 * sizeof(gfx::VertexPosColTex),
                                      indexData,
@@ -246,10 +246,11 @@ void MainWindow::winLoop()
                            1.0f,
                            0);
 
-        rmlContext->Render();
-        rmlUiRenderInterface.EnableScissorRegion(false);
+        //rmlContext->Render();
+        //rmlUiRenderInterface.EnableScissorRegion(false);
+        gfx::TextureHandle textureHandle = gfx::TextureHandle::Invalid();
         renderEngine.renderCompiledGeometry(
-            geometryHandle, glm::vec2(0.0f, 0.0f), 0, kClearView);
+            geometryHandle, glm::vec2(0.0f, 0.0f), textureHandle, kClearView);
         bgfx::frame();
     }
 }

@@ -2,6 +2,7 @@
 #define NET_SHARED_HPP
 
 #include <std-inc.hpp>
+#include <item-lib.hpp>
 
 namespace net
 {
@@ -40,6 +41,8 @@ typedef struct
     udp::endpoint udpEndpoint;
     std::shared_ptr<TcpConnection> connection;
 } ClientInfo;
+
+using ClientInfoHandle = typename con::ItemLib<ClientInfo>::Handle;
 
 //EXT_SER(ClientInfo, s.text1b(o.token, 16); s.text1b(o.name, o.name.size());
 //        s.value2b(o.portUdp);

@@ -11,9 +11,9 @@ Texture::Texture(const std::string& name,
                  const std::string& path,
                  const TextureIdentifier& texIdent,
                  const StoragePtr& storagePtr,
-                 int atlasId)
+                 TextureAtlasHandle atlasHandle)
     : name(name), path(path), texIdent(texIdent), storagePtr(storagePtr),
-      atlasId(atlasId)
+      atlasHandle(atlasHandle)
 {
 }
 
@@ -85,8 +85,7 @@ TextureIdentifier TextureArray::getFreeTexture()
     return TextureIdentifier{INVALID_TEX_HANDLE, 0};
 }
 
-TextureLoader::TextureLoader() {
-}
+TextureLoader::TextureLoader() {}
 
 void TextureLoader::init(int texWidth,
                          int texHeight,
@@ -106,9 +105,9 @@ TextureLoader::~TextureLoader() {}
 void TextureLoader::unloadTexture(uint32_t handle) {}
 
 
-uint32_t TextureLoader::loadTexture(const std::string& name,
-                                    const std::string& type,
-                                    const std::string& path)
+TextureHandle TextureLoader::loadTexture(const std::string& name,
+                                         const std::string& type,
+                                         const std::string& path)
 {
     bx::Error err;
     // Load image file
@@ -116,7 +115,7 @@ uint32_t TextureLoader::loadTexture(const std::string& name,
     if (!file.is_open())
     {
         LG_E("Failed to open file: {}", path);
-        return 0;
+        return TextureHandle::Invalid();
     }
 
     auto sizef = static_cast<uint32_t>(file.tellg());
@@ -127,7 +126,7 @@ uint32_t TextureLoader::loadTexture(const std::string& name,
     if (!file.read(reinterpret_cast<char*>(buffer.data()), sizef))
     {
         LG_E("Failed to read file {}", path);
-        return 0;
+        return TextureHandle::Invalid();
     }
     bx::DefaultAllocator alloc;
     bimg::ImageContainer* image =
@@ -135,7 +134,7 @@ uint32_t TextureLoader::loadTexture(const std::string& name,
     if (!image)
     {
         LG_E("Failed to parse image: {}", path)
-        return 0;
+        return TextureHandle::Invalid();
     }
 
     LG_D("Read image file {} successfully", path);
@@ -149,48 +148,57 @@ uint32_t TextureLoader::loadTexture(const std::string& name,
     {
         LG_E("Failed to parse image: {}", path)
         bimg::imageFree(image);
-        return 0;
+        return TextureHandle::Invalid();
     }
 
 
     StoragePtr storagePtr;
     storagePtr.rect.width = image->m_width;
     storagePtr.rect.height = image->m_height;
-    uint32_t texId = insertIntoAtlas(
-        name, path, type, image->m_width, image->m_height, storagePtr, image->m_data);
+    TextureHandle handle = insertIntoAtlas(name,
+                                           path,
+                                           type,
+                                           image->m_width,
+                                           image->m_height,
+                                           storagePtr,
+                                           image->m_data);
 
-    if (texId != 0)
+    if (handle.isValid())
     {
-        return texId;
+        return handle;
     }
     else
     {
-        int atlasIdx = createNewAtlas(type);
-        if (atlasIdx != -1)
+        TextureAtlasHandle atlasHandle = createNewAtlas(type);
+        if (atlasHandle.isValid())
         {
-            TextureAtlas* atlas = textureAtlasLib.getItem(atlasIdx);
+            TextureAtlas* atlas = textureAtlasLib.getItem(atlasHandle);
             if (atlas)
             {
                 if (atlas->insertTexture(storagePtr))
                 {
-                    return makeTexture(
-                        name, path, storagePtr, atlas->getTexIdent(), atlasIdx, image->m_data);
+                    return makeTexture(name,
+                                       path,
+                                       storagePtr,
+                                       atlas->getTexIdent(),
+                                       atlasHandle,
+                                       image->m_data);
                 }
             }
         }
     }
 
     LG_E("Failed to store texture {} with path {} in GPU memory", name, path);
-    return 0;
+    return TextureHandle::Invalid();
 }
 
-uint32_t TextureLoader::insertIntoAtlas(const std::string& name,
-                                        const std::string& path,
-                                        const std::string& type,
-                                        int width,
-                                        int height,
-                                        StoragePtr& storagePtr,
-                                        void* rgbaData)
+TextureHandle TextureLoader::insertIntoAtlas(const std::string& name,
+                                             const std::string& path,
+                                             const std::string& type,
+                                             int width,
+                                             int height,
+                                             StoragePtr& storagePtr,
+                                             void* rgbaData)
 {
     auto it = atlasRegistry.find(type);
     if (it != atlasRegistry.end())
@@ -203,21 +211,26 @@ uint32_t TextureLoader::insertIntoAtlas(const std::string& name,
             {
                 if (atlas->insertTexture(storagePtr))
                 {
-                    return makeTexture(
-                        name, path, storagePtr, atlas->getTexIdent(), entry, rgbaData);
+                    TextureAtlasHandle atlasHandle = textureAtlasLib.getHandle(entry);
+                    return makeTexture(name,
+                                       path,
+                                       storagePtr,
+                                       atlas->getTexIdent(),
+                                       atlasHandle,
+                                       rgbaData);
                 }
             }
         }
     }
-    return false;
+    return TextureHandle::Invalid();
 }
 
-uint32_t TextureLoader::makeTexture(const std::string& name,
-                                    const std::string& path,
-                                    StoragePtr& storagePtr,
-                                    TextureIdentifier texIdent,
-                                    int atlasId,
-                                    void* rgbaData)
+TextureHandle TextureLoader::makeTexture(const std::string& name,
+                                         const std::string& path,
+                                         StoragePtr& storagePtr,
+                                         TextureIdentifier texIdent,
+                                         TextureAtlasHandle atlasHandle,
+                                         void* rgbaData)
 {
     // Update texture in VRAM
     const bgfx::Memory* mem = bgfx::copy(
@@ -232,27 +245,32 @@ uint32_t TextureLoader::makeTexture(const std::string& name,
                           storagePtr.rect.height,
                           mem);
 
-    Texture texture(name, path, texIdent, storagePtr, atlasId);
+    Texture texture(name, path, texIdent, storagePtr, atlasHandle);
     int idx = textureLib.addItem(name, texture);
-    uint32_t wrapped = textureLib.wrappedIdx(idx);
+    TextureHandle handle = textureLib.getHandle(idx);
     LG_I("Texture has been added to GPU storage");
     LG_I("GPU Texture handle: {}, Layer: {}",
          texture.getTexIdent().texHandle.idx,
          texture.getTexIdent().layerIdx);
-    LG_I("Texture name: {}, Path: {}, Lib idx: {}, Lib size: {}", 
-         name, path, idx, textureLib.size());
+    LG_I("Texture name: {}, Path: {}, Lib idx: {}, Lib size: {}",
+         name,
+         path,
+         idx,
+         textureLib.size());
     LG_I("Atlas ID: {}, Pos: ({},{}) - {}x{}",
-         atlasId,
+         atlasHandle.value(),
          texture.getStoragePtr().rect.x,
          texture.getStoragePtr().rect.y,
          texture.getStoragePtr().rect.width,
          texture.getStoragePtr().rect.height);
-    LG_I("Wrapped texture handle: {} (idx: {}, gen: {})", 
-         wrapped, idx, textureLib.getGeneration(idx));
-    return wrapped;
+    LG_I("Wrapped texture handle: {} (idx: {}, gen: {})",
+         handle.value(),
+         idx,
+         textureLib.getGeneration(idx));
+    return handle;
 }
 
-int TextureLoader::createNewAtlas(const std::string& type)
+TextureAtlasHandle TextureLoader::createNewAtlas(const std::string& type)
 {
     // Check if a free layer is available in any texture array
     for (auto& textureArray : textureArrays)
@@ -275,10 +293,10 @@ int TextureLoader::createNewAtlas(const std::string& type)
             if (idxUuid.idx != -1)
             {
                 atlasRegistry[type].push_back(idxUuid.idx);
-                return idxUuid.idx;
+                return textureAtlasLib.getHandle(idxUuid.idx);
             }
             LG_D("Something went wrong creating new texture atlas");
-            return -1;
+            return TextureAtlasHandle::Invalid();
         }
     }
     LG_D("No free texture array layer found. Create new texture array...",
@@ -287,10 +305,11 @@ int TextureLoader::createNewAtlas(const std::string& type)
     if (!textureArray.init())
     {
         LG_E("Failed to create new texture array");
-        return -1;
+        return TextureAtlasHandle::Invalid();
     }
     textureArrays.push_back(textureArray);
-    return createNewAtlas(type);
+    TextureAtlasHandle handle = createNewAtlas(type);
+    return handle;
 }
 
 con::ItemLib<Texture>& TextureLoader::getTextureLib()
@@ -299,3 +318,8 @@ con::ItemLib<Texture>& TextureLoader::getTextureLib()
 }
 
 }  // namespace gfx
+
+// Explicitly instantiate ItemLib<T> to ensure Handle is fully defined
+// Must be outside the gfx namespace
+template class con::ItemLib<gfx::TextureAtlas>;
+template class con::ItemLib<gfx::Texture>;

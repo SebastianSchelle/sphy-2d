@@ -30,44 +30,44 @@ RmlUiRenderInterface::CompileGeometry(Rml::Span<const Rml::Vertex> vertices,
                               vertices[i].tex_coord.x,
                               vertices[i].tex_coord.y});
     }
-    uint32_t geometryHandle = renderEngine->compileGeometry(
+    GeometryHandle geometryHandle = renderEngine->compileGeometry(
         &vertexData[0],
         vertexData.size() * sizeof(VertexPosColTex),
         indices.data(),
         indices.size() * sizeof(int),
         VertexPosColTex::ms_decl,
         true);  // RmlUI uses 32-bit int indices
-    return (Rml::CompiledGeometryHandle)geometryHandle;
+    return (Rml::CompiledGeometryHandle)geometryHandle.value();
 }
 
 void RmlUiRenderInterface::RenderGeometry(Rml::CompiledGeometryHandle geometry,
                                           Rml::Vector2f translation,
                                           Rml::TextureHandle texture)
 {
-    uint32_t geometryHandle = (uint32_t)geometry;
+    GeometryHandle geometryHandle((uint32_t)geometry);
+    TextureHandle textureHandle((uint32_t)texture);
     renderEngine->renderCompiledGeometry(
         geometryHandle,
         glm::vec2(translation.x, translation.y),
-        (uint32_t)texture,
+        textureHandle,
         0);  // Use view 0
 }
 
 void RmlUiRenderInterface::ReleaseGeometry(Rml::CompiledGeometryHandle geometry)
 {
-    renderEngine->releaseGeometry((uint32_t)geometry);
+    GeometryHandle handle((uint32_t)geometry);
+    renderEngine->releaseGeometry(handle);
 }
 
 Rml::TextureHandle
 RmlUiRenderInterface::LoadTexture(Rml::Vector2i& texture_dimensions,
                                   const Rml::String& source)
 {
-    uint32_t textureHandle = renderEngine->loadTexture(sec::uuid(),
-                                                       "rmlui",
-                                                       source,
-                                                       texture_dimensions.x,
-                                                       texture_dimensions.y);
-    LG_D("Texture handle passed to RmlUi: {}", textureHandle);
-    return (Rml::TextureHandle)textureHandle;
+    TextureHandle textureHandle = renderEngine->loadTexture(sec::uuid(),
+                                                            "rmlui",
+                                                            source);
+    LG_D("Texture handle passed to RmlUi: {}", textureHandle.value());
+    return (Rml::TextureHandle)textureHandle.value();
 }
 
 Rml::TextureHandle
@@ -85,17 +85,14 @@ void RmlUiRenderInterface::ReleaseTexture(Rml::TextureHandle texture)
 
 void RmlUiRenderInterface::EnableScissorRegion(bool enable)
 {
-    renderEngine->enableScissor(enable);
 }
 
 void RmlUiRenderInterface::SetScissorRegion(Rml::Rectanglei region)
 {
-    renderEngine->setScissorRegion(region);
 }
 
 void RmlUiRenderInterface::EnableClipMask(bool enable)
 {
-    renderEngine->enableClipMask(enable);
 }
 
 void RmlUiRenderInterface::RenderToClipMask(
@@ -103,9 +100,6 @@ void RmlUiRenderInterface::RenderToClipMask(
     Rml::CompiledGeometryHandle geometry,
     Rml::Vector2f translation)
 {
-    uint32_t geometryHandle = (uint32_t)geometry;
-    renderEngine->renderToClipMask(
-        operation, geometryHandle, glm::vec2(translation.x, translation.y), 0);
 }
 
 }  // namespace gfx

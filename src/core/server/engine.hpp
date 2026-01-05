@@ -31,7 +31,7 @@ class Engine
 
     std::thread engineThread;
     con::ItemLib<net::ClientInfo> clientLib;
-    std::vector<int> activeClientIdxs;
+    std::vector<net::ClientInfoHandle> activeClientHandles;
 };
 
 }  // namespace sphys

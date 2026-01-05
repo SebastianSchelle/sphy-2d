@@ -28,11 +28,11 @@ void Engine::engineLoop()
         }
 
         // test
-        for(int i = 0; i < activeClientIdxs.size(); i++)
+        for (int i = 0; i < activeClientHandles.size(); i++)
         {
-            int idx = activeClientIdxs[i];
-            net::ClientInfo *clientInfo = clientLib.getItem(idx);
-            if(clientInfo)
+            net::ClientInfoHandle handle = activeClientHandles[i];
+            net::ClientInfo* clientInfo = clientLib.getItem(handle);
+            if (clientInfo)
             {
                 CMDAT_PREP(net::SendType::UDP, prot::cmd::LOG, 0)
                 std::string str = "Hello World!";
@@ -115,28 +115,43 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
                     uint16_t portUdp;
                     cmddes.text1b(token, 16);
                     cmddes.value2b(portUdp);
-                    int idx = clientLib.getIndex(token);
-                    if (idx != -1 && token.length() == 16)
+                    if (token.length() == 16)
                     {
-                        auto address = cmdData.tcpConnection->socket().local_endpoint().address();
-                        activeClientIdxs.push_back(idx);
-                        net::ClientInfo *clientInfo = clientLib.getItem(idx);
-                        clientInfo->portUdp = portUdp;
-                        clientInfo->address = address;
-                        clientInfo->udpEndpoint = udp::endpoint(address, portUdp);
-                        clientInfo->connection = cmdData.tcpConnection;
-                        LG_I("Client authenticated. ip={}, udp port={}, token={}", address.to_string(), portUdp, token);
+                        net::ClientInfoHandle handle =
+                            clientLib.getHandle(token);
+                        if (handle.isValid())
                         {
-                            CMDAT_PREP(net::SendType::TCP, prot::cmd::CONNECT, CMD_FLAG_RESP)
-                            CMDAT_FIN()
-                            cmdData.tcpConnection = clientInfo->connection;
-                            sendQueue.enqueue(cmdData);
+                            auto address = cmdData.tcpConnection->socket()
+                                               .local_endpoint()
+                                               .address();
+                            activeClientHandles.push_back(handle);
+                            net::ClientInfo* clientInfo =
+                                clientLib.getItem(handle);
+                            clientInfo->portUdp = portUdp;
+                            clientInfo->address = address;
+                            clientInfo->udpEndpoint =
+                                udp::endpoint(address, portUdp);
+                            clientInfo->connection = cmdData.tcpConnection;
+                            LG_I(
+                                "Client authenticated. ip={}, udp port={}, "
+                                "token={}",
+                                address.to_string(),
+                                portUdp,
+                                token);
+                            {
+                                CMDAT_PREP(net::SendType::TCP,
+                                           prot::cmd::CONNECT,
+                                           CMD_FLAG_RESP)
+                                CMDAT_FIN()
+                                cmdData.tcpConnection = clientInfo->connection;
+                                sendQueue.enqueue(cmdData);
+                            }
+                            return;
                         }
-                        return;
                     }
                     cmdData.tcpConnection->close();
-                        LG_E("Client not authenticated. Close connection. {}",
-                             token);
+                    LG_E("Client not authenticated. Close connection. {}",
+                         token);
                 }
                 break;
             }
@@ -151,3 +166,5 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
 }
 
 }  // namespace sphys
+
+template class con::ItemLib<net::ClientInfo>;

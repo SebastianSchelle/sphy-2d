@@ -34,6 +34,9 @@ struct Geometry
     bgfx::IndexBufferHandle ibh;
 };
 
+// Type alias for Geometry handle - must be after Geometry is fully defined
+using GeometryHandle = typename con::ItemLib<Geometry>::Handle;
+
 class RenderEngine
 {
   public:
@@ -47,30 +50,21 @@ class RenderEngine
     RenderEngine& operator=(RenderEngine&&) = delete;
 
     void init();
-    uint32_t compileGeometry(const void* vertexData,
+    GeometryHandle compileGeometry(const void* vertexData,
                              size_t vDatSize,
                              const void* indexData,
                              size_t iDatSize,
                              bgfx::VertexLayout& vertLayout,
                              bool use32BitIndices = false);
-    void releaseGeometry(uint32_t handle);
-    void renderCompiledGeometry(uint32_t handle,
+    void releaseGeometry(GeometryHandle handle);
+    void renderCompiledGeometry(GeometryHandle handle,
                                 const glm::vec2& translation,
-                                uint32_t textureHandle,
+                                TextureHandle textureHandle,
                                 bgfx::ViewId viewId = 0);
     void setWindowSize(int width, int height);
-    void enableScissor(bool enable);
-    void setScissorRegion(const Rml::Rectanglei& region);
-    void enableClipMask(bool enable);
-    void renderToClipMask(Rml::ClipMaskOperation operation,
-                          uint32_t geometryHandle,
-                          const glm::vec2& translation,
-                          bgfx::ViewId viewId);
-    uint32_t loadTexture(const std::string& name,
+    TextureHandle loadTexture(const std::string& name,
                          const std::string& type,
-                         const std::string& path,
-                         uint16_t width,
-                         uint16_t height);
+                         const std::string& path);
 
   private:
     void updateOrtho();
@@ -89,10 +83,6 @@ class RenderEngine
     int winWidth;
     int winHeight;
     float ortho[16];
-    bool scissorEnabled = false;
-    Rml::Rectanglei scissorRegion;
-    bool clipMaskEnabled = false;
-    uint8_t stencilRef = 1;  // Current stencil reference value for testing
 };
 
 }  // namespace gfx
