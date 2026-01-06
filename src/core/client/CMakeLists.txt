@@ -1,11 +1,12 @@
 set(LIB_NAME sphy-2d-client)
 
-set(THIRPARTY_DIR ${CMAKE_SOURCE_DIR}/thirdparty)
+set(THIRPARTY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../thirdparty)
+set(BGFX_DIR ${THIRPARTY_DIR}/bgfx)
+set(MISC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../misc)
 
-set(BGFX_DIR ${CMAKE_SOURCE_DIR}/thirdparty/bgfx)
 set(CLIENT_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/src/common/data-definitions
+    ${MISC_DIR}/data-definitions
     ${THIRPARTY_DIR}/glfw/include
     ${THIRPARTY_DIR}/rmlui/Include
     ${THIRPARTY_DIR}/rectpack2D/src
@@ -38,7 +39,7 @@ set(LIBS_PUB
     concurrentqueue
 )
 
-set(BGFX_BUILD ${THIRPARTY_DIR}/bgfx/cmake-build/cmake)
+set(BGFX_BUILD ${BGFX_DIR}/build/cmake)
 set(LIBS_PRIV
     "${BGFX_BUILD}/bgfx/libbgfx.a"
     "${BGFX_BUILD}/bgfx/libexample-common.a"
@@ -59,12 +60,12 @@ set(LIBS_PRIV
 )
 
 file(GLOB SHADER_SRC CONFIGURE_DEPENDS
-    "${CMAKE_SOURCE_DIR}/shader/**/fs_*.sc"
-    "${CMAKE_SOURCE_DIR}/shader/**/vs_*.sc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../shader/**/fs_*.sc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../shader/**/vs_*.sc"
 )
 
 set(SHADERC "${BGFX_BUILD}/bgfx/shaderc")
-set(SHADER_BIN_DIR ${CMAKE_SOURCE_DIR}/core-client/shader)
+set(SHADER_BIN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../data/modules/core/shader)
 set(SHADER_PROFILE spirv)
 foreach(SHADER ${SHADER_SRC})   
     message(STATUS "Add shader compile target: ${SHADER}") 
@@ -80,7 +81,7 @@ foreach(SHADER ${SHADER_SRC})
             --platform linux
             --type ${TYPE}
             --profile ${SHADER_PROFILE}
-            -i ${CMAKE_SOURCE_DIR}/thirdparty/bgfx/bgfx/src
+            -i  ${BGFX_DIR}/bgfx/src
         DEPENDS ${SHADER}
         COMMENT "Compiling shader ${FILE_NAME}"
         VERBATIM

@@ -43,13 +43,10 @@ if(TARGET freetype)
 endif()
 add_subdirectory(thirdparty/rmlui)
 add_subdirectory(thirdparty/rectpack2D)
-add_subdirectory(src/common/helper helper)
-add_subdirectory(src/common/networking networking)
+add_subdirectory(src/misc/helper helper)
+add_subdirectory(src/misc/networking networking)
 add_subdirectory(src/core/server)
 add_subdirectory(src/core/client)
-add_subdirectory(test-app/test-server)
-add_subdirectory(test-app/test-client)
-
 
 enable_testing()
 
@@ -73,9 +70,9 @@ target_link_libraries(
 target_include_directories(
     test-shelf-allocator
     PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/common/helper
-    ${CMAKE_SOURCE_DIR}/thirdparty/bitsery/include
-    ${CMAKE_SOURCE_DIR}/thirdparty/glm
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/misc/helper
+    ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/bitsery/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/glm
 )
 
 include(GoogleTest)

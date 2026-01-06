@@ -1,10 +1,12 @@
+set(MISC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../misc)
+set(THIRPARTY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../thirdparty)
+
 set(SERVER_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/src/common/data-definitions
+    ${MISC_DIR}/data-definitions
 )
 
 set(SERVER_INC_PRIVATE
-    thirdparty/concurrentqueue/c_api
 )
 
 set(SERVER_SOURCES
