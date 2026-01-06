@@ -7,6 +7,7 @@
 #include <udp-server.hpp>
 #include <config-manager/config-manager.hpp>
 #include <engine.hpp>
+#include <cmd-options.hpp>
 
 namespace asio = boost::asio;
 using tcp = asio::ip::tcp;
@@ -18,7 +19,7 @@ namespace sphys
 class Server
 {
   public:
-    Server();
+    Server(def::CmdLinOptionsServer& options);
     ~Server();
     void startUdpTcp();
     void startServer();
@@ -37,6 +38,7 @@ class Server
     std::unique_ptr<net::UdpServer> udpServer;
     std::unique_ptr<net::TcpServer> tcpServer;
     boost::asio::signal_set signals;
+    def::CmdLinOptionsServer options;
 };
 
 }  // namespace sphys

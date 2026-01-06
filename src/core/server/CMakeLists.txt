@@ -22,6 +22,7 @@ set(LIBS_PUB
 
 set(LIBS_PRIV
     Boost::thread
+    Boost::program_options
 )
 
 add_library(sphy-2d-server STATIC ${SERVER_SOURCES})

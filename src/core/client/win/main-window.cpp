@@ -1,5 +1,3 @@
-
-
 #include "RmlUi/Core/Core.h"
 #include "bgfx/defines.h"
 #include "shader.hpp"
@@ -15,7 +13,6 @@
 #elif BX_PLATFORM_OSX
 #define GLFW_EXPOSE_NATIVE_COCOA
 #endif
-#include "imgui/imgui.h"
 #include <GLFW/glfw3native.h>
 
 
@@ -67,45 +64,71 @@ void MouseState::processMouseButton(uint8_t i)
     }
 }
 
-MainWindow::MainWindow()
-    : config("modules/core/defs/client.yaml"), renderEngine(config),
-      rmlUiRenderInterface(&renderEngine), client(config)
+MainWindow::MainWindow(def::CmdLinOptionsClient& options)
+    : options(options),
+      config(options.workingdir + "/modules/core/defs/client.yaml"),
+      renderEngine(config), rmlUiRenderInterface(&renderEngine), client(config),
+      modManager()
 {
+    auto path(options.workingdir);
+    std::filesystem::current_path(path);
     uint8_t logLevel =
         static_cast<uint8_t>(std::get<float>(config.get({"loglevel"})));
     debug::createLogger("logs/logClient.txt", logLevel);
     glfwSetErrorCallback(errorCallback);
 }
 
-MainWindow::~MainWindow() {}
+MainWindow::~MainWindow()
+{
+    // Wait for loading thread to finish before destroying resources
+    if (loadingThread.joinable())
+    {
+        loadingThread.join();
+    }
+    renderEngine.~RenderEngine();
+    Rml::Shutdown();
+    bgfx::shutdown();
+    glfwDestroyWindow(window);
+    glfwTerminate();
+}
 
-void MainWindow::init()
+bool MainWindow::initPre()
 {
     client.startClient();
 
     if (!glfwInit())
     {
         LG_E("GLFW initialization failed");
-        return;
+        return false;
     }
 
     if (!createWindow())
     {
         LG_E("Could not create GLFW window");
-        return;
+        return false;
+    }
+    
+    if(!renderEngine.initPre())
+    {
+        LG_E("Failed to initialize render engine");
+        return false;
+    }
+    renderEngine.setWindowSize(wInfo.size.x, wInfo.size.y);
+    
+    if (!Rml::Initialise())
+    {
+        LG_E("RmlUI initialization failed");
+        return false;
     }
 
-    if (!setupRenderEngine())
+    // Set render interface before creating context
+    Rml::SetRenderInterface(&rmlUiRenderInterface);
+    if (!userInterface.init(wInfo.size))
     {
-        LG_E("Could not setup render engine");
-        return;
+        LG_E("Could not initialize user interface");
+        return false;
     }
-
-    if (!setupRmlUi())
-    {
-        LG_E("Could not setup RmlUi");
-        return;
-    }
+    return true;
 }
 
 bool MainWindow::createWindow()
@@ -137,9 +160,9 @@ bool MainWindow::createWindow()
 #elif BX_PLATFORM_WINDOWS
     init.platformData.nwh = glfwGetWin32Window(window);
 #endif
-    glfwGetWindowSize(window, &wInfo.width, &wInfo.height);
-    init.resolution.width = (uint32_t)wInfo.width;
-    init.resolution.height = (uint32_t)wInfo.height;
+    glfwGetWindowSize(window, &wInfo.size.x, &wInfo.size.y);
+    init.resolution.width = (uint32_t)wInfo.size.x;
+    init.resolution.height = (uint32_t)wInfo.size.y;
     init.resolution.reset = BGFX_RESET_VSYNC;
     if (!bgfx::init(init))
     {
@@ -163,58 +186,6 @@ bool MainWindow::createWindow()
                               }
                           });
 
-    imguiCreate();
-
-    return true;
-}
-
-bool MainWindow::setupRenderEngine()
-{
-    renderEngine.init();
-    renderEngine.setWindowSize(wInfo.width, wInfo.height);
-    return true;
-}
-
-bool MainWindow::setupRmlUi()
-{
-    // Initialize RmlUI first
-    if (!Rml::Initialise())
-    {
-        LG_E("RmlUI initialization failed");
-        return false;
-    }
-
-    // Set render interface before creating context
-    Rml::SetRenderInterface(&rmlUiRenderInterface);
-
-    // Create context (this will use the render interface)
-    rmlContext =
-        Rml::CreateContext("default", Rml::Vector2i(wInfo.width, wInfo.height));
-    if (!rmlContext)
-    {
-        LG_E("Failed to create RmlUI context");
-        return false;
-    }
-
-    if (!Rml::LoadFontFace("modules/core/assets/fonts/Orbitron-Regular.ttf"))
-    {
-        LG_E("Could not load font Orbitron-Regular.ttf");
-        return false;
-    }
-
-
-    Rml::DataModelConstructor constructor = rmlContext->CreateDataModel("my_model");
-    if (!constructor)
-        return false;
-    constructor.Bind("runtime", &runtimeUs);
-    constructor.BindEventCallback("whats_up", &MainWindow::WhatsUp, this);
-    myModel = constructor.GetModelHandle();
-    Rml::ElementDocument* document =
-        rmlContext->LoadDocument("modules/core/assets/ui/test.rml");
-    if (document)
-    {
-        document->Show();
-    }
     return true;
 }
 
@@ -235,39 +206,24 @@ void MainWindow::winLoop()
                                      6 * sizeof(uint16_t),
                                      gfx::VertexPosColTex::ms_decl);
 
-    tsStart = tim::getCurrentTimeU();
-
     while (!glfwWindowShouldClose(window))
     {
-        tim::Timepoint tsNow = tim::getCurrentTimeU();
-        runtimeUs = tim::durationU(tsStart, tsNow);
-        tsLastFrame = tsNow;
-
         glfwPollEvents();
         processMouseState();
         handleWinResize();
 
-        bool overUi = rmlContext->ProcessMouseMove(
-            mouseState.mousePos.x, mouseState.mousePos.y, 0);
         for (int i = 0; i < 3; ++i)
         {
             if (mouseState.buttonPressed[i])
             {
-                rmlContext->ProcessMouseButtonDown(i, 0);
+                userInterface.processMouseButtonDown(i, 0);
             }
             if (mouseState.buttonReleased[i])
             {
-                rmlContext->ProcessMouseButtonUp(i, 0);
+                userInterface.processMouseButtonUp(i, 0);
             }
         }
-        bool mouseUiInteract = rmlContext->IsMouseInteracting();
-
-
-        rmlContext->ProcessMouseWheel(mouseState.mz, 0);
-
-
-        myModel.DirtyVariable("runtime");
-        rmlContext->Update();
+        userInterface.processMouseWheel(mouseState.mz, 0);
 
         bool showStats = false;
         bgfx::setDebug(showStats ? BGFX_DEBUG_STATS | BGFX_DEBUG_TEXT : 0);
@@ -279,13 +235,85 @@ void MainWindow::winLoop()
                            1.0f,
                            0);
 
-        rmlContext->Render();
+        switch (state)
+        {
+            case State::Init:
+                startLoading();
+                break;
+            case State::LoadingMods:
+                loadingLoop();
+                break;
+            case State::Something:
+                break;
+        }
+        userInterface.render();
         //  rmlUiRenderInterface.EnableScissorRegion(false);
         //  gfx::TextureHandle textureHandle = gfx::TextureHandle::Invalid();
         //  renderEngine.renderCompiledGeometry(
         //      gfx::GeometryHandle(0, 1), glm::vec2(200.0f, 150.0f),
         //      gfx::TextureHandle(2, 1), kClearView);
         bgfx::frame();
+    }
+}
+
+void MainWindow::startLoading()
+{
+    // Prevent multiple calls
+    if (state == State::LoadingMods || loadingThread.joinable())
+    {
+        LG_W("Loading already started, ignoring duplicate call");
+        return;
+    }
+    
+    LG_I("Start loading mods...");
+    loadingFuture = loadingPromise.get_future();
+    loadingThread = std::thread(
+        [this](std::promise<bool> succ)
+        {
+            std::vector<std::string> modList;
+            if (!modManager.parseModList("modules/modlist.txt", modList))
+            {
+                LG_E("Failed to parse mod list");
+                succ.set_value(false);
+                return;
+            }
+            if(!modManager.checkDependencies(modList, "modules"))
+            {
+                LG_E("Failed to check dependencies");
+                succ.set_value(false);
+                return;
+            }
+            mod::PtrHandles ptrHandles{&renderEngine};
+            if(!modManager.loadMods(ptrHandles))
+            {
+                LG_E("Failed to load mods");
+                succ.set_value(false);
+                return;
+            }
+            succ.set_value(true);
+        },
+        std::move(loadingPromise));
+    
+    // Set state immediately to prevent calling startLoading() again
+    state = State::LoadingMods;
+}
+
+void MainWindow::loadingLoop()
+{
+    if (loadingFuture.valid()
+        && loadingFuture.wait_for(std::chrono::seconds(0))
+               == std::future_status::ready)
+    {
+        if (loadingFuture.get())
+        {
+            LG_I("Mods loaded successfully");
+            state = State::Something;
+        }
+        else
+        {
+            LG_E("Failed to load mods");
+            exit(1);
+        }
     }
 }
 
@@ -303,9 +331,10 @@ void MainWindow::processMouseState()
         glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS;
 
     mouseState.mousePosRel.x =
-        (float)mouseState.mousePos.x / (float)wInfo.width - 0.5f;  // 0.0 to 1.0
+        (float)mouseState.mousePos.x / (float)wInfo.size.x
+        - 0.5f;  // 0.0 to 1.0
     mouseState.mousePosRel.y =
-        (float)mouseState.mousePos.y / (float)wInfo.height
+        (float)mouseState.mousePos.y / (float)wInfo.size.y
         - 0.5f;  // 0.0 to 1.0
 
     mouseState.processMouseButton(0);
@@ -319,17 +348,15 @@ void MainWindow::processMouseState()
 
 void MainWindow::handleWinResize()
 {
-    int oldWidth = wInfo.width, oldHeight = wInfo.height;
-    glfwGetWindowSize(window, &wInfo.width, &wInfo.height);
-    if (wInfo.width != oldWidth || wInfo.height != oldHeight)
+    int oldWidth = wInfo.size.x, oldHeight = wInfo.size.y;
+    glfwGetWindowSize(window, &wInfo.size.x, &wInfo.size.y);
+    if (wInfo.size.x != oldWidth || wInfo.size.y != oldHeight)
     {
         bgfx::reset(
-            (uint32_t)wInfo.width, (uint32_t)wInfo.height, BGFX_RESET_VSYNC);
+            (uint32_t)wInfo.size.x, (uint32_t)wInfo.size.y, BGFX_RESET_VSYNC);
         bgfx::setViewRect(kClearView, 0, 0, bgfx::BackbufferRatio::Equal);
-        LG_I("Resize window to ({}, {})", wInfo.width, wInfo.height)
-        renderEngine.setWindowSize(wInfo.width, wInfo.height);
-
-        rmlContext->SetDimensions(Rml::Vector2i(wInfo.width, wInfo.height));
+        renderEngine.setWindowSize(wInfo.size.x, wInfo.size.y);
+        userInterface.updateContext(wInfo.size);
     }
 }
 

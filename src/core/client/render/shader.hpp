@@ -4,6 +4,7 @@
 #include "std-inc.hpp"
 #include <bgfx/bgfx.h>
 #include <bx/math.h>
+#include <item-lib.hpp>
 
 namespace gfx
 {
@@ -13,12 +14,13 @@ class ShaderProgram
     ShaderProgram(const std::string& vs, const std::string& fs);
     static bgfx::ShaderHandle loadShader(const char* _name);
     bgfx::ProgramHandle getHandle() const;
+    void destroy() const;
 
   private:
-    bgfx::ShaderHandle vsh;
-    bgfx::ShaderHandle fsh;
     bgfx::ProgramHandle program;
 };
+
+using ShaderHandle = typename con::ItemLib<ShaderProgram>::Handle;
 
 }  // namespace gfx
 

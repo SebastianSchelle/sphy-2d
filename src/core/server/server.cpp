@@ -3,10 +3,13 @@
 namespace sphys
 {
 
-Server::Server()
-    : config("modules/core/defs/server.yaml"), sendTimer(ioContext),
-      signals(ioContext, SIGINT, SIGTERM)
+Server::Server(def::CmdLinOptionsServer& options)
+    : options(options),
+      config(options.workingdir + "/modules/core/defs/server.yaml"),
+      sendTimer(ioContext), signals(ioContext, SIGINT, SIGTERM)
 {
+    auto path(options.workingdir);
+    std::filesystem::current_path(path);
     uint8_t logLevel =
         static_cast<uint8_t>(std::get<float>(config.get({"loglevel"})));
     debug::createLogger("logs/logServer.txt", logLevel);
@@ -78,13 +81,13 @@ void Server::scheduleSend()
                 {
                     if (sendRequest.sendType == net::SendType::UDP)
                     {
-                        udpServer->sendMessage(
-                            sendRequest.udpEndpoint,
-                            sendRequest.data);
+                        udpServer->sendMessage(sendRequest.udpEndpoint,
+                                               sendRequest.data);
                     }
                     else if (sendRequest.sendType == net::SendType::TCP)
                     {
-                        sendRequest.tcpConnection->sendMessage(sendRequest.data);
+                        sendRequest.tcpConnection->sendMessage(
+                            sendRequest.data);
                     }
                 }
                 scheduleSend();  // schedule next check

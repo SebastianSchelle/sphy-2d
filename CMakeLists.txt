@@ -56,6 +56,7 @@ set(TEST_LIBS
     Boost::system
     Boost::chrono
     Boost::thread
+    Boost::program_options
 )
 
 add_executable(

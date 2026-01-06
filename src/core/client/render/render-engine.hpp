@@ -36,6 +36,7 @@ struct Geometry
 
 // Type alias for Geometry handle - must be after Geometry is fully defined
 using GeometryHandle = typename con::ItemLib<Geometry>::Handle;
+using GeometryHandleUuid = typename con::ItemLib<Geometry>::HandleUuid;
 
 class RenderEngine
 {
@@ -49,7 +50,9 @@ class RenderEngine
     RenderEngine(RenderEngine&&) = delete;
     RenderEngine& operator=(RenderEngine&&) = delete;
 
-    void init();
+    bool initPre();
+    bool initPost();
+
     GeometryHandle compileGeometry(const void* vertexData,
                                    size_t vDatSize,
                                    const void* indexData,
@@ -78,9 +81,17 @@ class RenderEngine
     void setScissorRegion(const glm::vec2& position, const glm::vec2& size);
     void enableScissorRegion(bool enable);
     glm::ivec2 getTextureSize() const;
+    ShaderHandle loadShader(const std::string& name,
+                            const std::string& vsPath,
+                            const std::string& fsPath);
+    void releaseShader(ShaderHandle handle);
 
   private:
+    void cleanUpAll();
     void updateOrtho();
+    void cleanUpTextures();
+    void cleanUpShaders();
+    void cleanUpGeometry();
 
     TextureLoader textureLoader;
     cfg::ConfigManager& config;
@@ -93,6 +104,9 @@ class RenderEngine
     bgfx::UniformHandle u_texArray = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_texLayer = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_atlasPos = BGFX_INVALID_HANDLE;
+
+    ShaderHandle shaderHandleRml;
+    TextureHandle textureHandleFallback;
 
     int winWidth;
     int winHeight;

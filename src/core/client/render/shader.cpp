@@ -1,10 +1,21 @@
 #include "shader.hpp"
+#include "bgfx/bgfx.h"
 
 namespace gfx
 {
 
+void ShaderProgram::destroy() const
+{
+    LG_I("Destroyed shader program");
+    if (bgfx::isValid(program))
+    {
+        bgfx::destroy(program);
+    }
+}
+
 bgfx::ShaderHandle ShaderProgram::loadShader(const char* path)
 {
+    bgfx::ShaderHandle hdl;
     std::ifstream file(path, std::ios::binary);
     if (!file.is_open())
     {
@@ -42,13 +53,13 @@ bgfx::ShaderHandle ShaderProgram::loadShader(const char* path)
 
 ShaderProgram::ShaderProgram(const std::string& vs, const std::string& fs)
 {
-    vsh = loadShader(vs.c_str());
+    bgfx::ShaderHandle vsh = loadShader(vs.c_str());
     if (!bgfx::isValid(vsh))
     {
         LG_E("Invalid vertex shader handle");
         exit(1);
     }
-    fsh = loadShader(fs.c_str());
+    bgfx::ShaderHandle fsh = loadShader(fs.c_str());
     if (!bgfx::isValid(fsh))
     {
         LG_E("Invalid fragment shader handle");
@@ -72,3 +83,7 @@ bgfx::ProgramHandle ShaderProgram::getHandle() const
 }
 
 }  // namespace gfx
+
+// Explicitly instantiate ItemLib<ShaderProgram> to ensure Handle is fully defined
+// Must be outside the gfx namespace
+template class con::ItemLib<gfx::ShaderProgram>;

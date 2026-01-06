@@ -4,8 +4,7 @@ namespace sphyc
 {
 
 Client::Client(cfg::ConfigManager& config)
-    : model(), config(config), sendTimer(ioContext),
-      signals(ioContext, SIGINT, SIGTERM)
+    : model(), config(config), sendTimer(ioContext)
 {
     // Setup for testing
     clientInfo.token = "1234abcd1234abcd";
@@ -29,13 +28,6 @@ Client::~Client()
 
 void Client::startClient()
 {
-    signals.async_wait(
-        [this](const boost::system::error_code&, int)
-        {
-            LG_I("Signal received, shutting down...");
-            shutdown();
-        });
-
     // Start ioContext in background thread for signal handling
     ioThread = std::thread([this]() { ioContext.run(); });
 
@@ -49,10 +41,11 @@ void Client::shutdown()
         return;  // Already shutting down
     }
     LG_I("Shutting down client...");
-    ioContext.stop();  // Stop all IO operations (will cause ioContext.run() to return)
+    ioContext.stop();  // Stop all IO operations (will cause ioContext.run() to
+                       // return)
     model.stop();      // Stop model thread (sets flag, doesn't join)
-    // Don't join threads here - signal handler might be called from ioThread itself
-    // Threads will be joined in wait() or destructor
+    // Don't join threads here - signal handler might be called from ioThread
+    // itself Threads will be joined in wait() or destructor
 }
 
 void Client::wait()
@@ -121,7 +114,8 @@ void Client::connectToServer()
     model.sendQueue.enqueue(cmdData);
 
     scheduleSend();
-    // Don't join ioThread here - it's already running and will be joined in shutdown()
+    // Don't join ioThread here - it's already running and will be joined in
+    // shutdown()
 }
 
 void Client::scheduleSend()
@@ -135,13 +129,14 @@ void Client::scheduleSend()
                 net::CmdQueueData sendData;
                 while (model.sendQueue.try_dequeue(sendData))
                 {
-                    if(sendData.sendType == net::SendType::UDP)
+                    if (sendData.sendType == net::SendType::UDP)
                     {
-                        bitsery::Serializer<OutputAdapter> cmdser(OutputAdapter(sendData.data));
+                        bitsery::Serializer<OutputAdapter> cmdser(
+                            OutputAdapter(sendData.data));
                         cmdser.text1b(clientInfo.token, 16);
                         udpClient->sendMessage(sendData.data);
                     }
-                    else if(sendData.sendType == net::SendType::TCP)
+                    else if (sendData.sendType == net::SendType::TCP)
                     {
                         tcpClient->sendMessage(sendData.data);
                     }

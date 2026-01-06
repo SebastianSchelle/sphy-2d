@@ -38,9 +38,8 @@ class TextureAtlas
     con::alloc::ShelfAllocator shelfAllocator;
 };
 
-// Type alias for TextureAtlas handle - must use typename for nested template
-// type
 using TextureAtlasHandle = typename con::ItemLib<TextureAtlas>::Handle;
+using TextureAtlasHandleUuid = typename con::ItemLib<TextureAtlas>::HandleUuid;
 
 class Texture
 {

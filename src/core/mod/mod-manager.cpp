@@ -1,0 +1,255 @@
+#include <mod-manager.hpp>
+
+#include <yaml-cpp/yaml.h>
+
+namespace mod
+{
+
+ModManager::ModManager() {}
+ModManager::~ModManager() {}
+
+bool ModManager::parseModList(const std::string& modList,
+                              std::vector<std::string>& modListVec)
+{
+    if (!std::filesystem::exists(modList))
+    {
+        LG_E("Mod list file not found: {}", modList);
+        return false;
+    }
+    LG_I("Parsing mod list from {}", modList);
+    modListVec.clear();
+    std::ifstream file(modList);
+    std::string line;
+    while (std::getline(file, line))
+    {
+        auto i = std::remove(line.begin(), line.end(), ' ');
+        if (line.empty())
+        {
+            continue;
+        }
+        LG_I("Found mod in list: {}", line);
+        modListVec.push_back(line);
+    }
+    file.close();
+    return true;
+}
+
+bool ModManager::checkDependencies(std::vector<std::string>& modList,
+                                   const std::string& modDir)
+{
+    processedDependencies.clear();
+    std::vector<std::string> modListCpy = modList;
+    while (!modListCpy.empty())
+    {
+        const std::string nextMod = modListCpy.front();
+        if (!checkDependency(nextMod, modListCpy, modDir))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool ModManager::checkDependency(const std::string& modId,
+                                 std::vector<std::string>& modList,
+                                 const std::string& modDir)
+{
+    ModInfo modInfo;
+    modInfo.id = modId;
+
+    modInfo.modDir = modDir + "/" + modId;
+    modInfo.manifestPath = modInfo.modDir + "/manifest.yaml";
+    if (std::filesystem::exists(modInfo.manifestPath))
+    {
+        LG_D("Mod manifest found: {}", modInfo.manifestPath);
+        modInfo.modFound = true;
+        YAML::Node manifest;
+        try
+        {
+            manifest = YAML::LoadFile(modInfo.manifestPath);
+            if (manifest["deps"])
+            {
+                modInfo.dependencies =
+                    manifest["deps"].as<std::vector<std::string>>();
+            }
+            if (manifest["desc"])
+            {
+                modInfo.description = manifest["desc"].as<std::string>();
+            }
+            if (manifest["name"])
+            {
+                modInfo.name = manifest["name"].as<std::string>();
+            }
+        }
+        catch (const YAML::Exception& e)
+        {
+            LG_E("Failed to load mod manifest: {}", e.what());
+            return false;
+        }
+        for (const auto& dependency : modInfo.dependencies)
+        {
+            LG_D("Found dependency: {}", dependency);
+            if (checkIfDependencyProcessed(dependency))
+            {
+                LG_D("Dependency already processed: {}", dependency);
+            }
+            else
+            {
+                checkDependency(dependency, modList, modDir);
+            }
+        }
+    }
+    else
+    {
+        LG_E("Mod manifest not found: {}", modInfo.manifestPath);
+        return false;
+    }
+    LG_I("Removing mod from list: {}", modId);
+    modList.erase(std::remove(modList.begin(), modList.end(), modId),
+                  modList.end());
+    processedDependencies.push_back(modInfo);
+    return true;
+}
+
+bool ModManager::loadMods(PtrHandles& ptrHandles)
+{
+    for (const auto& mod : processedDependencies)
+    {
+        if (!loadMod(ptrHandles, mod))
+        {
+            LG_E("Failed to load mod: {}", mod.id);
+            return false;
+        }
+    }
+    return true;
+}
+
+bool ModManager::checkIfDependencyProcessed(const std::string& modId)
+{
+    for (const auto& mod : processedDependencies)
+    {
+        if (mod.id == modId)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
+{
+    LG_I("Loading mod: {}", modInfo.id);
+    try
+    {
+        YAML::Node manifest = YAML::LoadFile(modInfo.manifestPath);
+
+        // Handle shaders if present and is a map
+        if (manifest["shaders"])
+        {
+            if (!manifest["shaders"].IsMap())
+            {
+                LG_E("Failed to load mod manifest: invalid node; 'shaders' should be a map");
+                return false;
+            }
+            if(!loadShaders(ptrHandles, modInfo, manifest["shaders"]))
+            {
+                return false;
+            }
+        }
+
+        // Handle fonts if present and is a sequence
+        if (manifest["fonts"])
+        {
+            if (!manifest["fonts"].IsSequence())
+            {
+                LG_E("Failed to load mod manifest: invalid node; 'fonts' should be a sequence");
+                return false;
+            }
+            if(!loadFonts(ptrHandles, modInfo, manifest["fonts"]))
+            {
+                return false;
+            }
+        }
+    }
+    catch (const YAML::Exception& e)
+    {
+        LG_E("Failed to load mod manifest: {}", e.what());
+        return false;
+    }
+
+    LG_I("Mod loaded: {}", modInfo.id);
+    return true;
+}
+
+bool ModManager::loadShaders(PtrHandles& ptrHandles,
+                             const ModInfo& modInfo,
+                             YAML::Node shaders)
+{
+    // Defensive: shaders node must be a map
+    if (!shaders.IsMap())
+    {
+        LG_E("Failed to load shaders: invalid node; expected a map");
+        return false;
+    }
+    for (YAML::const_iterator it = shaders.begin(); it != shaders.end(); ++it)
+    {
+        if (it->first.IsScalar() && it->second.IsMap())
+        {
+            try
+            {
+                const std::string shaderName = it->first.as<std::string>();
+                const std::string vsPath =
+                    modInfo.modDir + "/shader/"
+                    + it->second["vs"].as<std::string>();
+                const std::string fsPath =
+                    modInfo.modDir + "/shader/"
+                    + it->second["fs"].as<std::string>();
+                ptrHandles.renderEngine->loadShader(shaderName, vsPath, fsPath);
+            }
+            catch (const YAML::Exception& e)
+            {
+                LG_E("Failed to parse shader node: {}", e.what());
+                return false;
+            }
+            catch (const std::exception& e)
+            {
+                LG_E("Failed to load shader '{}': {}", it->first.as<std::string>(), e.what());
+                return false;
+            }
+        }
+        else
+        {
+            LG_E("Failed to load shader: invalid node; shader entry should be a map with a scalar key");
+            return false;
+        }
+    }
+    return true;
+}
+
+
+bool ModManager::loadFonts(PtrHandles& ptrHandles,
+                           const ModInfo& modInfo,
+                           YAML::Node fonts)
+{
+    for (auto font : fonts)
+    {
+        if (font.IsScalar())
+        {
+            const std::string fontPath =
+                modInfo.modDir + "/assets/fonts/" + font.as<std::string>();
+            if(!ptrHandles.userInterface->loadFont(fontPath))
+            {
+                LG_E("Failed to load font: {}", fontPath);
+                return false;
+            }
+        }
+        else
+        {
+            LG_E("Failed to load font: invalid node; font entry should be a scalar");
+            return false;
+        }
+    }
+    return true;
+}
+
+}  // namespace mod

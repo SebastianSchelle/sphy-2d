@@ -264,14 +264,12 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
                           storagePtr.rect.height,
                           mem);
 
-    glm::vec4 relBounds = {
-        (float)storagePtr.rect.x / (float)texWidth,
-        (float)storagePtr.rect.y / (float)texHeight,
-        (float)storagePtr.rect.width / (float)texWidth,
-        (float)storagePtr.rect.height / (float)texHeight};
+    glm::vec4 relBounds = {(float)storagePtr.rect.x / (float)texWidth,
+                           (float)storagePtr.rect.y / (float)texHeight,
+                           (float)storagePtr.rect.width / (float)texWidth,
+                           (float)storagePtr.rect.height / (float)texHeight};
     Texture texture(name, path, texIdent, storagePtr, atlasHandle, relBounds);
-    int idx = textureLib.addItem(name, texture);
-    TextureHandle handle = textureLib.getHandle(idx);
+    TextureHandle handle = textureLib.addItem(name, texture);
     LG_I("Texture has been added to GPU storage");
     LG_I("GPU Texture handle: {}, Layer: {}",
          texture.getTexIdent().texHandle.idx,
@@ -279,7 +277,7 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
     LG_I("Texture name: {}, Path: {}, Lib idx: {}, Lib size: {}",
          name,
          path,
-         idx,
+         handle.getIdx(),
          textureLib.size());
     LG_I("Atlas ID: {}, Pos: ({},{}) - {}x{}",
          atlasHandle.value(),
@@ -289,8 +287,8 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
          texture.getStoragePtr().rect.height);
     LG_I("Wrapped texture handle: {} (idx: {}, gen: {})",
          handle.value(),
-         idx,
-         textureLib.getGeneration(idx));
+         handle.getIdx(),
+         handle.getGeneration());
     return handle;
 }
 
@@ -305,19 +303,19 @@ TextureAtlasHandle TextureLoader::createNewAtlas(const std::string& type)
              texIdent.texHandle.idx);
         if (bgfx::isValid(texIdent.texHandle))
         {
-            con::IdxUuid idxUuid = textureAtlasLib.addWithRandomKey(
+            TextureAtlasHandleUuid handle = textureAtlasLib.addWithRandomKey(
                 TextureAtlas(texWidth,
                              texHeight,
                              bucketSize,
                              texIdent,
                              excessHeightThreshold));
             LG_D("Created new texture atlas with id {} for type {}",
-                 idxUuid.idx,
+                 handle.handle.getIdx(),
                  type);
-            if (idxUuid.idx != -1)
+            if (handle.handle.isValid())
             {
-                atlasRegistry[type].push_back(idxUuid.idx);
-                return textureAtlasLib.getHandle(idxUuid.idx);
+                atlasRegistry[type].push_back(handle.handle.getIdx());
+                return handle.handle;
             }
             LG_D("Something went wrong creating new texture atlas");
             return TextureAtlasHandle::Invalid();

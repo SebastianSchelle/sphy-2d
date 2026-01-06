@@ -33,7 +33,6 @@ class Client
     std::unique_ptr<net::TcpClient> tcpClient;
     boost::asio::io_context ioContext;
     std::thread ioThread;
-    boost::asio::signal_set signals;
     cfg::ConfigManager& config;
     boost::asio::steady_timer sendTimer;
     net::ClientInfo clientInfo;

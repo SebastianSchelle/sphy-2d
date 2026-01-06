@@ -36,17 +36,21 @@ bgfx::IndexBufferHandle Geometry::getIbh() const
     return ibh;
 }
 
-RenderEngine::RenderEngine(cfg::ConfigManager& config) : config(config) {}
+RenderEngine::RenderEngine(cfg::ConfigManager& config)
+    : config(config), shaderHandleRml(ShaderHandle::Invalid()),
+      textureHandleFallback(TextureHandle::Invalid())
+{
+}
 
-RenderEngine::~RenderEngine() {}
+RenderEngine::~RenderEngine()
+{
+    cleanUpAll();
+    LG_D("RenderEngine destroyed");
+}
 
-void RenderEngine::init()
+bool RenderEngine::initPre()
 {
     VertexPosColTex::init();
-
-    ShaderProgram shaderProgram("modules/core/shader/vs_rmlui.bin",
-                                "modules/core/shader/fs_rmlui.bin");
-    compiledShaderLib.addItem("rmlui", shaderProgram);
 
     texWidth =
         static_cast<int>(std::get<float>(config.get({"gfx", "tex-width"})));
@@ -65,20 +69,22 @@ void RenderEngine::init()
                        texBucketSize,
                        texExcessHeightThreshold);
 
-    gfx::TextureHandle fallbackTexHandle = textureLoader.loadTexture(
-        "fallback", "misc", "modules/core/assets/textures/fallback.dds");
-    if (!fallbackTexHandle.isValid())
+    shaderHandleRml = loadShader("geom",
+                                  "modules/engine/shader/vs_rmlui.bin",
+                                  "modules/engine/shader/fs_rmlui.bin");
+    if (!shaderHandleRml.isValid())
     {
-        LG_E("Failed to load fallback texture");
-        return;
+        LG_E("Failed to load rmlui shader");
+        return false;
     }
 
-    gfx::TextureHandle backgroundTexHandle = textureLoader.loadTexture(
-        "holymoly", "misc", "modules/core/assets/textures/background2.dds");
-
-    gfx::TextureHandle background2TexHandle = textureLoader.loadTexture(
-        "stonk", "misc", "modules/core/assets/ui/assets/invader.dds");
-
+    textureHandleFallback = textureLoader.loadTexture(
+        "fallback", "misc", "modules/engine/assets/textures/fallback.dds");
+    if (!textureHandleFallback.isValid())
+    {
+        LG_E("Failed to load fallback texture");
+        return false;
+    }
 
     if (!bgfx::isValid(u_translation))
     {
@@ -111,6 +117,12 @@ void RenderEngine::init()
     winWidth = 800;
     winHeight = 600;
     updateOrtho();
+    return true;
+}
+
+bool RenderEngine::initPost()
+{
+    return true;
 }
 
 GeometryHandle RenderEngine::compileGeometry(const void* vertexData,
@@ -122,8 +134,8 @@ GeometryHandle RenderEngine::compileGeometry(const void* vertexData,
 {
     Geometry geometry(
         vertexData, vDatSize, indexData, iDatSize, vertLayout, use32BitIndices);
-    con::IdxUuid idxUuid = compiledGeometryLib.addWithRandomKey(geometry);
-    return compiledGeometryLib.getHandle(idxUuid.idx);
+    GeometryHandleUuid handle = compiledGeometryLib.addWithRandomKey(geometry);
+    return handle.handle;
 }
 
 void RenderEngine::releaseGeometry(GeometryHandle handle)
@@ -152,9 +164,9 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
     Texture* texture = texLib.getItem(textureHandle);
     if (!texture)
     {
-        //LG_W("Invalid texture handle: id: {} gen: {}. Try fallback texture",
-        //     textureHandle.getIdx(),
-        //     textureHandle.getGeneration());
+        // LG_W("Invalid texture handle: id: {} gen: {}. Try fallback texture",
+        //      textureHandle.getIdx(),
+        //      textureHandle.getGeneration());
         texture = texLib.getItem(0);  // Fallback texture
         if (!texture)
         {
@@ -197,7 +209,7 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
     bgfx::setIndexBuffer(geometry->getIbh());
 
     // Submit to the specified view
-    bgfx::submit(viewId, compiledShaderLib.getItem(0)->getHandle());
+    bgfx::submit(viewId, compiledShaderLib.getItem(shaderHandleRml)->getHandle());
 }
 
 void RenderEngine::setWindowSize(int width, int height)
@@ -284,8 +296,44 @@ glm::ivec2 RenderEngine::getTextureSize() const
     return glm::ivec2(texWidth, texHeight);
 }
 
-}  // namespace gfx
+void RenderEngine::cleanUpAll()
+{
+    cleanUpTextures();
+    cleanUpShaders();
+    cleanUpGeometry();
+}
 
+void RenderEngine::cleanUpTextures() {}
+
+void RenderEngine::cleanUpShaders()
+{
+    ShaderHandle shaderHandle = ShaderHandle::Invalid();
+    while ((shaderHandle = compiledShaderLib.firstAliveHandle()).isValid())
+    {
+        compiledShaderLib.getItem(shaderHandle)->destroy();
+        compiledShaderLib.removeItem(shaderHandle);
+    }
+}
+
+void RenderEngine::cleanUpGeometry()
+{
+    // compiledGeometryLib.clear();
+}
+
+ShaderHandle RenderEngine::loadShader(const std::string& name,
+                                      const std::string& vsPath,
+                                      const std::string& fsPath)
+{
+    const ShaderProgram shaderProgram = ShaderProgram(vsPath, fsPath);
+    return compiledShaderLib.addItem(name, shaderProgram);
+}
+
+void RenderEngine::releaseShader(ShaderHandle handle)
+{
+    compiledShaderLib.removeItem(handle);
+}
+
+}  // namespace gfx
 // Explicitly instantiate ItemLib<Geometry> to ensure Handle is fully defined
 // Must be outside the gfx namespace
 template class con::ItemLib<gfx::Geometry>;

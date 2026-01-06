@@ -11,6 +11,9 @@
 #include <ui/rmlui-renderinterface.hpp>
 #include <config-manager/config-manager.hpp>
 #include <render/texture.hpp>
+#include <cmd-options.hpp>
+#include <mod-manager.hpp>
+#include <ui/user-interface.hpp>
 
 namespace ui
 {
@@ -39,16 +42,22 @@ struct MouseState
 
 struct WindowInfo
 {
-    int width;
-    int height;
+    glm::ivec2 size;
 };
 
 class MainWindow
 {
   public:
-    MainWindow();
+    enum class State
+    {
+      Init,
+      LoadingMods,
+      Something,
+    };
+
+    MainWindow(def::CmdLinOptionsClient& options);
     ~MainWindow();
-    void init();
+    bool initPre();
     bool createWindow();
     bool setupRenderEngine();
     bool setupRmlUi();
@@ -68,25 +77,24 @@ class MainWindow
     void processMouseState();
     void handleWinResize();
 
+    void startLoading();
+    void loadingLoop();
+
     GLFWwindow* window;
     WindowInfo wInfo;
     const bgfx::ViewId kClearView = 0;
     MouseState mouseState;
     gfx::RenderEngine renderEngine;
     gfx::RmlUiRenderInterface rmlUiRenderInterface;
-    Rml::Context* rmlContext;
     cfg::ConfigManager config;
+    def::CmdLinOptionsClient options;
+    mod::ModManager modManager;
+    ui::UserInterface userInterface;
+    State state = State::Init;
 
-    Rml::DataModelHandle myModel;
-    tim::Timepoint tsStart;
-    tim::Timepoint tsLastFrame;
-    long runtimeUs;
-
-      void WhatsUp(Rml::DataModelHandle model_handle, Rml::Event& /*ev*/, const Rml::VariantList& /*arguments*/)
-      {
-        LG_E("What's Up? Brothaaaaa!");
-      }
-
+    std::thread loadingThread;
+    std::promise<bool> loadingPromise;
+    std::future<bool> loadingFuture;
 };
 
 }  // namespace sphyc

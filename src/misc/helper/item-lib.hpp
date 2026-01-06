@@ -13,19 +13,16 @@ template <class T> struct ItemWrapper
     uint16_t generation;
 };
 
-struct IdxUuid
-{
-    int idx;
-    std::string uuid;
-};
-
 template <class T> class ItemLib
 {
   public:
     class Handle
     {
       public:
-        static Handle Invalid() { return Handle(0, 0); }
+        static Handle Invalid()
+        {
+            return Handle(0, 0);
+        }
 
         Handle(uint16_t idx, uint16_t generation)
             : idx(idx), generation(generation)
@@ -40,20 +37,32 @@ template <class T> class ItemLib
         {
             return generation != 0;
         }
-        uint16_t getIdx() const { return idx; }
-        uint16_t getGeneration() const { return generation; }
+        uint16_t getIdx() const
+        {
+            return idx;
+        }
+        uint16_t getGeneration() const
+        {
+            return generation;
+        }
 
       private:
         uint16_t idx;
         uint16_t generation;
     };
+    struct HandleUuid
+    {
+        Handle handle;
+        std::string uuid;
+    };
+
 
   public:
     ItemLib() {}
     virtual ~ItemLib() {}
 
-    int addItem(const std::string& name, const T& item);
-    IdxUuid addWithRandomKey(const T& item);
+    Handle addItem(const std::string& name, const T& item);
+    HandleUuid addWithRandomKey(const T& item);
     void removeItem(int idx);
     void removeItem(Handle handle);
 
@@ -62,10 +71,15 @@ template <class T> class ItemLib
     T* getItem(Handle handle, bool getCorpse = false);
     ItemWrapper<T>* getWrappedItem(int idx);
     uint16_t getGeneration(int idx) const;
+    Handle firstAliveHandle() const;
 
     int size() const
     {
         return items.size();
+    }
+    bool isEmpty() const
+    {
+        return items.empty();
     }
     int getFreeSlotCount() const
     {
@@ -95,7 +109,7 @@ template <class T> class ItemLib
 };
 
 template <class T>
-int ItemLib<T>::addItem(const std::string& name, const T& item)
+ItemLib<T>::Handle ItemLib<T>::addItem(const std::string& name, const T& item)
 {
     auto it = idMap.find(name);
     if (it != idMap.end())
@@ -105,7 +119,7 @@ int ItemLib<T>::addItem(const std::string& name, const T& item)
         items[idx].item = item;
         items[idx].alive = true;
         items[idx].generation++;
-        return idx;
+        return Handle(idx, items[idx].generation);
     }
     else
     {
@@ -126,18 +140,18 @@ int ItemLib<T>::addItem(const std::string& name, const T& item)
         }
 
         idMap[name] = idx;
-        return idx;
+        return Handle(idx, items[idx].generation);
     }
 }
 
-template <class T> IdxUuid ItemLib<T>::addWithRandomKey(const T& item)
+template <class T> ItemLib<T>::HandleUuid ItemLib<T>::addWithRandomKey(const T& item)
 {
     std::string uuid = sec::uuid();
-    int idx = addItem(uuid, item);
-    return IdxUuid{idx, uuid};
+    return {addItem(uuid, item), uuid};
 }
 
-template <class T> ItemLib<T>::Handle ItemLib<T>::getHandle(const std::string& name) const
+template <class T>
+ItemLib<T>::Handle ItemLib<T>::getHandle(const std::string& name) const
 {
     auto it = idMap.find(name);
     if (it != idMap.end())
@@ -148,6 +162,18 @@ template <class T> ItemLib<T>::Handle ItemLib<T>::getHandle(const std::string& n
     {
         return Handle::Invalid();
     }
+}
+
+template <class T> ItemLib<T>::Handle ItemLib<T>::firstAliveHandle() const
+{
+    for (int i = 0; i < items.size(); i++)
+    {
+        if (items[i].alive)
+        {
+            return Handle(i, items[i].generation);
+        }
+    }
+    return Handle::Invalid();
 }
 
 template <class T> ItemWrapper<T>* ItemLib<T>::getWrappedItem(int idx)

@@ -6,6 +6,7 @@ set(MISC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../misc)
 
 set(CLIENT_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../mod
     ${MISC_DIR}/data-definitions
     ${THIRPARTY_DIR}/glfw/include
     ${THIRPARTY_DIR}/rmlui/Include
@@ -31,6 +32,8 @@ set(CLIENT_SOURCES
     render/texture.cpp
     render/shader.cpp
     ui/rmlui-renderinterface.cpp
+    ui/user-interface.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
 )
 
 set(LIBS_PUB
@@ -53,6 +56,7 @@ set(LIBS_PRIV
     "${BGFX_BUILD}/bimg/libbimg_decode.a"
     "${BGFX_BUILD}/bx/libbx.a"
     Boost::thread
+    Boost::program_options
     glfw
     freetype
     RmlUi::RmlUi
@@ -65,7 +69,7 @@ file(GLOB SHADER_SRC CONFIGURE_DEPENDS
 )
 
 set(SHADERC "${BGFX_BUILD}/bgfx/shaderc")
-set(SHADER_BIN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../data/modules/core/shader)
+set(SHADER_BIN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../data/modules/engine/shader)
 set(SHADER_PROFILE spirv)
 foreach(SHADER ${SHADER_SRC})   
     message(STATUS "Add shader compile target: ${SHADER}") 
