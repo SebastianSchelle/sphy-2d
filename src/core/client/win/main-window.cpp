@@ -202,11 +202,17 @@ bool MainWindow::setupRmlUi()
         return false;
     }
 
+
+    Rml::DataModelConstructor constructor = rmlContext->CreateDataModel("my_model");
+    if (!constructor)
+        return false;
+    constructor.Bind("runtime", &runtimeUs);
+    constructor.BindEventCallback("whats_up", &MainWindow::WhatsUp, this);
+    myModel = constructor.GetModelHandle();
     Rml::ElementDocument* document =
-        rmlContext->LoadDocument("modules/core/assets/ui/tutorial.rml");
+        rmlContext->LoadDocument("modules/core/assets/ui/test.rml");
     if (document)
     {
-        LG_I("Loaded document test.rml");
         document->Show();
     }
     return true;
@@ -215,10 +221,10 @@ bool MainWindow::setupRmlUi()
 void MainWindow::winLoop()
 {
     gfx::VertexPosColTex vertexData[] = {
-        {200.0f, 200.0f, 0xffffffff, 0.0f, 0.0f},
-        {500.0f, 200.0f, 0xffffffff, 1.0f, 0.0f},
-        {200.0f, 500.0f, 0xffffffff, 0.0f, 1.0f},
-        {500.0f, 500.0f, 0xffffffff, 1.0f, 1.0f},
+        {0.0f, 0.0f, 0xffffffff, 0.0f, 0.0f},
+        {0.0f, 400.0f, 0xffffffff, 0.0f, 150.0f},
+        {400.0f, 0.0f, 0xffffffff, 145.0f, 0.0f},
+        {400.0f, 400.0f, 0xffffffff, 145.0f, 150.0f},
     };
     uint16_t indexData[] = {0, 1, 2, 2, 1, 3};
 
@@ -229,12 +235,38 @@ void MainWindow::winLoop()
                                      6 * sizeof(uint16_t),
                                      gfx::VertexPosColTex::ms_decl);
 
+    tsStart = tim::getCurrentTimeU();
+
     while (!glfwWindowShouldClose(window))
     {
+        tim::Timepoint tsNow = tim::getCurrentTimeU();
+        runtimeUs = tim::durationU(tsStart, tsNow);
+        tsLastFrame = tsNow;
+
         glfwPollEvents();
         processMouseState();
         handleWinResize();
 
+        bool overUi = rmlContext->ProcessMouseMove(
+            mouseState.mousePos.x, mouseState.mousePos.y, 0);
+        for (int i = 0; i < 3; ++i)
+        {
+            if (mouseState.buttonPressed[i])
+            {
+                rmlContext->ProcessMouseButtonDown(i, 0);
+            }
+            if (mouseState.buttonReleased[i])
+            {
+                rmlContext->ProcessMouseButtonUp(i, 0);
+            }
+        }
+        bool mouseUiInteract = rmlContext->IsMouseInteracting();
+
+
+        rmlContext->ProcessMouseWheel(mouseState.mz, 0);
+
+
+        myModel.DirtyVariable("runtime");
         rmlContext->Update();
 
         bool showStats = false;
@@ -248,10 +280,11 @@ void MainWindow::winLoop()
                            0);
 
         rmlContext->Render();
-        rmlUiRenderInterface.EnableScissorRegion(false);
-        //gfx::TextureHandle textureHandle = gfx::TextureHandle::Invalid();
-        //renderEngine.renderCompiledGeometry(
-        //    geometryHandle, glm::vec2(0.0f, 0.0f), textureHandle, kClearView);
+        //  rmlUiRenderInterface.EnableScissorRegion(false);
+        //  gfx::TextureHandle textureHandle = gfx::TextureHandle::Invalid();
+        //  renderEngine.renderCompiledGeometry(
+        //      gfx::GeometryHandle(0, 1), glm::vec2(200.0f, 150.0f),
+        //      gfx::TextureHandle(2, 1), kClearView);
         bgfx::frame();
     }
 }
@@ -295,6 +328,8 @@ void MainWindow::handleWinResize()
         bgfx::setViewRect(kClearView, 0, 0, bgfx::BackbufferRatio::Equal);
         LG_I("Resize window to ({}, {})", wInfo.width, wInfo.height)
         renderEngine.setWindowSize(wInfo.width, wInfo.height);
+
+        rmlContext->SetDimensions(Rml::Vector2i(wInfo.width, wInfo.height));
     }
 }
 

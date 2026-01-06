@@ -14,14 +14,10 @@ Geometry::Geometry(const void* vertexData,
                    bgfx::VertexLayout& vertLayout,
                    bool use32BitIndices)
 {
-    vbh = bgfx::createVertexBuffer(bgfx::makeRef(vertexData, vDatSize),
-                                   vertLayout);
+    vbh =
+        bgfx::createVertexBuffer(bgfx::copy(vertexData, vDatSize), vertLayout);
     uint32_t flags = use32BitIndices ? BGFX_BUFFER_INDEX32 : 0;
-    ibh = bgfx::createIndexBuffer(bgfx::makeRef(indexData, iDatSize), flags);
-    LG_D(
-        "Geometry created with {} vertices and {} indices",
-        vDatSize / vertLayout.getSize(1),
-        iDatSize / (use32BitIndices ? sizeof(uint32_t) : sizeof(uint16_t)));
+    ibh = bgfx::createIndexBuffer(bgfx::copy(indexData, iDatSize), flags);
 }
 
 void Geometry::destroy() const
@@ -52,9 +48,9 @@ void RenderEngine::init()
                                 "modules/core/shader/fs_rmlui.bin");
     compiledShaderLib.addItem("rmlui", shaderProgram);
 
-    int texWidth =
+    texWidth =
         static_cast<int>(std::get<float>(config.get({"gfx", "tex-width"})));
-    int texHeight =
+    texHeight =
         static_cast<int>(std::get<float>(config.get({"gfx", "tex-height"})));
     int texLayerCnt =
         static_cast<int>(std::get<float>(config.get({"gfx", "tex-layer-cnt"})));
@@ -77,6 +73,12 @@ void RenderEngine::init()
         return;
     }
 
+    gfx::TextureHandle backgroundTexHandle = textureLoader.loadTexture(
+        "holymoly", "misc", "modules/core/assets/textures/background2.dds");
+
+    gfx::TextureHandle background2TexHandle = textureLoader.loadTexture(
+        "stonk", "misc", "modules/core/assets/ui/assets/invader.dds");
+
 
     if (!bgfx::isValid(u_translation))
     {
@@ -84,9 +86,9 @@ void RenderEngine::init()
             bgfx::createUniform("u_translation", bgfx::UniformType::Vec4);
     }
 
-    if (!bgfx::isValid(u_uvRect))
+    if (!bgfx::isValid(u_atlasPos))
     {
-        u_uvRect = bgfx::createUniform("u_uvRect", bgfx::UniformType::Vec4);
+        u_atlasPos = bgfx::createUniform("u_atlasPos", bgfx::UniformType::Vec4);
     }
 
     if (!bgfx::isValid(u_texArray))
@@ -134,15 +136,15 @@ void RenderEngine::releaseGeometry(GeometryHandle handle)
     }
 }
 
-void RenderEngine::renderCompiledGeometry(GeometryHandle handle,
+void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
                                           const glm::vec2& translation,
                                           TextureHandle textureHandle,
                                           bgfx::ViewId viewId)
 {
-    const Geometry* geometry = compiledGeometryLib.getItem(handle);
+    const Geometry* geometry = compiledGeometryLib.getItem(goemHandle);
     if (!geometry)
     {
-        LG_W("Invalid geometry handle: {}", handle.value());
+        LG_W("Invalid geometry handle: {}", goemHandle.value());
         return;
     }
 
@@ -150,6 +152,9 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle handle,
     Texture* texture = texLib.getItem(textureHandle);
     if (!texture)
     {
+        //LG_W("Invalid texture handle: id: {} gen: {}. Try fallback texture",
+        //     textureHandle.getIdx(),
+        //     textureHandle.getGeneration());
         texture = texLib.getItem(0);  // Fallback texture
         if (!texture)
         {
@@ -169,14 +174,16 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle handle,
         static_cast<float>(texture->getTexIdent().layerIdx), 0.0f, 0.0f, 0.0f};
     bgfx::setUniform(u_texLayer, layerArr);
 
-    const float* uvRect = reinterpret_cast<const float*>(&texture->getUvRect());
-    bgfx::setUniform(u_uvRect, uvRect);
+    float atlasPos[] = {texture->getRelBounds().x,
+                        texture->getRelBounds().y,
+                        texture->getRelBounds().z,
+                        texture->getRelBounds().w};
+
+    bgfx::setUniform(u_atlasPos, atlasPos);
 
     float trArr[] = {translation.x, translation.y, 0.0f, 0.0f};
     bgfx::setUniform(u_translation, trArr);
     bgfx::setUniform(u_proj, ortho);
-
-    // LG_W("UV Rect: {} {} {} {}", uvRect[0], uvRect[1], uvRect[2], uvRect[3]);
 
     // Set render state
     uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
@@ -218,6 +225,14 @@ TextureHandle RenderEngine::loadTexture(const std::string& name,
                                         const std::string& path)
 {
     return textureLoader.loadTexture(name, type, path);
+}
+
+TextureHandle RenderEngine::loadTexture(const std::string& name,
+                                        const std::string& type,
+                                        const std::string& path,
+                                        glm::vec2& dimensions)
+{
+    return textureLoader.loadTexture(name, type, path, dimensions);
 }
 
 TextureHandle RenderEngine::generateTexture(const std::string& name,
@@ -262,6 +277,11 @@ void RenderEngine::enableScissorRegion(bool enable)
     {
         bgfx::setScissor(0, 0, winWidth, winHeight);
     }
+}
+
+glm::ivec2 RenderEngine::getTextureSize() const
+{
+    return glm::ivec2(texWidth, texHeight);
 }
 
 }  // namespace gfx

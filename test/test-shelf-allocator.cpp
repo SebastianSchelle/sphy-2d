@@ -41,12 +41,12 @@ void drawShelf(int width,
 // Demonstrate some basic assertions.
 TEST(HelloTest, BasicAssertions)
 {
-    int shelfWidth = 1000;
-    int shelfHeight = 1000;
-    int bucketSize = 1000;
+    int shelfWidth = 2000;
+    int shelfHeight = 2000;
+    int bucketSize = 500;
     float excessHeightThreshold = 0.9f;
     int minRectSize = 20;
-    int maxRectSize = 50;
+    int maxRectSize = 88;
     int numRects = 500;
 
     static std::random_device rd;

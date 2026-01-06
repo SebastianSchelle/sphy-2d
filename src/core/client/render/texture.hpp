@@ -42,16 +42,6 @@ class TextureAtlas
 // type
 using TextureAtlasHandle = typename con::ItemLib<TextureAtlas>::Handle;
 
-struct UvRect
-{
-  public:
-    UvRect(float xMin, float yMin, float xMax, float yMax);
-    float xMin;
-    float yMin;
-    float xMax;
-    float yMax;
-};
-
 class Texture
 {
   public:
@@ -60,7 +50,7 @@ class Texture
             const TextureIdentifier& texIdent,
             const StoragePtr& storagePtr,
             TextureAtlasHandle atlasHandle,
-            const UvRect& uvRect);
+            glm::vec4 relBounds);
     ~Texture();
     const TextureIdentifier getTexIdent() const
     {
@@ -82,9 +72,9 @@ class Texture
     {
         return storagePtr;
     }
-    const UvRect& getUvRect() const
+    const glm::vec4 getRelBounds() const
     {
-        return uvRect;
+        return relBounds;
     }
 
   private:
@@ -93,7 +83,7 @@ class Texture
     TextureIdentifier texIdent;
     StoragePtr storagePtr;
     TextureAtlasHandle atlasHandle;
-    UvRect uvRect;
+    glm::vec4 relBounds;
 };
 
 using TextureHandle = typename con::ItemLib<Texture>::Handle;
@@ -127,6 +117,10 @@ class TextureLoader
     TextureHandle loadTexture(const std::string& name,
                               const std::string& type,
                               const std::string& path);
+    TextureHandle loadTexture(const std::string& name,
+                              const std::string& type,
+                              const std::string& path,
+                              glm::vec2& dimensions);
     TextureHandle generateTexture(const std::string& name,
                                   const std::string& type,
                                   const void* data,

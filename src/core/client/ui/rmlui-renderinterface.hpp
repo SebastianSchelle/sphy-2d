@@ -4,6 +4,7 @@
 #include "RmlUi/Core.h"
 #include "std-inc.hpp"
 #include "render-engine.hpp"
+#include "config-manager.hpp"
 
 namespace gfx
 {
@@ -32,6 +33,25 @@ class RmlUiRenderInterface : public Rml::RenderInterface
     void RenderToClipMask(Rml::ClipMaskOperation operation,
                           Rml::CompiledGeometryHandle geometry,
                           Rml::Vector2f translation) override;
+    void SetTransform(const Rml::Matrix4f* transform) override;
+    Rml::LayerHandle PushLayer() override;
+    void CompositeLayers(Rml::LayerHandle source,
+                        Rml::LayerHandle destination,
+                        Rml::BlendMode blend_mode,
+                        Rml::Span<const Rml::CompiledFilterHandle> filters) override;
+    void PopLayer() override;
+    Rml::TextureHandle SaveLayerAsTexture() override;
+    Rml::CompiledFilterHandle SaveLayerAsMaskImage() override;
+    Rml::CompiledFilterHandle CompileFilter(const Rml::String& name,
+                                            const Rml::Dictionary& parameters) override;
+    void ReleaseFilter(Rml::CompiledFilterHandle filter) override;
+    Rml::CompiledShaderHandle CompileShader(const Rml::String& name,
+                                            const Rml::Dictionary& parameters) override;
+    void RenderShader(Rml::CompiledShaderHandle shader,
+                     Rml::CompiledGeometryHandle geometry,
+                     Rml::Vector2f translation,
+                     Rml::TextureHandle texture) override;
+    void ReleaseShader(Rml::CompiledShaderHandle shader) override;
 
   private:
     gfx::RenderEngine* renderEngine;

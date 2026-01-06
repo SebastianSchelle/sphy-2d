@@ -65,14 +65,19 @@ class RenderEngine
     TextureHandle loadTexture(const std::string& name,
                               const std::string& type,
                               const std::string& path);
+    TextureHandle loadTexture(const std::string& name,
+                              const std::string& type,
+                              const std::string& path,
+                              glm::vec2& dimensions);
     TextureHandle generateTexture(const std::string& name,
                                   const std::string& type,
                                   const void* data,
                                   int width,
                                   int height,
-                                  const std::string& path="");
+                                  const std::string& path = "");
     void setScissorRegion(const glm::vec2& position, const glm::vec2& size);
     void enableScissorRegion(bool enable);
+    glm::ivec2 getTextureSize() const;
 
   private:
     void updateOrtho();
@@ -87,7 +92,7 @@ class RenderEngine
     bgfx::UniformHandle u_proj = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_texArray = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_texLayer = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle u_uvRect = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_atlasPos = BGFX_INVALID_HANDLE;
 
     int winWidth;
     int winHeight;
@@ -95,6 +100,8 @@ class RenderEngine
     glm::vec2 scissorRegionPosition;
     glm::vec2 scissorRegionSize;
     bool scissorRegionEnabled;
+    int texWidth;
+    int texHeight;
 };
 
 }  // namespace gfx

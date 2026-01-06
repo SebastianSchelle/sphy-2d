@@ -7,31 +7,14 @@
 namespace gfx
 {
 
-UvRect::UvRect(float xMin, float yMin, float xMax, float yMax)
-    : xMin(xMin), yMin(yMin), xMax(xMax), yMax(yMax)
-{
-    if (xMax <= xMin)
-    {
-        LG_E(
-            "xMax must be greater than xMin and yMax must be greater than "
-            "yMin");
-        xMax = xMin + 1.0f;
-    }
-    if (yMax <= yMin)
-    {
-        LG_E("yMax must be greater than yMin");
-        yMax = yMin + 1.0f;
-    }
-}
-
 Texture::Texture(const std::string& name,
                  const std::string& path,
                  const TextureIdentifier& texIdent,
                  const StoragePtr& storagePtr,
                  TextureAtlasHandle atlasHandle,
-                 const UvRect& uvRect)
+                 glm::vec4 relBounds)
     : name(name), path(path), texIdent(texIdent), storagePtr(storagePtr),
-      atlasHandle(atlasHandle), uvRect(uvRect)
+      atlasHandle(atlasHandle), relBounds(relBounds)
 {
 }
 
@@ -57,6 +40,7 @@ bool TextureAtlas::insertTexture(StoragePtr& storagePtr)
     {
         return true;
     }
+    LG_W("Failed to insert texture into atlas");
     return false;
 }
 
@@ -125,7 +109,8 @@ void TextureLoader::unloadTexture(uint32_t handle) {}
 
 TextureHandle TextureLoader::loadTexture(const std::string& name,
                                          const std::string& type,
-                                         const std::string& path)
+                                         const std::string& path,
+                                         glm::vec2& dimensions)
 {
     bx::Error err;
     // Load image file
@@ -155,6 +140,9 @@ TextureHandle TextureLoader::loadTexture(const std::string& name,
         return TextureHandle::Invalid();
     }
 
+    dimensions.x = image->m_width;
+    dimensions.y = image->m_height;
+
     LG_D("Read image file {} successfully", path);
     LG_D("alpha {}", image->m_hasAlpha);
     LG_D("width {}", image->m_width);
@@ -170,6 +158,14 @@ TextureHandle TextureLoader::loadTexture(const std::string& name,
     }
     return generateTexture(
         name, type, image->m_data, image->m_width, image->m_height, path);
+}
+
+TextureHandle TextureLoader::loadTexture(const std::string& name,
+                                         const std::string& type,
+                                         const std::string& path)
+{
+    glm::vec2 dimensions;
+    return loadTexture(name, type, path, dimensions);
 }
 
 TextureHandle TextureLoader::generateTexture(const std::string& name,
@@ -268,13 +264,12 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
                           storagePtr.rect.height,
                           mem);
 
-    UvRect uvRect{(float)storagePtr.rect.x / (float)texWidth,
-                  (float)storagePtr.rect.y / (float)texHeight,
-                  (float)(storagePtr.rect.x + (float)storagePtr.rect.width)
-                      / (float)texWidth,
-                  (float)(storagePtr.rect.y + (float)storagePtr.rect.height)
-                      / (float)texHeight};
-    Texture texture(name, path, texIdent, storagePtr, atlasHandle, uvRect);
+    glm::vec4 relBounds = {
+        (float)storagePtr.rect.x / (float)texWidth,
+        (float)storagePtr.rect.y / (float)texHeight,
+        (float)storagePtr.rect.width / (float)texWidth,
+        (float)storagePtr.rect.height / (float)texHeight};
+    Texture texture(name, path, texIdent, storagePtr, atlasHandle, relBounds);
     int idx = textureLib.addItem(name, texture);
     TextureHandle handle = textureLib.getHandle(idx);
     LG_I("Texture has been added to GPU storage");

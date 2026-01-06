@@ -77,6 +77,16 @@ class MainWindow
     Rml::Context* rmlContext;
     cfg::ConfigManager config;
 
+    Rml::DataModelHandle myModel;
+    tim::Timepoint tsStart;
+    tim::Timepoint tsLastFrame;
+    long runtimeUs;
+
+      void WhatsUp(Rml::DataModelHandle model_handle, Rml::Event& /*ev*/, const Rml::VariantList& /*arguments*/)
+      {
+        LG_E("What's Up? Brothaaaaa!");
+      }
+
 };
 
 }  // namespace sphyc
