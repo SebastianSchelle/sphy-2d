@@ -58,6 +58,7 @@ class MainWindow
     MainWindow(def::CmdLinOptionsClient& options);
     ~MainWindow();
     bool initPre();
+    bool initPost();
     bool createWindow();
     bool setupRenderEngine();
     bool setupRmlUi();
@@ -92,8 +93,9 @@ class MainWindow
     ui::UserInterface userInterface;
     State state = State::Init;
 
+    UiDocHandle modLoadingHandle;
+
     std::thread loadingThread;
-    std::promise<bool> loadingPromise;
     std::future<bool> loadingFuture;
 };
 

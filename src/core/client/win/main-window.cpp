@@ -68,7 +68,7 @@ MainWindow::MainWindow(def::CmdLinOptionsClient& options)
     : options(options),
       config(options.workingdir + "/modules/core/defs/client.yaml"),
       renderEngine(config), rmlUiRenderInterface(&renderEngine), client(config),
-      modManager()
+      modManager(), modLoadingHandle(UiDocHandle::Invalid())
 {
     auto path(options.workingdir);
     std::filesystem::current_path(path);
@@ -107,14 +107,14 @@ bool MainWindow::initPre()
         LG_E("Could not create GLFW window");
         return false;
     }
-    
-    if(!renderEngine.initPre())
+
+    if (!renderEngine.initPre())
     {
         LG_E("Failed to initialize render engine");
         return false;
     }
     renderEngine.setWindowSize(wInfo.size.x, wInfo.size.y);
-    
+
     if (!Rml::Initialise())
     {
         LG_E("RmlUI initialization failed");
@@ -128,6 +128,11 @@ bool MainWindow::initPre()
         LG_E("Could not initialize user interface");
         return false;
     }
+    return true;
+}
+
+bool MainWindow::initPost()
+{
     return true;
 }
 
@@ -224,6 +229,7 @@ void MainWindow::winLoop()
             }
         }
         userInterface.processMouseWheel(mouseState.mz, 0);
+        userInterface.update();
 
         bool showStats = false;
         bgfx::setDebug(showStats ? BGFX_DEBUG_STATS | BGFX_DEBUG_TEXT : 0);
@@ -246,6 +252,7 @@ void MainWindow::winLoop()
             case State::Something:
                 break;
         }
+
         userInterface.render();
         //  rmlUiRenderInterface.EnableScissorRegion(false);
         //  gfx::TextureHandle textureHandle = gfx::TextureHandle::Invalid();
@@ -264,8 +271,11 @@ void MainWindow::startLoading()
         LG_W("Loading already started, ignoring duplicate call");
         return;
     }
-    
+
+    userInterface.showDocument(userInterface.getDocumentHandle("mod-loading"));
+
     LG_I("Start loading mods...");
+    std::promise<bool> loadingPromise;
     loadingFuture = loadingPromise.get_future();
     loadingThread = std::thread(
         [this](std::promise<bool> succ)
@@ -277,14 +287,14 @@ void MainWindow::startLoading()
                 succ.set_value(false);
                 return;
             }
-            if(!modManager.checkDependencies(modList, "modules"))
+            if (!modManager.checkDependencies(modList, "modules"))
             {
                 LG_E("Failed to check dependencies");
                 succ.set_value(false);
                 return;
             }
             mod::PtrHandles ptrHandles{&renderEngine};
-            if(!modManager.loadMods(ptrHandles))
+            if (!modManager.loadMods(ptrHandles))
             {
                 LG_E("Failed to load mods");
                 succ.set_value(false);
@@ -293,7 +303,7 @@ void MainWindow::startLoading()
             succ.set_value(true);
         },
         std::move(loadingPromise));
-    
+
     // Set state immediately to prevent calling startLoading() again
     state = State::LoadingMods;
 }
@@ -304,10 +314,15 @@ void MainWindow::loadingLoop()
         && loadingFuture.wait_for(std::chrono::seconds(0))
                == std::future_status::ready)
     {
+        userInterface.hideDocument(userInterface.getDocumentHandle("mod-loading"));
         if (loadingFuture.get())
         {
             LG_I("Mods loaded successfully");
-            state = State::Something;
+            if (loadingThread.joinable())
+            {
+                loadingThread.join();
+            }
+            state = State::Init;
         }
         else
         {
@@ -356,7 +371,7 @@ void MainWindow::handleWinResize()
             (uint32_t)wInfo.size.x, (uint32_t)wInfo.size.y, BGFX_RESET_VSYNC);
         bgfx::setViewRect(kClearView, 0, 0, bgfx::BackbufferRatio::Equal);
         renderEngine.setWindowSize(wInfo.size.x, wInfo.size.y);
-        userInterface.updateContext(wInfo.size);
+        userInterface.setDimensions(wInfo.size);
     }
 }
 

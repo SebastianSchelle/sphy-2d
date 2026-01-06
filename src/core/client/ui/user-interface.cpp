@@ -1,4 +1,5 @@
 #include "user-interface.hpp"
+#include "RmlUi/Core/PropertySpecification.h"
 
 namespace ui
 {
@@ -32,6 +33,11 @@ bool UserInterface::init(glm::ivec2 windowSize)
     }
 
     return true;
+}
+
+void UserInterface::update()
+{
+    rmlContext->Update();
 }
 
 void UserInterface::processMouseMove(glm::ivec2 mousePos, int keyMod)
@@ -69,7 +75,7 @@ void UserInterface::processMouseWheel(int delta, int keyMod)
     mouseWheelInteract = !rmlContext->ProcessMouseWheel(delta, keyMod);
 }
 
-void UserInterface::updateContext(glm::ivec2 windowSize)
+void UserInterface::setDimensions(glm::ivec2 windowSize)
 {
     rmlContext->SetDimensions(Rml::Vector2i(windowSize.x, windowSize.y));
 }
@@ -94,6 +100,30 @@ UiDocHandle UserInterface::loadDocument(const std::string& name, const std::stri
 bool UserInterface::loadFont(const std::string& fontPath)
 {
     return Rml::LoadFontFace(fontPath);
+}
+
+void UserInterface::showDocument(UiDocHandle handle)
+{
+    auto doc = rmlDocLib.getItem(handle.getIdx());
+    if(doc)
+    {
+        LG_I("Showing document: {}", (*doc)->GetTitle());
+        (*doc)->Show(Rml::ModalFlag::None, Rml::FocusFlag::Auto);
+    }
+}
+
+void UserInterface::hideDocument(UiDocHandle handle)
+{
+    auto doc = rmlDocLib.getItem(handle.getIdx());
+    if(doc)
+    {
+        (*doc)->Hide();
+    }
+}
+
+UiDocHandle UserInterface::getDocumentHandle(const std::string& name)
+{
+    return rmlDocLib.getHandle(name);
 }
 
 }  // namespace ui

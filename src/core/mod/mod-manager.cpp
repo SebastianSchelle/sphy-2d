@@ -139,6 +139,9 @@ bool ModManager::checkIfDependencyProcessed(const std::string& modId)
 bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
 {
     LG_I("Loading mod: {}", modInfo.id);
+
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
     try
     {
         YAML::Node manifest = YAML::LoadFile(modInfo.manifestPath);

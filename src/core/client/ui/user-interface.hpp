@@ -17,13 +17,18 @@ class UserInterface
     UserInterface();
     ~UserInterface();
     bool init(glm::ivec2 windowSize);
-    void updateContext(glm::ivec2 windowSize);
+    void update();
+    void setDimensions(glm::ivec2 windowSize);
     void processMouseMove(glm::ivec2 mousePos, int keyMod);
     void processMouseButtonDown(int button, int keyMod);
     void processMouseButtonUp(int button, int keyMod);
     bool isMouseInteracting();
     void processMouseWheel(int delta, int keyMod);
     void render();
+
+    void showDocument(UiDocHandle handle);
+    void hideDocument(UiDocHandle handle);
+    UiDocHandle getDocumentHandle(const std::string& name);
 
     UiDocHandle loadDocument(const std::string& name, const std::string& documentPath);
     bool loadFont(const std::string& fontPath);
