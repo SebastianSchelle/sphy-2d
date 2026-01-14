@@ -41,6 +41,14 @@ using GeometryHandleUuid = typename con::ItemLib<Geometry>::HandleUuid;
 class RenderEngine
 {
   public:
+    enum class RenderState
+    {
+        Idle,
+        DrawTexRects,
+        DrawFullScreenTriangles,
+        DrawCompiledGeometry,
+    };
+
     RenderEngine(cfg::ConfigManager& config);
     ~RenderEngine();
 
@@ -52,6 +60,8 @@ class RenderEngine
 
     bool initPre();
     bool initPost();
+
+    void startFrame();
 
     GeometryHandle compileGeometry(const void* vertexData,
                                    size_t vDatSize,
@@ -85,6 +95,12 @@ class RenderEngine
                             const std::string& vsPath,
                             const std::string& fsPath);
     void releaseShader(ShaderHandle handle);
+    void drawRectangle(const glm::vec2& translation,
+                       float rotation,
+                       TextureHandle textureHandle,
+                       bgfx::ViewId viewId = 0);
+    void drawFullScreenTriangles(bgfx::ViewId viewId, ShaderHandle shaderHandle);
+    ShaderHandle getShaderHandle(const std::string& name);
 
   private:
     void cleanUpAll();
@@ -92,12 +108,18 @@ class RenderEngine
     void cleanUpTextures();
     void cleanUpShaders();
     void cleanUpGeometry();
+    void changeRenderState(RenderState newState);
 
     TextureLoader textureLoader;
     cfg::ConfigManager& config;
 
     con::ItemLib<Geometry> compiledGeometryLib;
     con::ItemLib<ShaderProgram> compiledShaderLib;
+
+    bgfx::VertexBufferHandle vbhRectangle;
+    bgfx::IndexBufferHandle ibhRectangle;
+    bgfx::VertexBufferHandle vbhFullScreenTriangles;
+    bgfx::IndexBufferHandle ibhFullScreenTriangles;
 
     bgfx::UniformHandle u_translation = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_proj = BGFX_INVALID_HANDLE;
@@ -116,6 +138,8 @@ class RenderEngine
     bool scissorRegionEnabled;
     int texWidth;
     int texHeight;
+    RenderState renderState;
+    const bgfx::ViewId kClearView = 0;
 };
 
 }  // namespace gfx

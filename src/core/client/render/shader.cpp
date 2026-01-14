@@ -73,7 +73,9 @@ ShaderProgram::ShaderProgram(const std::string& vs, const std::string& fs)
     }
     else
     {
-        LG_I("Created shader program from {} {}", vs, fs);
+        LG_I("Created shader program from:")
+        LG_I("  vs: {}", vs);
+        LG_I("  fs: {}", fs);
     }
 }
 

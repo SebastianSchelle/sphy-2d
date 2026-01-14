@@ -6,6 +6,21 @@ namespace gfx
 {
 
 bgfx::VertexLayout VertexPosColTex::ms_decl;
+bgfx::VertexLayout PosVertex::ms_decl;
+bgfx::VertexLayout PosColorVertex::ms_decl;
+
+static const PosVertex vertRectangle[] = {{-0.5f, -0.5f},
+                                          {0.5f, -0.5f},
+                                          {-0.5f, 0.5f},
+                                          {0.5f, 0.5f}};
+static const uint16_t indRectangle[] = {2, 1, 0, 3, 1, 2};
+
+static const PosVertex vertFullScreenTriangles[] = {{-1.0f, -1.0f},
+                                                    {1.0f, -1.0f},
+                                                    {-1.0f, 1.0f},
+                                                    {1.0f, 1.0f}};
+static const uint16_t indFullScreenTriangles[] = {2, 1, 0, 3, 1, 2};
+
 
 Geometry::Geometry(const void* vertexData,
                    size_t vDatSize,
@@ -70,8 +85,24 @@ bool RenderEngine::initPre()
                        texExcessHeightThreshold);
 
     shaderHandleRml = loadShader("geom",
-                                  "modules/engine/shader/vs_rmlui.bin",
-                                  "modules/engine/shader/fs_rmlui.bin");
+                                 "modules/engine/shader/vs_rmlui.bin",
+                                 "modules/engine/shader/fs_rmlui.bin");
+
+
+    PosColorVertex::init();
+    PosVertex::init();
+    vbhRectangle = bgfx::createVertexBuffer(
+        bgfx::copy(vertRectangle, sizeof(vertRectangle)),
+        PosColorVertex::ms_decl);
+    ibhRectangle = bgfx::createIndexBuffer(
+        bgfx::copy(indRectangle, sizeof(indRectangle)), 0);
+
+    vbhFullScreenTriangles = bgfx::createVertexBuffer(
+        bgfx::copy(vertFullScreenTriangles, sizeof(vertFullScreenTriangles)),
+        PosVertex::ms_decl);
+    ibhFullScreenTriangles = bgfx::createIndexBuffer(
+        bgfx::copy(indFullScreenTriangles, sizeof(indFullScreenTriangles)), 0);
+
     if (!shaderHandleRml.isValid())
     {
         LG_E("Failed to load rmlui shader");
@@ -153,6 +184,8 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
                                           TextureHandle textureHandle,
                                           bgfx::ViewId viewId)
 {
+    changeRenderState(RenderState::DrawCompiledGeometry);
+
     const Geometry* geometry = compiledGeometryLib.getItem(goemHandle);
     if (!geometry)
     {
@@ -209,7 +242,8 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
     bgfx::setIndexBuffer(geometry->getIbh());
 
     // Submit to the specified view
-    bgfx::submit(viewId, compiledShaderLib.getItem(shaderHandleRml)->getHandle());
+    bgfx::submit(viewId,
+                 compiledShaderLib.getItem(shaderHandleRml)->getHandle());
 }
 
 void RenderEngine::setWindowSize(int width, int height)
@@ -217,6 +251,7 @@ void RenderEngine::setWindowSize(int width, int height)
     winWidth = width;
     winHeight = height;
     updateOrtho();
+    bgfx::setViewRect(kClearView, 0, 0, bgfx::BackbufferRatio::Equal);
 }
 
 void RenderEngine::updateOrtho()
@@ -331,6 +366,58 @@ ShaderHandle RenderEngine::loadShader(const std::string& name,
 void RenderEngine::releaseShader(ShaderHandle handle)
 {
     compiledShaderLib.removeItem(handle);
+}
+
+void RenderEngine::changeRenderState(RenderState newState)
+{
+    if (renderState != newState)
+    {
+        switch ((int)renderState)
+        {
+            case (int)RenderState::Idle:
+                break;
+            case (int)RenderState::DrawTexRects:
+                break;
+            case (int)RenderState::DrawFullScreenTriangles:
+                break;
+            case (int)RenderState::DrawCompiledGeometry:
+                break;
+            default:
+                break;
+        }
+        renderState = newState;
+    }
+}
+
+void RenderEngine::startFrame()
+{
+    renderState = RenderState::Idle;
+
+    bool showStats = false;
+    bgfx::setDebug(showStats ? BGFX_DEBUG_STATS | BGFX_DEBUG_TEXT : 0);
+    bgfx::touch(0);
+
+    bgfx::setViewClear(
+        kClearView, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
+}
+
+void RenderEngine::drawFullScreenTriangles(bgfx::ViewId viewId,
+                                           ShaderHandle shaderHandle)
+{
+    if (shaderHandle.isValid())
+    {
+        changeRenderState(RenderState::DrawFullScreenTriangles);
+        bgfx::setVertexBuffer(0, vbhFullScreenTriangles);
+        bgfx::setIndexBuffer(ibhFullScreenTriangles);
+        bgfx::setState(BGFX_STATE_WRITE_RGB);
+        bgfx::submit(viewId,
+                     compiledShaderLib.getItem(shaderHandle)->getHandle());
+    }
+}
+
+ShaderHandle RenderEngine::getShaderHandle(const std::string& name)
+{
+    return compiledShaderLib.getHandle(name);
 }
 
 }  // namespace gfx

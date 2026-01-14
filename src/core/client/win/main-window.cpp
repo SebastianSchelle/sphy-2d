@@ -175,10 +175,6 @@ bool MainWindow::createWindow()
         return false;
     }
 
-    // Set view 0 to the same dimensions as the window and to clear the color
-    // buffer. const bgfx::ViewId kClearView = 0;
-    bgfx::setViewRect(kClearView, 0, 0, bgfx::BackbufferRatio::Equal);
-
     glfwSetScrollCallback(window,
                           [](GLFWwindow* win, double xoffset, double yoffset)
                           {
@@ -231,15 +227,7 @@ void MainWindow::winLoop()
         userInterface.processMouseWheel(mouseState.mz, 0);
         userInterface.update();
 
-        bool showStats = false;
-        bgfx::setDebug(showStats ? BGFX_DEBUG_STATS | BGFX_DEBUG_TEXT : 0);
-        bgfx::touch(0);
-
-        bgfx::setViewClear(kClearView,
-                           BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH,
-                           0x303030ff,
-                           1.0f,
-                           0);
+        renderEngine.startFrame();
 
         switch (state)
         {
@@ -252,6 +240,10 @@ void MainWindow::winLoop()
             case State::Something:
                 break;
         }
+
+        // Draw star background
+        renderEngine.drawFullScreenTriangles(
+            0, renderEngine.getShaderHandle("distantstars"));
 
         userInterface.render();
         //  rmlUiRenderInterface.EnableScissorRegion(false);
@@ -314,7 +306,8 @@ void MainWindow::loadingLoop()
         && loadingFuture.wait_for(std::chrono::seconds(0))
                == std::future_status::ready)
     {
-        userInterface.hideDocument(userInterface.getDocumentHandle("mod-loading"));
+        userInterface.hideDocument(
+            userInterface.getDocumentHandle("mod-loading"));
         if (loadingFuture.get())
         {
             LG_I("Mods loaded successfully");
@@ -322,7 +315,7 @@ void MainWindow::loadingLoop()
             {
                 loadingThread.join();
             }
-            state = State::Init;
+            state = State::Something;
         }
         else
         {
@@ -369,7 +362,6 @@ void MainWindow::handleWinResize()
     {
         bgfx::reset(
             (uint32_t)wInfo.size.x, (uint32_t)wInfo.size.y, BGFX_RESET_VSYNC);
-        bgfx::setViewRect(kClearView, 0, 0, bgfx::BackbufferRatio::Equal);
         renderEngine.setWindowSize(wInfo.size.x, wInfo.size.y);
         userInterface.setDimensions(wInfo.size);
     }

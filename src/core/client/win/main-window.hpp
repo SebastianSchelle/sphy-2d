@@ -83,7 +83,6 @@ class MainWindow
 
     GLFWwindow* window;
     WindowInfo wInfo;
-    const bgfx::ViewId kClearView = 0;
     MouseState mouseState;
     gfx::RenderEngine renderEngine;
     gfx::RmlUiRenderInterface rmlUiRenderInterface;

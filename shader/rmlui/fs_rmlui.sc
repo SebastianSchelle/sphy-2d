@@ -10,7 +10,7 @@ uniform vec4 u_atlasPos;
 
 void main()
 {
-    vec2 uv = u_atlasPos.xy + v_texcoord0.xy * u_atlasPos.zw;
+    vec2 uv =  u_atlasPos.xy + v_texcoord0.xy * u_atlasPos.zw;
     vec3 uvw = vec3(uv, u_texLayer.x);
     vec4 texColor = texture2DArray(u_texArray, uvw);
     vec4 finalColor = texColor * v_color0;
