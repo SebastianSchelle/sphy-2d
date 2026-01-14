@@ -97,6 +97,15 @@ UiDocHandle UserInterface::loadDocument(const std::string& name, const std::stri
     return handle;
 }
 
+void UserInterface::unloadDocument(UiDocHandle handle)
+{
+    auto doc = rmlDocLib.getItem(handle.getIdx());
+    if(doc)
+    {
+        rmlContext->UnloadDocument(*doc);
+    }
+}
+
 bool UserInterface::loadFont(const std::string& fontPath)
 {
     return Rml::LoadFontFace(fontPath);

@@ -286,7 +286,7 @@ void MainWindow::startLoading()
                 succ.set_value(false);
                 return;
             }
-            mod::PtrHandles ptrHandles{&renderEngine};
+            mod::PtrHandles ptrHandles{&renderEngine, &userInterface};
             if (!modManager.loadMods(ptrHandles))
             {
                 LG_E("Failed to load mods");
@@ -316,6 +316,7 @@ void MainWindow::loadingLoop()
             {
                 loadingThread.join();
             }
+            userInterface.showDocument(userInterface.getDocumentHandle("menu"));
             state = State::Something;
         }
         else

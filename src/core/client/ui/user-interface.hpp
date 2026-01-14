@@ -31,6 +31,7 @@ class UserInterface
     UiDocHandle getDocumentHandle(const std::string& name);
 
     UiDocHandle loadDocument(const std::string& name, const std::string& documentPath);
+    void unloadDocument(UiDocHandle handle);
     bool loadFont(const std::string& fontPath);
 
 private:

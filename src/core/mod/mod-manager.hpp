@@ -44,6 +44,7 @@ class ModManager
     bool loadShaders(PtrHandles& ptrHandles, const ModInfo& modInfo, YAML::Node shaders);
     bool loadFonts(PtrHandles& ptrHandles, const ModInfo& modInfo);
     bool loadTextures(PtrHandles& ptrHandles, const ModInfo& modInfo);
+    bool loadUiDocs(PtrHandles& ptrHandles, const ModInfo& modInfo, YAML::Node uiDocs);
     std::vector<ModInfo> processedDependencies;
 };
 

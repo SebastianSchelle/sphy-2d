@@ -1,6 +1,7 @@
 #include "render-engine.hpp"
 #include "bgfx/bgfx.h"
 #include "logging.hpp"
+#include "std-inc.hpp"
 #include "vertex-defines.hpp"
 
 namespace gfx
@@ -66,6 +67,8 @@ RenderEngine::~RenderEngine()
 
 bool RenderEngine::initPre()
 {
+    startTime = tim::getCurrentTimeU();
+
     VertexPosColTex::init();
 
     texWidth =
@@ -85,10 +88,6 @@ bool RenderEngine::initPre()
                        texBucketSize,
                        texExcessHeightThreshold);
 
-    // shaderHandleRml = loadShader("geom",
-    //                              "modules/engine/shader/vs_rmlui.bin",
-    //                              "modules/engine/shader/fs_rmlui.bin");
-
     PosColorVertex::init();
     PosVertex::init();
     vbhRectangle = bgfx::createVertexBuffer(
@@ -102,21 +101,6 @@ bool RenderEngine::initPre()
         PosVertex::ms_decl);
     ibhFullScreenTriangles = bgfx::createIndexBuffer(
         bgfx::copy(indFullScreenTriangles, sizeof(indFullScreenTriangles)), 0);
-
-    // if (!shaderHandleRml.isValid())
-    // {
-    //     LG_E("Failed to load rmlui shader");
-    //     return false;
-    // }
-
-    // textureHandleFallback = textureLoader.loadTexture(
-    //     "fallback", "misc", "modules/engine/assets/textures/fallback.dds");
-
-    // if (!textureHandleFallback.isValid())
-    // {
-    //     LG_E("Failed to load fallback texture");
-    //     return false;
-    // }
 
     if (!bgfx::isValid(u_translation))
     {
@@ -143,6 +127,11 @@ bool RenderEngine::initPre()
     if (!bgfx::isValid(u_proj))
     {
         u_proj = bgfx::createUniform("u_myproj", bgfx::UniformType::Mat4);
+    }
+
+    if (!bgfx::isValid(u_time))
+    {
+        u_time = bgfx::createUniform("u_time", bgfx::UniformType::Vec4);
     }
 
     // Initialize with default size (will be updated when window size is known)
@@ -185,7 +174,7 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
                                           TextureHandle textureHandle,
                                           bgfx::ViewId viewId)
 {
-    if(!shaderHandleRml.isValid())
+    if (!shaderHandleRml.isValid())
     {
         shaderHandleRml = getShaderHandle("geom");
         return;
@@ -207,7 +196,8 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
         texture = texLib.getItem(textureHandleFallback);  // Fallback texture
         if (!texture)
         {
-            textureHandleFallback = textureLoader.getTextureLib().getHandle("fallback");
+            textureHandleFallback =
+                textureLoader.getTextureLib().getHandle("fallback");
             return;
         }
     }
@@ -403,6 +393,12 @@ void RenderEngine::startFrame()
 
     bgfx::setViewClear(
         kClearView, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
+
+    tim::Timepoint now = tim::getCurrentTimeU();
+    frameTime = (float)tim::durationU(startTime, now) / 1000000.0f;
+    float timeVec[4] = {frameTime, 0.0f, 0.0f, 0.0f};
+    bgfx::setUniform(u_time, timeVec);
+
 }
 
 void RenderEngine::drawFullScreenTriangles(bgfx::ViewId viewId,

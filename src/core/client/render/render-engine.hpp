@@ -126,9 +126,13 @@ class RenderEngine
     bgfx::UniformHandle u_texArray = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_texLayer = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_atlasPos = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_time = BGFX_INVALID_HANDLE;
 
     ShaderHandle shaderHandleRml = ShaderHandle::Invalid();
     TextureHandle textureHandleFallback = TextureHandle::Invalid();
+
+    tim::Timepoint startTime;
+    float frameTime;
 
     int winWidth;
     int winHeight;

@@ -149,7 +149,7 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
         {
             return false;
         }
-        if(!loadTextures(ptrHandles, modInfo))
+        if (!loadTextures(ptrHandles, modInfo))
         {
             return false;
         }
@@ -165,6 +165,22 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
                 return false;
             }
             if (!loadShaders(ptrHandles, modInfo, manifest["shaders"]))
+            {
+                return false;
+            }
+        }
+
+        // Handle ui docs if present and is a map
+        if (manifest["ui-docs"])
+        {
+            if (!manifest["ui-docs"].IsMap())
+            {
+                LG_E(
+                    "Failed to load mod manifest: invalid node; 'ui-docs' "
+                    "should be a map");
+                return false;
+            }
+            if (!loadUiDocs(ptrHandles, modInfo, manifest["ui-docs"]))
             {
                 return false;
             }
@@ -283,5 +299,53 @@ bool ModManager::loadTextures(PtrHandles& ptrHandles, const ModInfo& modInfo)
     }
     return true;
 }
+
+
+bool ModManager::loadUiDocs(PtrHandles& ptrHandles,
+                            const ModInfo& modInfo,
+                            YAML::Node uiDocs)
+{
+    // Defensive: uiDocs node must be a map
+    if (!uiDocs.IsMap())
+    {
+        LG_E("Failed to load uiDocs: invalid node; expected a map");
+        return false;
+    }
+    for (YAML::const_iterator it = uiDocs.begin(); it != uiDocs.end(); ++it)
+    {
+        if (it->first.IsScalar() && it->second.IsMap())
+        {
+            try
+            {
+                const std::string uiDocName = it->first.as<std::string>();
+                const std::string uiDocPath =
+                    modInfo.modDir + "/assets/ui/"
+                    + it->second["path"].as<std::string>();
+                ptrHandles.userInterface->loadDocument(uiDocName, uiDocPath);
+            }
+            catch (const YAML::Exception& e)
+            {
+                LG_E("Failed to parse uiDoc node: {}", e.what());
+                return false;
+            }
+            catch (const std::exception& e)
+            {
+                LG_E("Failed to load uiDoc '{}': {}",
+                     it->first.as<std::string>(),
+                     e.what());
+                return false;
+            }
+        }
+        else
+        {
+            LG_E(
+                "Failed to load uiDoc: invalid node; uiDoc entry should be a "
+                "map with a scalar key");
+            return false;
+        }
+    }
+    return true;
+}
+
 
 }  // namespace mod
