@@ -104,7 +104,6 @@ bool ModManager::checkDependency(const std::string& modId,
         LG_E("Mod manifest not found: {}", modInfo.manifestPath);
         return false;
     }
-    LG_I("Removing mod from list: {}", modId);
     modList.erase(std::remove(modList.begin(), modList.end(), modId),
                   modList.end());
     processedDependencies.push_back(modInfo);
