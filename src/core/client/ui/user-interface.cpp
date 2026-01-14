@@ -19,7 +19,7 @@ bool UserInterface::init(glm::ivec2 windowSize)
         return false;
     }
     // Load default font
-    if(!Rml::LoadFontFace("modules/engine/assets/fonts/Orbitron-Regular.ttf"))
+    if(!Rml::LoadFontFace("modules/engine/assets/ui/Orbitron-Regular.ttf"))
     {
         LG_E("Failed to load default font");
         return false;

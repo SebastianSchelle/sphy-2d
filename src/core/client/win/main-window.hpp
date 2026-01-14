@@ -14,6 +14,7 @@
 #include <cmd-options.hpp>
 #include <mod-manager.hpp>
 #include <ui/user-interface.hpp>
+#include <ui/rmlui-systeminterface.hpp>
 
 namespace ui
 {
@@ -86,6 +87,7 @@ class MainWindow
     MouseState mouseState;
     gfx::RenderEngine renderEngine;
     gfx::RmlUiRenderInterface rmlUiRenderInterface;
+    ui::RmlUiSystemInterface rmlUiSystemInterface;
     cfg::ConfigManager config;
     def::CmdLinOptionsClient options;
     mod::ModManager modManager;

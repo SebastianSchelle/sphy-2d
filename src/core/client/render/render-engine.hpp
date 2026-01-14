@@ -127,8 +127,8 @@ class RenderEngine
     bgfx::UniformHandle u_texLayer = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_atlasPos = BGFX_INVALID_HANDLE;
 
-    ShaderHandle shaderHandleRml;
-    TextureHandle textureHandleFallback;
+    ShaderHandle shaderHandleRml = ShaderHandle::Invalid();
+    TextureHandle textureHandleFallback = TextureHandle::Invalid();
 
     int winWidth;
     int winHeight;

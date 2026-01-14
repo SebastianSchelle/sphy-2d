@@ -146,29 +146,26 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
     {
         YAML::Node manifest = YAML::LoadFile(modInfo.manifestPath);
 
+        if (!loadFonts(ptrHandles, modInfo))
+        {
+            return false;
+        }
+        if(!loadTextures(ptrHandles, modInfo))
+        {
+            return false;
+        }
+
         // Handle shaders if present and is a map
         if (manifest["shaders"])
         {
             if (!manifest["shaders"].IsMap())
             {
-                LG_E("Failed to load mod manifest: invalid node; 'shaders' should be a map");
+                LG_E(
+                    "Failed to load mod manifest: invalid node; 'shaders' "
+                    "should be a map");
                 return false;
             }
-            if(!loadShaders(ptrHandles, modInfo, manifest["shaders"]))
-            {
-                return false;
-            }
-        }
-
-        // Handle fonts if present and is a sequence
-        if (manifest["fonts"])
-        {
-            if (!manifest["fonts"].IsSequence())
-            {
-                LG_E("Failed to load mod manifest: invalid node; 'fonts' should be a sequence");
-                return false;
-            }
-            if(!loadFonts(ptrHandles, modInfo, manifest["fonts"]))
+            if (!loadShaders(ptrHandles, modInfo, manifest["shaders"]))
             {
                 return false;
             }
@@ -201,12 +198,10 @@ bool ModManager::loadShaders(PtrHandles& ptrHandles,
             try
             {
                 const std::string shaderName = it->first.as<std::string>();
-                const std::string vsPath =
-                    modInfo.modDir + "/shader/"
-                    + it->second["vs"].as<std::string>();
-                const std::string fsPath =
-                    modInfo.modDir + "/shader/"
-                    + it->second["fs"].as<std::string>();
+                const std::string vsPath = modInfo.modDir + "/shader/"
+                                           + it->second["vs"].as<std::string>();
+                const std::string fsPath = modInfo.modDir + "/shader/"
+                                           + it->second["fs"].as<std::string>();
                 ptrHandles.renderEngine->loadShader(shaderName, vsPath, fsPath);
             }
             catch (const YAML::Exception& e)
@@ -216,40 +211,75 @@ bool ModManager::loadShaders(PtrHandles& ptrHandles,
             }
             catch (const std::exception& e)
             {
-                LG_E("Failed to load shader '{}': {}", it->first.as<std::string>(), e.what());
+                LG_E("Failed to load shader '{}': {}",
+                     it->first.as<std::string>(),
+                     e.what());
                 return false;
             }
         }
         else
         {
-            LG_E("Failed to load shader: invalid node; shader entry should be a map with a scalar key");
+            LG_E(
+                "Failed to load shader: invalid node; shader entry should be a "
+                "map with a scalar key");
             return false;
         }
     }
     return true;
 }
 
-
-bool ModManager::loadFonts(PtrHandles& ptrHandles,
-                           const ModInfo& modInfo,
-                           YAML::Node fonts)
+bool ModManager::loadFonts(PtrHandles& ptrHandles, const ModInfo& modInfo)
 {
-    for (auto font : fonts)
+    const std::string fontsDir = modInfo.modDir + "/assets/fonts";
+    if (!std::filesystem::exists(fontsDir))
     {
-        if (font.IsScalar())
+        LG_I("Fonts directory not found: {}", fontsDir);
+        return true;
+    }
+    for (const auto& fileEntry : std::filesystem::directory_iterator(fontsDir))
+    {
+        if (fileEntry.is_regular_file()
+            && fileEntry.path().extension() == ".ttf")
         {
-            const std::string fontPath =
-                modInfo.modDir + "/assets/fonts/" + font.as<std::string>();
-            if(!ptrHandles.userInterface->loadFont(fontPath))
+            const std::string fontPath = fileEntry.path().string();
+            if (!ptrHandles.userInterface->loadFont(fontPath))
             {
                 LG_E("Failed to load font: {}", fontPath);
                 return false;
             }
         }
-        else
+    }
+    return true;
+}
+
+bool ModManager::loadTextures(PtrHandles& ptrHandles, const ModInfo& modInfo)
+{
+    const std::string texturesDir = modInfo.modDir + "/assets/textures";
+    if (!std::filesystem::exists(texturesDir))
+    {
+        LG_I("Textures directory not found: {}", texturesDir);
+        return true;
+    }
+    for (const auto& dirEntry :
+         std::filesystem::directory_iterator(texturesDir))
+    {
+        if (dirEntry.is_directory())
         {
-            LG_E("Failed to load font: invalid node; font entry should be a scalar");
-            return false;
+            const std::string texType = dirEntry.path().filename().string();
+            const std::string path = dirEntry.path().string();
+            for (const auto& fileEntry :
+                 std::filesystem::directory_iterator(path))
+            {
+                if (fileEntry.is_regular_file()
+                    && fileEntry.path().extension() == ".dds")
+                {
+                    const std::string texName =
+                        fileEntry.path().stem().string();
+                    const std::string texPath = fileEntry.path().string();
+                    ptrHandles.renderEngine->loadTexture(
+                        texName, texType, texPath);
+                }
+            }
         }
     }
     return true;

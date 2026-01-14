@@ -122,6 +122,7 @@ bool MainWindow::initPre()
     }
 
     // Set render interface before creating context
+    Rml::SetSystemInterface(&rmlUiSystemInterface);
     Rml::SetRenderInterface(&rmlUiRenderInterface);
     if (!userInterface.init(wInfo.size))
     {

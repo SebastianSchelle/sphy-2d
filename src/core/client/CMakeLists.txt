@@ -32,6 +32,7 @@ set(CLIENT_SOURCES
     render/texture.cpp
     render/shader.cpp
     ui/rmlui-renderinterface.cpp
+    ui/rmlui-systeminterface.cpp
     ui/user-interface.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
 )

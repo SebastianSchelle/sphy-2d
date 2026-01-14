@@ -274,9 +274,8 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
     LG_I("GPU Texture handle: {}, Layer: {}",
          texture.getTexIdent().texHandle.idx,
          texture.getTexIdent().layerIdx);
-    LG_I("Texture name: {}, Path: {}, Lib idx: {}, Lib size: {}",
+    LG_I("Texture name: {}, Lib idx: {}, Lib size: {}",
          name,
-         path,
          handle.getIdx(),
          textureLib.size());
     LG_I("Atlas ID: {}, Pos: ({},{}) - {}x{}",

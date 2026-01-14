@@ -1,5 +1,6 @@
 #include "render-engine.hpp"
 #include "bgfx/bgfx.h"
+#include "logging.hpp"
 #include "vertex-defines.hpp"
 
 namespace gfx
@@ -84,10 +85,9 @@ bool RenderEngine::initPre()
                        texBucketSize,
                        texExcessHeightThreshold);
 
-    shaderHandleRml = loadShader("geom",
-                                 "modules/engine/shader/vs_rmlui.bin",
-                                 "modules/engine/shader/fs_rmlui.bin");
-
+    // shaderHandleRml = loadShader("geom",
+    //                              "modules/engine/shader/vs_rmlui.bin",
+    //                              "modules/engine/shader/fs_rmlui.bin");
 
     PosColorVertex::init();
     PosVertex::init();
@@ -103,19 +103,20 @@ bool RenderEngine::initPre()
     ibhFullScreenTriangles = bgfx::createIndexBuffer(
         bgfx::copy(indFullScreenTriangles, sizeof(indFullScreenTriangles)), 0);
 
-    if (!shaderHandleRml.isValid())
-    {
-        LG_E("Failed to load rmlui shader");
-        return false;
-    }
+    // if (!shaderHandleRml.isValid())
+    // {
+    //     LG_E("Failed to load rmlui shader");
+    //     return false;
+    // }
 
-    textureHandleFallback = textureLoader.loadTexture(
-        "fallback", "misc", "modules/engine/assets/textures/fallback.dds");
-    if (!textureHandleFallback.isValid())
-    {
-        LG_E("Failed to load fallback texture");
-        return false;
-    }
+    // textureHandleFallback = textureLoader.loadTexture(
+    //     "fallback", "misc", "modules/engine/assets/textures/fallback.dds");
+
+    // if (!textureHandleFallback.isValid())
+    // {
+    //     LG_E("Failed to load fallback texture");
+    //     return false;
+    // }
 
     if (!bgfx::isValid(u_translation))
     {
@@ -184,6 +185,12 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
                                           TextureHandle textureHandle,
                                           bgfx::ViewId viewId)
 {
+    if(!shaderHandleRml.isValid())
+    {
+        shaderHandleRml = getShaderHandle("geom");
+        return;
+    }
+
     changeRenderState(RenderState::DrawCompiledGeometry);
 
     const Geometry* geometry = compiledGeometryLib.getItem(goemHandle);
@@ -197,13 +204,10 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
     Texture* texture = texLib.getItem(textureHandle);
     if (!texture)
     {
-        // LG_W("Invalid texture handle: id: {} gen: {}. Try fallback texture",
-        //      textureHandle.getIdx(),
-        //      textureHandle.getGeneration());
-        texture = texLib.getItem(0);  // Fallback texture
+        texture = texLib.getItem(textureHandleFallback);  // Fallback texture
         if (!texture)
         {
-            LG_W("No fallback texture found");
+            textureHandleFallback = textureLoader.getTextureLib().getHandle("fallback");
             return;
         }
     }

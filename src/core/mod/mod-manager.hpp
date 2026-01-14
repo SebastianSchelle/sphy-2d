@@ -42,7 +42,8 @@ class ModManager
     bool checkIfDependencyProcessed(const std::string& modId);
     bool loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo);
     bool loadShaders(PtrHandles& ptrHandles, const ModInfo& modInfo, YAML::Node shaders);
-    bool loadFonts(PtrHandles& ptrHandles, const ModInfo& modInfo, YAML::Node fonts);
+    bool loadFonts(PtrHandles& ptrHandles, const ModInfo& modInfo);
+    bool loadTextures(PtrHandles& ptrHandles, const ModInfo& modInfo);
     std::vector<ModInfo> processedDependencies;
 };
 
