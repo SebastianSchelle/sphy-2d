@@ -359,7 +359,7 @@ bool ModManager::runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo)
         LG_I("Init script not found: {}", initScriptPath);
         return true;
     }
-    if (!ptrHandles.luaInterpreter->runScriptFile(initScriptPath))
+    if (!ptrHandles.luaInterpreter->storeScript(modInfo.id, initScriptPath))
     {
         LG_E("Failed to run init script: {}", initScriptPath);
         return false;

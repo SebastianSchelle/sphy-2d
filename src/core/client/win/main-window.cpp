@@ -5,6 +5,7 @@
 #include <bgfx/platform.h>
 #include <bx/bx.h>
 #include <main-window.hpp>
+#include <sol/sol.hpp>
 
 #if BX_PLATFORM_LINUX
 #define GLFW_EXPOSE_NATIVE_X11
@@ -207,6 +208,8 @@ void MainWindow::winLoop()
 
     while (!glfwWindowShouldClose(window))
     {
+        //luaInterpreter.callFunction("dbg.test");
+
         tim::Timepoint now = tim::getCurrentTimeU();
         float deltaTime = (float)tim::durationU(lastLoopTime, now) / 1000000.0f;
         lastLoopTime = now;
@@ -335,6 +338,7 @@ void MainWindow::loadingLoop()
                 loadingThread.join();
             }
             userInterface.showDocument(userInterface.getDocumentHandle("menu"));
+            luaInterpreter.dumpAllTables();
             state = State::Something;
         }
         else

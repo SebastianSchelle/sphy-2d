@@ -210,4 +210,35 @@ bool LuaInterpreter::runScriptString(const std::string& scriptString)
     return true;
 }
 
+void LuaInterpreter::callFunction(const std::string& functionName)
+{
+    auto function = lua[functionName];
+    if (!function.valid())
+    {
+        LG_E("Function not found: {}", functionName);
+        return;
+    }
+    function(5);
+}
+
+bool LuaInterpreter::storeScript(const std::string& envName, const std::string& scriptFile)
+{
+    auto result = lua.script_file(scriptFile);
+    if (!result.valid())
+    {
+        LG_E("Failed to execute script: {}", scriptFile);
+        return false;
+    }
+    sol::table table = result.get<sol::table>();
+    lua[envName] = table;
+    lua[envName]["test"](5);
+    return true;
+}
+
+void LuaInterpreter::dumpAllTables() {
+}
+
+void LuaInterpreter::dumpTable(sol::table t, const std::string& prefix) {
+}
+
 }  // namespace mod
