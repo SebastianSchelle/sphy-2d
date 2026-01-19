@@ -31,3 +31,6 @@
 [submodule "thirdparty/rectpack2D"]
 	path = thirdparty/rectpack2D
 	url = https://github.com/TeamHypersomnia/rectpack2D.git
+[submodule "thirdparty/sol2"]
+	path = thirdparty/sol2
+	url = https://github.com/ThePhD/sol2.git

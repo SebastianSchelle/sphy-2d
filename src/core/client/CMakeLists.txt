@@ -11,6 +11,7 @@ set(CLIENT_INC_PUBLIC
     ${THIRPARTY_DIR}/glfw/include
     ${THIRPARTY_DIR}/rmlui/Include
     ${THIRPARTY_DIR}/rectpack2D/src
+    ${THIRPARTY_DIR}/sol2/include
     ${BGFX_DIR}/bgfx/include
     ${BGFX_DIR}/bgfx/examples/common
     ${BGFX_DIR}/bgfx/3rdparty
@@ -35,12 +36,14 @@ set(CLIENT_SOURCES
     ui/rmlui-systeminterface.cpp
     ui/user-interface.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../mod/lua-interpreter.cpp
 )
 
 set(LIBS_PUB
     helper
     networking
     concurrentqueue
+    ${LUA_LIBRARIES}
 )
 
 set(BGFX_BUILD ${BGFX_DIR}/build/cmake)

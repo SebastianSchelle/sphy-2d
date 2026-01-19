@@ -1,4 +1,5 @@
 #include "user-interface.hpp"
+#include "RmlUi/Core/DataModelHandle.h"
 #include "RmlUi/Core/PropertySpecification.h"
 
 namespace ui
@@ -19,14 +20,15 @@ bool UserInterface::init(glm::ivec2 windowSize)
         return false;
     }
     // Load default font
-    if(!Rml::LoadFontFace("modules/engine/assets/ui/Orbitron-Regular.ttf"))
+    if (!Rml::LoadFontFace("modules/engine/assets/ui/Orbitron-Regular.ttf"))
     {
         LG_E("Failed to load default font");
         return false;
     }
     // Load mod loading ui. This UI is always needed from the start.
-    UiDocHandle modLoadingHandle = loadDocument("mod-loading", "modules/engine/assets/ui/mod-loading.rml");
-    if(!modLoadingHandle.isValid())
+    UiDocHandle modLoadingHandle =
+        loadDocument("mod-loading", "modules/engine/assets/ui/mod-loading.rml");
+    if (!modLoadingHandle.isValid())
     {
         LG_E("Failed to load mod loading ui");
         return false;
@@ -47,22 +49,33 @@ void UserInterface::processMouseMove(glm::ivec2 mousePos, int keyMod)
 
 void UserInterface::processMouseButtonDown(int button, int keyMod)
 {
-    if(button >= 3)
+    if (button >= 3)
     {
         LG_E("Button index out of range");
         return;
     }
-    mouseDownInteract[button] = !rmlContext->ProcessMouseButtonDown(button, keyMod);
+    mouseDownInteract[button] =
+        !rmlContext->ProcessMouseButtonDown(button, keyMod);
 }
 
 void UserInterface::processMouseButtonUp(int button, int keyMod)
 {
-    if(button >= 3)
+    if (button >= 3)
     {
         LG_E("Button index out of range");
         return;
     }
     mouseUpInteract[button] = !rmlContext->ProcessMouseButtonUp(button, keyMod);
+}
+
+void UserInterface::processKeyDown(Rml::Input::KeyIdentifier key)
+{
+    rmlContext->ProcessKeyDown(Rml::Input::KeyIdentifier(key), 0);
+}
+
+void UserInterface::processKeyUp(Rml::Input::KeyIdentifier key)
+{
+    rmlContext->ProcessKeyUp(Rml::Input::KeyIdentifier(key), 0);
 }
 
 bool UserInterface::isMouseInteracting()
@@ -72,7 +85,8 @@ bool UserInterface::isMouseInteracting()
 
 void UserInterface::processMouseWheel(int delta, int keyMod)
 {
-    mouseWheelInteract = !rmlContext->ProcessMouseWheel(delta, keyMod);
+    float wheel = -delta * 1.0f;
+    mouseWheelInteract = !rmlContext->ProcessMouseWheel(wheel, keyMod);
 }
 
 void UserInterface::setDimensions(glm::ivec2 windowSize)
@@ -80,12 +94,18 @@ void UserInterface::setDimensions(glm::ivec2 windowSize)
     rmlContext->SetDimensions(Rml::Vector2i(windowSize.x, windowSize.y));
 }
 
+void UserInterface::processTextInput(Rml::Character codepoint)
+{
+    rmlContext->ProcessTextInput(codepoint);
+}
+
 void UserInterface::render()
 {
     rmlContext->Render();
 }
 
-UiDocHandle UserInterface::loadDocument(const std::string& name, const std::string& documentPath)
+UiDocHandle UserInterface::loadDocument(const std::string& name,
+                                        const std::string& documentPath)
 {
     Rml::ElementDocument* document = rmlContext->LoadDocument(documentPath);
     if (!document)
@@ -100,7 +120,7 @@ UiDocHandle UserInterface::loadDocument(const std::string& name, const std::stri
 void UserInterface::unloadDocument(UiDocHandle handle)
 {
     auto doc = rmlDocLib.getItem(handle.getIdx());
-    if(doc)
+    if (doc)
     {
         rmlContext->UnloadDocument(*doc);
     }
@@ -114,7 +134,7 @@ bool UserInterface::loadFont(const std::string& fontPath)
 void UserInterface::showDocument(UiDocHandle handle)
 {
     auto doc = rmlDocLib.getItem(handle.getIdx());
-    if(doc)
+    if (doc)
     {
         LG_I("Showing document: {}", (*doc)->GetTitle());
         (*doc)->Show(Rml::ModalFlag::None, Rml::FocusFlag::Auto);
@@ -124,7 +144,7 @@ void UserInterface::showDocument(UiDocHandle handle)
 void UserInterface::hideDocument(UiDocHandle handle)
 {
     auto doc = rmlDocLib.getItem(handle.getIdx());
-    if(doc)
+    if (doc)
     {
         (*doc)->Hide();
     }
@@ -133,6 +153,25 @@ void UserInterface::hideDocument(UiDocHandle handle)
 UiDocHandle UserInterface::getDocumentHandle(const std::string& name)
 {
     return rmlDocLib.getHandle(name);
+}
+
+Rml::DataModelConstructor UserInterface::getDataModel(const std::string& name)
+{
+    auto modelConstructor = rmlContext->GetDataModel(name);
+    if(modelConstructor)
+    {
+        return modelConstructor;
+    }
+    else
+    {
+        modelConstructor = rmlContext->CreateDataModel(name);
+        if(modelConstructor)
+        {
+            return modelConstructor;
+        }
+        LG_E("Failed to create data model: {}", name);
+        return Rml::DataModelConstructor();
+    }
 }
 
 }  // namespace ui

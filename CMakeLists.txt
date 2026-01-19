@@ -28,6 +28,10 @@ project(
 find_package(Boost REQUIRED COMPONENTS regex thread system chrono program_options)
 find_package(GTest REQUIRED)
 
+set(LUA_INCLUDE_DIR /usr/include/lua5.4)
+set(LUA_LIBRARY /usr/lib64/liblua-5.4.so)
+find_package(Lua 5.4 REQUIRED)
+
 # add third party libraries
 add_subdirectory(thirdparty/yaml-cpp yaml-cpp)
 add_subdirectory(thirdparty/spdlog spdlog)
@@ -43,6 +47,7 @@ if(TARGET freetype)
 endif()
 add_subdirectory(thirdparty/rmlui)
 add_subdirectory(thirdparty/rectpack2D)
+add_subdirectory(thirdparty/sol2)
 add_subdirectory(src/misc/helper helper)
 add_subdirectory(src/misc/networking networking)
 add_subdirectory(src/core/server)

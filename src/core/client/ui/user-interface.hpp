@@ -1,15 +1,21 @@
 #ifndef USER_INTERFACE_HPP
 #define USER_INTERFACE_HPP
 
-#include <item-lib.hpp>
 #include "RmlUi/Core/Core.h"
-#include <RmlUi/Core/ElementDocument.h>
+#include "RmlUi/Core/DataModelHandle.h"
 #include <RmlUi/Core/Context.h>
+#include <RmlUi/Core/ElementDocument.h>
+#include <item-lib.hpp>
 
 using UiDocHandle = con::ItemLib<Rml::ElementDocument*>::Handle;
 
 namespace ui
 {
+
+class Document
+{
+    con::ItemLib<Rml::ElementDocument*> rmlDocLib;
+};
 
 class UserInterface
 {
@@ -24,17 +30,26 @@ class UserInterface
     void processMouseButtonUp(int button, int keyMod);
     bool isMouseInteracting();
     void processMouseWheel(int delta, int keyMod);
+    void processKeyDown(Rml::Input::KeyIdentifier key);
+    void processKeyUp(Rml::Input::KeyIdentifier key);
+    void processTextInput(Rml::Character codepoint);
     void render();
 
     void showDocument(UiDocHandle handle);
     void hideDocument(UiDocHandle handle);
     UiDocHandle getDocumentHandle(const std::string& name);
 
-    UiDocHandle loadDocument(const std::string& name, const std::string& documentPath);
+    UiDocHandle loadDocument(const std::string& name,
+                             const std::string& documentPath);
     void unloadDocument(UiDocHandle handle);
     bool loadFont(const std::string& fontPath);
+    // todo: move to mainwindow or something
+    void bind(const std::string& model, const std::string& variable, void* value);
+    void dirtyVar(const std::string& model, const std::string& variable);
 
-private:
+    Rml::DataModelConstructor getDataModel(const std::string& name);
+
+  private:
     con::ItemLib<Rml::ElementDocument*> rmlDocLib;
     Rml::Context* rmlContext;
 

@@ -6,15 +6,16 @@
 #include <bgfx/bgfx.h>
 #include <bx/math.h>
 #include <client.hpp>
-#include <sphy-2d.hpp>
-#include <render/render-engine.hpp>
-#include <ui/rmlui-renderinterface.hpp>
-#include <config-manager/config-manager.hpp>
-#include <render/texture.hpp>
 #include <cmd-options.hpp>
+#include <config-manager/config-manager.hpp>
 #include <mod-manager.hpp>
-#include <ui/user-interface.hpp>
+#include <render/render-engine.hpp>
+#include <render/texture.hpp>
+#include <sphy-2d.hpp>
+#include <ui/rmlui-renderinterface.hpp>
 #include <ui/rmlui-systeminterface.hpp>
+#include <ui/user-interface.hpp>
+#include <lua-interpreter.hpp>
 
 namespace ui
 {
@@ -26,8 +27,12 @@ struct MouseState
     int mz = 0;                                   // scroll delta
     bool buttons[3] = {false, false, false};      // left, right, middle
     bool lastButtons[3] = {false, false, false};  // left, right, middle
-    tim::Timepoint timePressed[3] = {tim::getCurrentTimeU(), tim::getCurrentTimeU(), tim::getCurrentTimeU()};
-    tim::Timepoint lastSingleClick[3] = {tim::getCurrentTimeU(), tim::getCurrentTimeU(), tim::getCurrentTimeU()};
+    tim::Timepoint timePressed[3] = {tim::getCurrentTimeU(),
+                                     tim::getCurrentTimeU(),
+                                     tim::getCurrentTimeU()};
+    tim::Timepoint lastSingleClick[3] = {tim::getCurrentTimeU(),
+                                         tim::getCurrentTimeU(),
+                                         tim::getCurrentTimeU()};
     bool buttonPressed[3] = {false, false, false};
     bool buttonReleased[3] = {false, false, false};
     bool singleClick[3] = {false, false, false};
@@ -51,9 +56,9 @@ class MainWindow
   public:
     enum class State
     {
-      Init,
-      LoadingMods,
-      Something,
+        Init,
+        LoadingMods,
+        Something,
     };
 
     MainWindow(def::CmdLinOptionsClient& options);
@@ -71,16 +76,26 @@ class MainWindow
   private:
     static void errorCallback(int error, const char* description);
     void onKey(int key, int scancode, int action, int mods);
+    void onChar(unsigned int codepoint);
+    void onScroll(double xoffset, double yoffset);
     static void keyCallback(GLFWwindow* window,
                             int key,
                             int scancode,
                             int action,
                             int mods);
+
+    static void charCallback(GLFWwindow* window, unsigned int codepoint);
+    static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
     void processMouseState();
     void handleWinResize();
 
     void startLoading();
     void loadingLoop();
+
+    void setupDataModelDebug();
+    void testLog();
+
+    static Rml::Input::KeyIdentifier glfwToRmlKey(int key);
 
     GLFWwindow* window;
     WindowInfo wInfo;
@@ -92,14 +107,26 @@ class MainWindow
     def::CmdLinOptionsClient options;
     mod::ModManager modManager;
     ui::UserInterface userInterface;
+    mod::LuaInterpreter luaInterpreter;
+
     State state = State::Init;
 
+    tim::Timepoint lastLoopTime;
+    float frameTimeFiltered = 0.0f;
+    uint16_t fps;
+    
     UiDocHandle modLoadingHandle;
-
+    
     std::thread loadingThread;
     std::future<bool> loadingFuture;
+
+    Rml::DataModelHandle rmlModelDebug;
+    Rml::DataModelHandle rmlModelMenu;
+    Rml::DataModelHandle rmlModelHud;
+
+    std::string debugInput = "Hello World!";
 };
 
-}  // namespace sphyc
+}  // namespace ui
 
 #endif

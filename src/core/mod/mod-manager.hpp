@@ -8,10 +8,14 @@
 namespace mod
 {
 
+
+class LuaInterpreter;
+
 struct PtrHandles
 {
     gfx::RenderEngine* renderEngine;
     ui::UserInterface* userInterface;
+    mod::LuaInterpreter* luaInterpreter;
 };
 
 struct ModInfo
@@ -45,6 +49,7 @@ class ModManager
     bool loadFonts(PtrHandles& ptrHandles, const ModInfo& modInfo);
     bool loadTextures(PtrHandles& ptrHandles, const ModInfo& modInfo);
     bool loadUiDocs(PtrHandles& ptrHandles, const ModInfo& modInfo, YAML::Node uiDocs);
+    bool runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo);
     std::vector<ModInfo> processedDependencies;
 };
 

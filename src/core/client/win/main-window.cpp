@@ -129,6 +129,9 @@ bool MainWindow::initPre()
         LG_E("Could not initialize user interface");
         return false;
     }
+
+    setupDataModelDebug();
+
     return true;
 }
 
@@ -148,6 +151,7 @@ bool MainWindow::createWindow()
     }
     glfwSetWindowUserPointer(window, this);
     glfwSetKeyCallback(window, keyCallback);
+    glfwSetCharCallback(window, charCallback);
 
     // Call bgfx::renderFrame before bgfx::init to signal to bgfx not to create
     // a render thread. Most graphics APIs must be used on the same thread that
@@ -176,17 +180,7 @@ bool MainWindow::createWindow()
         return false;
     }
 
-    glfwSetScrollCallback(window,
-                          [](GLFWwindow* win, double xoffset, double yoffset)
-                          {
-                              MainWindow* self = static_cast<MainWindow*>(
-                                  glfwGetWindowUserPointer(win));
-                              if (self)
-                              {
-                                  self->mouseState.mz =
-                                      static_cast<int>(yoffset);
-                              }
-                          });
+    glfwSetScrollCallback(window, scrollCallback);
 
     return true;
 }
@@ -208,12 +202,24 @@ void MainWindow::winLoop()
                                      6 * sizeof(uint16_t),
                                      gfx::VertexPosColTex::ms_decl);
 
+    lastLoopTime = tim::getCurrentTimeU();
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
     while (!glfwWindowShouldClose(window))
     {
+        tim::Timepoint now = tim::getCurrentTimeU();
+        float deltaTime = (float)tim::durationU(lastLoopTime, now) / 1000000.0f;
+        lastLoopTime = now;
+        frameTimeFiltered = 0.9f * frameTimeFiltered + 0.1f * deltaTime;
+        fps = 1.0f / frameTimeFiltered;
+
+        mouseState.mz = 0;
         glfwPollEvents();
         processMouseState();
         handleWinResize();
 
+        userInterface.processMouseMove(mouseState.mousePos, 0);
+        userInterface.processMouseWheel(mouseState.mz, 0);
         for (int i = 0; i < 3; ++i)
         {
             if (mouseState.buttonPressed[i])
@@ -225,9 +231,20 @@ void MainWindow::winLoop()
                 userInterface.processMouseButtonUp(i, 0);
             }
         }
-        userInterface.processMouseWheel(mouseState.mz, 0);
-        userInterface.update();
 
+        static uint16_t updCnt = 0;
+        if (updCnt++ == 50)
+        {
+            updCnt = 0;
+            rmlModelDebug.DirtyVariable("fpsClient");
+        }
+
+        if (rmlModelDebug.IsVariableDirty("dbgInput"))
+        {
+            LG_D("dbgInput: {}", debugInput);
+        }
+
+        userInterface.update();
         renderEngine.startFrame();
 
         switch (state)
@@ -286,7 +303,8 @@ void MainWindow::startLoading()
                 succ.set_value(false);
                 return;
             }
-            mod::PtrHandles ptrHandles{&renderEngine, &userInterface};
+            mod::PtrHandles ptrHandles{
+                &renderEngine, &userInterface, &luaInterpreter};
             if (!modManager.loadMods(ptrHandles))
             {
                 LG_E("Failed to load mods");
@@ -389,6 +407,110 @@ void MainWindow::keyCallback(GLFWwindow* window,
     }
 }
 
-void MainWindow::onKey(int key, int scancode, int action, int mods) {}
+void MainWindow::onKey(int key, int scancode, int action, int mods)
+{
+    if (action == GLFW_PRESS)
+    {
+        userInterface.processKeyDown(glfwToRmlKey(key));
+    }
+    else if (action == GLFW_REPEAT)
+    {
+        userInterface.processKeyDown(glfwToRmlKey(key));
+    }
+    else if (action == GLFW_RELEASE)
+    {
+        userInterface.processKeyUp(glfwToRmlKey(key));
+    }
+}
+
+void MainWindow::charCallback(GLFWwindow* window, unsigned int codepoint)
+{
+    MainWindow* self =
+        static_cast<MainWindow*>(glfwGetWindowUserPointer(window));
+    if (self)
+    {
+        self->onChar(codepoint);
+    }
+}
+
+void MainWindow::onChar(unsigned int codepoint)
+{
+    userInterface.processTextInput(static_cast<Rml::Character>(codepoint));
+}
+
+void MainWindow::scrollCallback(GLFWwindow* window,
+                                double xoffset,
+                                double yoffset)
+{
+    MainWindow* self =
+        static_cast<MainWindow*>(glfwGetWindowUserPointer(window));
+    if (self)
+    {
+        self->onScroll(xoffset, yoffset);
+    }
+}
+
+void MainWindow::onScroll(double xoffset, double yoffset)
+{
+    mouseState.mz = static_cast<int>(yoffset);
+}
+
+Rml::Input::KeyIdentifier MainWindow::glfwToRmlKey(int key)
+{
+    using namespace Rml::Input;
+
+    switch (key)
+    {
+        case GLFW_KEY_LEFT:
+            return KI_LEFT;
+        case GLFW_KEY_RIGHT:
+            return KI_RIGHT;
+        case GLFW_KEY_UP:
+            return KI_UP;
+        case GLFW_KEY_DOWN:
+            return KI_DOWN;
+
+        case GLFW_KEY_BACKSPACE:
+            return KI_BACK;
+        case GLFW_KEY_DELETE:
+            return KI_DELETE;
+        case GLFW_KEY_ENTER:
+            return KI_RETURN;
+        case GLFW_KEY_TAB:
+            return KI_TAB;
+        case GLFW_KEY_ESCAPE:
+            return KI_ESCAPE;
+
+        case GLFW_KEY_HOME:
+            return KI_HOME;
+        case GLFW_KEY_END:
+            return KI_END;
+        case GLFW_KEY_PAGE_UP:
+            return KI_PRIOR;
+        case GLFW_KEY_PAGE_DOWN:
+            return KI_NEXT;
+    }
+
+    return KI_UNKNOWN;
+}
+
+void MainWindow::setupDataModelDebug()
+{
+    auto debugConstructor = userInterface.getDataModel("debug");
+    if (debugConstructor)
+    {
+        LG_D("Data model 'debug' created");
+        debugConstructor.Bind("fpsClient", &fps);
+        debugConstructor.Bind("dbgInput", &debugInput);
+        debugConstructor.BindEventCallback(
+            "dbgHello", std::bind(&MainWindow::testLog, this));
+        rmlModelDebug = debugConstructor.GetModelHandle();
+    }
+}
+
+void MainWindow::testLog()
+{
+    LG_D("Hello World!");
+}
 
 }  // namespace ui

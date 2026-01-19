@@ -1,5 +1,5 @@
 #include <mod-manager.hpp>
-
+#include <lua-interpreter.hpp>
 #include <yaml-cpp/yaml.h>
 
 namespace mod
@@ -139,7 +139,7 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
 {
     LG_I("Loading mod: {}", modInfo.id);
 
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    // std::this_thread::sleep_for(std::chrono::seconds(1));
 
     try
     {
@@ -184,6 +184,10 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
             {
                 return false;
             }
+        }
+        if (!runInitScript(ptrHandles, modInfo))
+        {
+            return false;
         }
     }
     catch (const YAML::Exception& e)
@@ -347,5 +351,20 @@ bool ModManager::loadUiDocs(PtrHandles& ptrHandles,
     return true;
 }
 
+bool ModManager::runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo)
+{
+    const std::string initScriptPath = modInfo.modDir + "/scripts/init.lua";
+    if (!std::filesystem::exists(initScriptPath))
+    {
+        LG_I("Init script not found: {}", initScriptPath);
+        return true;
+    }
+    if (!ptrHandles.luaInterpreter->runScriptFile(initScriptPath))
+    {
+        LG_E("Failed to run init script: {}", initScriptPath);
+        return false;
+    }
+    return true;
+}
 
 }  // namespace mod
