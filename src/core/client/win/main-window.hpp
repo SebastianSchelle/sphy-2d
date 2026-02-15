@@ -63,6 +63,7 @@ class MainWindow
     {
         Init,
         LoadingMods,
+        MainMenu,
         Something,
     };
 

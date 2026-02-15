@@ -39,7 +39,7 @@ class UserInterface
     UiDocHandle getDocumentHandle(const std::string& name);
     void showMenu();
     void closeMenu();
-    void processEsc();
+    void processEsc(bool keepMenuOpen = false);
 
     UiDocHandle loadDocument(const std::string& name,
                              const std::string& documentPath);

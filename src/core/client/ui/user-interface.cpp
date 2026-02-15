@@ -189,11 +189,17 @@ void UserInterface::closeMenu()
     menuOpen = false;
 }
 
-void UserInterface::processEsc()
+void UserInterface::processEsc(bool keepMenuOpen)
 {
     if (menuStack.empty())
     {
-        menuOpen ? closeMenu() : showMenu();
+        if (menuOpen) {
+            if (!keepMenuOpen) {
+                closeMenu();
+            }
+        } else {
+            showMenu();
+        }
     }
     else
     {

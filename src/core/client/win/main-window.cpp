@@ -259,6 +259,8 @@ void MainWindow::winLoop()
             case State::LoadingMods:
                 loadingLoop();
                 break;
+            case State::MainMenu:
+                break;
             case State::Something:
                 break;
         }
@@ -342,7 +344,7 @@ void MainWindow::loadingLoop()
             rmlModelMenu.DirtyVariable("mods");
             userInterface.showMenu();
             luaInterpreter.dumpAllTables();
-            state = State::Something;
+            state = State::MainMenu;
         }
         else
         {
@@ -416,22 +418,25 @@ void MainWindow::keyCallback(GLFWwindow* window,
 
 void MainWindow::onKey(int key, int scancode, int action, int mods)
 {
-    if (action == GLFW_PRESS && !userInterface.processKeyDown(glfwToRmlKey(key)))
+    if (action == GLFW_PRESS
+        && !userInterface.processKeyDown(glfwToRmlKey(key)))
     {
         return;
     }
-    else if (action == GLFW_REPEAT && !userInterface.processKeyDown(glfwToRmlKey(key)))
+    else if (action == GLFW_REPEAT
+             && !userInterface.processKeyDown(glfwToRmlKey(key)))
     {
         return;
     }
-    else if (action == GLFW_RELEASE && !userInterface.processKeyUp(glfwToRmlKey(key)))
+    else if (action == GLFW_RELEASE
+             && !userInterface.processKeyUp(glfwToRmlKey(key)))
     {
         return;
     }
 
     if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE)
     {
-        userInterface.processEsc();
+        userInterface.processEsc(state == State::MainMenu);
         return;
     }
 }
@@ -534,12 +539,14 @@ void MainWindow::setupDataModelMenu()
         menuConstructor.BindEventCallback(
             "onBack", &UserInterface::onMenuBack, &userInterface);
 
-        if(auto md_handle = menuConstructor.RegisterStruct<mod::MenuDataMod>())
+        if (auto md_handle = menuConstructor.RegisterStruct<mod::MenuDataMod>())
         {
             md_handle.RegisterMember("id", &mod::MenuDataMod::id);
             md_handle.RegisterMember("name", &mod::MenuDataMod::name);
-            md_handle.RegisterMember("description", &mod::MenuDataMod::description);
-            md_handle.RegisterMember("hasModOptions", &mod::MenuDataMod::hasModOptions);
+            md_handle.RegisterMember("description",
+                                     &mod::MenuDataMod::description);
+            md_handle.RegisterMember("hasModOptions",
+                                     &mod::MenuDataMod::hasModOptions);
         }
         menuConstructor.RegisterArray<std::vector<mod::MenuDataMod>>();
 
