@@ -1,0 +1,24 @@
+<template name="window" content="content">
+
+	<head>
+		<link type="text/css" href="tutorial.rcss" />
+		<title>Window</title>
+		<style>
+			body {
+				width: 400dp;
+				height: 300dp;
+				margin: auto;
+			}
+		</style>
+	</head>
+
+	<body class="window">
+		<div id="title-bar">
+			<handle move_target="#document">
+				<span id="title">Dummy Title</span>
+			</handle>
+		</div>
+		<div id="content"></div>
+		<div id="stuff">
+	</body>
+</template>

@@ -1,0 +1,14 @@
+name: Engine
+desc: Engine module
+
+shaders:
+  geom:
+    vs: vs_geom.bin
+    fs: fs_geom.bin
+  distantstars:
+    vs: vs_distantstars.bin
+    fs: fs_distantstars.bin
+  texrect:
+    vs: vs_texrect.bin
+    fs: fs_texrect.bin
+

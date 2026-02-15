@@ -1,0 +1,23 @@
+<rml>
+
+    <head>
+        <link type="text/css" href="mod-loading.rcss" />
+        <title>Loading Screen</title>
+        <style>
+            body {
+                width: 70%;
+                height: 60px;
+                margin: auto auto 50px auto;
+            }
+        </style>
+    </head>
+
+    <body class="window">
+        <div id="content">
+            <div>
+                <div id="header">Loading Modules...</div>
+                <div id="log">Preparing space dust...</div>
+            </div>
+        </div>
+    </body>
+</rml>
