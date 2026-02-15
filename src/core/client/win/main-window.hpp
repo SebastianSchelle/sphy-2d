@@ -8,6 +8,7 @@
 #include <client.hpp>
 #include <cmd-options.hpp>
 #include <config-manager/config-manager.hpp>
+#include <lua-interpreter.hpp>
 #include <mod-manager.hpp>
 #include <render/render-engine.hpp>
 #include <render/texture.hpp>
@@ -15,7 +16,6 @@
 #include <ui/rmlui-renderinterface.hpp>
 #include <ui/rmlui-systeminterface.hpp>
 #include <ui/user-interface.hpp>
-#include <lua-interpreter.hpp>
 
 namespace ui
 {
@@ -49,6 +49,11 @@ struct MouseState
 struct WindowInfo
 {
     glm::ivec2 size;
+};
+
+struct MenuData
+{
+  vector<mod::MenuDataMod> mods;
 };
 
 class MainWindow
@@ -85,7 +90,8 @@ class MainWindow
                             int mods);
 
     static void charCallback(GLFWwindow* window, unsigned int codepoint);
-    static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+    static void
+    scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
     void processMouseState();
     void handleWinResize();
 
@@ -93,7 +99,7 @@ class MainWindow
     void loadingLoop();
 
     void setupDataModelDebug();
-    void testLog();
+    void setupDataModelMenu();
 
     static Rml::Input::KeyIdentifier glfwToRmlKey(int key);
 
@@ -114,15 +120,17 @@ class MainWindow
     tim::Timepoint lastLoopTime;
     float frameTimeFiltered = 0.0f;
     uint16_t fps;
-    
+
     UiDocHandle modLoadingHandle;
-    
+
     std::thread loadingThread;
     std::future<bool> loadingFuture;
 
     Rml::DataModelHandle rmlModelDebug;
     Rml::DataModelHandle rmlModelMenu;
     Rml::DataModelHandle rmlModelHud;
+
+    MenuData menuData;
 
     std::string debugInput = "Hello World!";
 };

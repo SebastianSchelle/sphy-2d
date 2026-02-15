@@ -9,12 +9,14 @@ $output v_texcoord0
 
 uniform vec4 u_translation;
 uniform mat4 u_myproj;
+uniform mat4 u_transform;
 
 void main()
 {
-    vec2 position = a_position + u_translation.xy;
+    vec4 position = vec4(a_position + u_translation.xy, 0.0, 1.0);
     // Use z = 0.5 to ensure it's in front (near=0, far=1000)
-    gl_Position = mul(u_myproj, vec4(position, 0.5, 1.0));
+    position = mul(u_transform, position);
+    gl_Position = mul(u_myproj, position);
     v_color0 = a_color0;
     v_texcoord0 = a_texcoord0;
 }

@@ -132,6 +132,7 @@ bool MainWindow::initPre()
     }
 
     setupDataModelDebug();
+    setupDataModelMenu();
 
     return true;
 }
@@ -208,7 +209,7 @@ void MainWindow::winLoop()
 
     while (!glfwWindowShouldClose(window))
     {
-        //luaInterpreter.callFunction("dbg.test");
+        // luaInterpreter.callFunction("dbg.test");
 
         tim::Timepoint now = tim::getCurrentTimeU();
         float deltaTime = (float)tim::durationU(lastLoopTime, now) / 1000000.0f;
@@ -337,7 +338,9 @@ void MainWindow::loadingLoop()
             {
                 loadingThread.join();
             }
-            userInterface.showDocument(userInterface.getDocumentHandle("menu"));
+            modManager.populateMenuData(menuData.mods);
+            rmlModelMenu.DirtyVariable("mods");
+            userInterface.showMenu();
             luaInterpreter.dumpAllTables();
             state = State::Something;
         }
@@ -413,17 +416,23 @@ void MainWindow::keyCallback(GLFWwindow* window,
 
 void MainWindow::onKey(int key, int scancode, int action, int mods)
 {
-    if (action == GLFW_PRESS)
+    if (action == GLFW_PRESS && !userInterface.processKeyDown(glfwToRmlKey(key)))
     {
-        userInterface.processKeyDown(glfwToRmlKey(key));
+        return;
     }
-    else if (action == GLFW_REPEAT)
+    else if (action == GLFW_REPEAT && !userInterface.processKeyDown(glfwToRmlKey(key)))
     {
-        userInterface.processKeyDown(glfwToRmlKey(key));
+        return;
     }
-    else if (action == GLFW_RELEASE)
+    else if (action == GLFW_RELEASE && !userInterface.processKeyUp(glfwToRmlKey(key)))
     {
-        userInterface.processKeyUp(glfwToRmlKey(key));
+        return;
+    }
+
+    if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE)
+    {
+        userInterface.processEsc();
+        return;
     }
 }
 
@@ -507,14 +516,37 @@ void MainWindow::setupDataModelDebug()
         debugConstructor.Bind("fpsClient", &fps);
         debugConstructor.Bind("dbgInput", &debugInput);
         debugConstructor.BindEventCallback(
-            "dbgHello", std::bind(&MainWindow::testLog, this));
+            "onPrint", &UserInterface::onPrint, &userInterface);
         rmlModelDebug = debugConstructor.GetModelHandle();
     }
 }
 
-void MainWindow::testLog()
+void MainWindow::setupDataModelMenu()
 {
-    LG_D("Hello World!");
+    auto menuConstructor = userInterface.getDataModel("menu");
+    if (menuConstructor)
+    {
+        LG_D("Data model 'menu' created");
+        menuConstructor.BindEventCallback(
+            "onNavigate", &UserInterface::onMenuNavigate, &userInterface);
+        menuConstructor.BindEventCallback(
+            "onQuit", &UserInterface::onQuit, &userInterface);
+        menuConstructor.BindEventCallback(
+            "onBack", &UserInterface::onMenuBack, &userInterface);
+
+        if(auto md_handle = menuConstructor.RegisterStruct<mod::MenuDataMod>())
+        {
+            md_handle.RegisterMember("id", &mod::MenuDataMod::id);
+            md_handle.RegisterMember("name", &mod::MenuDataMod::name);
+            md_handle.RegisterMember("description", &mod::MenuDataMod::description);
+            md_handle.RegisterMember("hasModOptions", &mod::MenuDataMod::hasModOptions);
+        }
+        menuConstructor.RegisterArray<std::vector<mod::MenuDataMod>>();
+
+        menuConstructor.Bind("mods", &menuData.mods);
+
+        rmlModelMenu = menuConstructor.GetModelHandle();
+    }
 }
 
 }  // namespace ui

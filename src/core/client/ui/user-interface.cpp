@@ -68,14 +68,14 @@ void UserInterface::processMouseButtonUp(int button, int keyMod)
     mouseUpInteract[button] = !rmlContext->ProcessMouseButtonUp(button, keyMod);
 }
 
-void UserInterface::processKeyDown(Rml::Input::KeyIdentifier key)
+bool UserInterface::processKeyDown(Rml::Input::KeyIdentifier key)
 {
-    rmlContext->ProcessKeyDown(Rml::Input::KeyIdentifier(key), 0);
+    return rmlContext->ProcessKeyDown(Rml::Input::KeyIdentifier(key), 0);
 }
 
-void UserInterface::processKeyUp(Rml::Input::KeyIdentifier key)
+bool UserInterface::processKeyUp(Rml::Input::KeyIdentifier key)
 {
-    rmlContext->ProcessKeyUp(Rml::Input::KeyIdentifier(key), 0);
+    return rmlContext->ProcessKeyUp(Rml::Input::KeyIdentifier(key), 0);
 }
 
 bool UserInterface::isMouseInteracting()
@@ -136,7 +136,7 @@ void UserInterface::showDocument(UiDocHandle handle)
     auto doc = rmlDocLib.getItem(handle.getIdx());
     if (doc)
     {
-        LG_I("Showing document: {}", (*doc)->GetTitle());
+        LG_D("Showing document: {}", (*doc)->GetTitle());
         (*doc)->Show(Rml::ModalFlag::None, Rml::FocusFlag::Auto);
     }
 }
@@ -146,6 +146,7 @@ void UserInterface::hideDocument(UiDocHandle handle)
     auto doc = rmlDocLib.getItem(handle.getIdx());
     if (doc)
     {
+        LG_D("Hiding document: {}", (*doc)->GetTitle());
         (*doc)->Hide();
     }
 }
@@ -158,19 +159,142 @@ UiDocHandle UserInterface::getDocumentHandle(const std::string& name)
 Rml::DataModelConstructor UserInterface::getDataModel(const std::string& name)
 {
     auto modelConstructor = rmlContext->GetDataModel(name);
-    if(modelConstructor)
+    if (modelConstructor)
     {
         return modelConstructor;
     }
     else
     {
         modelConstructor = rmlContext->CreateDataModel(name);
-        if(modelConstructor)
+        if (modelConstructor)
         {
             return modelConstructor;
         }
         LG_E("Failed to create data model: {}", name);
         return Rml::DataModelConstructor();
+    }
+}
+
+void UserInterface::showMenu()
+{
+    currentMenuPage = "menu";
+    menuStack.clear();
+    showDocument(rmlDocLib.getHandle(currentMenuPage));
+    menuOpen = true;
+}
+
+void UserInterface::closeMenu()
+{
+    hideDocument(rmlDocLib.getHandle(currentMenuPage));
+    menuOpen = false;
+}
+
+void UserInterface::processEsc()
+{
+    if (menuStack.empty())
+    {
+        menuOpen ? closeMenu() : showMenu();
+    }
+    else
+    {
+        onMenuBackPriv();
+    }
+}
+
+
+void UserInterface::onMenuNavigate(Rml::DataModelHandle handle,
+                                   Rml::Event& event,
+                                   const Rml::VariantList& args)
+{
+    if (args.size() > 0)
+    {
+        std::string target = args[0].Get<std::string>();
+        UiDocHandle doc = rmlDocLib.getHandle(target);
+        if (doc.isValid())
+        {
+            menuStack.push_back(currentMenuPage);
+            hideDocument(rmlDocLib.getHandle(currentMenuPage));
+            currentMenuPage = target;
+            showDocument(doc);
+        }
+        else
+        {
+            LG_W("Document not found: {}", target);
+        }
+    }
+    else
+    {
+        LG_W("No target provided");
+    }
+}
+
+void UserInterface::onMenuBack(Rml::DataModelHandle handle,
+                               Rml::Event& event,
+                               const Rml::VariantList& args)
+{
+    onMenuBackPriv();
+}
+
+void UserInterface::onMenuBackPriv()
+{
+    if (!menuStack.empty())
+    {
+        UiDocHandle doc = rmlDocLib.getHandle(menuStack.back());
+        if (doc.isValid())
+        {
+            hideDocument(rmlDocLib.getHandle(currentMenuPage));
+            currentMenuPage = menuStack.back();
+            menuStack.pop_back();
+            showDocument(doc);
+            return;
+        }
+    }
+    closeMenu();
+}
+
+void UserInterface::onQuit(Rml::DataModelHandle handle,
+                           Rml::Event& event,
+                           const Rml::VariantList& args)
+{
+    closeMenu();
+    exit(0);
+}
+
+void UserInterface::onPrint(Rml::DataModelHandle handle,
+                            Rml::Event& event,
+                            const Rml::VariantList& args)
+{
+    if (args.size() > 1)
+    {
+        try
+        {
+            std::string target = args[0].Get<std::string>();
+            std::string message = args[1].Get<std::string>();
+            if (target == "debug")
+            {
+                LG_D("UI: {}", message);
+            }
+            else if (target == "info")
+            {
+                LG_I("UI: {}", message);
+            }
+            else if (target == "warning")
+            {
+                LG_W("UI: {}", message);
+            }
+            else if (target == "error")
+            {
+                LG_E("UI: {}", message);
+            }
+        }
+        catch (const std::exception& e)
+        {
+            LG_E("UI: {}", e.what());
+        }
+        catch (...)
+        {
+            LG_E("UI: Unknown error");
+        }
     }
 }
 

@@ -30,26 +30,45 @@ class UserInterface
     void processMouseButtonUp(int button, int keyMod);
     bool isMouseInteracting();
     void processMouseWheel(int delta, int keyMod);
-    void processKeyDown(Rml::Input::KeyIdentifier key);
-    void processKeyUp(Rml::Input::KeyIdentifier key);
+    bool processKeyDown(Rml::Input::KeyIdentifier key);
+    bool processKeyUp(Rml::Input::KeyIdentifier key);
     void processTextInput(Rml::Character codepoint);
     void render();
-
     void showDocument(UiDocHandle handle);
     void hideDocument(UiDocHandle handle);
     UiDocHandle getDocumentHandle(const std::string& name);
+    void showMenu();
+    void closeMenu();
+    void processEsc();
 
     UiDocHandle loadDocument(const std::string& name,
                              const std::string& documentPath);
     void unloadDocument(UiDocHandle handle);
     bool loadFont(const std::string& fontPath);
     // todo: move to mainwindow or something
-    void bind(const std::string& model, const std::string& variable, void* value);
+    void
+    bind(const std::string& model, const std::string& variable, void* value);
     void dirtyVar(const std::string& model, const std::string& variable);
 
     Rml::DataModelConstructor getDataModel(const std::string& name);
 
+
+    void onMenuNavigate(Rml::DataModelHandle handle,
+                    Rml::Event& event,
+                    const Rml::VariantList& args);
+    void onMenuBack(Rml::DataModelHandle handle,
+                    Rml::Event& event,
+                    const Rml::VariantList& args);
+    void onPrint(Rml::DataModelHandle handle,
+                 Rml::Event& event,
+                 const Rml::VariantList& args);
+    void onQuit(Rml::DataModelHandle handle,
+                Rml::Event& event,
+                const Rml::VariantList& args);
+
   private:
+    void onMenuBackPriv();
+
     con::ItemLib<Rml::ElementDocument*> rmlDocLib;
     Rml::Context* rmlContext;
 
@@ -57,6 +76,10 @@ class UserInterface
     bool mouseDownInteract[3];
     bool mouseUpInteract[3];
     bool mouseWheelInteract;
+    bool menuOpen;
+
+    vector<string> menuStack;
+    string currentMenuPage;
 };
 
 }  // namespace ui

@@ -90,6 +90,7 @@ class RenderEngine
                                   const std::string& path = "");
     void setScissorRegion(const glm::vec2& position, const glm::vec2& size);
     void enableScissorRegion(bool enable);
+    void setTransform(const glm::mat4& transform);
     glm::ivec2 getTextureSize() const;
     ShaderHandle loadShader(const std::string& name,
                             const std::string& vsPath,
@@ -127,6 +128,7 @@ class RenderEngine
     bgfx::UniformHandle u_texLayer = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_atlasPos = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_time = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_transform = BGFX_INVALID_HANDLE;
 
     ShaderHandle shaderHandleRml = ShaderHandle::Invalid();
     TextureHandle textureHandleFallback = TextureHandle::Invalid();
@@ -144,6 +146,7 @@ class RenderEngine
     int texHeight;
     RenderState renderState;
     const bgfx::ViewId kClearView = 0;
+    glm::mat4 geomTransformMatrix;
 };
 
 }  // namespace gfx

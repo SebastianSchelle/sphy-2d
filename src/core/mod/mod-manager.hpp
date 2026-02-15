@@ -1,13 +1,21 @@
 #ifndef MOD_MANAGER_HPP
 #define MOD_MANAGER_HPP
 
-#include <std-inc.hpp>
 #include <render-engine.hpp>
+#include <std-inc.hpp>
 #include <ui/user-interface.hpp>
+
 
 namespace mod
 {
 
+struct MenuDataMod
+{
+    Rml::String id;
+    Rml::String name;
+    Rml::String description;
+    bool hasModOptions;
+};
 
 class LuaInterpreter;
 
@@ -27,6 +35,7 @@ struct ModInfo
     std::string manifestPath;
     std::string modDir;
     bool modFound = false;
+    bool hasModOptions = false;
 };
 
 class ModManager
@@ -39,22 +48,26 @@ class ModManager
     bool loadMods(PtrHandles& ptrHandles);
     bool checkDependencies(std::vector<std::string>& modList,
                            const std::string& modDir);
+    void populateMenuData(vector<MenuDataMod>& mods);
+
   private:
     bool checkDependency(const std::string& modId,
                          std::vector<std::string>& modList,
                          const std::string& modDir);
     bool checkIfDependencyProcessed(const std::string& modId);
     bool loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo);
-    bool loadShaders(PtrHandles& ptrHandles, const ModInfo& modInfo, YAML::Node shaders);
+    bool loadShaders(PtrHandles& ptrHandles,
+                     const ModInfo& modInfo,
+                     YAML::Node shaders);
     bool loadFonts(PtrHandles& ptrHandles, const ModInfo& modInfo);
     bool loadTextures(PtrHandles& ptrHandles, const ModInfo& modInfo);
-    bool loadUiDocs(PtrHandles& ptrHandles, const ModInfo& modInfo, YAML::Node uiDocs);
+    bool loadUiDocs(PtrHandles& ptrHandles,
+                    const ModInfo& modInfo,
+                    YAML::Node uiDocs);
     bool runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo);
+    bool loadModOptions(PtrHandles& ptrHandles, ModInfo& modInfo);
     std::vector<ModInfo> processedDependencies;
 };
-
-
-
 
 
 }  // namespace mod

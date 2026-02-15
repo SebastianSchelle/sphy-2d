@@ -138,7 +138,29 @@ void RmlUiRenderInterface::RenderToClipMask(
 
 void RmlUiRenderInterface::SetTransform(const Rml::Matrix4f* transform)
 {
-    LG_D("SetTransform");
+    glm::mat4 transformMatrix;
+    
+    if (transform)
+    {
+        // Rml::Matrix4f is column-major, same as glm::mat4
+        // Copy the 16 float values directly (both use column-major storage)
+        const float* data = transform->data();
+        // glm::mat4 stores data column-major: [col0, col1, col2, col3]
+        // where each column is [x, y, z, w]
+        transformMatrix = glm::mat4(
+            data[0],  data[1],  data[2],  data[3],   // column 0
+            data[4],  data[5],  data[6],  data[7],   // column 1
+            data[8],  data[9],  data[10], data[11],  // column 2
+            data[12], data[13], data[14], data[15]   // column 3
+        );
+    }
+    else
+    {
+        // Set identity matrix if transform is nullptr
+        transformMatrix = glm::mat4(1.0f);
+    }
+    
+    renderEngine->setTransform(transformMatrix);
 }
 
 Rml::LayerHandle RmlUiRenderInterface::PushLayer()

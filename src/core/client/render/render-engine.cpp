@@ -134,10 +134,18 @@ bool RenderEngine::initPre()
         u_time = bgfx::createUniform("u_time", bgfx::UniformType::Vec4);
     }
 
+    if (!bgfx::isValid(u_transform))
+    {
+        u_transform = bgfx::createUniform("u_transform", bgfx::UniformType::Mat4);
+    }
+
     // Initialize with default size (will be updated when window size is known)
     winWidth = 800;
     winHeight = 600;
     updateOrtho();
+
+    geomTransformMatrix = glm::mat4(1.0f);
+
     return true;
 }
 
@@ -223,6 +231,8 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
     float trArr[] = {translation.x, translation.y, 0.0f, 0.0f};
     bgfx::setUniform(u_translation, trArr);
     bgfx::setUniform(u_proj, ortho);
+
+    bgfx::setUniform(u_transform, &geomTransformMatrix);
 
     // Set render state
     uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
@@ -318,6 +328,11 @@ void RenderEngine::enableScissorRegion(bool enable)
     {
         bgfx::setScissor(0, 0, winWidth, winHeight);
     }
+}
+
+void RenderEngine::setTransform(const glm::mat4& transform)
+{
+    geomTransformMatrix = transform;
 }
 
 glm::ivec2 RenderEngine::getTextureSize() const

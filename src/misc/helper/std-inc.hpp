@@ -24,6 +24,8 @@
 #include <fstream>
 
 using std::string;
+using std::vector;
+using std::unordered_map;
 
 namespace asio = boost::asio;
 using tcp = asio::ip::tcp;

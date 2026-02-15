@@ -1,5 +1,5 @@
-#include <mod-manager.hpp>
 #include <lua-interpreter.hpp>
+#include <mod-manager.hpp>
 #include <yaml-cpp/yaml.h>
 
 namespace mod
@@ -150,6 +150,10 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
             return false;
         }
         if (!loadTextures(ptrHandles, modInfo))
+        {
+            return false;
+        }
+        if (!loadModOptions(ptrHandles, const_cast<ModInfo&>(modInfo)))
         {
             return false;
         }
@@ -365,6 +369,35 @@ bool ModManager::runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo)
         return false;
     }
     return true;
+}
+
+bool ModManager::loadModOptions(PtrHandles& ptrHandles, ModInfo& modInfo)
+{
+    const std::string modOptionsPath =
+        modInfo.modDir + "/assets/ui/mod-options.rml";
+    if (std::filesystem::exists(modOptionsPath))
+    {
+        LG_I("Mod options found: {}", modOptionsPath);
+        ptrHandles.userInterface->loadDocument("options-" + modInfo.id,
+                                               modOptionsPath);
+        modInfo.hasModOptions = true;
+    }
+    return true;
+}
+
+void ModManager::populateMenuData(vector<MenuDataMod>& mods)
+{
+    mods.clear();
+    for (const auto& mod : processedDependencies)
+    {
+        MenuDataMod modData;
+        modData.id = mod.id;
+        modData.name = mod.name;
+        modData.description = mod.description;
+        modData.hasModOptions = mod.hasModOptions;
+        LG_I("Populating menu data for mod: {}", mod.id);
+        mods.push_back(modData);
+    }
 }
 
 }  // namespace mod
