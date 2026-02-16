@@ -53,7 +53,7 @@ struct WindowInfo
 
 struct MenuData
 {
-  vector<mod::MenuDataMod> mods;
+    vector<mod::MenuDataMod> mods;
 };
 
 class MainWindow
@@ -102,6 +102,12 @@ class MainWindow
     void setupDataModelDebug();
     void setupDataModelMenu();
 
+    void stopServer();
+
+    void onNewGame(Rml::DataModelHandle handle,
+                   Rml::Event& event,
+                   const Rml::VariantList& args);
+
     static Rml::Input::KeyIdentifier glfwToRmlKey(int key);
 
     GLFWwindow* window;
@@ -134,6 +140,7 @@ class MainWindow
     MenuData menuData;
 
     std::string debugInput = "Hello World!";
+    bp::child *serverProcess = nullptr;
 };
 
 }  // namespace ui

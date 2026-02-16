@@ -1,6 +1,6 @@
 name: Engine
 desc: Engine module
-
+version: 1.0.0
 shaders:
   geom:
     vs: vs_geom.bin

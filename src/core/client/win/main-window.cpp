@@ -5,6 +5,7 @@
 #include <bgfx/platform.h>
 #include <bx/bx.h>
 #include <main-window.hpp>
+#include <os-helper.hpp>
 #include <sol/sol.hpp>
 
 #if BX_PLATFORM_LINUX
@@ -86,6 +87,7 @@ MainWindow::~MainWindow()
     {
         loadingThread.join();
     }
+    stopServer();
     renderEngine.~RenderEngine();
     Rml::Shutdown();
     bgfx::shutdown();
@@ -538,7 +540,8 @@ void MainWindow::setupDataModelMenu()
             "onQuit", &UserInterface::onQuit, &userInterface);
         menuConstructor.BindEventCallback(
             "onBack", &UserInterface::onMenuBack, &userInterface);
-
+        menuConstructor.BindEventCallback(
+            "onNewGame", &MainWindow::onNewGame, this);
         if (auto md_handle = menuConstructor.RegisterStruct<mod::MenuDataMod>())
         {
             md_handle.RegisterMember("id", &mod::MenuDataMod::id);
@@ -553,6 +556,36 @@ void MainWindow::setupDataModelMenu()
         menuConstructor.Bind("mods", &menuData.mods);
 
         rmlModelMenu = menuConstructor.GetModelHandle();
+    }
+}
+
+void MainWindow::onNewGame(Rml::DataModelHandle handle,
+                           Rml::Event& event,
+                           const Rml::VariantList& args)
+{
+    auto exeDir = osh::getExecutableDir();
+
+#if BX_PLATFORM_WINDOWS
+    fs::path serverExe = exeDir / "limes-server.exe";
+#else
+    fs::path serverExe = exeDir / "limes-server";
+#endif
+
+    if (serverProcess)
+    {
+        stopServer();
+    }
+    serverProcess = new bp::child(serverExe.string());
+}
+
+void MainWindow::stopServer()
+{
+    if (serverProcess)
+    {
+        serverProcess->terminate();
+        serverProcess->wait();
+        delete serverProcess;
+        serverProcess = nullptr;
     }
 }
 

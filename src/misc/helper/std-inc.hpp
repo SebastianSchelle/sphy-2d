@@ -21,15 +21,19 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <boost/process.hpp>
 #include <fstream>
 
 using std::string;
 using std::vector;
 using std::unordered_map;
+namespace fs = std::filesystem;
+namespace bp = boost::process;
 
 namespace asio = boost::asio;
 using tcp = asio::ip::tcp;
 using udp = asio::ip::udp;
+
 
 #define EXT_SER(type, block)                                                   \
     template <typename S> void serialize(S& s, type& o)                        \

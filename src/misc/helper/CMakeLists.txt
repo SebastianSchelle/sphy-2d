@@ -9,6 +9,7 @@ set(HELPER_INC_PUBLIC
 
 set(HELPER_SOURCES
     sphy-2d.cpp
+    os-helper.cpp
     config-manager/config-manager.cpp
     config-manager/config-node.cpp
 )

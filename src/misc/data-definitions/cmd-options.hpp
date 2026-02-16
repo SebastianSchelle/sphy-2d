@@ -22,13 +22,22 @@ class CmdLineOptions
         {
             workingdir = ".";
         }
+        if (vm.count("savedir"))
+        {
+            savedir = vm["savedir"].as<std::string>();
+        }
+        else
+        {
+            savedir = ".";
+        }
         return true;
     }
 
     static void createCmdLineOptions(po::options_description& desc)
     {
         desc.add_options()("help,h", "Print help message")(
-            "workingdir,w", po::value<std::string>(), "Working directory");
+            "workingdir,w", po::value<std::string>(), "Working directory")(
+            "savedir,s", po::value<std::string>(), "Save directory");
     }
 
 
@@ -54,6 +63,7 @@ class CmdLineOptions
     }
 
     std::string workingdir;
+    std::string savedir;
 };
 
 
@@ -79,7 +89,8 @@ class CmdLinOptionsServer : public CmdLineOptions
                                             po::variables_map& vm,
                                             CmdLineOptions& options)
     {
-        if(CmdLineOptions::handleDefaultCmdLineOptions(argc, argv, desc, vm, options))
+        if (CmdLineOptions::handleDefaultCmdLineOptions(
+                argc, argv, desc, vm, options))
         {
             return true;
         }
@@ -110,7 +121,8 @@ class CmdLinOptionsClient : public CmdLineOptions
                                             po::variables_map& vm,
                                             CmdLineOptions& options)
     {
-        if(CmdLineOptions::handleDefaultCmdLineOptions(argc, argv, desc, vm, options))
+        if (CmdLineOptions::handleDefaultCmdLineOptions(
+                argc, argv, desc, vm, options))
         {
             return true;
         }
