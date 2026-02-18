@@ -19,7 +19,7 @@ namespace sphys
 class Server
 {
   public:
-    Server(def::CmdLinOptionsServer& options);
+    Server(sphy::CmdLinOptionsServer& options);
     ~Server();
     void startUdpTcp();
     void startServer();
@@ -29,7 +29,6 @@ class Server
     void scheduleSend();
     void udpReceive(const char* data, size_t length);
     void tcpReceive(const char* data, size_t length, std::shared_ptr<net::TcpConnection> connection);
-    
 
     sphys::Engine engine;
     cfg::ConfigManager config;
@@ -39,7 +38,7 @@ class Server
     std::unique_ptr<net::UdpServer> udpServer;
     std::unique_ptr<net::TcpServer> tcpServer;
     boost::asio::signal_set signals;
-    def::CmdLinOptionsServer options;
+    sphy::CmdLinOptionsServer options;
 };
 
 }  // namespace sphys

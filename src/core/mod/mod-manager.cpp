@@ -145,6 +145,7 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
     {
         YAML::Node manifest = YAML::LoadFile(modInfo.manifestPath);
 
+#ifdef CLIENT
         if (!loadFonts(ptrHandles, modInfo))
         {
             return false;
@@ -157,7 +158,6 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
         {
             return false;
         }
-
         // Handle shaders if present and is a map
         if (manifest["shaders"])
         {
@@ -189,6 +189,8 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
                 return false;
             }
         }
+#endif
+
         if (!runInitScript(ptrHandles, modInfo))
         {
             return false;
@@ -204,6 +206,7 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
     return true;
 }
 
+#ifdef CLIENT
 bool ModManager::loadShaders(PtrHandles& ptrHandles,
                              const ModInfo& modInfo,
                              YAML::Node shaders)
@@ -355,22 +358,6 @@ bool ModManager::loadUiDocs(PtrHandles& ptrHandles,
     return true;
 }
 
-bool ModManager::runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo)
-{
-    const std::string initScriptPath = modInfo.modDir + "/scripts/init.lua";
-    if (!std::filesystem::exists(initScriptPath))
-    {
-        LG_I("Init script not found: {}", initScriptPath);
-        return true;
-    }
-    if (!ptrHandles.luaInterpreter->storeScript(modInfo.id, initScriptPath))
-    {
-        LG_E("Failed to run init script: {}", initScriptPath);
-        return false;
-    }
-    return true;
-}
-
 bool ModManager::loadModOptions(PtrHandles& ptrHandles, ModInfo& modInfo)
 {
     const std::string modOptionsPath =
@@ -398,6 +385,24 @@ void ModManager::populateMenuData(vector<MenuDataMod>& mods)
         LG_I("Populating menu data for mod: {}", mod.id);
         mods.push_back(modData);
     }
+}
+
+#endif
+
+bool ModManager::runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo)
+{
+    const std::string initScriptPath = modInfo.modDir + "/scripts/init.lua";
+    if (!std::filesystem::exists(initScriptPath))
+    {
+        LG_I("Init script not found: {}", initScriptPath);
+        return true;
+    }
+    if (!ptrHandles.luaInterpreter->storeScript(modInfo.id, initScriptPath))
+    {
+        LG_E("Failed to run init script: {}", initScriptPath);
+        return false;
+    }
+    return true;
 }
 
 }  // namespace mod

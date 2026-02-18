@@ -1,14 +1,17 @@
 #ifndef MOD_MANAGER_HPP
 #define MOD_MANAGER_HPP
 
+#ifdef CLIENT
 #include <render-engine.hpp>
-#include <std-inc.hpp>
 #include <ui/user-interface.hpp>
+#endif
+#include <std-inc.hpp>
 
 
 namespace mod
 {
 
+#ifdef CLIENT
 struct MenuDataMod
 {
     Rml::String id;
@@ -16,13 +19,16 @@ struct MenuDataMod
     Rml::String description;
     bool hasModOptions;
 };
+#endif
 
 class LuaInterpreter;
 
 struct PtrHandles
 {
+#ifdef CLIENT
     gfx::RenderEngine* renderEngine;
     ui::UserInterface* userInterface;
+#endif
     mod::LuaInterpreter* luaInterpreter;
 };
 
@@ -48,7 +54,9 @@ class ModManager
     bool loadMods(PtrHandles& ptrHandles);
     bool checkDependencies(std::vector<std::string>& modList,
                            const std::string& modDir);
+#ifdef CLIENT
     void populateMenuData(vector<MenuDataMod>& mods);
+#endif
 
   private:
     bool checkDependency(const std::string& modId,
@@ -56,6 +64,7 @@ class ModManager
                          const std::string& modDir);
     bool checkIfDependencyProcessed(const std::string& modId);
     bool loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo);
+#ifdef CLIENT
     bool loadShaders(PtrHandles& ptrHandles,
                      const ModInfo& modInfo,
                      YAML::Node shaders);
@@ -64,8 +73,9 @@ class ModManager
     bool loadUiDocs(PtrHandles& ptrHandles,
                     const ModInfo& modInfo,
                     YAML::Node uiDocs);
-    bool runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo);
     bool loadModOptions(PtrHandles& ptrHandles, ModInfo& modInfo);
+#endif
+    bool runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo);
     std::vector<ModInfo> processedDependencies;
 };
 

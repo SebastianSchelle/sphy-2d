@@ -6,7 +6,7 @@
 
 namespace po = boost::program_options;
 
-namespace def
+namespace sphy
 {
 class CmdLineOptions
 {
@@ -130,6 +130,6 @@ class CmdLinOptionsClient : public CmdLineOptions
     }
 };
 
-}  // namespace def
+}  // namespace sphy
 
 #endif

@@ -3,21 +3,28 @@
 
 #include "config-node.hpp"
 
-namespace cfg {
+namespace cfg
+{
 
 
-class ConfigManager {
+class ConfigManager
+{
   public:
-    ConfigManager(std::string cfgStructFile);
+    ConfigManager(const std::string& cfgStructFile);
+    ConfigManager();
     ~ConfigManager();
+    void clear();
     nodeVal_t get(std::vector<string> path) const;
     void set(std::vector<string> path, nodeVal_t value);
     void addDefs(const string& file);
+
   private:
+    void initFromFile(const string& file);
+
     std::shared_ptr<ConfigBranch> root;
     std::vector<std::string> cfgStructFiles;
 };
 
-} // namespace cfg
+}  // namespace cfg
 
 #endif

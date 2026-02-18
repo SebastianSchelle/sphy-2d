@@ -3,10 +3,11 @@
 namespace sphys
 {
 
-Server::Server(def::CmdLinOptionsServer& options)
+Server::Server(sphy::CmdLinOptionsServer& options)
     : options(options),
       config(options.workingdir + "/modules/core/defs/server.yaml"),
-      sendTimer(ioContext), signals(ioContext, SIGINT, SIGTERM)
+      sendTimer(ioContext), signals(ioContext, SIGINT, SIGTERM),
+      engine(options)
 {
     auto path(options.workingdir);
     std::filesystem::current_path(path);
@@ -15,6 +16,7 @@ Server::Server(def::CmdLinOptionsServer& options)
     debug::createLogger("logs/logServer.txt", logLevel);
     startServer();
 }
+
 Server::~Server() {}
 
 void Server::startUdpTcp()

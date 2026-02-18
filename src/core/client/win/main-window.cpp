@@ -1,6 +1,5 @@
 #include "RmlUi/Core/Core.h"
 #include "bgfx/defines.h"
-#include "shader.hpp"
 #include "vertex-defines.hpp"
 #include <bgfx/platform.h>
 #include <bx/bx.h>
@@ -66,7 +65,7 @@ void MouseState::processMouseButton(uint8_t i)
     }
 }
 
-MainWindow::MainWindow(def::CmdLinOptionsClient& options)
+MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
     : options(options),
       config(options.workingdir + "/modules/core/defs/client.yaml"),
       renderEngine(config), rmlUiRenderInterface(&renderEngine), client(config),
@@ -312,7 +311,9 @@ void MainWindow::startLoading()
                 return;
             }
             mod::PtrHandles ptrHandles{
-                &renderEngine, &userInterface, &luaInterpreter};
+                .renderEngine = &renderEngine,
+                .userInterface = &userInterface,
+                .luaInterpreter = &luaInterpreter};
             if (!modManager.loadMods(ptrHandles))
             {
                 LG_E("Failed to load mods");

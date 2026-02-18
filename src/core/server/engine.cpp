@@ -7,7 +7,11 @@
 namespace sphys
 {
 
-Engine::Engine() {}
+Engine::Engine(const sphy::CmdLinOptionsServer& options)
+    : options(options), state(EngineState::Init), saveConfig(),
+      saveFolder(options.savedir)
+{
+}
 
 Engine::~Engine() {}
 
@@ -21,30 +25,138 @@ void Engine::engineLoop()
 {
     while (true)
     {
+        switch (state)
+        {
+            case EngineState::Init:
+                state = EngineState::LoadMods;
+                break;
+            case EngineState::LoadMods:
+                if (loadMods())
+                {
+                    startFromFolder();
+                }
+                else
+                {
+                    state = EngineState::Error;
+                }
+                break;
+            case EngineState::LoadWorld:
+                if (loadFromFolder())
+                {
+                    state = EngineState::Running;
+                }
+                else
+                {
+                    state = EngineState::Error;
+                }
+                break;
+            case EngineState::CreateWorld:
+                if (createFromConfig())
+                {
+                    state = EngineState::Running;
+                }
+                else
+                {
+                    state = EngineState::Error;
+                }
+                break;
+            case EngineState::Running:
+                // test
+                for (int i = 0; i < activeClientHandles.size(); i++)
+                {
+                    net::ClientInfoHandle handle = activeClientHandles[i];
+                    net::ClientInfo* clientInfo = clientLib.getItem(handle);
+                    if (clientInfo)
+                    {
+                        CMDAT_PREP(net::SendType::UDP, prot::cmd::LOG, 0)
+                        std::string str = "Hello World!";
+                        cmdser.text1b(str, str.size());
+                        cmdData.udpEndpoint = clientInfo->udpEndpoint;
+                        CMDAT_FIN()
+                        sendQueue.enqueue(cmdData);
+                    }
+                }
+                break;
+            case EngineState::Paused:
+                break;
+            case EngineState::Stopped:
+                break;
+            case EngineState::Error:
+                LG_E("Engine error");
+                exit(1);
+                break;
+        }
+
+
         net::CmdQueueData recQueueData;
         while (receiveQueue.try_dequeue(recQueueData))
         {
             parseCommand(recQueueData);
         }
 
-        // test
-        for (int i = 0; i < activeClientHandles.size(); i++)
-        {
-            net::ClientInfoHandle handle = activeClientHandles[i];
-            net::ClientInfo* clientInfo = clientLib.getItem(handle);
-            if (clientInfo)
-            {
-                CMDAT_PREP(net::SendType::UDP, prot::cmd::LOG, 0)
-                std::string str = "Hello World!";
-                cmdser.text1b(str, str.size());
-                cmdData.udpEndpoint = clientInfo->udpEndpoint;
-                CMDAT_FIN()
-                sendQueue.enqueue(cmdData);
-            }
-        }
-
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+}
+
+
+void Engine::startFromFolder()
+{
+    std::string saveFld = saveFolder + "/save-data";
+    if (fs::exists(saveFld))
+    {
+        state = EngineState::LoadWorld;
+    }
+    else
+    {
+        state = EngineState::CreateWorld;
+    }
+}
+
+bool Engine::loadFromFolder()
+{
+    LG_I("Loading from folder: {}", saveFolder);
+    return true;
+}
+
+bool Engine::createFromConfig()
+{
+    std::string configPath = saveFolder + "/config.yaml";
+    if (fs::exists(configPath))
+    {
+        saveConfig.clear();
+        saveConfig.addDefs(configPath);
+    }
+    else
+    {
+        LG_E("Config file not found");
+        return false;
+    }
+    LG_I("Creating from config: {}", configPath);
+    return true;
+}
+
+bool Engine::loadMods()
+{
+    LG_I("Loading mods");
+    std::string modListPath = saveFolder + "/modlist.txt";
+
+    std::vector<std::string> modList;
+    if (!modManager.parseModList(modListPath, modList))
+    {
+        LG_E("Failed to parse mod list");
+        return false;
+    }
+    if (!modManager.checkDependencies(modList, "modules"))
+    {
+        LG_E("Failed to check dependencies");
+        return false;
+    }
+    mod::PtrHandles ptrHandles{.luaInterpreter = &luaInterpreter};
+    if (!modManager.loadMods(ptrHandles))
+    {
+        LG_E("Failed to load mods");
+    }
+    return true;
 }
 
 void Engine::registerClient(const std::string& uuid, const std::string& name)

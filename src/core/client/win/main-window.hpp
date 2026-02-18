@@ -67,7 +67,7 @@ class MainWindow
         Something,
     };
 
-    MainWindow(def::CmdLinOptionsClient& options);
+    MainWindow(sphy::CmdLinOptionsClient& options);
     ~MainWindow();
     bool initPre();
     bool initPost();
@@ -117,7 +117,7 @@ class MainWindow
     gfx::RmlUiRenderInterface rmlUiRenderInterface;
     ui::RmlUiSystemInterface rmlUiSystemInterface;
     cfg::ConfigManager config;
-    def::CmdLinOptionsClient options;
+    sphy::CmdLinOptionsClient options;
     mod::ModManager modManager;
     ui::UserInterface userInterface;
     mod::LuaInterpreter luaInterpreter;

@@ -5,10 +5,25 @@
 
 namespace def
 {
+
+enum class Direction
+{
+    N,
+    NW,
+    W,
+    SW,
+    S,
+    SE,
+    E,
+    NE,
+    NONE,
+};
+
+
 struct WorldShape
 {
-    int numSectorX;
-    int numSectorY;
+    uint32_t numSectorX;
+    uint32_t numSectorY;
     float sectorSize;
 };
 
