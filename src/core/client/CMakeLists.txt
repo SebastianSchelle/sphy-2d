@@ -104,7 +104,7 @@ add_custom_target(shaders ALL
 
 add_library(${LIB_NAME} STATIC ${CLIENT_SOURCES})
 add_dependencies(${LIB_NAME} shaders)
-target_compile_definitions(${LIB_NAME} PRIVATE BX_CONFIG_DEBUG=1 CLIENT)
+target_compile_definitions(${LIB_NAME} PRIVATE BX_CONFIG_DEBUG=1 CLIENT GAME_NAME="${GAME_NAME}")
 
 target_include_directories(${LIB_NAME} PUBLIC ${CLIENT_INC_PUBLIC})
 target_include_directories(${LIB_NAME} PRIVATE ${CLIENT_INC_PRIVATE})

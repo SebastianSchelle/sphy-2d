@@ -22,13 +22,18 @@ enum class Direction
 
 struct WorldShape
 {
+    static const uint16_t VERSION = 1;
     uint32_t numSectorX;
     uint32_t numSectorY;
     float sectorSize;
 };
 
-EXT_SER(WorldShape, s.value4b(o.numSectorX); s.value4b(o.numSectorY);
-        s.value4b(o.sectorSize, 100);)
+#define SER_WORLD_SHAPE                                                        \
+    S4b(o.numSectorX);                                                         \
+    S4b(o.numSectorY);                                                         \
+    S4b(o.sectorSize);
+EXT_SER(WorldShape, SER_WORLD_SHAPE)
+EXT_DES(WorldShape, SER_WORLD_SHAPE)
 
 }  // namespace def
 

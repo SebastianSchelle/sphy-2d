@@ -6,10 +6,6 @@
 
 #define CMD_FLAG_RESP 0x01
 
-using Buffer = std::vector<uint8_t>;
-using OutputAdapter = bitsery::OutputBufferAdapter<Buffer>;
-using InputAdapter = bitsery::InputBufferAdapter<Buffer>;
-
 #define CMDAT_PREP(sType, cmd, flags)                                     \
     net::CmdQueueData cmdData;                                                 \
     cmdData.sendType = sType;                                                  \

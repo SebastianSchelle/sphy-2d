@@ -13,7 +13,14 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options)
 {
 }
 
-Engine::~Engine() {}
+Engine::~Engine()
+{
+    stopRequested = true;
+    if (engineThread.joinable())
+    {
+        engineThread.join();
+    }
+}
 
 void Engine::start()
 {
@@ -21,9 +28,18 @@ void Engine::start()
     engineThread = std::thread([this]() { engineLoop(); });
 }
 
+void Engine::stop()
+{
+    stopRequested = true;
+    if (engineThread.joinable())
+    {
+        engineThread.join();
+    }
+}
+
 void Engine::engineLoop()
 {
-    while (true)
+    while (!stopRequested)
     {
         switch (state)
         {
@@ -83,7 +99,7 @@ void Engine::engineLoop()
                 break;
             case EngineState::Error:
                 LG_E("Engine error");
-                exit(1);
+                stopRequested = true;
                 break;
         }
 
@@ -95,6 +111,12 @@ void Engine::engineLoop()
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    if (state == EngineState::Running || state == EngineState::Paused)
+    {
+        LG_I("Shutdown requested, saving game...");
+        saveGame();
     }
 }
 
@@ -114,7 +136,11 @@ void Engine::startFromFolder()
 
 bool Engine::loadFromFolder()
 {
-    LG_I("Loading from folder: {}", saveFolder);
+    if(!world.createFromSave(saveConfig, saveFolder))
+    {
+        LG_E("Failed to load world from save");
+        return false;
+    }
     return true;
 }
 
@@ -125,6 +151,11 @@ bool Engine::createFromConfig()
     {
         saveConfig.clear();
         saveConfig.addDefs(configPath);
+        if(!world.createFromConfig(saveConfig))
+        {
+            LG_E("Failed to create world from config");
+            return false;
+        }
     }
     else
     {
@@ -157,6 +188,11 @@ bool Engine::loadMods()
         LG_E("Failed to load mods");
     }
     return true;
+}
+
+void Engine::saveGame()
+{
+    world.saveWorld(saveFolder);
 }
 
 void Engine::registerClient(const std::string& uuid, const std::string& name)

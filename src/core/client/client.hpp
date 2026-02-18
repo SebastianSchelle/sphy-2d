@@ -1,7 +1,6 @@
 #ifndef CLIENT_HPP
 #define CLIENT_HPP
 
-#include <sphy-2d.hpp>
 // #include <tcp-client.hpp>
 #include <config-manager/config-manager.hpp>
 #include <udp-client.hpp>

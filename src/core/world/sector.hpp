@@ -12,6 +12,7 @@ class Sector
     Sector();
     ~Sector();
     void init(int x, int y, float sectorSize, uint32_t id, Sector* neighbors[8]);
+    bool saveSector(const std::string& savedir);
 
   private:
     int coordX;            // Sector coord X
@@ -21,6 +22,7 @@ class Sector
     float worldPosX;       // Sector center X in world coords
     float worldPosY;       // Sector center Y in world coords
     Sector* neighbors[8];  // Neighboring Sectors (8 neighbors)
+    bool dirty;            // Sector dirty flag
 };
 
 }  // namespace world

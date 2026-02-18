@@ -22,6 +22,7 @@ set(SERVER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../world/sector.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/lua-interpreter.cpp
+    ${MISC_DIR}/helper/sphy-2d.cpp
 )
 
 set(LIBS_PUB
@@ -37,7 +38,7 @@ set(LIBS_PRIV
 )
 
 add_library(${LIB_NAME} STATIC ${SERVER_SOURCES})
-target_compile_definitions(${LIB_NAME} PRIVATE SERVER)
+target_compile_definitions(${LIB_NAME} PRIVATE SERVER GAME_NAME="${GAME_NAME}")
 
 target_include_directories(${LIB_NAME} PUBLIC ${SERVER_INC_PUBLIC})
 target_include_directories(${LIB_NAME} PRIVATE ${SERVER_INC_PRIVATE})

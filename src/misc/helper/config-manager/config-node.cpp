@@ -1,5 +1,4 @@
 #include "config-node.hpp"
-#include "sphy-2d.hpp"
 
 namespace cfg
 {

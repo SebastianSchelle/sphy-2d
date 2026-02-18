@@ -5,11 +5,11 @@
 #include <boost/container/vector.hpp>
 #include <concurrentqueue.h>
 #include <config-manager/config-manager.hpp>
-#include <sphy-2d.hpp>
 #include <item-lib.hpp>
 #include <client-def.hpp>
 #include <net-shared.hpp>
 #include <world.hpp>
+#include <atomic>
 #include <cmd-options.hpp>
 #include <mod-manager.hpp>
 #include <lua-interpreter.hpp>
@@ -37,8 +37,9 @@ class Engine
     Engine(const sphy::CmdLinOptionsServer& options);
     ~Engine();
     void start();
+    void stop();  // request shutdown, save game, join engine thread
     void registerClient(const std::string &uuid, const std::string &name);
-
+    void saveGame();
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
 
@@ -54,6 +55,7 @@ class Engine
     bool loadMods();
 
     const sphy::CmdLinOptionsServer& options;
+    std::atomic<bool> stopRequested{false};
     std::thread engineThread;
     con::ItemLib<net::ClientInfo> clientLib;
     std::vector<net::ClientInfoHandle> activeClientHandles;

@@ -17,7 +17,8 @@ Server::Server(sphy::CmdLinOptionsServer& options)
     startServer();
 }
 
-Server::~Server() {}
+Server::~Server() {
+}
 
 void Server::startUdpTcp()
 {
@@ -28,10 +29,13 @@ void Server::startUdpTcp()
     LG_D("Setup socket on port-tcp={} and port-udp={}", portTcp, portUdp);
 
     signals.async_wait(
-        [&](const boost::system::error_code&, int)
+        [this](const boost::system::error_code& ec, int sig)
         {
-            LG_I("Signal received, shutting down...");
-            ioContext.stop();  // Stop all IO operations
+            if (ec)
+                return;
+            LG_I("Signal received ({}), shutting down...", sig);
+            engine.stop();  // save game and join engine thread
+            ioContext.stop();
         });
 
     tcpServer =

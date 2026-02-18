@@ -12,7 +12,6 @@
 #include <mod-manager.hpp>
 #include <render/render-engine.hpp>
 #include <render/texture.hpp>
-#include <sphy-2d.hpp>
 #include <ui/rmlui-renderinterface.hpp>
 #include <ui/rmlui-systeminterface.hpp>
 #include <ui/user-interface.hpp>
