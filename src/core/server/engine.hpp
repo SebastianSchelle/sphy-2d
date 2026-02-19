@@ -1,6 +1,7 @@
 #ifndef ENGINE_HPP
 #define ENGINE_HPP
 
+#include "ecs.hpp"
 #include <boost/asio.hpp>
 #include <boost/container/vector.hpp>
 #include <concurrentqueue.h>
@@ -13,8 +14,14 @@
 #include <cmd-options.hpp>
 #include <mod-manager.hpp>
 #include <lua-interpreter.hpp>
+#include <asset-factory.hpp>
 
 using moodycamel::ConcurrentQueue;
+
+namespace ecs
+{
+  struct PtrHandle;
+}
 
 namespace sphys
 {
@@ -53,6 +60,7 @@ class Engine
     bool saveWorld();
     bool createWorld();
     bool loadMods();
+    void update(float dt);
 
     const sphy::CmdLinOptionsServer& options;
     std::atomic<bool> stopRequested{false};
@@ -66,6 +74,11 @@ class Engine
     world::World world;
     cfg::ConfigManager saveConfig;
     std::string saveFolder;
+    ecs::Ecs ecs;
+    ecs::AssetFactory assetFactory;
+    vector<ecs::EntityId> globalEntityIds;
+    vector<entt::entity> globalEntities;
+    std::shared_ptr<ecs::PtrHandle> ptrHandle;
 };
 
 }  // namespace sphys

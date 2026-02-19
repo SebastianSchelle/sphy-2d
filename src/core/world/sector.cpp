@@ -1,4 +1,5 @@
 #include <sector.hpp>
+#include <ptr-handle.hpp>
 
 namespace world
 {
@@ -32,9 +33,19 @@ bool Sector::saveSector(const std::string& savedir)
     {
         std::string sectorSaveFld = savedir + "/save-data/world";
         std::string sectorFilePath = savedir + "/sector-" + std::to_string(id) + "." + GAME_NAME + ".sav";
-        LG_I("Save sector to file: {}", sectorFilePath);
     }
     return true;
+}
+
+void Sector::update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle)
+{
+    for (auto entity : entityIds)
+    {
+        for (auto system : *ptrHandle->systems)
+        {
+            system.function(entity, dt, ptrHandle);
+        }
+    }
 }
 
 }  // namespace world

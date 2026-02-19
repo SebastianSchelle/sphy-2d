@@ -9,7 +9,11 @@ set(SERVER_INC_PUBLIC
     ${MISC_DIR}/data-definitions
     ${MISC_DIR}/containers
     ${THIRPARTY_DIR}/sol2/include
-    ../world
+    ${THIRPARTY_DIR}/entt/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../world
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ecs
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/systems
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/components
 )
 
 set(SERVER_INC_PRIVATE
@@ -22,6 +26,8 @@ set(SERVER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../world/sector.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/lua-interpreter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/ecs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/asset-factory.cpp
     ${MISC_DIR}/helper/sphy-2d.cpp
 )
 

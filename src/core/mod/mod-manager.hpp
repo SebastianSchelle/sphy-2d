@@ -6,6 +6,7 @@
 #include <ui/user-interface.hpp>
 #endif
 #include <std-inc.hpp>
+#include <asset-factory.hpp>
 
 
 namespace mod
@@ -30,6 +31,7 @@ struct PtrHandles
     ui::UserInterface* userInterface;
 #endif
     mod::LuaInterpreter* luaInterpreter;
+    ecs::AssetFactory* assetFactory;
 };
 
 struct ModInfo
@@ -76,6 +78,8 @@ class ModManager
     bool loadModOptions(PtrHandles& ptrHandles, ModInfo& modInfo);
 #endif
     bool runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo);
+    bool loadGameObjects(PtrHandles& ptrHandles, const ModInfo& modInfo);
+    bool loadGameObject(PtrHandles& ptrHandles, const std::string& path);
     std::vector<ModInfo> processedDependencies;
 };
 

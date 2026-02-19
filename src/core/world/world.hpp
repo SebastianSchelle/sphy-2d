@@ -19,6 +19,7 @@ class World
     bool createFromSave(cfg::ConfigManager &config, const std::string& savedir);
     Sector* getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir);
     bool saveWorld(const std::string& savedir);
+    void update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle);
   private:
     bool initWorld();
     bool initSectors(bool fromSave);

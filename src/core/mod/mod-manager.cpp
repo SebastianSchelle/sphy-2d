@@ -190,6 +190,10 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
             }
         }
 #endif
+        if (!loadGameObjects(ptrHandles, modInfo))
+        {
+            return false;
+        }
 
         if (!runInitScript(ptrHandles, modInfo))
         {
@@ -404,5 +408,35 @@ bool ModManager::runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo)
     }
     return true;
 }
+
+
+bool ModManager::loadGameObjects(PtrHandles& ptrHandles, const ModInfo& modInfo)
+{
+    std::string assetsPath = modInfo.modDir + "/assets/game-objects";
+    if (std::filesystem::exists(assetsPath))
+    {
+        for (const auto& fileEntry :
+             std::filesystem::directory_iterator(assetsPath))
+        {
+            if (fileEntry.is_regular_file()
+                && fileEntry.path().extension() == ".yaml")
+            {
+                const std::string gameObjectPath = fileEntry.path().string();
+                if (!loadGameObject(ptrHandles, gameObjectPath))
+                {
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+bool ModManager::loadGameObject(PtrHandles& ptrHandles, const std::string& path)
+{
+    YAML::Node gameObject = YAML::LoadFile(path);
+    return ptrHandles.assetFactory->loadAsset(path) != entt::null;
+}
+
 
 }  // namespace mod

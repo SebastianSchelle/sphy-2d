@@ -142,6 +142,18 @@ bool World::saveWorld(const std::string& savedir)
     return true;
 }
 
+void World::update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle)
+{
+    // todo: add multithreading
+    for (int i = 0; i < worldShape.numSectorX; i++)
+    {
+        for (int j = 0; j < worldShape.numSectorY; j++)
+        {
+            sectors.at(i, j)->update(dt, ptrHandle);
+        }
+    }
+}
+
 Sector* World::getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir)
 {
     switch (dir)

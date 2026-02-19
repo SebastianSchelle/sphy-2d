@@ -24,6 +24,7 @@
 #include <memory.h>
 #include <string>
 #include <variant>
+#include <yaml-cpp/yaml.h>
 
 using std::string;
 using std::unordered_map;
@@ -35,9 +36,30 @@ namespace asio = boost::asio;
 using tcp = asio::ip::tcp;
 using udp = asio::ip::udp;
 
+using glm::vec2;
 using Buffer = std::vector<uint8_t>;
 using OutputAdapter = bitsery::OutputBufferAdapter<Buffer>;
 using InputAdapter = bitsery::InputBufferAdapter<Buffer>;
+
+#define DO_PERIODIC(timekeeper_, interval_, callback_)                         \
+    tim::Timepoint now = tim::getCurrentTimeU();                               \
+    if (tim::durationU(timekeeper_, now) > interval_)                          \
+    {                                                                          \
+        callback_();                                                           \
+        timekeeper_ = now;                                                     \
+    }
+#define TIM_1MS 1000
+#define TIM_10MS 10000
+#define TIM_100MS 100000
+#define TIM_1S 1000000
+#define TIM_10S 10000000
+#define TIM_100S 100000000
+#define TIM_1000S 1000000000
+#define TIM_1M 60000000
+#define TIM_5M 300000000
+#define TIM_10M 600000000
+#define TIM_1H 3600000000
+#define TIM_1D 86400000000
 
 #define TYPE_NAME_STR(T) #T
 constexpr uint32_t hashConst(const char* s, size_t i = 0)
@@ -128,5 +150,28 @@ inline std::string uuid()
 }
 
 }  // namespace sec
+
+namespace YAML
+{
+template <> struct convert<vec2>
+{
+    static Node encode(const vec2& v)
+    {
+        Node node;
+        node.push_back(v.x);
+        node.push_back(v.y);
+        return node;
+    }
+
+    static bool decode(const Node& node, vec2& v)
+    {
+        if (!node.IsSequence() || node.size() != 2)
+            return false;
+        v.x = node[0].as<float>();
+        v.y = node[1].as<float>();
+        return true;
+    }
+};
+}  // namespace YAML
 
 #endif

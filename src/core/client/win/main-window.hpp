@@ -15,6 +15,7 @@
 #include <ui/rmlui-renderinterface.hpp>
 #include <ui/rmlui-systeminterface.hpp>
 #include <ui/user-interface.hpp>
+#include <asset-factory.hpp>
 
 namespace ui
 {
@@ -140,6 +141,7 @@ class MainWindow
 
     std::string debugInput = "Hello World!";
     bp::child *serverProcess = nullptr;
+    ecs::AssetFactory assetFactory;
 };
 
 }  // namespace ui

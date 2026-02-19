@@ -7,16 +7,20 @@ set(MISC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../misc)
 set(CLIENT_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ecs
     ${MISC_DIR}/data-definitions
     ${THIRPARTY_DIR}/glfw/include
     ${THIRPARTY_DIR}/rmlui/Include
     ${THIRPARTY_DIR}/rectpack2D/src
     ${THIRPARTY_DIR}/sol2/include
+    ${THIRPARTY_DIR}/entt/src
     ${BGFX_DIR}/bgfx/include
     ${BGFX_DIR}/bgfx/examples/common
     ${BGFX_DIR}/bgfx/3rdparty
     ${BGFX_DIR}/bx/include
     ${BGFX_DIR}/bimg/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/systems
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/components
     ui
     win
     render
@@ -37,6 +41,8 @@ set(CLIENT_SOURCES
     ui/user-interface.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/lua-interpreter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/ecs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/asset-factory.cpp
 )
 
 set(LIBS_PUB

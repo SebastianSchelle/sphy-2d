@@ -1,7 +1,10 @@
 #include "bitsery/serializer.h"
 #include "std-inc.hpp"
+#include <comp-ident.hpp>
+#include <comp-phy.hpp>
 #include <engine.hpp>
 #include <protocol.hpp>
+#include <ptr-handle.hpp>
 #include <server.hpp>
 
 namespace sphys
@@ -24,6 +27,11 @@ Engine::~Engine()
 
 void Engine::start()
 {
+    auto cFac = &assetFactory.componentFactory;
+    cFac->registerComponent<ecs::Transform>("trans");
+    cFac->registerComponent<ecs::PhysicsBody>("phy");
+    cFac->registerComponent<ecs::AssetId>("asset-id");
+
     registerClient("1234abcd1234abcd", "Test Client");
     engineThread = std::thread([this]() { engineLoop(); });
 }
@@ -39,6 +47,8 @@ void Engine::stop()
 
 void Engine::engineLoop()
 {
+    tim::Timepoint lastSaveTime = tim::getCurrentTimeU();
+
     while (!stopRequested)
     {
         switch (state)
@@ -77,6 +87,9 @@ void Engine::engineLoop()
                 }
                 break;
             case EngineState::Running:
+            {
+                DO_PERIODIC(lastSaveTime, TIM_5M, saveGame)
+
                 // test
                 for (int i = 0; i < activeClientHandles.size(); i++)
                 {
@@ -92,7 +105,8 @@ void Engine::engineLoop()
                         sendQueue.enqueue(cmdData);
                     }
                 }
-                break;
+            }
+            break;
             case EngineState::Paused:
                 break;
             case EngineState::Stopped:
@@ -110,7 +124,7 @@ void Engine::engineLoop()
             parseCommand(recQueueData);
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(11));
     }
 
     if (state == EngineState::Running || state == EngineState::Paused)
@@ -120,6 +134,19 @@ void Engine::engineLoop()
     }
 }
 
+void Engine::update(float dt)
+{
+    for (int i = 0; i < globalEntityIds.size(); i++)
+    {
+        ecs::EntityId entityId = globalEntityIds[i];
+        entt::entity entity = globalEntities[i];
+        for (auto system : *ptrHandle->systems)
+        {
+            system.function(entity, dt, ptrHandle);
+        }
+    }
+    world.update(dt, ptrHandle);
+}
 
 void Engine::startFromFolder()
 {
@@ -136,7 +163,7 @@ void Engine::startFromFolder()
 
 bool Engine::loadFromFolder()
 {
-    if(!world.createFromSave(saveConfig, saveFolder))
+    if (!world.createFromSave(saveConfig, saveFolder))
     {
         LG_E("Failed to load world from save");
         return false;
@@ -151,7 +178,7 @@ bool Engine::createFromConfig()
     {
         saveConfig.clear();
         saveConfig.addDefs(configPath);
-        if(!world.createFromConfig(saveConfig))
+        if (!world.createFromConfig(saveConfig))
         {
             LG_E("Failed to create world from config");
             return false;
@@ -182,7 +209,8 @@ bool Engine::loadMods()
         LG_E("Failed to check dependencies");
         return false;
     }
-    mod::PtrHandles ptrHandles{.luaInterpreter = &luaInterpreter};
+    mod::PtrHandles ptrHandles{.luaInterpreter = &luaInterpreter,
+                               .assetFactory = &assetFactory};
     if (!modManager.loadMods(ptrHandles))
     {
         LG_E("Failed to load mods");

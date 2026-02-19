@@ -313,7 +313,9 @@ void MainWindow::startLoading()
             mod::PtrHandles ptrHandles{
                 .renderEngine = &renderEngine,
                 .userInterface = &userInterface,
-                .luaInterpreter = &luaInterpreter};
+                .luaInterpreter = &luaInterpreter,
+                .assetFactory = &assetFactory,
+            };
             if (!modManager.loadMods(ptrHandles))
             {
                 LG_E("Failed to load mods");
