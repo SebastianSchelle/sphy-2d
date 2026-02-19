@@ -3,6 +3,7 @@
 #include "vertex-defines.hpp"
 #include <bgfx/platform.h>
 #include <bx/bx.h>
+#include <comp-ident.hpp>
 #include <main-window.hpp>
 #include <os-helper.hpp>
 #include <sol/sol.hpp>
@@ -98,6 +99,11 @@ bool MainWindow::initPre()
 {
     client.startClient();
 
+    auto cFac = &assetFactory.componentFactory;
+    cFac->registerComponent<ecs::Transform>("trans");
+    cFac->registerComponent<ecs::PhysicsBody>("phy");
+    cFac->registerComponent<ecs::AssetId>("asset-id");
+
     if (!glfwInit())
     {
         LG_E("GLFW initialization failed");
@@ -190,21 +196,6 @@ bool MainWindow::createWindow()
 
 void MainWindow::winLoop()
 {
-    gfx::VertexPosColTex vertexData[] = {
-        {0.0f, 0.0f, 0xffffffff, 0.0f, 0.0f},
-        {0.0f, 400.0f, 0xffffffff, 0.0f, 150.0f},
-        {400.0f, 0.0f, 0xffffffff, 145.0f, 0.0f},
-        {400.0f, 400.0f, 0xffffffff, 145.0f, 150.0f},
-    };
-    uint16_t indexData[] = {0, 1, 2, 2, 1, 3};
-
-    gfx::GeometryHandle geometryHandle =
-        renderEngine.compileGeometry(vertexData,
-                                     4 * sizeof(gfx::VertexPosColTex),
-                                     indexData,
-                                     6 * sizeof(uint16_t),
-                                     gfx::VertexPosColTex::ms_decl);
-
     lastLoopTime = tim::getCurrentTimeU();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
@@ -270,13 +261,20 @@ void MainWindow::winLoop()
         renderEngine.drawFullScreenTriangles(
             0, renderEngine.getShaderHandle("distantstars"));
 
+        renderEngine.drawRectangle(glm::vec2(200.0f, 60.0f),
+                                   glm::vec2(10.0f, 10.0f),
+                                   0xffffffff,
+                                   4.0f,
+                                   0);
+
+        renderEngine.drawEllipse(glm::vec2(160.0f, 260.0f),
+                                 glm::vec2(50.0f, 100.0f),
+                                 0xffffffff,
+                                 1.0f,
+                                 0);
+
         userInterface.render();
-        //  rmlUiRenderInterface.EnableScissorRegion(false);
-        //  gfx::TextureHandle textureHandle = gfx::TextureHandle::Invalid();
-        //  renderEngine.renderCompiledGeometry(
-        //      gfx::GeometryHandle(0, 1), glm::vec2(200.0f, 150.0f),
-        //      gfx::TextureHandle(2, 1), kClearView);
-        bgfx::frame();
+        renderEngine.endFrame();
     }
 }
 

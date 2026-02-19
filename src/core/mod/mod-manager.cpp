@@ -91,7 +91,7 @@ bool ModManager::checkDependency(const std::string& modId,
             LG_D("Found dependency: {}", dependency);
             if (checkIfDependencyProcessed(dependency))
             {
-                LG_D("Dependency already processed: {}", dependency);
+                LG_D("Dependency already processed");
             }
             else
             {
@@ -396,15 +396,13 @@ void ModManager::populateMenuData(vector<MenuDataMod>& mods)
 bool ModManager::runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo)
 {
     const std::string initScriptPath = modInfo.modDir + "/scripts/init.lua";
-    if (!std::filesystem::exists(initScriptPath))
+    if (std::filesystem::exists(initScriptPath))
     {
-        LG_I("Init script not found: {}", initScriptPath);
-        return true;
-    }
-    if (!ptrHandles.luaInterpreter->storeScript(modInfo.id, initScriptPath))
-    {
-        LG_E("Failed to run init script: {}", initScriptPath);
-        return false;
+        if (!ptrHandles.luaInterpreter->storeScript(modInfo.id, initScriptPath))
+        {
+            LG_E("Failed to run init script: {}", initScriptPath);
+            return false;
+        }
     }
     return true;
 }

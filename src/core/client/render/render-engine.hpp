@@ -9,11 +9,20 @@
 #include <item-lib.hpp>
 #include <shader.hpp>
 #include <texture.hpp>
+#include <vertex-defines.hpp>
 
 namespace gfx
 {
 
 #define INVALID_GEOMETRY_HANDLE 0
+#define MAX_SHAPES 1024
+#define MAX_SHAPE_VERTICES MAX_SHAPES * 4
+#define MAX_SHAPE_INDICES MAX_SHAPES * 6
+
+#define SHAPE_TYPE_RECTANGLE 1.0f
+#define SHAPE_TYPE_CIRCLE 2.0f
+#define SHAPE_TYPE_TRIANGLE 3.0f
+#define SHAPE_TYPE_LINE 4.0f
 
 struct Geometry
 {
@@ -47,6 +56,7 @@ class RenderEngine
         DrawTexRects,
         DrawFullScreenTriangles,
         DrawCompiledGeometry,
+        DrawShapes,
     };
 
     RenderEngine(cfg::ConfigManager& config);
@@ -62,6 +72,7 @@ class RenderEngine
     bool initPost();
 
     void startFrame();
+    void endFrame();
 
     GeometryHandle compileGeometry(const void* vertexData,
                                    size_t vDatSize,
@@ -75,6 +86,7 @@ class RenderEngine
                                 TextureHandle textureHandle,
                                 bgfx::ViewId viewId = 0);
     void setWindowSize(int width, int height);
+    void setWorldCamera(float cameraX, float cameraY, float zoom);
     TextureHandle loadTexture(const std::string& name,
                               const std::string& type,
                               const std::string& path);
@@ -100,16 +112,37 @@ class RenderEngine
                        float rotation,
                        TextureHandle textureHandle,
                        bgfx::ViewId viewId = 0);
-    void drawFullScreenTriangles(bgfx::ViewId viewId, ShaderHandle shaderHandle);
+    void drawFullScreenTriangles(bgfx::ViewId viewId,
+                                 ShaderHandle shaderHandle);
     ShaderHandle getShaderHandle(const std::string& name);
+    void drawRectangle(const glm::vec2& pos,
+                       const glm::vec2& size,
+                       uint32_t colorRGBA,
+                       float thickness,
+                       bgfx::ViewId viewId = 0);
+    void drawEllipse(const glm::vec2& pos,
+                    const glm::vec2& size,
+                    uint32_t colorRGBA,
+                    float thickness,
+                    bgfx::ViewId viewId = 0);
 
   private:
     void cleanUpAll();
     void updateOrtho();
+    void updateWorldView();
     void cleanUpTextures();
     void cleanUpShaders();
     void cleanUpGeometry();
     void changeRenderState(RenderState newState);
+    void submitShapes();
+    void allocateForShapes();
+    void drawBoxShape(float shapeType,
+                      const glm::vec2& pos,
+                      const glm::vec2& size,
+                      uint32_t colorRGBA,
+                      float thickness,
+                      bgfx::ViewId viewId = 0);
+
 
     TextureLoader textureLoader;
     cfg::ConfigManager& config;
@@ -131,6 +164,7 @@ class RenderEngine
     bgfx::UniformHandle u_transform = BGFX_INVALID_HANDLE;
 
     ShaderHandle shaderHandleRml = ShaderHandle::Invalid();
+    ShaderHandle shaderHandleShapes = ShaderHandle::Invalid();
     TextureHandle textureHandleFallback = TextureHandle::Invalid();
 
     tim::Timepoint startTime;
@@ -139,14 +173,27 @@ class RenderEngine
     int winWidth;
     int winHeight;
     float ortho[16];
+    float worldCameraX = 0.0f;
+    float worldCameraY = 0.0f;
+    float worldZoom = 2.0f;
+    float worldView[16];
+    float worldViewProj[16];
     glm::vec2 scissorRegionPosition;
     glm::vec2 scissorRegionSize;
     bool scissorRegionEnabled;
     int texWidth;
     int texHeight;
     RenderState renderState;
-    const bgfx::ViewId kClearView = 0;
+    const bgfx::ViewId kWorldView = 0;
+    const bgfx::ViewId kUiView = 1;
     glm::mat4 geomTransformMatrix;
+
+    bgfx::TransientVertexBuffer tvbSdf;
+    bgfx::TransientIndexBuffer tibSdf;
+    bgfx::ViewId currentViewId = kWorldView;
+    uint32_t currentShapeCount = 0;
+    uint32_t currentShapeVertices = 0;
+    uint32_t currentShapeIndices = 0;
 };
 
 }  // namespace gfx

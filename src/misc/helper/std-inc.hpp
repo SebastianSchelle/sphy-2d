@@ -37,6 +37,7 @@ using tcp = asio::ip::tcp;
 using udp = asio::ip::udp;
 
 using glm::vec2;
+using glm::vec4;
 using Buffer = std::vector<uint8_t>;
 using OutputAdapter = bitsery::OutputBufferAdapter<Buffer>;
 using InputAdapter = bitsery::InputBufferAdapter<Buffer>;

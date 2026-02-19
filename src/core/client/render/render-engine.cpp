@@ -10,6 +10,7 @@ namespace gfx
 bgfx::VertexLayout VertexPosColTex::ms_decl;
 bgfx::VertexLayout PosVertex::ms_decl;
 bgfx::VertexLayout PosColorVertex::ms_decl;
+bgfx::VertexLayout PosColorShapeVertex::ms_decl;
 
 static const PosVertex vertRectangle[] = {{-0.5f, -0.5f},
                                           {0.5f, -0.5f},
@@ -54,8 +55,7 @@ bgfx::IndexBufferHandle Geometry::getIbh() const
 }
 
 RenderEngine::RenderEngine(cfg::ConfigManager& config)
-    : config(config), shaderHandleRml(ShaderHandle::Invalid()),
-      textureHandleFallback(TextureHandle::Invalid())
+    : config(config), textureHandleFallback(TextureHandle::Invalid())
 {
 }
 
@@ -90,6 +90,8 @@ bool RenderEngine::initPre()
 
     PosColorVertex::init();
     PosVertex::init();
+    PosColorShapeVertex::init();
+
     vbhRectangle = bgfx::createVertexBuffer(
         bgfx::copy(vertRectangle, sizeof(vertRectangle)),
         PosColorVertex::ms_decl);
@@ -136,7 +138,8 @@ bool RenderEngine::initPre()
 
     if (!bgfx::isValid(u_transform))
     {
-        u_transform = bgfx::createUniform("u_transform", bgfx::UniformType::Mat4);
+        u_transform =
+            bgfx::createUniform("u_transform", bgfx::UniformType::Mat4);
     }
 
     // Initialize with default size (will be updated when window size is known)
@@ -230,7 +233,8 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
 
     float trArr[] = {translation.x, translation.y, 0.0f, 0.0f};
     bgfx::setUniform(u_translation, trArr);
-    bgfx::setUniform(u_proj, ortho);
+    const float* projForView = (viewId == kWorldView) ? worldViewProj : ortho;
+    bgfx::setUniform(u_proj, projForView);
 
     bgfx::setUniform(u_transform, &geomTransformMatrix);
 
@@ -250,12 +254,21 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
                  compiledShaderLib.getItem(shaderHandleRml)->getHandle());
 }
 
+
 void RenderEngine::setWindowSize(int width, int height)
 {
     winWidth = width;
     winHeight = height;
     updateOrtho();
-    bgfx::setViewRect(kClearView, 0, 0, bgfx::BackbufferRatio::Equal);
+    bgfx::setViewRect(kWorldView, 0, 0, bgfx::BackbufferRatio::Equal);
+    bgfx::setViewRect(kUiView, 0, 0, bgfx::BackbufferRatio::Equal);
+}
+
+void RenderEngine::setWorldCamera(float cameraX, float cameraY, float zoom)
+{
+    worldCameraX = cameraX;
+    worldCameraY = cameraY;
+    worldZoom = zoom;
 }
 
 void RenderEngine::updateOrtho()
@@ -269,6 +282,16 @@ void RenderEngine::updateOrtho()
                  1000.0f,           // far
                  0.0f,              // offset
                  bgfx::getCaps()->homogeneousDepth);
+}
+
+void RenderEngine::updateWorldView()
+{
+    float scaleMtx[16];
+    float transMtx[16];
+    bx::mtxScale(scaleMtx, worldZoom, worldZoom, 1.0f);
+    bx::mtxTranslate(transMtx, -worldCameraX, -worldCameraY, 0.0f);
+    bx::mtxMul(worldView, scaleMtx, transMtx);
+    bx::mtxMul(worldViewProj, worldView, ortho);
 }
 
 TextureHandle RenderEngine::loadTexture(const std::string& name,
@@ -391,6 +414,9 @@ void RenderEngine::changeRenderState(RenderState newState)
                 break;
             case (int)RenderState::DrawCompiledGeometry:
                 break;
+            case (int)RenderState::DrawShapes:
+                submitShapes();
+                break;
             default:
                 break;
         }
@@ -404,16 +430,27 @@ void RenderEngine::startFrame()
 
     bool showStats = false;
     bgfx::setDebug(showStats ? BGFX_DEBUG_STATS | BGFX_DEBUG_TEXT : 0);
-    bgfx::touch(0);
+    bgfx::touch(kWorldView);
+    bgfx::touch(kUiView);
 
     bgfx::setViewClear(
-        kClearView, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
+        kWorldView, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
+    bgfx::setViewRect(kWorldView, 0, 0, bgfx::BackbufferRatio::Equal);
+    bgfx::setViewRect(kUiView, 0, 0, bgfx::BackbufferRatio::Equal);
+
+    updateWorldView();
+    bgfx::setViewTransform(kWorldView, worldView, ortho);
 
     tim::Timepoint now = tim::getCurrentTimeU();
     frameTime = (float)tim::durationU(startTime, now) / 1000000.0f;
     float timeVec[4] = {frameTime, 0.0f, 0.0f, 0.0f};
     bgfx::setUniform(u_time, timeVec);
+}
 
+void RenderEngine::endFrame()
+{
+    changeRenderState(RenderState::Idle);
+    bgfx::frame();
 }
 
 void RenderEngine::drawFullScreenTriangles(bgfx::ViewId viewId,
@@ -433,6 +470,127 @@ void RenderEngine::drawFullScreenTriangles(bgfx::ViewId viewId,
 ShaderHandle RenderEngine::getShaderHandle(const std::string& name)
 {
     return compiledShaderLib.getHandle(name);
+}
+
+void RenderEngine::drawBoxShape(float shapeType,
+                                const glm::vec2& pos,
+                                const glm::vec2& size,
+                                uint32_t colorRGBA,
+                                float thickness,
+                                bgfx::ViewId viewId)
+{
+    changeRenderState(RenderState::DrawShapes);
+    currentViewId = viewId;
+    if (currentShapeCount == 0)
+    {
+        allocateForShapes();
+    }
+    else if (currentShapeCount >= MAX_SHAPES)
+    {
+        submitShapes();
+    }
+
+    float thicknessX = 2.0f * thickness / size.x;
+    float thicknessY = 2.0f * thickness / size.y;
+
+    PosColorShapeVertex* vertices = (PosColorShapeVertex*)tvbSdf.data;
+    vec2 hs = size / 2.0f;
+    vertices[currentShapeVertices++] = PosColorShapeVertex{pos.x - hs.x,
+                                                           pos.y - hs.y,
+                                                           -1.0f,
+                                                           -1.0f,
+                                                           colorRGBA,
+                                                           shapeType,
+                                                           thicknessX,
+                                                           thicknessY};
+    vertices[currentShapeVertices++] = PosColorShapeVertex{pos.x + hs.x,
+                                                           pos.y - hs.y,
+                                                           1.0f,
+                                                           -1.0f,
+                                                           colorRGBA,
+                                                           shapeType,
+                                                           thicknessX,
+                                                           thicknessY};
+    vertices[currentShapeVertices++] = PosColorShapeVertex{pos.x - hs.x,
+                                                           pos.y + hs.y,
+                                                           -1.0f,
+                                                           1.0f,
+                                                           colorRGBA,
+                                                           shapeType,
+                                                           thicknessX,
+                                                           thicknessY};
+    vertices[currentShapeVertices++] = PosColorShapeVertex{pos.x + hs.x,
+                                                           pos.y + hs.y,
+                                                           1.0f,
+                                                           1.0f,
+                                                           colorRGBA,
+                                                           shapeType,
+                                                           thicknessX,
+                                                           thicknessY};
+    uint16_t* indices = (uint16_t*)tibSdf.data;
+    indices[currentShapeIndices++] = currentShapeVertices - 4;
+    indices[currentShapeIndices++] = currentShapeVertices - 3;
+    indices[currentShapeIndices++] = currentShapeVertices - 2;
+    indices[currentShapeIndices++] = currentShapeVertices - 3;
+    indices[currentShapeIndices++] = currentShapeVertices - 1;
+    indices[currentShapeIndices++] = currentShapeVertices - 2;
+    currentShapeCount++;
+}
+
+void RenderEngine::drawEllipse(const glm::vec2& pos,
+                               const glm::vec2& size,
+                               uint32_t colorRGBA,
+                               float thickness,
+                               bgfx::ViewId viewId)
+{
+    drawBoxShape(SHAPE_TYPE_CIRCLE, pos, size, colorRGBA, thickness, viewId);
+}
+
+void RenderEngine::drawRectangle(const glm::vec2& pos,
+                                 const glm::vec2& size,
+                                 uint32_t colorRGBA,
+                                 float thickness,
+                                 bgfx::ViewId viewId)
+{
+    drawBoxShape(SHAPE_TYPE_RECTANGLE, pos, size, colorRGBA, thickness, viewId);
+}
+
+
+void RenderEngine::allocateForShapes()
+{
+    if (bgfx::getAvailTransientVertexBuffer(MAX_SHAPES * 4,
+                                            PosColorShapeVertex::ms_decl)
+        && bgfx::getAvailTransientIndexBuffer(MAX_SHAPES * 6, false))
+    {
+        bgfx::allocTransientVertexBuffer(
+            &tvbSdf, MAX_SHAPES, PosColorShapeVertex::ms_decl);
+        bgfx::allocTransientIndexBuffer(&tibSdf, MAX_SHAPES, false);
+    }
+}
+
+void RenderEngine::submitShapes()
+{
+    if (currentShapeCount > 0)
+    {
+        if (!shaderHandleShapes.isValid())
+        {
+            shaderHandleShapes = getShaderHandle("sdf-shapes");
+            return;
+        }
+        uint64_t state =
+            BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
+            | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
+                                    BGFX_STATE_BLEND_INV_SRC_ALPHA);
+        bgfx::setState(state);
+        bgfx::setVertexBuffer(0, &tvbSdf, 0, currentShapeVertices);
+        bgfx::setIndexBuffer(&tibSdf, 0, currentShapeIndices);
+        bgfx::submit(
+            currentViewId,
+            compiledShaderLib.getItem(shaderHandleShapes)->getHandle());
+        currentShapeCount = 0;
+        currentShapeVertices = 0;
+        currentShapeIndices = 0;
+    }
 }
 
 }  // namespace gfx

@@ -71,7 +71,7 @@ void RmlUiRenderInterface::RenderGeometry(Rml::CompiledGeometryHandle geometry,
         geometryHandle,
         glm::vec2(translation.x, translation.y),
         textureHandle,
-        0);  // Use view 0
+        1);  // Use view 1 (UI layer)
 }
 
 void RmlUiRenderInterface::ReleaseGeometry(Rml::CompiledGeometryHandle geometry)

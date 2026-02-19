@@ -11,4 +11,7 @@ shaders:
   texrect:
     vs: vs_texrect.bin
     fs: fs_texrect.bin
+  sdf-shapes:
+    vs: vs_sdf-shape.bin
+    fs: fs_sdf-shape.bin
 
