@@ -261,17 +261,41 @@ void MainWindow::winLoop()
         renderEngine.drawFullScreenTriangles(
             0, renderEngine.getShaderHandle("distantstars"));
 
-        renderEngine.drawRectangle(glm::vec2(200.0f, 60.0f),
-                                   glm::vec2(10.0f, 10.0f),
-                                   0xffffffff,
-                                   4.0f,
-                                   0);
+
+        float t =
+            tim::durationU(renderEngine.getStartTime(), tim::getCurrentTimeU())
+            / 1000000.0f;
+
+        renderEngine.drawRectangle(
+            glm::vec2(200.0f + 50.0f * sin(t), 60.0f + 50.0f * cos(t * 1.5f)),
+            glm::vec2(10.0f, 10.0f),
+            0xffffffff,
+            4.0f,
+            -t * 50.0f,
+            0);
+        renderEngine.drawRectangle(
+            glm::vec2(200.0f + 50.0f * sin(t), 60.0f + 50.0f * cos(t * 1.5f)),
+            glm::vec2(200.0f, 200.0f),
+            0xff00ff10,
+            2.0f,
+            t * 4.0f,
+            0);
 
         renderEngine.drawEllipse(glm::vec2(160.0f, 260.0f),
                                  glm::vec2(50.0f, 100.0f),
                                  0xffffffff,
                                  1.0f,
+                                 t,
                                  0);
+
+
+        renderEngine.drawEllipse(
+            glm::vec2(160.0f, 260.0f),
+            glm::vec2(60.0f + 50.0f * sin(t), 60.0f + 50.0f * cos(t * 1.5f)),
+            0xab0112ff,
+            1.0f,
+            0,
+            0);
 
         userInterface.render();
         renderEngine.endFrame();

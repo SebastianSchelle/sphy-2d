@@ -119,12 +119,15 @@ class RenderEngine
                        const glm::vec2& size,
                        uint32_t colorRGBA,
                        float thickness,
+                       float rotationRad = 0.0f,
                        bgfx::ViewId viewId = 0);
     void drawEllipse(const glm::vec2& pos,
                     const glm::vec2& size,
                     uint32_t colorRGBA,
                     float thickness,
+                    float rotationRad = 0.0f,
                     bgfx::ViewId viewId = 0);
+    tim::Timepoint getStartTime() const;
 
   private:
     void cleanUpAll();
@@ -141,6 +144,7 @@ class RenderEngine
                       const glm::vec2& size,
                       uint32_t colorRGBA,
                       float thickness,
+                      float rotationRad = 0.0f,
                       bgfx::ViewId viewId = 0);
 
 

@@ -477,6 +477,7 @@ void RenderEngine::drawBoxShape(float shapeType,
                                 const glm::vec2& size,
                                 uint32_t colorRGBA,
                                 float thickness,
+                                float rotationRad,
                                 bgfx::ViewId viewId)
 {
     changeRenderState(RenderState::DrawShapes);
@@ -495,38 +496,36 @@ void RenderEngine::drawBoxShape(float shapeType,
 
     PosColorShapeVertex* vertices = (PosColorShapeVertex*)tvbSdf.data;
     vec2 hs = size / 2.0f;
-    vertices[currentShapeVertices++] = PosColorShapeVertex{pos.x - hs.x,
-                                                           pos.y - hs.y,
-                                                           -1.0f,
-                                                           -1.0f,
+    const float cx = pos.x, cy = pos.y;
+
+    vertices[currentShapeVertices++] = PosColorShapeVertex{-hs.x, -hs.y,
+                                                           -1.0f, -1.0f,
                                                            colorRGBA,
                                                            shapeType,
                                                            thicknessX,
-                                                           thicknessY};
-    vertices[currentShapeVertices++] = PosColorShapeVertex{pos.x + hs.x,
-                                                           pos.y - hs.y,
-                                                           1.0f,
-                                                           -1.0f,
+                                                           thicknessY,
+                                                           cx, cy, rotationRad};
+    vertices[currentShapeVertices++] = PosColorShapeVertex{hs.x, -hs.y,
+                                                           1.0f, -1.0f,
                                                            colorRGBA,
                                                            shapeType,
                                                            thicknessX,
-                                                           thicknessY};
-    vertices[currentShapeVertices++] = PosColorShapeVertex{pos.x - hs.x,
-                                                           pos.y + hs.y,
-                                                           -1.0f,
-                                                           1.0f,
+                                                           thicknessY,
+                                                           cx, cy, rotationRad};
+    vertices[currentShapeVertices++] = PosColorShapeVertex{-hs.x, hs.y,
+                                                           -1.0f, 1.0f,
                                                            colorRGBA,
                                                            shapeType,
                                                            thicknessX,
-                                                           thicknessY};
-    vertices[currentShapeVertices++] = PosColorShapeVertex{pos.x + hs.x,
-                                                           pos.y + hs.y,
-                                                           1.0f,
-                                                           1.0f,
+                                                           thicknessY,
+                                                           cx, cy, rotationRad};
+    vertices[currentShapeVertices++] = PosColorShapeVertex{hs.x, hs.y,
+                                                           1.0f, 1.0f,
                                                            colorRGBA,
                                                            shapeType,
                                                            thicknessX,
-                                                           thicknessY};
+                                                           thicknessY,
+                                                           cx, cy, rotationRad};
     uint16_t* indices = (uint16_t*)tibSdf.data;
     indices[currentShapeIndices++] = currentShapeVertices - 4;
     indices[currentShapeIndices++] = currentShapeVertices - 3;
@@ -541,20 +540,28 @@ void RenderEngine::drawEllipse(const glm::vec2& pos,
                                const glm::vec2& size,
                                uint32_t colorRGBA,
                                float thickness,
+                               float rotationRad,
                                bgfx::ViewId viewId)
 {
-    drawBoxShape(SHAPE_TYPE_CIRCLE, pos, size, colorRGBA, thickness, viewId);
+    drawBoxShape(SHAPE_TYPE_CIRCLE, pos, size, colorRGBA, thickness,
+                 rotationRad, viewId);
 }
 
 void RenderEngine::drawRectangle(const glm::vec2& pos,
                                  const glm::vec2& size,
                                  uint32_t colorRGBA,
                                  float thickness,
+                                 float rotationRad,
                                  bgfx::ViewId viewId)
 {
-    drawBoxShape(SHAPE_TYPE_RECTANGLE, pos, size, colorRGBA, thickness, viewId);
+    drawBoxShape(SHAPE_TYPE_RECTANGLE, pos, size, colorRGBA, thickness,
+                 rotationRad, viewId);
 }
 
+tim::Timepoint RenderEngine::getStartTime() const
+{
+    return startTime;
+}
 
 void RenderEngine::allocateForShapes()
 {
