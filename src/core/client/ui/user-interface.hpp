@@ -25,11 +25,11 @@ class UserInterface
     bool init(glm::ivec2 windowSize);
     void update();
     void setDimensions(glm::ivec2 windowSize);
-    void processMouseMove(glm::ivec2 mousePos, int keyMod);
-    void processMouseButtonDown(int button, int keyMod);
-    void processMouseButtonUp(int button, int keyMod);
+    bool processMouseMove(glm::ivec2 mousePos, int keyMod);
+    bool processMouseButtonDown(int button, int keyMod);
+    bool processMouseButtonUp(int button, int keyMod);
     bool isMouseInteracting();
-    void processMouseWheel(int delta, int keyMod);
+    bool processMouseWheel(int delta, int keyMod);
     bool processKeyDown(Rml::Input::KeyIdentifier key);
     bool processKeyUp(Rml::Input::KeyIdentifier key);
     void processTextInput(Rml::Character codepoint);

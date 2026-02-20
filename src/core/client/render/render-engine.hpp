@@ -86,7 +86,9 @@ class RenderEngine
                                 TextureHandle textureHandle,
                                 bgfx::ViewId viewId = 0);
     void setWindowSize(int width, int height);
-    void setWorldCamera(float cameraX, float cameraY, float zoom);
+    void setWorldCamera(const glm::vec2& position, float zoom);
+    void zoomWorld(float amount);
+    void setWorldCameraPosition(const glm::vec2& position);
     TextureHandle loadTexture(const std::string& name,
                               const std::string& type,
                               const std::string& path);
@@ -146,7 +148,6 @@ class RenderEngine
                       float thickness,
                       float rotationRad = 0.0f,
                       bgfx::ViewId viewId = 0);
-
 
     TextureLoader textureLoader;
     cfg::ConfigManager& config;

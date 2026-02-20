@@ -42,30 +42,33 @@ void UserInterface::update()
     rmlContext->Update();
 }
 
-void UserInterface::processMouseMove(glm::ivec2 mousePos, int keyMod)
+bool UserInterface::processMouseMove(glm::ivec2 mousePos, int keyMod)
 {
     mouseOverUi = !rmlContext->ProcessMouseMove(mousePos.x, mousePos.y, keyMod);
+    return mouseOverUi;
 }
 
-void UserInterface::processMouseButtonDown(int button, int keyMod)
+bool UserInterface::processMouseButtonDown(int button, int keyMod)
 {
     if (button >= 3)
     {
         LG_E("Button index out of range");
-        return;
+        return false;
     }
     mouseDownInteract[button] =
         !rmlContext->ProcessMouseButtonDown(button, keyMod);
+    return mouseDownInteract[button];
 }
 
-void UserInterface::processMouseButtonUp(int button, int keyMod)
+bool UserInterface::processMouseButtonUp(int button, int keyMod)
 {
     if (button >= 3)
     {
         LG_E("Button index out of range");
-        return;
+        return false;
     }
     mouseUpInteract[button] = !rmlContext->ProcessMouseButtonUp(button, keyMod);
+    return mouseUpInteract[button];
 }
 
 bool UserInterface::processKeyDown(Rml::Input::KeyIdentifier key)
@@ -83,10 +86,11 @@ bool UserInterface::isMouseInteracting()
     return rmlContext->IsMouseInteracting();
 }
 
-void UserInterface::processMouseWheel(int delta, int keyMod)
+bool UserInterface::processMouseWheel(int delta, int keyMod)
 {
     float wheel = -delta * 1.0f;
     mouseWheelInteract = !rmlContext->ProcessMouseWheel(wheel, keyMod);
+    return mouseWheelInteract;
 }
 
 void UserInterface::setDimensions(glm::ivec2 windowSize)

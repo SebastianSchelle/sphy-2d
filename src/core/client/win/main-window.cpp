@@ -214,8 +214,10 @@ void MainWindow::winLoop()
         processMouseState();
         handleWinResize();
 
-        userInterface.processMouseMove(mouseState.mousePos, 0);
-        userInterface.processMouseWheel(mouseState.mz, 0);
+        bool mouseOverUi =
+            userInterface.processMouseMove(mouseState.mousePos, 0);
+        bool mouseWheelInteract =
+            userInterface.processMouseWheel(mouseState.mz, 0);
         for (int i = 0; i < 3; ++i)
         {
             if (mouseState.buttonPressed[i])
@@ -226,6 +228,11 @@ void MainWindow::winLoop()
             {
                 userInterface.processMouseButtonUp(i, 0);
             }
+        }
+
+        if (!mouseOverUi && !mouseWheelInteract)
+        {
+            renderEngine.zoomWorld(mouseState.mz);
         }
 
         static uint16_t updCnt = 0;
@@ -241,7 +248,6 @@ void MainWindow::winLoop()
         }
 
         userInterface.update();
-        renderEngine.startFrame();
 
         switch (state)
         {
@@ -257,14 +263,19 @@ void MainWindow::winLoop()
                 break;
         }
 
-        // Draw star background
-        renderEngine.drawFullScreenTriangles(
-            0, renderEngine.getShaderHandle("distantstars"));
-
-
         float t =
             tim::durationU(renderEngine.getStartTime(), tim::getCurrentTimeU())
             / 1000000.0f;
+
+
+        renderEngine.startFrame();
+
+        renderEngine.setWorldCameraPosition(
+            glm::vec2(200.0f + 50.0f * sin(t), 60.0f + 50.0f * cos(t * 1.5f)));
+
+        // Draw star background
+        renderEngine.drawFullScreenTriangles(
+            0, renderEngine.getShaderHandle("distantstars"));
 
         renderEngine.drawRectangle(
             glm::vec2(200.0f + 50.0f * sin(t), 60.0f + 50.0f * cos(t * 1.5f)),

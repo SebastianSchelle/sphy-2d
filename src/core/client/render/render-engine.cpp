@@ -1,5 +1,6 @@
 #include "render-engine.hpp"
 #include "bgfx/bgfx.h"
+#include "config-manager.hpp"
 #include "logging.hpp"
 #include "std-inc.hpp"
 #include "vertex-defines.hpp"
@@ -264,10 +265,10 @@ void RenderEngine::setWindowSize(int width, int height)
     bgfx::setViewRect(kUiView, 0, 0, bgfx::BackbufferRatio::Equal);
 }
 
-void RenderEngine::setWorldCamera(float cameraX, float cameraY, float zoom)
+void RenderEngine::setWorldCamera(const glm::vec2& position, float zoom)
 {
-    worldCameraX = cameraX;
-    worldCameraY = cameraY;
+    worldCameraX = position.x;
+    worldCameraY = position.y;
     worldZoom = zoom;
 }
 
@@ -288,9 +289,11 @@ void RenderEngine::updateWorldView()
 {
     float scaleMtx[16];
     float transMtx[16];
+    float trX = -worldCameraX + (winWidth * 0.5f) / worldZoom;
+    float trY = -worldCameraY + (winHeight * 0.5f) / worldZoom;
     bx::mtxScale(scaleMtx, worldZoom, worldZoom, 1.0f);
-    bx::mtxTranslate(transMtx, -worldCameraX, -worldCameraY, 0.0f);
-    bx::mtxMul(worldView, scaleMtx, transMtx);
+    bx::mtxTranslate(transMtx, trX, trY, 0.0f);
+    bx::mtxMul(worldView, transMtx, scaleMtx);
     bx::mtxMul(worldViewProj, worldView, ortho);
 }
 
@@ -588,6 +591,9 @@ void RenderEngine::submitShapes()
             BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
             | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
                                     BGFX_STATE_BLEND_INV_SRC_ALPHA);
+        
+        const float* projForView = (currentViewId == kWorldView) ? worldViewProj : ortho;
+        bgfx::setUniform(u_proj, projForView);
         bgfx::setState(state);
         bgfx::setVertexBuffer(0, &tvbSdf, 0, currentShapeVertices);
         bgfx::setIndexBuffer(&tibSdf, 0, currentShapeIndices);
@@ -598,6 +604,33 @@ void RenderEngine::submitShapes()
         currentShapeVertices = 0;
         currentShapeIndices = 0;
     }
+}
+
+void RenderEngine::zoomWorld(float amount)
+{
+    worldZoom += amount * CFG_FLOAT(config, "gfx", "zoom-step", "world");
+    if(amount > 0)
+    {
+    float maxZoom = CFG_FLOAT(config, "gfx", "max-zoom", "world");
+        if(worldZoom > maxZoom)
+        {
+            worldZoom = maxZoom;
+        }
+    }
+    else
+    {
+        float minZoom = CFG_FLOAT(config, "gfx", "min-zoom", "world");
+        if(worldZoom < minZoom)
+        {
+            worldZoom = minZoom;
+        }
+    }
+}
+
+void RenderEngine::setWorldCameraPosition(const glm::vec2& position)
+{
+    worldCameraX = position.x;
+    worldCameraY = position.y;
 }
 
 }  // namespace gfx
