@@ -287,6 +287,7 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
             {
                 if (cmdData.sendType == net::SendType::TCP)
                 {
+                    LG_I("Connect request from tcp");
                     std::string token;
                     uint16_t portUdp;
                     cmddes.text1b(token, 16);

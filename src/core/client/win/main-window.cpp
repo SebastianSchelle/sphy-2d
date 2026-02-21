@@ -578,6 +578,9 @@ void MainWindow::setupDataModelMenu()
             "onBack", &UserInterface::onMenuBack, &userInterface);
         menuConstructor.BindEventCallback(
             "onNewGame", &MainWindow::onNewGame, this);
+        menuConstructor.BindEventCallback(
+            "connectToServer", &MainWindow::onConnectToServer, this);
+
         if (auto md_handle = menuConstructor.RegisterStruct<mod::MenuDataMod>())
         {
             md_handle.RegisterMember("id", &mod::MenuDataMod::id);
@@ -588,8 +591,20 @@ void MainWindow::setupDataModelMenu()
                                      &mod::MenuDataMod::hasModOptions);
         }
         menuConstructor.RegisterArray<std::vector<mod::MenuDataMod>>();
-
         menuConstructor.Bind("mods", &menuData.mods);
+
+        if (auto md_handle = menuConstructor.RegisterStruct<MenuConnectData>())
+        {
+            md_handle.RegisterMember("token", &MenuConnectData::token);
+            md_handle.RegisterMember("ipAddress", &MenuConnectData::ipAddress);
+            md_handle.RegisterMember("udpPortServ",
+                                     &MenuConnectData::udpPortServ);
+            md_handle.RegisterMember("tcpPortServ",
+                                     &MenuConnectData::tcpPortServ);
+            md_handle.RegisterMember("udpPortCli",
+                                     &MenuConnectData::udpPortCli);
+        }
+        menuConstructor.Bind("connectData", &menuData.connectData);
 
         rmlModelMenu = menuConstructor.GetModelHandle();
     }
@@ -623,6 +638,17 @@ void MainWindow::stopServer()
         delete serverProcess;
         serverProcess = nullptr;
     }
+}
+
+void MainWindow::onConnectToServer(Rml::DataModelHandle handle,
+                                   Rml::Event& event,
+                                   const Rml::VariantList& args)
+{
+    client.connectToServer(menuData.connectData.token,
+                           menuData.connectData.ipAddress,
+                           menuData.connectData.udpPortServ,
+                           menuData.connectData.tcpPortServ,
+                           menuData.connectData.udpPortCli);
 }
 
 }  // namespace ui

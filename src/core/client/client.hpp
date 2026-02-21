@@ -2,12 +2,12 @@
 #define CLIENT_HPP
 
 // #include <tcp-client.hpp>
-#include <config-manager/config-manager.hpp>
-#include <udp-client.hpp>
-#include <tcp-client.hpp>
-#include <model.hpp>
 #include <client-def.hpp>
+#include <config-manager/config-manager.hpp>
+#include <model.hpp>
 #include <protocol.hpp>
+#include <tcp-client.hpp>
+#include <udp-client.hpp>
 
 namespace sphyc
 {
@@ -18,7 +18,11 @@ class Client
     Client(cfg::ConfigManager& config);
     ~Client();
     void startClient();
-    void connectToServer();
+    void connectToServer(const std::string& token,
+                         const std::string& ipAddress,
+                         int udpPortServ,
+                         int tcpPortServ,
+                         int udpPortCli);
     void shutdown();
     void wait();  // Wait for model thread to finish
 
@@ -39,6 +43,6 @@ class Client
     std::atomic<bool> spdlogShutdown{false};
 };
 
-}  // namespace sphys
+}  // namespace sphyc
 
 #endif

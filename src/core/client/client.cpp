@@ -6,8 +6,6 @@ namespace sphyc
 Client::Client(cfg::ConfigManager& config)
     : model(), config(config), sendTimer(ioContext)
 {
-    // Setup for testing
-    clientInfo.token = "1234abcd1234abcd";
 }
 
 Client::~Client()
@@ -64,55 +62,54 @@ void Client::wait()
     }
 }
 
-void Client::connectToServer()
+void Client::connectToServer(const std::string& token,
+                             const std::string& ipAddress,
+                             int udpPortServ,
+                             int tcpPortServ,
+                             int udpPortCli)
 {
-    int portUdp = static_cast<int>(
-        std::get<float>(config.get({"connection", "client-port-udp"})));
-    int servPortUdp = static_cast<int>(
-        std::get<float>(config.get({"connection", "serv-port-udp"})));
-    int servPortTcp = static_cast<int>(
-        std::get<float>(config.get({"connection", "serv-port-tcp"})));
-    string serverIp =
-        std::get<std::string>(config.get({"connection", "server-ip"}));
+    clientInfo.token = token;
+    clientInfo.name = "Client";
 
     // tcpClient = std::make_unique<TcpClient>(ioContext, portTcp);
     udpClient = std::make_unique<net::UdpClient>(
         ioContext,
-        portUdp,
-        udp::endpoint(boost::asio::ip::address::from_string(serverIp),
-                      servPortUdp),
+        udpPortCli,
+        udp::endpoint(boost::asio::ip::address::from_string(ipAddress),
+                      udpPortServ),
         std::bind(&Client::udpReceive,
                   this,
                   std::placeholders::_1,
                   std::placeholders::_2));
     LG_D("Setup udp socket to server at {}:{} on port {}",
-         serverIp,
-         servPortUdp,
-         portUdp);
+         ipAddress.c_str(),
+         udpPortServ,
+         udpPortCli);
 
     tcpClient = std::make_unique<net::TcpClient>(
         ioContext,
-        tcp::endpoint(boost::asio::ip::address::from_string(serverIp),
-                      servPortTcp),
+        tcp::endpoint(boost::asio::ip::address::from_string(ipAddress),
+                      tcpPortServ),
         std::bind(&Client::tcpReceive,
                   this,
                   std::placeholders::_1,
                   std::placeholders::_2));
     LG_D("Setup tcp socket to server at {}:{} on port {}",
-         serverIp,
-         servPortTcp,
-         portUdp);
+         ipAddress,
+         tcpPortServ,
+         udpPortCli);
 
     // ioContext is already running in ioThread for signal handling
     // No need to start a new thread
 
     CMDAT_PREP(net::SendType::TCP, prot::cmd::CONNECT, 0)
-    std::string token = "1234abcd1234abcd";
-    cmdser.text1b(token, token.size());
-    cmdser.value2b((uint16_t)portUdp);
+    cmdser.text1b(token, 16);
+    cmdser.value2b((uint16_t)udpPortCli);
     CMDAT_FIN()
     model.sendQueue.enqueue(cmdData);
 
+    // Post scheduleSend onto the io_context so the timer is armed on the
+    // correct executor (same thread that runs io_context.run()).
     scheduleSend();
     // Don't join ioThread here - it's already running and will be joined in
     // shutdown()
@@ -120,15 +117,19 @@ void Client::connectToServer()
 
 void Client::scheduleSend()
 {
+    LG_W("Scheduling send");
     sendTimer.expires_after(std::chrono::milliseconds(10));
     sendTimer.async_wait(
         [this](boost::system::error_code ec)
         {
+            LG_W("Send timer async_wait callback");
             if (!ec)
             {
+                LG_W("Sending timer expired");
                 net::CmdQueueData sendData;
                 while (model.sendQueue.try_dequeue(sendData))
                 {
+                    LG_I("Sending command");
                     if (sendData.sendType == net::SendType::UDP)
                     {
                         bitsery::Serializer<OutputAdapter> cmdser(

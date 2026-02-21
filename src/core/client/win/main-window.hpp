@@ -51,9 +51,19 @@ struct WindowInfo
     glm::ivec2 size;
 };
 
+struct MenuConnectData
+{
+  std::string token = "1234abcd1234abcd";
+  std::string ipAddress = "127.0.0.1";
+  int udpPortServ = 29201;
+  int tcpPortServ = 29200;
+  int udpPortCli = 29202;
+};
+
 struct MenuData
 {
     vector<mod::MenuDataMod> mods;
+    MenuConnectData connectData;
 };
 
 class MainWindow
@@ -107,6 +117,10 @@ class MainWindow
     void onNewGame(Rml::DataModelHandle handle,
                    Rml::Event& event,
                    const Rml::VariantList& args);
+
+    void onConnectToServer(Rml::DataModelHandle handle,
+                         Rml::Event& event,
+                         const Rml::VariantList& args);
 
     static Rml::Input::KeyIdentifier glfwToRmlKey(int key);
 
