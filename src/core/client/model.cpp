@@ -8,50 +8,22 @@ Model::Model() {}
 
 Model::~Model()
 {
-    stop();
-    wait();  // Ensure thread is joined
 }
 
-void Model::start()
+void Model::modelLoop(float dt)
 {
-    running = true;
-    modelThread = std::thread([this]() { modelLoop(); });
-}
-
-void Model::stop()
-{
-    running = false;
-}
-
-void Model::wait()
-{
-    if (modelThread.joinable())
+    net::CmdQueueData recQueueData;
+    while (receiveQueue.try_dequeue(recQueueData))
     {
-        modelThread.join();
+        parseCommand(recQueueData.data);
     }
-}
-
-void Model::modelLoop()
-{
-    while (running)
+    if (connectionState == GameState::DISCONNECTED)
     {
-        net::CmdQueueData recQueueData;
-        while (receiveQueue.try_dequeue(recQueueData))
-        {
-            parseCommand(recQueueData.data);
-        }
-        if (!running)
-        {
-            break;
-        }
-        if (connectionState == ConnectionState::DISCONNECTED)
-        {
-            modelLoopMenu();
-        }
-        else if (connectionState == ConnectionState::CONNECTED)
-        {
-            modelLoopGame();
-        }
+        modelLoopMenu(dt);
+    }
+    else if (connectionState == GameState::CONNECTED)
+    {
+        modelLoopGame(dt);
     }
 }
 
@@ -65,30 +37,27 @@ void Model::timeSync()
     sendQueue.enqueue(cmdData);
 }
 
-void Model::modelLoopMenu()
+void Model::modelLoopMenu(float dt)
 {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
-void Model::modelLoopGame()
+void Model::modelLoopGame(float dt)
 {
     static tim::Timepoint lastTSync = tim::getCurrentTimeU();
     tim::Timepoint now = tim::getCurrentTimeU();
 
     // Send some stuff to server
-    CMDAT_PREP_TOKEN(net::SendType::UDP, prot::cmd::LOG, 0)
+    /*CMDAT_PREP_TOKEN(net::SendType::UDP, prot::cmd::LOG, 0)
     std::string str = "Hello World!";
     cmdser.text1b(str, str.size());
     CMDAT_FIN_TOKEN()
-    sendQueue.enqueue(cmdData);
+    sendQueue.enqueue(cmdData);*/
 
     if (tim::durationU(lastTSync, now) > 2000000)
     {
-        // timeSync();
+        timeSync();
         lastTSync = now;
     }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
 }
 
 void Model::parseCommand(std::vector<uint8_t> data)
@@ -117,6 +86,7 @@ void Model::parseCommand(std::vector<uint8_t> data)
             {
                 timeSyncData.t1 = tim::getCurrentTimeU();
                 timeSyncData.waiting = false;
+                LG_I("Time sync successful");
             }
             break;
         }
@@ -125,7 +95,7 @@ void Model::parseCommand(std::vector<uint8_t> data)
             if (flags & CMD_FLAG_RESP)
             {
                 LG_I("Authentication successful");
-                connectionState = ConnectionState::CONNECTED;
+                connectionState = GameState::CONNECTED;
             }
             break;
         }

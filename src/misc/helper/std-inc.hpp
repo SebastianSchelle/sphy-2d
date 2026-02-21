@@ -114,7 +114,7 @@ bool LOAD_OBJ(
                        uint16_t,
                        bitsery::Deserializer<InputAdapter>&)> callback);
 
-enum class ConnectionState
+enum class GameState
 {
     DISCONNECTED,
     CONNECTING,

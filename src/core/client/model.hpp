@@ -17,23 +17,18 @@ class Model
   public:
     Model();
     ~Model();
-    void start();
-    void stop();
-    void wait();  // Wait for model thread to finish
     void parseCommand(std::vector<uint8_t> data);
+    void modelLoop(float dt);
 
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
 
   private:
-    void modelLoop();
-    void modelLoopMenu();
-    void modelLoopGame();
+    void modelLoopMenu(float dt);
+    void modelLoopGame(float dt);
     void timeSync();
-    std::thread modelThread;
-    std::atomic<bool> running{false};
     net::TimeSync timeSyncData;
-    ConnectionState connectionState = ConnectionState::DISCONNECTED;
+    GameState connectionState = GameState::DISCONNECTED;
 };
 
 }  // namespace sphyc

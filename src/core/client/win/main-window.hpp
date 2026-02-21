@@ -16,6 +16,7 @@
 #include <ui/rmlui-systeminterface.hpp>
 #include <ui/user-interface.hpp>
 #include <asset-factory.hpp>
+#include <model.hpp>
 
 namespace ui
 {
@@ -135,6 +136,7 @@ class MainWindow
     mod::ModManager modManager;
     ui::UserInterface userInterface;
     mod::LuaInterpreter luaInterpreter;
+    sphyc::Model model;
 
     State state = State::Init;
 

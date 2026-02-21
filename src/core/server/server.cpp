@@ -54,7 +54,8 @@ void Server::startUdpTcp()
                                          std::bind(&Server::udpReceive,
                                                    this,
                                                    std::placeholders::_1,
-                                                   std::placeholders::_2));
+                                                   std::placeholders::_2,
+                                                   std::placeholders::_3));
     LG_D("Setup socket on port-udp={}", portUdp);
 
     ioThread = std::thread([this]() { ioContext.run(); });
@@ -106,12 +107,13 @@ void Server::scheduleSend()
 }
 
 
-void Server::udpReceive(const char* data, size_t length)
+void Server::udpReceive(udp::endpoint endpoint, const char* data, size_t length)
 {
     if (length >= 21)
     {
         net::CmdQueueData cmdData;
         cmdData.sendType = net::SendType::UDP;
+        cmdData.udpEndpoint = endpoint;
         cmdData.data.insert(cmdData.data.end(), data, data + length);
         engine.receiveQueue.enqueue(cmdData);
     }

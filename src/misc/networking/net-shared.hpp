@@ -8,7 +8,8 @@ namespace net
 {
 
 
-typedef std::function<void(const char* data, size_t length)> ReceiveCallback;
+typedef std::function<void(udp::endpoint endpoint, const char* data, size_t length)> ReceiveCallback;
+typedef std::function<void(const char* data, size_t length)> TcpReceiveCallback;
 
 class TcpConnection;
 typedef std::function<void(const char* data,

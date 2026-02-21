@@ -91,7 +91,7 @@ void Engine::engineLoop()
                 DO_PERIODIC(lastSaveTime, TIM_5M, saveGame)
 
                 // test
-                for (int i = 0; i < activeClientHandles.size(); i++)
+                /*for (int i = 0; i < activeClientHandles.size(); i++)
                 {
                     net::ClientInfoHandle handle = activeClientHandles[i];
                     net::ClientInfo* clientInfo = clientLib.getItem(handle);
@@ -104,7 +104,7 @@ void Engine::engineLoop()
                         CMDAT_FIN()
                         sendQueue.enqueue(cmdData);
                     }
-                }
+                }*/
             }
             break;
             case EngineState::Paused:
@@ -239,6 +239,7 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
     uint8_t flags;
     uint16_t len;
     std::string uuid;
+    std::optional<udp::endpoint> udpEndpoint;
 
     try
     {
@@ -249,6 +250,7 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
         if (cmdData.sendType == net::SendType::UDP)
         {
             cmddes.text1b(uuid, 16);
+            udpEndpoint = cmdData.udpEndpoint;
         }
         cmddes.value2b(cmd);
         cmddes.value1b(flags);
@@ -280,6 +282,11 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
                 cmdser.value8b(secs);
                 cmdser.value4b(usec);
                 CMDAT_FIN()
+                if(udpEndpoint)
+                {
+                    cmdData.udpEndpoint = *udpEndpoint;
+                    cmdData.udpPort = udpEndpoint->port();
+                }
                 sendQueue.enqueue(cmdData);
                 break;
             }

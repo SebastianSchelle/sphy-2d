@@ -69,8 +69,9 @@ void MouseState::processMouseButton(uint8_t i)
 MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
     : options(options),
       config(options.workingdir + "/modules/core/defs/client.yaml"),
-      renderEngine(config), rmlUiRenderInterface(&renderEngine), client(config),
-      modManager(), modLoadingHandle(UiDocHandle::Invalid())
+      renderEngine(config), rmlUiRenderInterface(&renderEngine),
+      client(config, model.sendQueue, model.receiveQueue), modManager(),
+      modLoadingHandle(UiDocHandle::Invalid())
 {
     auto path(options.workingdir);
     std::filesystem::current_path(path);
@@ -97,8 +98,6 @@ MainWindow::~MainWindow()
 
 bool MainWindow::initPre()
 {
-    client.startClient();
-
     auto cFac = &assetFactory.componentFactory;
     cFac->registerComponent<ecs::Transform>("trans");
     cFac->registerComponent<ecs::PhysicsBody>("phy");
@@ -208,6 +207,8 @@ void MainWindow::winLoop()
         lastLoopTime = now;
         frameTimeFiltered = 0.9f * frameTimeFiltered + 0.1f * deltaTime;
         fps = 1.0f / frameTimeFiltered;
+
+        model.modelLoop(deltaTime);
 
         mouseState.mz = 0;
         glfwPollEvents();

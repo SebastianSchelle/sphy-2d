@@ -4,10 +4,12 @@
 // #include <tcp-client.hpp>
 #include <client-def.hpp>
 #include <config-manager/config-manager.hpp>
-#include <model.hpp>
 #include <protocol.hpp>
 #include <tcp-client.hpp>
 #include <udp-client.hpp>
+#include <concurrentqueue.h>
+
+using moodycamel::ConcurrentQueue;
 
 namespace sphyc
 {
@@ -15,9 +17,10 @@ namespace sphyc
 class Client
 {
   public:
-    Client(cfg::ConfigManager& config);
+    Client(cfg::ConfigManager& config,
+           ConcurrentQueue<net::CmdQueueData>& modelSendQueue,
+           ConcurrentQueue<net::CmdQueueData>& modelReceiveQueue);
     ~Client();
-    void startClient();
     void connectToServer(const std::string& token,
                          const std::string& ipAddress,
                          int udpPortServ,
@@ -31,7 +34,6 @@ class Client
     void udpReceive(const char* data, size_t length);
     void tcpReceive(const char* data, size_t length);
 
-    Model model;
     std::unique_ptr<net::UdpClient> udpClient;
     std::unique_ptr<net::TcpClient> tcpClient;
     boost::asio::io_context ioContext;
@@ -41,6 +43,8 @@ class Client
     net::ClientInfo clientInfo;
     std::atomic<bool> shuttingDown{false};
     std::atomic<bool> spdlogShutdown{false};
+    ConcurrentQueue<net::CmdQueueData>& modelSendQueue;
+    ConcurrentQueue<net::CmdQueueData>& modelReceiveQueue;
 };
 
 }  // namespace sphyc

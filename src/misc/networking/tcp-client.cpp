@@ -5,7 +5,7 @@ namespace net
 
 TcpClient::TcpClient(boost::asio::io_context& io_context,
                      tcp::endpoint endpoint,
-                     net::ReceiveCallback receiveCallback)
+                     net::TcpReceiveCallback receiveCallback)
     : socket(io_context), devServerEndpoint(endpoint), receiveCallback(receiveCallback)
 {
     socket.connect(devServerEndpoint);

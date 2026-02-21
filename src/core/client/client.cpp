@@ -3,33 +3,24 @@
 namespace sphyc
 {
 
-Client::Client(cfg::ConfigManager& config)
-    : model(), config(config), sendTimer(ioContext)
+Client::Client(cfg::ConfigManager& config,
+               ConcurrentQueue<net::CmdQueueData>& modelSendQueue,
+               ConcurrentQueue<net::CmdQueueData>& modelReceiveQueue)
+    : modelSendQueue(modelSendQueue), modelReceiveQueue(modelReceiveQueue), config(config), sendTimer(ioContext)
 {
 }
 
 Client::~Client()
 {
     shutdown();
-    // Ensure threads are joined in destructor
-    model.wait();
     if (ioThread.joinable())
     {
         ioThread.join();
     }
-    // Shutdown spdlog only once
     if (!spdlogShutdown.exchange(true))
     {
         spdlog::shutdown();
     }
-}
-
-void Client::startClient()
-{
-    // Start ioContext in background thread for signal handling
-    ioThread = std::thread([this]() { ioContext.run(); });
-
-    model.start();
 }
 
 void Client::shutdown()
@@ -39,23 +30,15 @@ void Client::shutdown()
         return;  // Already shutting down
     }
     LG_I("Shutting down client...");
-    ioContext.stop();  // Stop all IO operations (will cause ioContext.run() to
-                       // return)
-    model.stop();      // Stop model thread (sets flag, doesn't join)
-    // Don't join threads here - signal handler might be called from ioThread
-    // itself Threads will be joined in wait() or destructor
+    ioContext.stop();
 }
 
 void Client::wait()
 {
-    // Wait for model thread to finish (will finish when shutdown is called)
-    model.wait();
-    // Now join ioThread (ioContext.run() has returned after stop())
     if (ioThread.joinable())
     {
         ioThread.join();
     }
-    // Shutdown spdlog only once
     if (!spdlogShutdown.exchange(true))
     {
         spdlog::shutdown();
@@ -79,8 +62,8 @@ void Client::connectToServer(const std::string& token,
                       udpPortServ),
         std::bind(&Client::udpReceive,
                   this,
-                  std::placeholders::_1,
-                  std::placeholders::_2));
+                  std::placeholders::_2,
+                  std::placeholders::_3));
     LG_D("Setup udp socket to server at {}:{} on port {}",
          ipAddress.c_str(),
          udpPortServ,
@@ -106,30 +89,26 @@ void Client::connectToServer(const std::string& token,
     cmdser.text1b(token, 16);
     cmdser.value2b((uint16_t)udpPortCli);
     CMDAT_FIN()
-    model.sendQueue.enqueue(cmdData);
+    modelSendQueue.enqueue(cmdData);
 
     // Post scheduleSend onto the io_context so the timer is armed on the
     // correct executor (same thread that runs io_context.run()).
-    scheduleSend();
-    // Don't join ioThread here - it's already running and will be joined in
-    // shutdown()
+    ioContext.post([this]() { scheduleSend(); });
+    // Start ioContext in background thread for signal handling
+    ioThread = std::thread([this]() { ioContext.run(); });
 }
 
 void Client::scheduleSend()
 {
-    LG_W("Scheduling send");
     sendTimer.expires_after(std::chrono::milliseconds(10));
     sendTimer.async_wait(
         [this](boost::system::error_code ec)
         {
-            LG_W("Send timer async_wait callback");
             if (!ec)
             {
-                LG_W("Sending timer expired");
                 net::CmdQueueData sendData;
-                while (model.sendQueue.try_dequeue(sendData))
+                while (modelSendQueue.try_dequeue(sendData))
                 {
-                    LG_I("Sending command");
                     if (sendData.sendType == net::SendType::UDP)
                     {
                         bitsery::Serializer<OutputAdapter> cmdser(
@@ -158,7 +137,7 @@ void Client::udpReceive(const char* data, size_t length)
         net::CmdQueueData cmdData;
         cmdData.sendType = net::SendType::UDP;
         cmdData.data.insert(cmdData.data.end(), data, data + length);
-        model.receiveQueue.enqueue(cmdData);
+        modelReceiveQueue.enqueue(cmdData);
     }
 }
 
@@ -169,7 +148,7 @@ void Client::tcpReceive(const char* data, size_t length)
         net::CmdQueueData cmdData;
         cmdData.sendType = net::SendType::TCP;
         cmdData.data.insert(cmdData.data.end(), data, data + length);
-        model.receiveQueue.enqueue(cmdData);
+        modelReceiveQueue.enqueue(cmdData);
     }
 }
 

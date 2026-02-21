@@ -14,7 +14,7 @@ class TcpClient
   public:
     TcpClient(boost::asio::io_context& io_context,
               tcp::endpoint endpoint,
-              net::ReceiveCallback receiveCallback);
+              net::TcpReceiveCallback receiveCallback);
     void sendMessage(const std::vector<uint8_t>& data);
     void startReceive();
     void handleReceive(const boost::system::error_code& error,
@@ -23,7 +23,7 @@ class TcpClient
   private:
     tcp::socket socket;
     char recvBuf[TCP_REC_BUF_LEN];
-    net::ReceiveCallback receiveCallback;
+    net::TcpReceiveCallback receiveCallback;
     tcp::endpoint devServerEndpoint;
 };
 

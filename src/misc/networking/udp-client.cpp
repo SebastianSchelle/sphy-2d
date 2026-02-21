@@ -51,7 +51,7 @@ void UdpClient::handleReceive(const boost::system::error_code& error,
     {
         if (receiveCallback)
         {
-            receiveCallback(recvBuf, bytes_received);
+            receiveCallback(devServerEndpoint, recvBuf, bytes_received);
         }
         else
         {

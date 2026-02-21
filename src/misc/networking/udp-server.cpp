@@ -27,7 +27,7 @@ void UdpServer::handleReceive(const boost::system::error_code& error,
     {
         if(receiveCallback)
         {
-            receiveCallback(recvBuf, bytesReceived);
+            receiveCallback(remote_endpoint_, recvBuf, bytesReceived);
         }
         else
         {
@@ -43,7 +43,7 @@ void UdpServer::sendMessage(udp::endpoint endpoint,
     socket_.async_send_to(
         boost::asio::buffer(data),
         endpoint,
-        [this](const boost::system::error_code& ec, std::size_t bytes)
+        [this, endpoint](const boost::system::error_code& ec, std::size_t bytes)
         {
             if (ec)
             {
