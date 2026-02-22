@@ -114,11 +114,13 @@ bool LOAD_OBJ(
                        uint16_t,
                        bitsery::Deserializer<InputAdapter>&)> callback);
 
-enum class GameState
+enum class ClientGameState
 {
     DISCONNECTED,
     CONNECTING,
     CONNECTED,
+    LOAD_WORLD,
+    GAME_LOOP,
 };
 
 namespace tim

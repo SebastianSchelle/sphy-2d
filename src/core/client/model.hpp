@@ -1,11 +1,11 @@
 #ifndef MODEL_HPP
 #define MODEL_HPP
 
-#include <atomic>
 #include <std-inc.hpp>
 #include <concurrentqueue.h>
 #include <client-def.hpp>
 #include <net-shared.hpp>
+#include <exchange-sequence.hpp>
 
 using moodycamel::ConcurrentQueue;
 
@@ -28,7 +28,8 @@ class Model
     void modelLoopGame(float dt);
     void timeSync();
     net::TimeSync timeSyncData;
-    GameState connectionState = GameState::DISCONNECTED;
+    ClientGameState connectionState = ClientGameState::DISCONNECTED;
+    net::ExchangeSequence loadWorldSequence;
 };
 
 }  // namespace sphyc

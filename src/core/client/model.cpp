@@ -6,9 +6,7 @@ namespace sphyc
 
 Model::Model() {}
 
-Model::~Model()
-{
-}
+Model::~Model() {}
 
 void Model::modelLoop(float dt)
 {
@@ -17,13 +15,26 @@ void Model::modelLoop(float dt)
     {
         parseCommand(recQueueData.data);
     }
-    if (connectionState == GameState::DISCONNECTED)
+    switch (connectionState)
     {
-        modelLoopMenu(dt);
-    }
-    else if (connectionState == GameState::CONNECTED)
-    {
-        modelLoopGame(dt);
+        case ClientGameState::DISCONNECTED:
+            modelLoopMenu(dt);
+            break;
+        case ClientGameState::CONNECTED:
+            loadWorldSequence.start(sendQueue);
+            connectionState = ClientGameState::LOAD_WORLD;
+            break;
+        case ClientGameState::LOAD_WORLD:
+            if (loadWorldSequence.done())
+            {
+                connectionState = ClientGameState::GAME_LOOP;
+            }
+            break;
+        case ClientGameState::GAME_LOOP:
+            modelLoopGame(dt);
+            break;
+        default:
+            break;
     }
 }
 
@@ -37,9 +48,7 @@ void Model::timeSync()
     sendQueue.enqueue(cmdData);
 }
 
-void Model::modelLoopMenu(float dt)
-{
-}
+void Model::modelLoopMenu(float dt) {}
 
 void Model::modelLoopGame(float dt)
 {
@@ -70,6 +79,7 @@ void Model::parseCommand(std::vector<uint8_t> data)
     cmddes.value2b(cmd);
     cmddes.value1b(flags);
     cmddes.value2b(len);
+    prot::cmd::State result = prot::cmd::State::SUCCESS;
 
     switch (cmd)
     {
@@ -95,12 +105,21 @@ void Model::parseCommand(std::vector<uint8_t> data)
             if (flags & CMD_FLAG_RESP)
             {
                 LG_I("Authentication successful");
-                connectionState = GameState::CONNECTED;
+                connectionState = ClientGameState::CONNECTED;
             }
             break;
         }
         default:
             break;
+    }
+
+    // Callbacks for custom commands...
+
+    // Check exchange sequence progress
+    if (connectionState == ClientGameState::LOAD_WORLD
+        && !loadWorldSequence.done())
+    {
+        loadWorldSequence.advance(sendQueue, cmd, result);
     }
 }
 

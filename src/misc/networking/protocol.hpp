@@ -37,9 +37,17 @@ namespace prot
 
 namespace cmd
 {
+
+enum class State
+{
+    SUCCESS,
+    FAILURE,
+};
+
 const uint16_t LOG = 0x0001;
 const uint16_t TIME_SYNC = 0x0002;
 const uint16_t CONNECT = 0x0003;
+
 }  // namespace cmd
 
 }  // namespace prot
