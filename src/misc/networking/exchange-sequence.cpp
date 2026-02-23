@@ -14,12 +14,20 @@ ExchangeSequence::~ExchangeSequence()
 void ExchangeSequence::registerExchange(Exchange exchange)
 {
     exchanges.push_back(exchange);
+    LG_I("Registered exchange: {}", exchange.command);
 }
 
 void ExchangeSequence::start(ConcurrentQueue<net::CmdQueueData>& sendQueue)
 {
     currentExchange = 0;
-    exchanges[currentExchange].execute(sendQueue);
+    if(exchanges.size() > 0)
+    {
+        exchanges[currentExchange].execute(sendQueue);
+    }
+    else
+    {
+        LG_E("No exchanges registered");
+    }
 }
 
 void ExchangeSequence::advance(ConcurrentQueue<net::CmdQueueData>& sendQueue, uint16_t recCommand, prot::cmd::State recState)
@@ -30,9 +38,9 @@ void ExchangeSequence::advance(ConcurrentQueue<net::CmdQueueData>& sendQueue, ui
         if(recState == prot::cmd::State::SUCCESS)
         {
             curr.successCallback();
-            if(currentExchange < exchanges.size() - 1)
+            currentExchange++;
+            if(currentExchange < exchanges.size())
             {
-                currentExchange++;
                 exchanges[currentExchange].execute(sendQueue);
             }
         }
@@ -62,6 +70,7 @@ Exchange::~Exchange()
 
 void Exchange::execute(ConcurrentQueue<net::CmdQueueData>& sendQueue)
 {
+    LG_I("Executing exchange: {}", command);
     CMDAT_PREP(net::SendType::TCP, command, 0)
     serializeCallback(cmdser);
     CMDAT_FIN_TOKEN()

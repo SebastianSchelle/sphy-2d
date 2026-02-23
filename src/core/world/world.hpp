@@ -6,6 +6,9 @@
 #include <matrix2d.hpp>
 #include <sector.hpp>
 #include <config-manager.hpp>
+#ifdef CLIENT
+#include <render-engine.hpp>
+#endif
 
 namespace world
 {
@@ -17,9 +20,15 @@ class World
     ~World();
     bool createFromConfig(cfg::ConfigManager &config);
     bool createFromSave(cfg::ConfigManager &config, const std::string& savedir);
+    bool createFromServer(const def::WorldShape& worldShape);
     Sector* getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir);
     bool saveWorld(const std::string& savedir);
     void update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle);
+    const def::WorldShape& getWorldShape() const { return worldShape; }
+#ifdef CLIENT
+    void drawDebug(gfx::RenderEngine& renderer, float zoom);
+#endif
+
   private:
     bool initWorld();
     bool initSectors(bool fromSave);

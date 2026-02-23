@@ -573,8 +573,8 @@ void RenderEngine::allocateForShapes()
         && bgfx::getAvailTransientIndexBuffer(MAX_SHAPES * 6, false))
     {
         bgfx::allocTransientVertexBuffer(
-            &tvbSdf, MAX_SHAPES, PosColorShapeVertex::ms_decl);
-        bgfx::allocTransientIndexBuffer(&tibSdf, MAX_SHAPES, false);
+            &tvbSdf, MAX_SHAPES * 4, PosColorShapeVertex::ms_decl);
+        bgfx::allocTransientIndexBuffer(&tibSdf, MAX_SHAPES * 6, false);
     }
 }
 

@@ -240,6 +240,7 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
     uint16_t len;
     std::string uuid;
     std::optional<udp::endpoint> udpEndpoint;
+    std::shared_ptr<net::TcpConnection> tcpConnection;
 
     try
     {
@@ -251,6 +252,10 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
         {
             cmddes.text1b(uuid, 16);
             udpEndpoint = cmdData.udpEndpoint;
+        }
+        else if (cmdData.sendType == net::SendType::TCP)
+        {
+            tcpConnection = cmdData.tcpConnection;
         }
         cmddes.value2b(cmd);
         cmddes.value1b(flags);
@@ -337,6 +342,19 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
                     LG_E("Client not authenticated. Close connection. {}",
                          token);
                 }
+                break;
+            }
+            case prot::cmd::WORLD_INFO:
+            {
+                LG_I("Sending world info");
+                CMDAT_PREP(net::SendType::TCP, prot::cmd::WORLD_INFO, CMD_FLAG_RESP)
+                auto worldShape = world.getWorldShape();
+                cmdser.value4b(worldShape.numSectorX);
+                cmdser.value4b(worldShape.numSectorY);
+                cmdser.value4b(worldShape.sectorSize);
+                CMDAT_FIN()
+                cmdData.tcpConnection = tcpConnection;
+                sendQueue.enqueue(cmdData);
                 break;
             }
             default:

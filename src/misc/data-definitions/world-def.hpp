@@ -32,6 +32,12 @@ struct WorldShape
     S4b(o.numSectorX);                                                         \
     S4b(o.numSectorY);                                                         \
     S4b(o.sectorSize);
+
+#define DES_WORLD_SHAPE                                                        \
+    D4b(o.numSectorX);                                                         \
+    D4b(o.numSectorY);                                                         \
+    D4b(o.sectorSize);
+
 EXT_SER(WorldShape, SER_WORLD_SHAPE)
 EXT_DES(WorldShape, SER_WORLD_SHAPE)
 

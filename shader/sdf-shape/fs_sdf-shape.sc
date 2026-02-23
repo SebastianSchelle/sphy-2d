@@ -12,7 +12,7 @@ void main()
 
     if (shapeType == 1.0) // RECT
     {
-        if (thicknessX < 0.01 && thicknessY < 0.01)
+        if (thicknessX < 0.0001 && thicknessY < 0.0001)
         {
             alpha = 1.0;
         }

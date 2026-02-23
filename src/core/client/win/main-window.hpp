@@ -70,14 +70,6 @@ struct MenuData
 class MainWindow
 {
   public:
-    enum class State
-    {
-        Init,
-        LoadingMods,
-        MainMenu,
-        Something,
-    };
-
     MainWindow(sphy::CmdLinOptionsClient& options);
     ~MainWindow();
     bool initPre();
@@ -137,8 +129,6 @@ class MainWindow
     ui::UserInterface userInterface;
     mod::LuaInterpreter luaInterpreter;
     sphyc::Model model;
-
-    State state = State::Init;
 
     tim::Timepoint lastLoopTime;
     float frameTimeFiltered = 0.0f;

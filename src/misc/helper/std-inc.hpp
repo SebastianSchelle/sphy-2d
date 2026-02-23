@@ -116,11 +116,13 @@ bool LOAD_OBJ(
 
 enum class ClientGameState
 {
-    DISCONNECTED,
-    CONNECTING,
-    CONNECTED,
-    LOAD_WORLD,
-    GAME_LOOP,
+    Init,
+    LoadingMods,
+    MainMenu,
+    Connecting,
+    Connected,
+    LoadWorld,
+    GameLoop,
 };
 
 namespace tim

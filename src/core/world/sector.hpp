@@ -3,6 +3,9 @@
 
 #include <std-inc.hpp>
 #include <ecs.hpp>
+#ifdef CLIENT
+#include <render-engine.hpp>
+#endif
 
 namespace ecs
 {
@@ -20,6 +23,9 @@ class Sector
     void init(int x, int y, float sectorSize, uint32_t id, Sector* neighbors[8]);
     bool saveSector(const std::string& savedir);
     void update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle);
+#ifdef CLIENT
+    void drawDebug(gfx::RenderEngine& renderer, float zoom);
+#endif
 
   private:
     int coordX;            // Sector coord X

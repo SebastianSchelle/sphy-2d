@@ -9,6 +9,7 @@ set(CLIENT_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs
     ${MISC_DIR}/data-definitions
+    ${MISC_DIR}/containers
     ${THIRPARTY_DIR}/glfw/include
     ${THIRPARTY_DIR}/rmlui/Include
     ${THIRPARTY_DIR}/rectpack2D/src
@@ -19,6 +20,7 @@ set(CLIENT_INC_PUBLIC
     ${BGFX_DIR}/bgfx/3rdparty
     ${BGFX_DIR}/bx/include
     ${BGFX_DIR}/bimg/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../world
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/systems
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/components
     ui
@@ -39,6 +41,8 @@ set(CLIENT_SOURCES
     ui/rmlui-renderinterface.cpp
     ui/rmlui-systeminterface.cpp
     ui/user-interface.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../world/world.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../world/sector.cpp
     ${MISC_DIR}/networking/exchange-sequence.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/lua-interpreter.cpp

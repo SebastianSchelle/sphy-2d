@@ -119,17 +119,18 @@ class RenderEngine
     ShaderHandle getShaderHandle(const std::string& name);
     void drawRectangle(const glm::vec2& pos,
                        const glm::vec2& size,
-                       uint32_t colorRGBA,
+                       uint32_t colorABGR,
                        float thickness,
                        float rotationRad = 0.0f,
                        bgfx::ViewId viewId = 0);
     void drawEllipse(const glm::vec2& pos,
                     const glm::vec2& size,
-                    uint32_t colorRGBA,
+                    uint32_t colorABGR,
                     float thickness,
                     float rotationRad = 0.0f,
                     bgfx::ViewId viewId = 0);
     tim::Timepoint getStartTime() const;
+    float getWorldZoom() const { return worldZoom; }
 
   private:
     void cleanUpAll();
@@ -144,7 +145,7 @@ class RenderEngine
     void drawBoxShape(float shapeType,
                       const glm::vec2& pos,
                       const glm::vec2& size,
-                      uint32_t colorRGBA,
+                      uint32_t colorABGR,
                       float thickness,
                       float rotationRad = 0.0f,
                       bgfx::ViewId viewId = 0);

@@ -1,10 +1,19 @@
+#include <exchange-sequence.hpp>
 #include <model.hpp>
 #include <protocol.hpp>
+#include <world-def.hpp>
 
 namespace sphyc
 {
 
-Model::Model() {}
+Model::Model()
+{
+    loadWorldSequence.registerExchange(net::Exchange(
+        prot::cmd::WORLD_INFO,
+        [this]() {},
+        [this]() {},
+        [this](bitsery::Serializer<OutputAdapter>& ser) {}));
+}
 
 Model::~Model() {}
 
@@ -15,27 +24,40 @@ void Model::modelLoop(float dt)
     {
         parseCommand(recQueueData.data);
     }
-    switch (connectionState)
+    switch (gameState)
     {
-        case ClientGameState::DISCONNECTED:
+        case ClientGameState::Init:
+            break;
+        case ClientGameState::MainMenu:
             modelLoopMenu(dt);
             break;
-        case ClientGameState::CONNECTED:
+        case ClientGameState::Connected:
             loadWorldSequence.start(sendQueue);
-            connectionState = ClientGameState::LOAD_WORLD;
+            gameState = ClientGameState::LoadWorld;
             break;
-        case ClientGameState::LOAD_WORLD:
+        case ClientGameState::LoadWorld:
             if (loadWorldSequence.done())
             {
-                connectionState = ClientGameState::GAME_LOOP;
+                LG_I("Exchanging world info with server done");
+                gameState = ClientGameState::GameLoop;
             }
             break;
-        case ClientGameState::GAME_LOOP:
+        case ClientGameState::GameLoop:
             modelLoopGame(dt);
             break;
         default:
             break;
     }
+}
+
+void Model::startLoadingMods()
+{
+    gameState = ClientGameState::LoadingMods;
+}
+
+void Model::startModel()
+{
+    gameState = ClientGameState::MainMenu;
 }
 
 void Model::timeSync()
@@ -105,7 +127,17 @@ void Model::parseCommand(std::vector<uint8_t> data)
             if (flags & CMD_FLAG_RESP)
             {
                 LG_I("Authentication successful");
-                connectionState = ClientGameState::CONNECTED;
+                gameState = ClientGameState::Connected;
+            }
+            break;
+        }
+        case prot::cmd::WORLD_INFO:
+        {
+            if (flags & CMD_FLAG_RESP)
+            {
+                def::WorldShape worldShape;
+                cmddes.object(worldShape);
+                world.createFromServer(worldShape);
             }
             break;
         }
@@ -116,11 +148,15 @@ void Model::parseCommand(std::vector<uint8_t> data)
     // Callbacks for custom commands...
 
     // Check exchange sequence progress
-    if (connectionState == ClientGameState::LOAD_WORLD
-        && !loadWorldSequence.done())
+    if (gameState == ClientGameState::LoadWorld && !loadWorldSequence.done())
     {
         loadWorldSequence.advance(sendQueue, cmd, result);
     }
+}
+
+void Model::drawDebug(gfx::RenderEngine& renderer, float zoom)
+{
+    world.drawDebug(renderer, zoom);
 }
 
 }  // namespace sphyc

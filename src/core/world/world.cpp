@@ -56,6 +56,22 @@ bool World::createFromSave(cfg::ConfigManager& config,
     return true;
 }
 
+bool World::createFromServer(const def::WorldShape& worldShape)
+{
+    this->worldShape = worldShape;
+    if (!initWorld())
+    {
+        LG_E("World initialization failed");
+        return false;
+    }
+    if (!initSectors(false))
+    {
+        LG_E("Sectors initialization failed");
+        return false;
+    }
+    return true;
+}
+
 bool World::loadWorldProcessData(uint32_t typeId,
                                  uint16_t version,
                                  bitsery::Deserializer<InputAdapter>& des_)
@@ -211,5 +227,18 @@ Sector* World::getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir)
             return nullptr;
     }
 }
+
+#ifdef CLIENT
+void World::drawDebug(gfx::RenderEngine& renderer, float zoom)
+{
+    for (int i = 0; i < worldShape.numSectorX; i++)
+    {
+        for (int j = 0; j < worldShape.numSectorY; j++)
+        {
+            sectors.at(i, j)->drawDebug(renderer, zoom);
+        }
+    }
+}
+#endif
 
 }  // namespace world

@@ -47,6 +47,7 @@ class Engine
     void stop();  // request shutdown, save game, join engine thread
     void registerClient(const std::string &uuid, const std::string &name);
     void saveGame();
+    bool stopped() const { return stopRequested; }
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
 

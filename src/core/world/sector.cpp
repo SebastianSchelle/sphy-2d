@@ -1,5 +1,5 @@
-#include <sector.hpp>
 #include <ptr-handle.hpp>
+#include <sector.hpp>
 
 namespace world
 {
@@ -32,7 +32,8 @@ bool Sector::saveSector(const std::string& savedir)
     if (dirty)
     {
         std::string sectorSaveFld = savedir + "/save-data/world";
-        std::string sectorFilePath = savedir + "/sector-" + std::to_string(id) + "." + GAME_NAME + ".sav";
+        std::string sectorFilePath = savedir + "/sector-" + std::to_string(id)
+                                     + "." + GAME_NAME + ".sav";
     }
     return true;
 }
@@ -47,5 +48,16 @@ void Sector::update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle)
         }
     }
 }
+
+#ifdef CLIENT
+void Sector::drawDebug(gfx::RenderEngine& renderer, float zoom)
+{
+    renderer.drawRectangle(
+        glm::vec2(worldPosX - sectorSize / 2, worldPosY - sectorSize / 2),
+        glm::vec2(sectorSize, sectorSize),
+        0x10aaaa00,
+        1.0f / zoom);
+}
+#endif
 
 }  // namespace world

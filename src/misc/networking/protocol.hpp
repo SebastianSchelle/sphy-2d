@@ -47,6 +47,7 @@ enum class State
 const uint16_t LOG = 0x0001;
 const uint16_t TIME_SYNC = 0x0002;
 const uint16_t CONNECT = 0x0003;
+const uint16_t WORLD_INFO = 0x0004;
 
 }  // namespace cmd
 

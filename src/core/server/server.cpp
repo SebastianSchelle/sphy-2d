@@ -1,4 +1,6 @@
 #include <server.hpp>
+#include <chrono>
+#include <thread>
 
 namespace sphys
 {
@@ -58,15 +60,26 @@ void Server::startUdpTcp()
                                                    std::placeholders::_3));
     LG_D("Setup socket on port-udp={}", portUdp);
 
+    ioContext.post([this]() { scheduleSend(); });
     ioThread = std::thread([this]() { ioContext.run(); });
-    scheduleSend();
 }
 
 void Server::startServer()
 {
     startUdpTcp();
     startEngine();
-    ioThread.join();
+
+    // Wait until engine has stopped (e.g. signal handler called engine.stop())
+    while (!engine.stopped())
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    ioContext.stop();
+    if (ioThread.joinable())
+    {
+        ioThread.join();
+    }
     spdlog::shutdown();
 }
 
