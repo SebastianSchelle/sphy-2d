@@ -1,15 +1,15 @@
 #ifndef SECTOR_HPP
 #define SECTOR_HPP
 
-#include <std-inc.hpp>
 #include <ecs.hpp>
+#include <std-inc.hpp>
 #ifdef CLIENT
 #include <render-engine.hpp>
 #endif
 
 namespace ecs
 {
-  struct PtrHandle;
+struct PtrHandle;
 }
 
 namespace world
@@ -20,9 +20,12 @@ class Sector
   public:
     Sector();
     ~Sector();
-    void init(int x, int y, float sectorSize, uint32_t id, Sector* neighbors[8]);
+    void
+    init(int x, int y, float sectorSize, uint32_t id, Sector* neighbors[8]);
     bool saveSector(const std::string& savedir);
     void update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle);
+    bool addEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle, ecs::EntityId entityId);
+    bool removeEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle, ecs::EntityId entityId);
 #ifdef CLIENT
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
 #endif

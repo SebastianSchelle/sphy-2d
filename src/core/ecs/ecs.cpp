@@ -62,7 +62,7 @@ const vector<System>& Ecs::getRegisteredSystems()
     return registeredSystems;
 }
 
-void Ecs::registerSystem(System system)
+void Ecs::registerSystem(const System system)
 {
     if (std::find(registeredSystems.begin(), registeredSystems.end(), system)
         != registeredSystems.end())
@@ -70,6 +70,24 @@ void Ecs::registerSystem(System system)
         return;
     }
     registeredSystems.push_back(system);
+    LG_D("Registered ECS system: {}", system.name);
+}
+
+bool Ecs::spawnEntityFromAsset(EntityId entityId, const std::string& assetId, const AssetFactory& assetFactory)
+{
+    entt::entity entity = getEntity(entityId);
+    if (entity == entt::null)
+    {
+        LG_E("Entity not found: {}", entityId);
+        return false;
+    }
+    assetFactory.copyComponentsIntoEntity(registry, entity, assetId);
+    return true;
+}
+
+entt::registry& Ecs::getRegistry()
+{
+    return registry;
 }
 
 }  // namespace ecs

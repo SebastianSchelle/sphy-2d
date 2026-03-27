@@ -2,25 +2,25 @@
 #define ENGINE_HPP
 
 #include "ecs.hpp"
+#include <asset-factory.hpp>
+#include <atomic>
 #include <boost/asio.hpp>
 #include <boost/container/vector.hpp>
+#include <client-def.hpp>
+#include <cmd-options.hpp>
 #include <concurrentqueue.h>
 #include <config-manager/config-manager.hpp>
 #include <item-lib.hpp>
-#include <client-def.hpp>
+#include <lua-interpreter.hpp>
+#include <mod-manager.hpp>
 #include <net-shared.hpp>
 #include <world.hpp>
-#include <atomic>
-#include <cmd-options.hpp>
-#include <mod-manager.hpp>
-#include <lua-interpreter.hpp>
-#include <asset-factory.hpp>
 
 using moodycamel::ConcurrentQueue;
 
 namespace ecs
 {
-  struct PtrHandle;
+struct PtrHandle;
 }
 
 namespace sphys
@@ -45,9 +45,16 @@ class Engine
     ~Engine();
     void start();
     void stop();  // request shutdown, save game, join engine thread
-    void registerClient(const std::string &uuid, const std::string &name);
+    void registerClient(const std::string& uuid, const std::string& name);
     void saveGame();
-    bool stopped() const { return stopRequested; }
+    bool stopped() const
+    {
+        return stopRequested;
+    }
+    ecs::EntityId spawnEntityFromAsset(const std::string& assetId);
+    ecs::EntityId spawnEntityFromAsset(const std::string& assetId,
+                                       uint32_t sectorId,
+                                       const ecs::Transform& transform);
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
 
@@ -75,11 +82,13 @@ class Engine
     world::World world;
     cfg::ConfigManager saveConfig;
     std::string saveFolder;
-    ecs::Ecs ecs;
     ecs::AssetFactory assetFactory;
     vector<ecs::EntityId> globalEntityIds;
     vector<entt::entity> globalEntities;
     std::shared_ptr<ecs::PtrHandle> ptrHandle;
+
+  public:
+    ecs::Ecs ecs;
 };
 
 }  // namespace sphys

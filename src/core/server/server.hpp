@@ -25,12 +25,13 @@ class Server
     void startServer();
     void startEngine();
 
+    virtual void registerSystems(ecs::Ecs& ecs);
+
   private:
     void scheduleSend();
     void udpReceive(udp::endpoint endpoint, const char* data, size_t length);
     void tcpReceive(const char* data, size_t length, std::shared_ptr<net::TcpConnection> connection);
 
-    sphys::Engine engine;
     cfg::ConfigManager config;
     boost::asio::io_context ioContext;
     std::thread ioThread;
@@ -39,6 +40,10 @@ class Server
     std::unique_ptr<net::TcpServer> tcpServer;
     boost::asio::signal_set signals;
     sphy::CmdLinOptionsServer options;
+
+  protected:
+    sphys::Engine engine;
+
 };
 
 }  // namespace sphys

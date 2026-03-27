@@ -1,3 +1,5 @@
+#include "entt/entity/fwd.hpp"
+#include <comp-ident.hpp>
 #include <ptr-handle.hpp>
 #include <sector.hpp>
 
@@ -47,6 +49,54 @@ void Sector::update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle)
             system.function(entity, dt, ptrHandle);
         }
     }
+}
+
+bool Sector::addEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
+                       ecs::EntityId entityId)
+{
+    if (!ptrHandle->ecs->validId(entityId))
+    {
+        LG_W("Entity not valid: {}", entityId);
+        return false;
+    }
+    auto reg = ptrHandle->registry;
+    auto it = std::find(entities.begin(), entities.end(), entityId);
+    if (it != entities.end())
+    {
+        LG_W("Entity already in sector: {}", entityId);
+        return false;
+    }
+    entities.push_back(entityId);
+    entityIds.push_back(ptrHandle->ecs->getEntity(entityId));
+    reg->emplace_or_replace<ecs::SectorId>(ptrHandle->ecs->getEntity(entityId),
+                                           ecs::SectorId{id});
+    LG_D("Added entity: {} to sector: {}", entityId, id);
+    return true;
+}
+
+bool Sector::removeEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
+                          ecs::EntityId entityId)
+{
+    if (ptrHandle->ecs->validId(entityId))
+    {
+        LG_W("Entity not valid: {}", entityId);
+        return false;
+    }
+    auto reg = ptrHandle->registry;
+    auto it = std::find(entities.begin(), entities.end(), entityId);
+    if (it == entities.end())
+    {
+        LG_W("Entity not in sector: {}", entityId);
+        return false;
+    }
+    entities.erase(it);
+    entityIds.erase(std::find(entityIds.begin(),
+                              entityIds.end(),
+                              ptrHandle->ecs->getEntity(entityId)));
+    reg->emplace_or_replace<ecs::SectorId>(ptrHandle->ecs->getEntity(entityId),
+                                           ecs::SectorId{0xFFFFFFFF});
+    LG_D("Removed entity: {} from sector: {}", entityId, id);
+    return true;
 }
 
 #ifdef CLIENT

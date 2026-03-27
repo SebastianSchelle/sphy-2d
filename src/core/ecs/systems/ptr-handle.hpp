@@ -3,6 +3,7 @@
 
 #include <std-inc.hpp>
 #include <world.hpp>
+#include <ecs.hpp>
 #ifdef SERVER
 #include <engine.hpp>
 #elif CLIENT
@@ -14,14 +15,15 @@ namespace ecs
 
 struct PtrHandle
 {
-    entt::registry registry;
+    entt::registry* registry;
     world::World* world;
 #ifdef SERVER
     sphys::Engine* engine;
 #elif CLIENT
     sphyc::Client* client;
 #endif
-    vector<System>* systems;
+    const vector<System>* systems;
+    ecs::Ecs* ecs;
 };
 
 }  // namespace ecs

@@ -1,4 +1,5 @@
 #include <asset-factory.hpp>
+#include <components/comp-ident.hpp>
 
 namespace ecs
 {
@@ -6,6 +7,11 @@ namespace ecs
 void ComponentFactory::registerLoader(const std::string& name, LoaderFunc func)
 {
     loaders[name] = func;
+}
+
+void ComponentFactory::registerCopier(const std::string& name, CopierFunc func)
+{
+    copiers[name] = func;
 }
 
 void ComponentFactory::loadComponent(const std::string& name,
@@ -41,7 +47,8 @@ entt::entity AssetFactory::loadAsset(const std::string& path)
             {
                 if (component["type"].as<std::string>() == "asset-id")
                 {
-                    const std::string name = component["name"].as<std::string>();
+                    const std::string name =
+                        component["name"].as<std::string>();
                     assetMap[name] = asset;
                     LG_I("Loaded asset '{}' from '{}'", name, path);
                 }
@@ -58,6 +65,29 @@ entt::entity AssetFactory::loadAsset(const std::string& path)
         }
     }
     return asset;
+}
+
+void AssetFactory::copyComponentsIntoEntity(entt::registry& registry,
+                                            entt::entity entity,
+                                            const std::string& assetId) const
+{
+    auto it = assetMap.find(assetId);
+    if (it == assetMap.end())
+    {
+        return;
+    }
+    const entt::entity srcEntity = it->second;
+    if (!registry.valid(entity) || !this->registry.valid(srcEntity))
+    {
+        return;
+    }
+    for (const auto& [name, copier] : componentFactory.getCopiers())
+    {
+        copier(const_cast<entt::registry&>(this->registry),
+               srcEntity,
+               registry,
+               entity);
+    }
 }
 
 }  // namespace ecs

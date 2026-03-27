@@ -5,6 +5,8 @@
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
+#include <glm/glm.hpp>
+#include "spdlog/fmt/bundled/format.h"
 
 #define LG_D(...) spdlog::debug(__VA_ARGS__);
 #define LG_I(...) spdlog::info(__VA_ARGS__);
@@ -29,5 +31,42 @@ inline void createLogger(std::string logFile, uint8_t level)
 }
 
 } // namespace debug
+
+// Allow spdlog/format strings to print glm::vec2 directly, e.g.
+//   LG_I("pos={}", glm::vec2{1.0f, 2.0f});
+template <>
+struct fmt::formatter<glm::vec2>
+{
+    constexpr auto parse(fmt::format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const glm::vec2& v, FormatContext& ctx) const
+    {
+        return fmt::format_to(ctx.out(), "({}, {})", v.x, v.y);
+    }
+};
+
+template <>
+struct fmt::formatter<glm::vec4>
+{
+    constexpr auto parse(fmt::format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const glm::vec4& v, FormatContext& ctx) const
+    {
+        return fmt::format_to(ctx.out(),
+                              "({}, {}, {}, {})",
+                              v.x,
+                              v.y,
+                              v.z,
+                              v.w);
+    }
+};
 
 #endif

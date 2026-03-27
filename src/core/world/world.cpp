@@ -1,5 +1,7 @@
 #include <config-manager.hpp>
+#include <ptr-handle.hpp>
 #include <world.hpp>
+#include <comp-ident.hpp>
 
 const uint16_t def::WorldShape::VERSION;
 
@@ -226,6 +228,43 @@ Sector* World::getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir)
         default:
             return nullptr;
     }
+}
+
+bool World::moveEntityTo(std::shared_ptr<ecs::PtrHandle> ptrHandle,
+                         ecs::EntityId entityId,
+                         uint32_t sectorId,
+                         glm::vec2 position,
+                         float rotation)
+{
+    if (!ptrHandle->ecs->validId(entityId))
+    {
+        LG_W("Entity not valid: {}", entityId);
+        return false;
+    }
+    Sector* newSector = sectors.at(sectorId);
+    if (newSector == nullptr)
+    {
+        LG_W("Sector not found: {}", sectorId);
+        return false;
+    }
+
+    auto reg = ptrHandle->registry;
+    entt::entity entity = ptrHandle->ecs->getEntity(entityId);
+    auto sector = reg->try_get<ecs::SectorId>(entity);
+    if(sector && sector->id != sectorId)
+    {
+        Sector* oldSector = sectors.at(sector->id);
+        if(oldSector)
+        {
+            oldSector->removeEntity(ptrHandle, entityId);
+        }
+    }
+    newSector->addEntity(ptrHandle, entityId);
+
+    ecs::Transform& transform = reg->get_or_emplace<ecs::Transform>(entity);
+    transform.pos = position;
+    transform.rot = rotation;
+    return true;
 }
 
 #ifdef CLIENT

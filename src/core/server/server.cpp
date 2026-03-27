@@ -16,7 +16,10 @@ Server::Server(sphy::CmdLinOptionsServer& options)
     uint8_t logLevel =
         static_cast<uint8_t>(std::get<float>(config.get({"loglevel"})));
     debug::createLogger("logs/logServer.txt", logLevel);
-    startServer();
+    // NOTE: Do not call startServer() here.
+    // The base constructor runs before derived classes are fully constructed,
+    // so virtual dispatch (e.g. registerSystems override) would call the base
+    // version instead of the derived override.
 }
 
 Server::~Server() {
@@ -85,6 +88,7 @@ void Server::startServer()
 
 void Server::startEngine()
 {
+    registerSystems(engine.ecs);
     engine.start();
 }
 
@@ -119,6 +123,8 @@ void Server::scheduleSend()
         });
 }
 
+void Server::registerSystems(ecs::Ecs& ecs) {
+}
 
 void Server::udpReceive(udp::endpoint endpoint, const char* data, size_t length)
 {

@@ -1,4 +1,5 @@
 #include "bitsery/serializer.h"
+#include "ecs.hpp"
 #include "std-inc.hpp"
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
@@ -14,6 +15,12 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options)
     : options(options), state(EngineState::Init), saveConfig(),
       saveFolder(options.savedir)
 {
+    ptrHandle = std::make_shared<ecs::PtrHandle>();
+    ptrHandle->ecs = &ecs;
+    ptrHandle->world = &world;
+    ptrHandle->engine = this;
+    ptrHandle->systems = &ecs.getRegisteredSystems();
+    ptrHandle->registry = &ecs.getRegistry();
 }
 
 Engine::~Engine()
@@ -48,9 +55,13 @@ void Engine::stop()
 void Engine::engineLoop()
 {
     tim::Timepoint lastSaveTime = tim::getCurrentTimeU();
+    tim::Timepoint lastUpdateTime = tim::getCurrentTimeU();
 
     while (!stopRequested)
     {
+        tim::Timepoint now = tim::getCurrentTimeU();
+        float dt = tim::durationU(lastUpdateTime, now) / 1000000.0f;
+        lastUpdateTime = now;
         switch (state)
         {
             case EngineState::Init:
@@ -69,6 +80,10 @@ void Engine::engineLoop()
             case EngineState::LoadWorld:
                 if (loadFromFolder())
                 {
+                    spawnEntityFromAsset(
+                        "test",
+                        0,
+                        ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
                     state = EngineState::Running;
                 }
                 else
@@ -89,7 +104,7 @@ void Engine::engineLoop()
             case EngineState::Running:
             {
                 DO_PERIODIC(lastSaveTime, TIM_5M, saveGame)
-
+                update(dt);
                 // test
                 /*for (int i = 0; i < activeClientHandles.size(); i++)
                 {
@@ -124,7 +139,7 @@ void Engine::engineLoop()
             parseCommand(recQueueData);
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(11));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     if (state == EngineState::Running || state == EngineState::Paused)
@@ -287,7 +302,7 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
                 cmdser.value8b(secs);
                 cmdser.value4b(usec);
                 CMDAT_FIN()
-                if(udpEndpoint)
+                if (udpEndpoint)
                 {
                     cmdData.udpEndpoint = *udpEndpoint;
                     cmdData.udpPort = udpEndpoint->port();
@@ -347,7 +362,8 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
             case prot::cmd::WORLD_INFO:
             {
                 LG_I("Sending world info");
-                CMDAT_PREP(net::SendType::TCP, prot::cmd::WORLD_INFO, CMD_FLAG_RESP)
+                CMDAT_PREP(
+                    net::SendType::TCP, prot::cmd::WORLD_INFO, CMD_FLAG_RESP)
                 auto worldShape = world.getWorldShape();
                 cmdser.value4b(worldShape.numSectorX);
                 cmdser.value4b(worldShape.numSectorY);
@@ -367,6 +383,31 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
     }
 }
 
+ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId)
+{
+    ecs::EntityId ent = ecs.createEntity();
+    if (!ecs.validId(ent))
+    {
+        LG_E("Failed to create entity");
+        return ent;
+    }
+    ecs.spawnEntityFromAsset(ent, assetId, assetFactory);
+    return ent;
+}
+
+ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId,
+                                           uint32_t sectorId,
+                                           const ecs::Transform& transform)
+{
+    ecs::EntityId ent = spawnEntityFromAsset(assetId);
+    if (!ecs.validId(ent))
+    {
+        LG_E("Failed to spawn entity");
+        return ent;
+    }
+    world.moveEntityTo(ptrHandle, ent, sectorId, transform.pos, transform.rot);
+    return ent;
+}
 }  // namespace sphys
 
 template class con::ItemLib<net::ClientInfo>;

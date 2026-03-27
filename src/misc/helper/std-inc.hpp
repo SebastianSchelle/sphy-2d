@@ -108,6 +108,16 @@ constexpr uint32_t hashConst(const char* s, size_t i = 0)
     file_.write(reinterpret_cast<const char*>(data_.data()), data_.size());    \
     file_.close();
 
+#define TRY_YAML_DICT(value_, node_, default_value_)                           \
+    if (node_)                                                                 \
+    {                                                                          \
+        value_ = node_.as<decltype(value_)>();                                 \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        value_ = default_value_;                                               \
+    }
+
 bool LOAD_OBJ(
     const std::string& path_,
     std::function<bool(uint32_t,
