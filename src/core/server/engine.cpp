@@ -1,5 +1,6 @@
 #include "bitsery/serializer.h"
 #include "ecs.hpp"
+#include "rerun.hpp"
 #include "std-inc.hpp"
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
@@ -13,7 +14,7 @@ namespace sphys
 
 Engine::Engine(const sphy::CmdLinOptionsServer& options)
     : options(options), state(EngineState::Init), saveConfig(),
-      saveFolder(options.savedir)
+      saveFolder(options.savedir), rerunStream("sphy-2d")
 {
     ptrHandle = std::make_shared<ecs::PtrHandle>();
     ptrHandle->ecs = &ecs;
@@ -21,6 +22,8 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options)
     ptrHandle->engine = this;
     ptrHandle->systems = &ecs.getRegisteredSystems();
     ptrHandle->registry = &ecs.getRegistry();
+
+    // rerunStream.spawn().exit_on_failure();
 }
 
 Engine::~Engine()
@@ -81,9 +84,15 @@ void Engine::engineLoop()
                 if (loadFromFolder())
                 {
                     spawnEntityFromAsset(
+                        "test", 0, ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
+                    spawnEntityFromAsset(
                         "test",
-                        0,
-                        ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
+                        1,
+                        ecs::Transform{glm::vec2{-3.0f, 5.0f}, 2.0f});
+                    spawnEntityFromAsset(
+                        "test",
+                        2,
+                        ecs::Transform{glm::vec2{-3.0f, 5.0f}, 2.0f});
                     state = EngineState::Running;
                 }
                 else
@@ -161,6 +170,27 @@ void Engine::update(float dt)
         }
     }
     world.update(dt, ptrHandle);
+
+    // Debugging
+    // std::vector<rerun::Position2D> positions = {};
+    // auto view = ptrHandle->registry->view<const ecs::EntityId,
+    //                                       const ecs::SectorId,
+    //                                       const ecs::Transform>();
+    // view.each(
+    //     [&positions, this](const auto entity,
+    //                        const auto& entityId,
+    //                        const auto& sectorId,
+    //                        const auto& trans)
+    //     {
+    //         world::Sector* sector = world.getSector(sectorId.id);
+    //         if (sector)
+    //         {
+    //             positions.push_back({trans.pos.x + sector->getWorldPosX(),
+    //                                  trans.pos.y + sector->getWorldPosY()});
+    //         }
+    //     });
+
+    // rerunStream.log("points", rerun::Points2D(positions));
 }
 
 void Engine::startFromFolder()
@@ -408,6 +438,9 @@ ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId,
     world.moveEntityTo(ptrHandle, ent, sectorId, transform.pos, transform.rot);
     return ent;
 }
+
+void Engine::postWorldSetup() {}
+
 }  // namespace sphys
 
 template class con::ItemLib<net::ClientInfo>;

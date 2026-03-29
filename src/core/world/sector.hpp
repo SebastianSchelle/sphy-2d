@@ -26,6 +26,8 @@ class Sector
     void update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle);
     bool addEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle, ecs::EntityId entityId);
     bool removeEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle, ecs::EntityId entityId);
+    const float getWorldPosX() const { return worldPosX; }
+    const float getWorldPosY() const { return worldPosY; }
 #ifdef CLIENT
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
 #endif

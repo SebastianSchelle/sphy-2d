@@ -22,9 +22,10 @@ EntityId Ecs::createEntity()
         idMap.push_back({});
     }
     Slot& slot = idMap[index];
+    slot.entity = e;
+    slot.generation++;
     EntityId entityId = {index, slot.generation};
     registry.emplace<EntityId>(e, entityId);
-
     return entityId;
 }
 

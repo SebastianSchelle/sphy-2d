@@ -267,6 +267,11 @@ bool World::moveEntityTo(std::shared_ptr<ecs::PtrHandle> ptrHandle,
     return true;
 }
 
+Sector* World::getSector(uint32_t sectorId)
+{
+    return sectors.at(sectorId);
+}
+
 #ifdef CLIENT
 void World::drawDebug(gfx::RenderEngine& renderer, float zoom)
 {

@@ -36,6 +36,7 @@ set(LIBS_PUB
     networking
     concurrentqueue
     ${LUA_LIBRARIES}
+    rerun_sdk
 )
 
 set(LIBS_PRIV

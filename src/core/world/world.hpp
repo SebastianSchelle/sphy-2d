@@ -37,6 +37,7 @@ class World
                       uint32_t sectorId,
                       glm::vec2 position,
                       float rotation);
+    Sector* getSector(uint32_t sectorId);
 
   private:
     bool initWorld();
