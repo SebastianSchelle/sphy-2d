@@ -33,10 +33,16 @@ typedef struct
     std::vector<uint8_t> data;
 } CmdQueueData;
 
+struct ClientFlags
+{
+    uint8_t enConsole : 1;
+};
+
 typedef struct
 {
     std::string token;
     std::string name;
+    ClientFlags flags;
     int portUdp;
     asio::ip::address address;
     udp::endpoint udpEndpoint;

@@ -46,7 +46,7 @@ class Engine
     ~Engine();
     void start();
     void stop();  // request shutdown, save game, join engine thread
-    void registerClient(const std::string& uuid, const std::string& name);
+    void registerClient(const std::string& uuid, const std::string& name, net::ClientFlags flags);
     void saveGame();
     bool stopped() const
     {

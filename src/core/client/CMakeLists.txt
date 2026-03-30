@@ -23,6 +23,7 @@ set(CLIENT_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../world
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/systems
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/components
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
     ui
     win
     render

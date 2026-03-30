@@ -1,11 +1,31 @@
 #include "user-interface.hpp"
 #include "RmlUi/Core/DataModelHandle.h"
-#include "RmlUi/Core/PropertySpecification.h"
+#include <iomanip>
+#include <limits>
+#include <sstream>
 
 namespace ui
 {
 
-UserInterface::UserInterface() {}
+
+void ChatData::addMessage(const ChatMessage& message)
+{
+    if (messages.size() > 50)
+    {
+        messages.erase(messages.begin());
+    }
+    messages.push_back(message);
+    const auto tod = message.timestamp.time_of_day();
+    std::ostringstream timeStream;
+    timeStream << std::setfill('0') << std::setw(2) << tod.hours() << ":"
+               << std::setw(2) << tod.minutes() << ":" << std::setw(2)
+               << tod.seconds();
+    messages.back().timestampText = timeStream.str();
+}
+
+UserInterface::UserInterface(CmdCallback cmdCallback) : cmdCallback(cmdCallback) {
+    chatData.currMsgTarget = "all";
+}
 
 UserInterface::~UserInterface() {}
 
@@ -34,12 +54,31 @@ bool UserInterface::init(glm::ivec2 windowSize)
         return false;
     }
 
+    setupChatDataModel();
     return true;
 }
 
 void UserInterface::update()
 {
+    static tim::Timepoint lastUpdateTime = tim::getCurrentTimeU();
+    static int i = 0;
+    DO_PERIODIC(lastUpdateTime,
+                TIM_10S,
+                [this]()
+                {
+                    chatData.addMessage({"System",
+                                         "Test message " + std::to_string(i++),
+                                         "Me",
+                                         tim::getCurrentTimeU()});
+                    rmlModelChat.DirtyVariable("messages");
+                });
+    // scrollChatOnNextUpdate = true;
     rmlContext->Update();
+    if (scrollChatOnNextUpdate)
+    {
+        scrollChatToBottom();
+        scrollChatOnNextUpdate = false;
+    }
 }
 
 bool UserInterface::processMouseMove(glm::ivec2 mousePos, int keyMod)
@@ -197,11 +236,15 @@ void UserInterface::processEsc(bool keepMenuOpen)
 {
     if (menuStack.empty())
     {
-        if (menuOpen) {
-            if (!keepMenuOpen) {
+        if (menuOpen)
+        {
+            if (!keepMenuOpen)
+            {
                 closeMenu();
             }
-        } else {
+        }
+        else
+        {
             showMenu();
         }
     }
@@ -306,6 +349,141 @@ void UserInterface::onPrint(Rml::DataModelHandle handle,
             LG_E("UI: Unknown error");
         }
     }
+}
+
+void UserInterface::toggleChat()
+{
+    if (chatOpen)
+    {
+        LG_D("Closing chat");
+        hideDocument(rmlDocLib.getHandle("chat"));
+        chatOpen = false;
+    }
+    else
+    {
+        LG_D("Opening chat");
+        showDocument(rmlDocLib.getHandle("chat"));
+        chatOpen = true;
+        scrollChatOnNextUpdate = true;
+    }
+}
+
+void UserInterface::scrollChatToBottom()
+{
+    if (!rmlContext)
+    {
+        return;
+    }
+
+    auto chatDoc = rmlDocLib.getHandle("chat");
+    if (!chatDoc.isValid())
+    {
+        return;
+    }
+    auto doc = rmlDocLib.getItem(chatDoc.getIdx());
+    if (doc)
+    {
+        auto chatElement = (*doc)->GetElementById("chat-scroll");
+        if (chatElement)
+        {
+            chatElement->SetScrollTop(std::numeric_limits<float>::max());
+        }
+    }
+}
+
+void UserInterface::setupChatDataModel()
+{
+    auto chatConstructor = getDataModel("chat");
+
+    if (auto md_handle = chatConstructor.RegisterStruct<ChatMessage>())
+    {
+        md_handle.RegisterMember("sender", &ChatMessage::sender);
+        md_handle.RegisterMember("message", &ChatMessage::message);
+        md_handle.RegisterMember("target", &ChatMessage::target);
+        md_handle.RegisterMember("timestampText", &ChatMessage::timestampText);
+    }
+
+    chatConstructor.RegisterArray<std::vector<ChatMessage>>();
+    chatConstructor.Bind("messages", &chatData.messages);
+    chatConstructor.Bind("chat_input_text", &chatInputText);
+    chatConstructor.Bind("curr_msg_target", &chatData.currMsgTarget);
+    chatConstructor.BindEventCallback(
+        "chat_send_msg", &UserInterface::onChatSendMsg, this);
+    rmlModelChat = chatConstructor.GetModelHandle();
+}
+
+void UserInterface::onChatSendMsg(Rml::DataModelHandle handle,
+                                  Rml::Event& event,
+                                  const Rml::VariantList& args)
+{
+    LG_D("Chat send message: {}", args.size());
+    if (args.size() > 0)
+    {
+        std::string message = args[0].Get<std::string>();
+        if (message.empty())
+        {
+            return;
+        }
+        InputMsgParseData parseData;
+        if (!parseSendMsg(message, parseData))
+        {
+            return;
+        }
+        if(parseData.target != chatData.currMsgTarget)
+        {
+            chatData.currMsgTarget = parseData.target;
+            rmlModelChat.DirtyVariable("curr_msg_target");
+        }
+        chatData.addMessage({"Me",
+                             parseData.message,
+                             parseData.target,
+                             tim::getCurrentTimeU()});
+        chatInputText.clear();
+        rmlModelChat.DirtyVariable("messages");
+        rmlModelChat.DirtyVariable("chat_input_text");
+        scrollChatOnNextUpdate = true;
+    }
+}
+
+bool UserInterface::parseSendMsg(const string& message,
+                                 InputMsgParseData& parseData)
+{
+    string remaining;
+    if (message.empty())
+    {
+        return false;
+    }
+    if (message[0] == '/')
+    {
+        size_t spacePos = message.find(' ');
+        string target = message.substr(1, spacePos - 1);
+        if (target.empty())
+        {
+            LG_W("Invalid empty chat target");
+            return false;
+        }
+        // Check if new target valid?
+        parseData.target = target;
+        remaining = message.substr(spacePos + 1);
+        LG_D("Set new chat target: {}", target);
+    }
+    else
+    {
+        parseData.target = chatData.currMsgTarget;
+        remaining = message;
+    }
+    if (parseData.target == "cmd")
+    {
+        LG_D("Command: {}", message);
+        parseData.message = remaining;
+        cmdCallback(parseData.message);
+        return true;
+    }
+    else
+    {
+        parseData.message = remaining;
+    }
+    return true;
 }
 
 }  // namespace ui

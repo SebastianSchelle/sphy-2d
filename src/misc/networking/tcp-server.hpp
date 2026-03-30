@@ -21,6 +21,8 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection>
     void sendMessage(const std::vector<uint8_t>& data);
     void start();
     void close();
+    ClientInfoHandle getClientInfoHandle() const { return clientInfoHandle; }
+    void setClientInfoHandle(ClientInfoHandle clientInfoHandle) { this->clientInfoHandle = clientInfoHandle; }
 
   private:
     TcpConnection(boost::asio::io_context& io_context,
@@ -33,6 +35,7 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection>
     bool running;
     char recvBuf[TCP_REC_BUF_LEN];
     ReceiveCallbackConn receiveCallback;
+    ClientInfoHandle clientInfoHandle;
 };
 
 class TcpServer

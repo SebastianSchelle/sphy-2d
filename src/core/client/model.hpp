@@ -25,6 +25,7 @@ class Model
     void startLoadingMods();
     void startModel();
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
+    void sendCmdToServer(const std::string& command);
 
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;

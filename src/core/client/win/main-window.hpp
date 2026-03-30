@@ -115,6 +115,8 @@ class MainWindow
                          Rml::Event& event,
                          const Rml::VariantList& args);
 
+    void onCmd(const std::string& cmd);
+
     static Rml::Input::KeyIdentifier glfwToRmlKey(int key);
 
     GLFWwindow* window;

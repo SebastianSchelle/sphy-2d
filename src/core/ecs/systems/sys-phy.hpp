@@ -4,7 +4,6 @@
 #include <cmath>
 #include <std-inc.hpp>
 #include <ecs.hpp>
-#include <ptr-handle.hpp>
 #include <components/comp-phy.hpp>
 
 namespace ecs

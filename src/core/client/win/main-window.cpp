@@ -1,3 +1,4 @@
+#include "GLFW/glfw3.h"
 #include "RmlUi/Core/Core.h"
 #include "bgfx/defines.h"
 #include "vertex-defines.hpp"
@@ -71,7 +72,8 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
       config(options.workingdir + "/modules/core/defs/client.yaml"),
       renderEngine(config), rmlUiRenderInterface(&renderEngine),
       client(config, model.sendQueue, model.receiveQueue), modManager(),
-      modLoadingHandle(UiDocHandle::Invalid())
+      modLoadingHandle(UiDocHandle::Invalid()),
+      userInterface(std::bind(&MainWindow::onCmd, this, std::placeholders::_1))
 {
     auto path(options.workingdir);
     std::filesystem::current_path(path);
@@ -470,6 +472,12 @@ void MainWindow::keyCallback(GLFWwindow* window,
 
 void MainWindow::onKey(int key, int scancode, int action, int mods)
 {
+    if(action == GLFW_PRESS && key == GLFW_KEY_ENTER && mods == GLFW_MOD_CONTROL)
+    {
+        userInterface.toggleChat();
+        return;
+    }
+
     if (action == GLFW_PRESS
         && !userInterface.processKeyDown(glfwToRmlKey(key)))
     {
@@ -665,6 +673,11 @@ void MainWindow::onConnectToServer(Rml::DataModelHandle handle,
                            menuData.connectData.tcpPortServ,
                            menuData.connectData.udpPortCli);
     userInterface.closeMenu();
+}
+
+void MainWindow::onCmd(const std::string& cmd)
+{
+    model.sendCmdToServer(cmd);
 }
 
 }  // namespace ui

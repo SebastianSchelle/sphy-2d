@@ -6,21 +6,46 @@
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <item-lib.hpp>
+#include <ptr-handle.hpp>
 
 using UiDocHandle = con::ItemLib<Rml::ElementDocument*>::Handle;
 
 namespace ui
 {
 
+typedef std::function<void(const std::string&)> CmdCallback;
+
 class Document
 {
     con::ItemLib<Rml::ElementDocument*> rmlDocLib;
 };
 
+struct ChatMessage
+{
+    string sender;
+    string message;
+    string target;
+    tim::Timepoint timestamp;
+    string timestampText;
+};
+
+struct InputMsgParseData
+{
+    string target;
+    string message;
+};
+
+struct ChatData
+{
+    vector<ChatMessage> messages;
+    string currMsgTarget;
+    void addMessage(const ChatMessage& message);
+};
+
 class UserInterface
 {
   public:
-    UserInterface();
+    UserInterface(CmdCallback cmdCallback);
     ~UserInterface();
     bool init(glm::ivec2 windowSize);
     void update();
@@ -54,8 +79,8 @@ class UserInterface
 
 
     void onMenuNavigate(Rml::DataModelHandle handle,
-                    Rml::Event& event,
-                    const Rml::VariantList& args);
+                        Rml::Event& event,
+                        const Rml::VariantList& args);
     void onMenuBack(Rml::DataModelHandle handle,
                     Rml::Event& event,
                     const Rml::VariantList& args);
@@ -65,9 +90,16 @@ class UserInterface
     void onQuit(Rml::DataModelHandle handle,
                 Rml::Event& event,
                 const Rml::VariantList& args);
+    void toggleChat();
 
   private:
     void onMenuBackPriv();
+    void setupChatDataModel();
+    void scrollChatToBottom();
+    void onChatSendMsg(Rml::DataModelHandle handle,
+                       Rml::Event& event,
+                       const Rml::VariantList& args);
+    bool parseSendMsg(const string& message, InputMsgParseData& parseData);
 
     con::ItemLib<Rml::ElementDocument*> rmlDocLib;
     Rml::Context* rmlContext;
@@ -76,10 +108,18 @@ class UserInterface
     bool mouseDownInteract[3];
     bool mouseUpInteract[3];
     bool mouseWheelInteract;
-    bool menuOpen;
+    bool menuOpen = false;
+    bool chatOpen = false;
 
     vector<string> menuStack;
     string currentMenuPage;
+
+    ChatData chatData;
+    std::string chatInputText;
+    Rml::DataModelHandle rmlModelChat;
+    bool scrollChatOnNextUpdate = false;
+
+    CmdCallback cmdCallback;
 };
 
 }  // namespace ui

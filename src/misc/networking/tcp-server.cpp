@@ -30,7 +30,8 @@ void TcpConnection::close()
 
 TcpConnection::TcpConnection(boost::asio::io_context& io_context,
                              ReceiveCallbackConn receiveCallback)
-    : socket_(io_context), receiveCallback(receiveCallback)
+    : socket_(io_context), receiveCallback(receiveCallback),
+      clientInfoHandle(ClientInfoHandle::Invalid())
 {
 }
 
@@ -70,10 +71,11 @@ void TcpConnection::sendMessage(const std::vector<uint8_t>& data)
         close();
         return;
     }
-    try{
+    try
+    {
         size_t bytesSent = socket_.send(boost::asio::buffer(data));
     }
-    catch(const std::exception& e)
+    catch (const std::exception& e)
     {
         LG_W("TCP send failed: {}", e.what());
         close();

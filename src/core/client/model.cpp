@@ -141,6 +141,13 @@ void Model::parseCommand(std::vector<uint8_t> data)
             }
             break;
         }
+        case prot::cmd::CONSOLE_CMD:
+        {
+            std::string str;
+            cmddes.text1b(str, len);
+            LG_I("Console command from server: {}", str);
+            break;
+        }
         default:
             break;
     }
@@ -157,6 +164,14 @@ void Model::parseCommand(std::vector<uint8_t> data)
 void Model::drawDebug(gfx::RenderEngine& renderer, float zoom)
 {
     world.drawDebug(renderer, zoom);
+}
+
+void Model::sendCmdToServer(const std::string& command)
+{
+    CMDAT_PREP(net::SendType::TCP, prot::cmd::CONSOLE_CMD, 0)
+    cmdser.text1b(command, command.size());
+    CMDAT_FIN()
+    sendQueue.enqueue(cmdData);
 }
 
 }  // namespace sphyc

@@ -2,16 +2,28 @@
 #define PTR_HANDLE_HPP
 
 #include <std-inc.hpp>
-#include <world.hpp>
-#include <ecs.hpp>
+#include <entt/entt.hpp>
 #ifdef SERVER
-#include <engine.hpp>
+namespace sphys
+{
+class Engine;
+}
 #elif CLIENT
-#include <client.hpp>
+namespace sphyc
+{
+class Client;
+}
 #endif
+
+namespace world
+{
+class World;
+}
 
 namespace ecs
 {
+class Ecs;
+struct System;
 
 struct PtrHandle
 {

@@ -6,7 +6,6 @@
 #include <comp-phy.hpp>
 #include <engine.hpp>
 #include <protocol.hpp>
-#include <ptr-handle.hpp>
 #include <server.hpp>
 
 namespace sphys
@@ -42,7 +41,8 @@ void Engine::start()
     cFac->registerComponent<ecs::PhysicsBody>("phy");
     cFac->registerComponent<ecs::AssetId>("asset-id");
 
-    registerClient("1234abcd1234abcd", "Test Client");
+    registerClient(
+        "1234abcd1234abcd", "Test Client", net::ClientFlags{.enConsole = 1});
     engineThread = std::thread([this]() { engineLoop(); });
 }
 
@@ -268,11 +268,14 @@ void Engine::saveGame()
     world.saveWorld(saveFolder);
 }
 
-void Engine::registerClient(const std::string& uuid, const std::string& name)
+void Engine::registerClient(const std::string& uuid,
+                            const std::string& name,
+                            net::ClientFlags flags)
 {
     net::ClientInfo clientInfo;
     clientInfo.token = uuid;
     clientInfo.name = name;
+    clientInfo.flags = flags;
     clientInfo.portUdp = 0;
     clientInfo.address = asio::ip::address::from_string("0.0.0.0");
     clientLib.addItem(uuid, clientInfo);
@@ -366,6 +369,7 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
                             clientInfo->udpEndpoint =
                                 udp::endpoint(address, portUdp);
                             clientInfo->connection = cmdData.tcpConnection;
+                            clientInfo->connection->setClientInfoHandle(handle);
                             LG_I(
                                 "Client authenticated. ip={}, udp port={}, "
                                 "token={}",
@@ -401,6 +405,32 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
                 CMDAT_FIN()
                 cmdData.tcpConnection = tcpConnection;
                 sendQueue.enqueue(cmdData);
+                break;
+            }
+            case prot::cmd::CONSOLE_CMD:
+            {
+                if(cmdData.sendType == net::SendType::TCP)
+                {
+                    net::ClientInfoHandle clientInfoHandle = tcpConnection->getClientInfoHandle();
+                    if(clientInfoHandle.isValid())
+                    {
+                        net::ClientInfo* clientInfo = clientLib.getItem(clientInfoHandle);
+                        if(clientInfo)
+                        {
+                            LG_I("Console command from client: {}", clientInfo->name);
+                            LG_I("enConsole: {}", (bool)clientInfo->flags.enConsole);
+                            LG_I("Console command from client: {}", std::string(data.begin(), data.end()));
+                        }
+                        else
+                        {
+                            LG_E("Client info not found");
+                        }
+                    }
+                    else
+                    {
+                        LG_E("client info handle not valid");
+                    }
+                }
                 break;
             }
             default:

@@ -4,10 +4,15 @@
 #include <asset-factory.hpp>
 #include <entt/entt.hpp>
 #include <std-inc.hpp>
+#include <ptr-handle.hpp>
+
+namespace util
+{
+struct PtrHandle;
+}
 
 namespace ecs
 {
-struct PtrHandle;
 
 typedef std::function<
     void(entt::entity entity, float dt, std::shared_ptr<PtrHandle> ptrHandle)>

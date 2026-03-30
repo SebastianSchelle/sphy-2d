@@ -3,14 +3,10 @@
 
 #include <ecs.hpp>
 #include <std-inc.hpp>
+#include <ptr-handle.hpp>
 #ifdef CLIENT
 #include <render-engine.hpp>
 #endif
-
-namespace ecs
-{
-struct PtrHandle;
-}
 
 namespace world
 {

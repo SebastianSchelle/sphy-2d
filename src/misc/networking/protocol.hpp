@@ -48,6 +48,7 @@ const uint16_t LOG = 0x0001;
 const uint16_t TIME_SYNC = 0x0002;
 const uint16_t CONNECT = 0x0003;
 const uint16_t WORLD_INFO = 0x0004;
+const uint16_t CONSOLE_CMD = 0x0005;
 
 }  // namespace cmd
 
