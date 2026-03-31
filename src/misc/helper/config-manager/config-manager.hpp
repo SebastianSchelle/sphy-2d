@@ -6,7 +6,7 @@
 #define CFG_INT(cfg_, ...)                                                     \
     static_cast<int>(std::get<float>(cfg_.get({__VA_ARGS__})));
 #define CFG_UINT(cfg_, ...)                                                    \
-    static_cast<uint32_t>(std::get<float>(cfg_.get({__VA_ARGS__})) >= 0.0f     \
+    static_cast<uint>(std::get<float>(cfg_.get({__VA_ARGS__})) >= 0.0f     \
                               ? std::get<float>(cfg_.get({__VA_ARGS__}))       \
                               : 0.0f);
 #define CFG_FLOAT(cfg_, ...) std::get<float>(cfg_.get({__VA_ARGS__}));

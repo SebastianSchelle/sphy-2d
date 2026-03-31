@@ -27,10 +27,8 @@ Server::~Server() {
 
 void Server::startUdpTcp()
 {
-    int portTcp = static_cast<int>(
-        std::get<float>(config.get({"connection", "serv-port-tcp"})));
-    int portUdp = static_cast<int>(
-        std::get<float>(config.get({"connection", "serv-port-udp"})));
+    uint portTcp = CFG_UINT(config, "connection", "serv-port-tcp");
+    uint portUdp = CFG_UINT(config, "connection", "serv-port-udp");
     LG_D("Setup socket on port-tcp={} and port-udp={}", portTcp, portUdp);
 
     signals.async_wait(

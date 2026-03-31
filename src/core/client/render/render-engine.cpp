@@ -608,6 +608,7 @@ void RenderEngine::submitShapes()
 
 void RenderEngine::zoomWorld(float amount)
 {
+    // todo: save in local variable
     worldZoom += amount * CFG_FLOAT(config, "gfx", "zoom-step", "world");
     if(amount > 0)
     {

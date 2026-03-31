@@ -10,13 +10,18 @@
 
 using moodycamel::ConcurrentQueue;
 
+namespace ui
+{
+    class UserInterface;
+}
+
 namespace sphyc
 {
 
 class Model
 {
   public:
-    Model();
+    Model(ui::UserInterface* userInterface);
     ~Model();
     void parseCommand(std::vector<uint8_t> data);
     void modelLoop(float dt);
@@ -38,6 +43,7 @@ class Model
     ClientGameState gameState = ClientGameState::Init;
     net::ExchangeSequence loadWorldSequence;
     world::World world;
+    ui::UserInterface* userInterface;
 };
 
 }  // namespace sphyc

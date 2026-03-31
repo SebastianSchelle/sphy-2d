@@ -2,11 +2,12 @@
 #include <model.hpp>
 #include <protocol.hpp>
 #include <world-def.hpp>
+#include <ui/user-interface.hpp>
 
 namespace sphyc
 {
 
-Model::Model()
+Model::Model(ui::UserInterface* userInterface) : userInterface(userInterface)
 {
     loadWorldSequence.registerExchange(net::Exchange(
         prot::cmd::WORLD_INFO,
@@ -143,9 +144,13 @@ void Model::parseCommand(std::vector<uint8_t> data)
         }
         case prot::cmd::CONSOLE_CMD:
         {
-            std::string str;
-            cmddes.text1b(str, len);
-            LG_I("Console command from server: {}", str);
+            if (flags & CMD_FLAG_RESP)
+            {
+                std::string str;
+                cmddes.text1b(str, len);
+                LG_I("Console cmd response: {}", str);
+                userInterface->addSystemMessage(str);
+            }
             break;
         }
         default:

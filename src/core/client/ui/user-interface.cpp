@@ -1,5 +1,7 @@
 #include "user-interface.hpp"
 #include "RmlUi/Core/DataModelHandle.h"
+#include "RmlUi/Core/EventListener.h"
+#include "RmlUi/Core/ID.h"
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -7,6 +9,30 @@
 namespace ui
 {
 
+class ChatInputChangeListener final : public Rml::EventListener
+{
+  public:
+    explicit ChatInputChangeListener(UserInterface* ui) : ui(ui) {}
+
+    void ProcessEvent(Rml::Event& event) override
+    {
+        if (event != Rml::EventId::Change)
+        {
+            return;
+        }
+        if (!event.GetParameter<bool>("linebreak", false))
+        {
+            return;
+        }
+        if (ui)
+        {
+            ui->submitChatInput();
+        }
+    }
+
+  private:
+    UserInterface* ui;
+};
 
 void ChatData::addMessage(const ChatMessage& message)
 {
@@ -23,11 +49,12 @@ void ChatData::addMessage(const ChatMessage& message)
     messages.back().timestampText = timeStream.str();
 }
 
-UserInterface::UserInterface(CmdCallback cmdCallback) : cmdCallback(cmdCallback) {
+UserInterface::UserInterface(CmdCallback cmdCallback) : cmdCallback(cmdCallback)
+{
     chatData.currMsgTarget = "all";
 }
 
-UserInterface::~UserInterface() {}
+UserInterface::~UserInterface() = default;
 
 bool UserInterface::init(glm::ivec2 windowSize)
 {
@@ -62,23 +89,41 @@ void UserInterface::update()
 {
     static tim::Timepoint lastUpdateTime = tim::getCurrentTimeU();
     static int i = 0;
-    DO_PERIODIC(lastUpdateTime,
-                TIM_10S,
-                [this]()
-                {
-                    chatData.addMessage({"System",
-                                         "Test message " + std::to_string(i++),
-                                         "Me",
-                                         tim::getCurrentTimeU()});
-                    rmlModelChat.DirtyVariable("messages");
-                });
-    // scrollChatOnNextUpdate = true;
+    DO_PERIODIC(
+        lastUpdateTime,
+        TIM_1S,
+        [this]()
+        {
+            addSystemMessage(
+                "Test message " + std::to_string(i));
+            i++;
+        });
     rmlContext->Update();
+    if (focusChatInputOnNextUpdate && chatOpen)
+    {
+        focusChatInput();
+        focusChatInputOnNextUpdate = false;
+    }
     if (scrollChatOnNextUpdate)
     {
         scrollChatToBottom();
         scrollChatOnNextUpdate = false;
     }
+}
+
+void UserInterface::addChatMessage(const ChatMessage& message)
+{
+    chatData.addMessage(message);
+    if (enableScrollDown)
+    {
+        rmlModelChat.DirtyVariable("messages");
+        scrollChatOnNextUpdate = true;
+    }
+}
+
+void UserInterface::addSystemMessage(const string& message)
+{
+    addChatMessage({"system", message, "me", tim::getCurrentTimeU()});
 }
 
 bool UserInterface::processMouseMove(glm::ivec2 mousePos, int keyMod)
@@ -157,16 +202,46 @@ UiDocHandle UserInterface::loadDocument(const std::string& name,
     }
     UiDocHandle handle = rmlDocLib.addItem(name, document);
 
+    if (name == "chat")
+    {
+        chatInputChangeListener =
+            std::make_unique<ChatInputChangeListener>(this);
+        if (Rml::Element* input = document->GetElementById("chat-input"))
+        {
+            input->AddEventListener(
+                Rml::EventId::Change, chatInputChangeListener.get(), false);
+        }
+        else
+        {
+            LG_W("chat-input not found; Enter-to-send disabled");
+            chatInputChangeListener.reset();
+        }
+    }
+
     return handle;
 }
 
 void UserInterface::unloadDocument(UiDocHandle handle)
 {
     auto doc = rmlDocLib.getItem(handle.getIdx());
-    if (doc)
+    if (!doc)
     {
-        rmlContext->UnloadDocument(*doc);
+        return;
     }
+
+    const UiDocHandle chatHandle = rmlDocLib.getHandle("chat");
+    if (chatHandle.isValid() && handle.value() == chatHandle.value()
+        && chatInputChangeListener)
+    {
+        if (Rml::Element* input = (*doc)->GetElementById("chat-input"))
+        {
+            input->RemoveEventListener(
+                Rml::EventId::Change, chatInputChangeListener.get(), false);
+        }
+        chatInputChangeListener.reset();
+    }
+
+    rmlContext->UnloadDocument(*doc);
 }
 
 bool UserInterface::loadFont(const std::string& fontPath)
@@ -364,7 +439,9 @@ void UserInterface::toggleChat()
         LG_D("Opening chat");
         showDocument(rmlDocLib.getHandle("chat"));
         chatOpen = true;
+        enableScrollDown = true;
         scrollChatOnNextUpdate = true;
+        focusChatInputOnNextUpdate = true;
     }
 }
 
@@ -409,6 +486,12 @@ void UserInterface::setupChatDataModel()
     chatConstructor.Bind("curr_msg_target", &chatData.currMsgTarget);
     chatConstructor.BindEventCallback(
         "chat_send_msg", &UserInterface::onChatSendMsg, this);
+    chatConstructor.BindEventCallback(
+        "chat_scroll", &UserInterface::onChatScroll, this);
+    chatConstructor.BindEventCallback(
+        "chat_scroll_down", &UserInterface::onChatScrollDown, this);
+    chatConstructor.BindEventCallback(
+        "chat_sender_click", &UserInterface::onChatSenderClick, this);
     rmlModelChat = chatConstructor.GetModelHandle();
 }
 
@@ -416,32 +499,120 @@ void UserInterface::onChatSendMsg(Rml::DataModelHandle handle,
                                   Rml::Event& event,
                                   const Rml::VariantList& args)
 {
-    LG_D("Chat send message: {}", args.size());
-    if (args.size() > 0)
+    (void)handle;
+    (void)event;
+    (void)args;
+    LG_D("Chat send message");
+    submitChatInput();
+}
+
+void UserInterface::onChatScroll(Rml::DataModelHandle handle,
+                                 Rml::Event& event,
+                                 const Rml::VariantList& args)
+{
+    (void)handle;
+    (void)args;
+    Rml::Element* const target = event.GetTargetElement();
+    if (!target)
     {
-        std::string message = args[0].Get<std::string>();
-        if (message.empty())
-        {
-            return;
-        }
-        InputMsgParseData parseData;
-        if (!parseSendMsg(message, parseData))
-        {
-            return;
-        }
-        if(parseData.target != chatData.currMsgTarget)
-        {
-            chatData.currMsgTarget = parseData.target;
-            rmlModelChat.DirtyVariable("curr_msg_target");
-        }
-        chatData.addMessage({"Me",
-                             parseData.message,
-                             parseData.target,
-                             tim::getCurrentTimeU()});
-        chatInputText.clear();
-        rmlModelChat.DirtyVariable("messages");
-        rmlModelChat.DirtyVariable("chat_input_text");
-        scrollChatOnNextUpdate = true;
+        return;
+    }
+    enableScrollDown = isChatScrollNearBottom(target);
+}
+
+bool UserInterface::isChatScrollNearBottom(Rml::Element* scrollElement) const
+{
+    static constexpr float kThresholdPx = 48.f;
+    if (!scrollElement)
+    {
+        return true;
+    }
+    const float scrollTop = scrollElement->GetScrollTop();
+    const float scrollHeight = scrollElement->GetScrollHeight();
+    const float clientHeight = scrollElement->GetClientHeight();
+    const float maxScroll = scrollHeight - clientHeight;
+    if (maxScroll <= 0.f)
+    {
+        return true;
+    }
+    return (maxScroll - scrollTop) <= kThresholdPx;
+}
+
+void UserInterface::onChatScrollDown(Rml::DataModelHandle handle,
+                                     Rml::Event& event,
+                                     const Rml::VariantList& args)
+{
+    (void)handle;
+    (void)event;
+    (void)args;
+    enableScrollDown = true;
+    scrollChatOnNextUpdate = true;
+}
+
+void UserInterface::onChatSenderClick(Rml::DataModelHandle handle,
+                                      Rml::Event& event,
+                                      const Rml::VariantList& args)
+{
+    (void)event;
+    if (args.empty())
+    {
+        return;
+    }
+    const std::string sender = args[0].Get<std::string>();
+    if (sender.empty())
+    {
+        return;
+    }
+    if (chatData.currMsgTarget != sender)
+    {
+        chatData.currMsgTarget = sender;
+        handle.DirtyVariable("curr_msg_target");
+    }
+}
+
+void UserInterface::submitChatInput()
+{
+    if (chatInputText.empty())
+    {
+        return;
+    }
+    InputMsgParseData parseData;
+    if (!parseSendMsg(chatInputText, parseData))
+    {
+        return;
+    }
+    if (parseData.target != chatData.currMsgTarget)
+    {
+        chatData.currMsgTarget = parseData.target;
+        rmlModelChat.DirtyVariable("curr_msg_target");
+    }
+    chatData.addMessage(
+        {"me", parseData.message, parseData.target, tim::getCurrentTimeU()});
+    chatInputText.clear();
+    rmlModelChat.DirtyVariable("messages");
+    rmlModelChat.DirtyVariable("chat_input_text");
+    scrollChatOnNextUpdate = true;
+}
+
+void UserInterface::focusChatInput()
+{
+    if (!rmlContext || !chatOpen)
+    {
+        return;
+    }
+    const UiDocHandle chatDoc = rmlDocLib.getHandle("chat");
+    if (!chatDoc.isValid())
+    {
+        return;
+    }
+    auto docPtr = rmlDocLib.getItem(chatDoc.getIdx());
+    if (!docPtr || !*docPtr)
+    {
+        return;
+    }
+    if (Rml::Element* input = (*docPtr)->GetElementById("chat-input"))
+    {
+        input->Focus();
     }
 }
 

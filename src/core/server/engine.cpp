@@ -13,7 +13,7 @@ namespace sphys
 
 Engine::Engine(const sphy::CmdLinOptionsServer& options)
     : options(options), state(EngineState::Init), saveConfig(),
-      saveFolder(options.savedir), rerunStream("sphy-2d")
+      saveFolder(options.savedir), rerunStream("sphy-2d"), commandManager()
 {
     ptrHandle = std::make_shared<ecs::PtrHandle>();
     ptrHandle->ecs = &ecs;
@@ -40,6 +40,7 @@ void Engine::start()
     cFac->registerComponent<ecs::Transform>("trans");
     cFac->registerComponent<ecs::PhysicsBody>("phy");
     cFac->registerComponent<ecs::AssetId>("asset-id");
+    registerConsoleCommands();
 
     registerClient(
         "1234abcd1234abcd", "Test Client", net::ClientFlags{.enConsole = 1});
@@ -409,27 +410,55 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
             }
             case prot::cmd::CONSOLE_CMD:
             {
-                if(cmdData.sendType == net::SendType::TCP)
+                if (cmdData.sendType == net::SendType::TCP)
                 {
-                    net::ClientInfoHandle clientInfoHandle = tcpConnection->getClientInfoHandle();
-                    if(clientInfoHandle.isValid())
+                    string data;
+                    string response;
+                    cmddes.text1b(data, len);
+                    net::ClientInfoHandle clientInfoHandle =
+                        tcpConnection->getClientInfoHandle();
+                    if (clientInfoHandle.isValid())
                     {
-                        net::ClientInfo* clientInfo = clientLib.getItem(clientInfoHandle);
-                        if(clientInfo)
+                        net::ClientInfo* clientInfo =
+                            clientLib.getItem(clientInfoHandle);
+                        if (clientInfo)
                         {
-                            LG_I("Console command from client: {}", clientInfo->name);
-                            LG_I("enConsole: {}", (bool)clientInfo->flags.enConsole);
-                            LG_I("Console command from client: {}", std::string(data.begin(), data.end()));
+                            if (clientInfo->flags.enConsole)
+                            {
+                                try
+                                {
+                                    response =
+                                        commandManager.executeCommand(data);
+                                }
+                                catch (const std::exception& e)
+                                {
+                                    response =
+                                        "Failed: " + std::string(e.what());
+                                }
+                            }
+                            else
+                            {
+                                response = "Failed: Client " + clientInfo->name
+                                           + " is not a console";
+                            }
                         }
                         else
                         {
-                            LG_E("Client info not found");
+                            response = "Failed: Client info not found";
                         }
                     }
                     else
                     {
-                        LG_E("client info handle not valid");
+                        response = "Failed: Client info handle not valid";
                     }
+
+                    CMDAT_PREP(net::SendType::TCP,
+                               prot::cmd::CONSOLE_CMD,
+                               CMD_FLAG_RESP)
+                    cmdser.text1b(response, response.size());
+                    CMDAT_FIN()
+                    cmdData.tcpConnection = tcpConnection;
+                    sendQueue.enqueue(cmdData);
                 }
                 break;
             }
@@ -470,6 +499,61 @@ ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId,
 }
 
 void Engine::postWorldSetup() {}
+
+void Engine::registerConsoleCommands()
+{
+    commandManager.registerCommand(
+        {"ping"},
+        [this](const std::vector<std::string>& arguments)
+        { return "Ok: Pong"; });
+
+    commandManager.registerCommand(
+        {"log", "warn"},
+        [this](const std::vector<std::string>& arguments)
+        {
+            LG_W("{}", arguments);
+            return "Ok";
+        },
+        1);
+
+    commandManager.registerCommand(
+        {"log"},
+        [this](const std::vector<std::string>& arguments)
+        {
+            LG_I("{}", arguments);
+            return "Ok";
+        },
+        1);
+
+    commandManager.registerCommand(
+        {"help"},
+        [this](const std::vector<std::string>& arguments)
+        {
+            if (arguments.empty())
+            {
+                return commandManager.help("");
+            }
+            else
+            {
+                return commandManager.help(arguments[0]);
+            }
+        });
+
+    commandManager.registerCommand(
+        {"asset", "list"},
+        [this](const std::vector<std::string>& arguments)
+        {
+            return assetFactory.assetList(arguments.empty() ? "all"
+                                                            : arguments[0]);
+        });
+
+    commandManager.registerCommand(
+        {"asset", "info"},
+        [this](const std::vector<std::string>& arguments)
+        {
+            return assetFactory.assetInfo(arguments[0]);
+        }, 1);
+}
 
 }  // namespace sphys
 

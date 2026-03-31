@@ -73,7 +73,8 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
       renderEngine(config), rmlUiRenderInterface(&renderEngine),
       client(config, model.sendQueue, model.receiveQueue), modManager(),
       modLoadingHandle(UiDocHandle::Invalid()),
-      userInterface(std::bind(&MainWindow::onCmd, this, std::placeholders::_1))
+      userInterface(std::bind(&MainWindow::onCmd, this, std::placeholders::_1)),
+      model(&userInterface)
 {
     auto path(options.workingdir);
     std::filesystem::current_path(path);
@@ -553,6 +554,8 @@ Rml::Input::KeyIdentifier MainWindow::glfwToRmlKey(int key)
             return KI_BACK;
         case GLFW_KEY_DELETE:
             return KI_DELETE;
+        case GLFW_KEY_KP_ENTER:
+            return KI_NUMPADENTER;
         case GLFW_KEY_ENTER:
             return KI_RETURN;
         case GLFW_KEY_TAB:

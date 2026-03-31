@@ -12,6 +12,7 @@ set(HELPER_SOURCES
     os-helper.cpp
     config-manager/config-manager.cpp
     config-manager/config-node.cpp
+    "command-node.cpp"
 )
 
 set(LIBS_PUB

@@ -16,6 +16,7 @@
 #include <net-shared.hpp>
 #include <world.hpp>
 #include <rerun.hpp>
+#include <command-node.hpp>
 
 using moodycamel::ConcurrentQueue;
 
@@ -71,6 +72,7 @@ class Engine
     bool loadMods();
     void update(float dt);
     void postWorldSetup();
+    void registerConsoleCommands();
 
     const sphy::CmdLinOptionsServer& options;
     std::atomic<bool> stopRequested{false};
@@ -89,6 +91,7 @@ class Engine
     vector<entt::entity> globalEntities;
     std::shared_ptr<ecs::PtrHandle> ptrHandle;
     rerun::RecordingStream rerunStream;
+    cmd::CommandManager commandManager;
 
   public:
     ecs::Ecs ecs;

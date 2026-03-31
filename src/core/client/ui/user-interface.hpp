@@ -6,6 +6,7 @@
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <item-lib.hpp>
+#include <memory>
 #include <ptr-handle.hpp>
 
 using UiDocHandle = con::ItemLib<Rml::ElementDocument*>::Handle;
@@ -24,6 +25,7 @@ struct ChatMessage
 {
     string sender;
     string message;
+    // todo: instead of message, add vector<ChatChunk> where ChatChunk can be plain text or a hyperlink/reference or whatever
     string target;
     tim::Timepoint timestamp;
     string timestampText;
@@ -41,6 +43,8 @@ struct ChatData
     string currMsgTarget;
     void addMessage(const ChatMessage& message);
 };
+
+class ChatInputChangeListener;
 
 class UserInterface
 {
@@ -65,7 +69,8 @@ class UserInterface
     void showMenu();
     void closeMenu();
     void processEsc(bool keepMenuOpen = false);
-
+    void addSystemMessage(const string& message);
+    void addChatMessage(const ChatMessage& message);
     UiDocHandle loadDocument(const std::string& name,
                              const std::string& documentPath);
     void unloadDocument(UiDocHandle handle);
@@ -99,7 +104,22 @@ class UserInterface
     void onChatSendMsg(Rml::DataModelHandle handle,
                        Rml::Event& event,
                        const Rml::VariantList& args);
+    void onChatScroll(Rml::DataModelHandle handle,
+                      Rml::Event& event,
+                      const Rml::VariantList& args);
+    void onChatScrollDown(Rml::DataModelHandle handle,
+                          Rml::Event& event,
+                          const Rml::VariantList& args);
+    void onChatSenderClick(Rml::DataModelHandle handle,
+                           Rml::Event& event,
+                           const Rml::VariantList& args);
+    bool isChatScrollNearBottom(Rml::Element* scrollElement) const;
+
+    void submitChatInput();
+    void focusChatInput();
     bool parseSendMsg(const string& message, InputMsgParseData& parseData);
+
+    friend class ChatInputChangeListener;
 
     con::ItemLib<Rml::ElementDocument*> rmlDocLib;
     Rml::Context* rmlContext;
@@ -118,6 +138,10 @@ class UserInterface
     std::string chatInputText;
     Rml::DataModelHandle rmlModelChat;
     bool scrollChatOnNextUpdate = false;
+    bool focusChatInputOnNextUpdate = false;
+    bool enableScrollDown = true;
+
+    std::unique_ptr<ChatInputChangeListener> chatInputChangeListener;
 
     CmdCallback cmdCallback;
 };

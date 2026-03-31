@@ -49,7 +49,7 @@ entt::entity AssetFactory::loadAsset(const std::string& path)
                 {
                     const std::string name =
                         component["name"].as<std::string>();
-                    assetMap[name] = asset;
+                    assetMap[name] = {path, asset};
                     LG_I("Loaded asset '{}' from '{}'", name, path);
                 }
                 componentFactory.loadComponent(
@@ -76,7 +76,7 @@ void AssetFactory::copyComponentsIntoEntity(entt::registry& registry,
     {
         return;
     }
-    const entt::entity srcEntity = it->second;
+    const entt::entity srcEntity = it->second.entity;
     if (!registry.valid(entity) || !this->registry.valid(srcEntity))
     {
         return;
@@ -87,6 +87,44 @@ void AssetFactory::copyComponentsIntoEntity(entt::registry& registry,
                srcEntity,
                registry,
                entity);
+    }
+}
+
+string AssetFactory::assetList(const string& searchTerm) const
+{
+    string info = "List of available assets:\n";
+    for (const auto& [name, entity] : assetMap)
+    {
+        if (searchTerm.empty() || searchTerm == "all" || name.find(searchTerm) != string::npos)
+        {
+            info += name + "\n";
+        }
+    }
+    return info;
+}
+
+string AssetFactory::assetInfo(const string& assetId) const
+{
+    auto it = assetMap.find(assetId);
+    if (it == assetMap.end())
+    {
+        return "Failed: Asset not found";
+    }
+    const AssetMapItem& item = it->second;
+    string info = "Asset '" + assetId + "'";
+    std::ifstream file(item.path);
+    if (file.is_open())
+    {
+        string line;
+        while (getline(file, line))
+        {
+            info += line + "\n";
+        }
+        return info;
+    }
+    else
+    {
+        return "Failed: Could not find asset info";
     }
 }
 

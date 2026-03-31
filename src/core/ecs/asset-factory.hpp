@@ -58,6 +58,12 @@ class ComponentFactory
     std::unordered_map<std::string, CopierFunc> copiers;
 };
 
+struct AssetMapItem
+{
+  std::string path;
+  entt::entity entity;
+};
+
 class AssetFactory
 {
   public:
@@ -68,10 +74,12 @@ class AssetFactory
     void copyComponentsIntoEntity(entt::registry& registry,
                                   entt::entity entity,
                                   const std::string& assetId) const;
+    string assetList(const string& assetId) const;
+    string assetInfo(const string& assetId) const;
 
   private:
     entt::registry registry;
-    std::unordered_map<std::string, entt::entity> assetMap;
+    std::unordered_map<std::string, AssetMapItem> assetMap;
 };
 
 }  // namespace ecs

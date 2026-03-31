@@ -189,4 +189,23 @@ template <> struct convert<vec2>
 };
 }  // namespace YAML
 
+template <> struct fmt::formatter<vector<string>>
+{
+    constexpr auto parse(fmt::format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+    template <typename FormatContext>
+    auto format(const vector<string>& strings, FormatContext& ctx) const
+    {
+        std::string joined;
+        for (size_t i = 0; i < strings.size(); ++i) {
+            joined += strings[i];
+            if (i + 1 < strings.size())
+                joined += ", ";
+        }
+        return fmt::format_to(ctx.out(), "[{}]", joined);
+    }
+};
+
 #endif
