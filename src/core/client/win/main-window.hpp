@@ -2,6 +2,10 @@
 #define MAIN_WINDOW_HPP
 
 #include "std-inc.hpp"
+#include <functional>
+#include <future>
+#include <mutex>
+#include <vector>
 #include <GLFW/glfw3.h>
 #include <bgfx/bgfx.h>
 #include <bx/math.h>
@@ -52,7 +56,7 @@ struct WindowInfo
     glm::ivec2 size;
 };
 
-struct MenuConnectData
+struct UiMenuConnectData
 {
   std::string token = "1234abcd1234abcd";
   std::string ipAddress = "127.0.0.1";
@@ -61,10 +65,42 @@ struct MenuConnectData
   int udpPortCli = 29202;
 };
 
-struct MenuData
+struct UiMenuData
 {
     vector<mod::MenuDataMod> mods;
-    MenuConnectData connectData;
+    UiMenuConnectData connectData;
+};
+
+struct UiInputData
+{
+  float ptrScreenX = 0.f;
+  float ptrScreenY = 0.f;
+  bool ptrOverUi = false;
+  float ptrWorldX = 0.f;
+  float ptrWorldY = 0.f;
+};
+
+struct UiViewData
+{
+  int winW = 0;
+  int winH = 0;
+  float fpsSmoothed = 0.f;
+  float frameMs = 0.f;
+  float zoom = 0.f;
+  float camX = 0.f;
+  float camY = 0.f;
+};
+
+struct UiGameData
+{
+  std::string gameState = "Init";
+};
+
+struct UiDebugData
+{
+  UiInputData inputData;
+  UiViewData viewData;
+  UiGameData gameData;
 };
 
 class MainWindow
@@ -101,8 +137,11 @@ class MainWindow
 
     void startLoading();
     void loadingLoop();
+    void processUiTasks();
+    void drainUiTasksForShutdown();
 
     void setupDataModelDebug();
+    void updateDebugDataModel(float deltaTimeSec, bool ptrOverUi);
     void setupDataModelMenu();
 
     void stopServer();
@@ -134,20 +173,22 @@ class MainWindow
 
     tim::Timepoint lastLoopTime;
     float frameTimeFiltered = 0.0f;
-    uint16_t fps;
 
     UiDocHandle modLoadingHandle;
 
     std::thread loadingThread;
     std::future<bool> loadingFuture;
 
+    std::mutex uiTaskMutex;
+    std::vector<std::function<void()>> uiTasks;
+
     Rml::DataModelHandle rmlModelDebug;
     Rml::DataModelHandle rmlModelMenu;
     Rml::DataModelHandle rmlModelHud;
 
-    MenuData menuData;
+    UiMenuData menuData;
+    UiDebugData debugData;
 
-    std::string debugInput = "Hello World!";
     bp::child *serverProcess = nullptr;
     ecs::AssetFactory assetFactory;
 };

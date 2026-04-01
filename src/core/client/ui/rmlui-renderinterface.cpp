@@ -17,6 +17,11 @@ Rml::CompiledGeometryHandle
 RmlUiRenderInterface::CompileGeometry(Rml::Span<const Rml::Vertex> vertices,
                                       Rml::Span<const int> indices)
 {
+    if (vertices.empty() || indices.empty())
+    {
+        return Rml::CompiledGeometryHandle{};
+    }
+
     glm::ivec2 textureSize = renderEngine->getTextureSize();
     std::vector<VertexPosColTex> vertexData;
     vertexData.reserve(vertices.size());

@@ -5,6 +5,20 @@
 namespace mod
 {
 
+#ifdef CLIENT
+namespace
+{
+bool dispatchUiBool(PtrHandles& ptrHandles, std::function<bool()> fn)
+{
+    if (ptrHandles.runUiBool)
+    {
+        return ptrHandles.runUiBool(std::move(fn));
+    }
+    return fn();
+}
+}  // namespace
+#endif
+
 ModManager::ModManager() {}
 ModManager::~ModManager() {}
 
@@ -272,7 +286,9 @@ bool ModManager::loadFonts(PtrHandles& ptrHandles, const ModInfo& modInfo)
             && fileEntry.path().extension() == ".ttf")
         {
             const std::string fontPath = fileEntry.path().string();
-            if (!ptrHandles.userInterface->loadFont(fontPath))
+            if (!dispatchUiBool(ptrHandles, [&]() {
+                    return ptrHandles.userInterface->loadFont(fontPath);
+                }))
             {
                 LG_E("Failed to load font: {}", fontPath);
                 return false;
@@ -336,7 +352,14 @@ bool ModManager::loadUiDocs(PtrHandles& ptrHandles,
                 const std::string uiDocPath =
                     modInfo.modDir + "/assets/ui/"
                     + it->second["path"].as<std::string>();
-                ptrHandles.userInterface->loadDocument(uiDocName, uiDocPath);
+                if (!dispatchUiBool(ptrHandles, [&]() {
+                        ptrHandles.userInterface->loadDocument(uiDocName,
+                                                               uiDocPath);
+                        return true;
+                    }))
+                {
+                    return false;
+                }
             }
             catch (const YAML::Exception& e)
             {
@@ -369,9 +392,15 @@ bool ModManager::loadModOptions(PtrHandles& ptrHandles, ModInfo& modInfo)
     if (std::filesystem::exists(modOptionsPath))
     {
         LG_I("Mod options found: {}", modOptionsPath);
-        ptrHandles.userInterface->loadDocument("options-" + modInfo.id,
-                                               modOptionsPath);
-        modInfo.hasModOptions = true;
+        if (!dispatchUiBool(ptrHandles, [&]() {
+                ptrHandles.userInterface->loadDocument(
+                    "options-" + modInfo.id, modOptionsPath);
+                modInfo.hasModOptions = true;
+                return true;
+            }))
+        {
+            return false;
+        }
     }
     return true;
 }

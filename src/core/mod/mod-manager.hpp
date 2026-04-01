@@ -5,6 +5,7 @@
 #include <render-engine.hpp>
 #include <ui/user-interface.hpp>
 #endif
+#include <functional>
 #include <std-inc.hpp>
 #include <asset-factory.hpp>
 
@@ -29,6 +30,10 @@ struct PtrHandles
 #ifdef CLIENT
     gfx::RenderEngine* renderEngine;
     ui::UserInterface* userInterface;
+    /// When set (e.g. mod load worker thread), RmlUi calls must run through this
+    /// so they execute on the main thread. Blocks caller until the main loop runs
+    /// the task.
+    std::function<bool(std::function<bool()>)> runUiBool;
 #endif
     mod::LuaInterpreter* luaInterpreter;
     ecs::AssetFactory* assetFactory;

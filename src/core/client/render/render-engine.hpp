@@ -131,6 +131,12 @@ class RenderEngine
                     bgfx::ViewId viewId = 0);
     tim::Timepoint getStartTime() const;
     float getWorldZoom() const { return worldZoom; }
+    glm::vec2 getWorldCameraPosition() const
+    {
+        return {worldCameraX, worldCameraY};
+    }
+    /// Window pixel position (same space as GLFW cursor) → world XY under the cursor.
+    glm::vec2 screenToWorldPixel(const glm::vec2& screenPx) const;
 
   private:
     void cleanUpAll();
@@ -184,6 +190,7 @@ class RenderEngine
     float worldZoom = 2.0f;
     float worldView[16];
     float worldViewProj[16];
+    float invWvp[16];
     glm::vec2 scissorRegionPosition;
     glm::vec2 scissorRegionSize;
     bool scissorRegionEnabled;

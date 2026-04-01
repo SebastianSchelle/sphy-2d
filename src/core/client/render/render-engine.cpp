@@ -272,6 +272,29 @@ void RenderEngine::setWorldCamera(const glm::vec2& position, float zoom)
     worldZoom = zoom;
 }
 
+glm::vec2 RenderEngine::screenToWorldPixel(const glm::vec2& screenPx) const
+{
+    const float wf = float(winWidth);
+    const float hf = float(winHeight);
+    const float ndcX = 2.f * screenPx.x / wf - 1.f;
+    const float ndcY = 1.f - 2.f * screenPx.y / hf;
+
+    float clip[4] = {ndcX,
+                     ndcY,
+                     0.0f,
+                     1.0f};
+
+    float worldH[4];
+    bx::vec4MulMtx(worldH, clip, invWvp);
+
+    const float outW = worldH[3];
+    if (bx::abs(outW) > 1e-6f)
+    {
+        return {worldH[0] / outW, worldH[1] / outW};
+    }
+    return {worldH[0], worldH[1]};
+}
+
 void RenderEngine::updateOrtho()
 {
     bx::mtxOrtho(ortho,
@@ -295,6 +318,7 @@ void RenderEngine::updateWorldView()
     bx::mtxTranslate(transMtx, trX, trY, 0.0f);
     bx::mtxMul(worldView, transMtx, scaleMtx);
     bx::mtxMul(worldViewProj, worldView, ortho);
+    bx::mtxInverse(invWvp, worldViewProj);
 }
 
 TextureHandle RenderEngine::loadTexture(const std::string& name,

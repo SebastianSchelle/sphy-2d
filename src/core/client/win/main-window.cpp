@@ -6,6 +6,7 @@
 #include <bx/bx.h>
 #include <comp-ident.hpp>
 #include <main-window.hpp>
+#include <memory>
 #include <os-helper.hpp>
 #include <sol/sol.hpp>
 
@@ -89,6 +90,7 @@ MainWindow::~MainWindow()
     // Wait for loading thread to finish before destroying resources
     if (loadingThread.joinable())
     {
+        drainUiTasksForShutdown();
         loadingThread.join();
     }
     stopServer();
@@ -153,8 +155,11 @@ bool MainWindow::initPost()
 
 bool MainWindow::createWindow()
 {
+    uint32_t wWidth = CFG_UINT(config, "win", "width");
+    uint32_t wHeight = CFG_UINT(config, "win", "height");
+
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    window = glfwCreateWindow(800, 600, "window", nullptr, nullptr);
+    window = glfwCreateWindow(wWidth, wHeight, "window", nullptr, nullptr);
     if (!window)
     {
         LG_E("Could not create GLFW window");
@@ -203,13 +208,15 @@ void MainWindow::winLoop()
 
     while (!glfwWindowShouldClose(window))
     {
+        processUiTasks();
+
         // luaInterpreter.callFunction("dbg.test");
 
         tim::Timepoint now = tim::getCurrentTimeU();
         float deltaTime = (float)tim::durationU(lastLoopTime, now) / 1000000.0f;
         lastLoopTime = now;
         frameTimeFiltered = 0.9f * frameTimeFiltered + 0.1f * deltaTime;
-        fps = 1.0f / frameTimeFiltered;
+        debugData.viewData.fpsSmoothed = frameTimeFiltered > 1e-6f ? 1.0f / frameTimeFiltered : 0.f;
 
         model.modelLoop(deltaTime);
 
@@ -218,8 +225,9 @@ void MainWindow::winLoop()
         processMouseState();
         handleWinResize();
 
-        bool mouseOverUi =
+        const bool mouseOverUi =
             userInterface.processMouseMove(mouseState.mousePos, 0);
+        debugData.inputData.ptrOverUi = mouseOverUi;
         bool mouseWheelInteract =
             userInterface.processMouseWheel(mouseState.mz, 0);
         for (int i = 0; i < 3; ++i)
@@ -239,16 +247,10 @@ void MainWindow::winLoop()
             renderEngine.zoomWorld(mouseState.mz);
         }
 
-        static uint16_t updCnt = 0;
-        if (updCnt++ == 50)
+        if (userInterface.isDebugOpen())
         {
-            updCnt = 0;
-            rmlModelDebug.DirtyVariable("fpsClient");
-        }
-
-        if (rmlModelDebug.IsVariableDirty("dbgInput"))
-        {
-            LG_D("dbgInput: {}", debugInput);
+            updateDebugDataModel(deltaTime, mouseOverUi);
+            rmlModelDebug.DirtyAllVariables();
         }
 
         userInterface.update();
@@ -257,6 +259,7 @@ void MainWindow::winLoop()
         {
             case ClientGameState::Init:
                 startLoading();
+                processUiTasks();
                 break;
             case ClientGameState::LoadingMods:
                 loadingLoop();
@@ -329,6 +332,39 @@ void MainWindow::winLoop()
     }
 }
 
+void MainWindow::processUiTasks()
+{
+    std::vector<std::function<void()>> batch;
+    {
+        std::lock_guard<std::mutex> lock(uiTaskMutex);
+        batch.swap(uiTasks);
+    }
+    for (auto& task : batch)
+    {
+        task();
+    }
+}
+
+void MainWindow::drainUiTasksForShutdown()
+{
+    for (;;)
+    {
+        std::vector<std::function<void()>> batch;
+        {
+            std::lock_guard<std::mutex> lock(uiTaskMutex);
+            batch.swap(uiTasks);
+        }
+        if (batch.empty())
+        {
+            return;
+        }
+        for (auto& task : batch)
+        {
+            task();
+        }
+    }
+}
+
 void MainWindow::startLoading()
 {
     // Prevent multiple calls
@@ -363,6 +399,35 @@ void MainWindow::startLoading()
             mod::PtrHandles ptrHandles{
                 .renderEngine = &renderEngine,
                 .userInterface = &userInterface,
+                .runUiBool =
+                    [this](std::function<bool()> fn) -> bool
+                {
+                    auto p = std::make_shared<std::promise<bool>>();
+                    std::future<bool> fut = p->get_future();
+                    {
+                        std::lock_guard<std::mutex> lock(uiTaskMutex);
+                        uiTasks.push_back(
+                            [fn = std::move(fn), p]()
+                            {
+                                try
+                                {
+                                    p->set_value(fn());
+                                }
+                                catch (...)
+                                {
+                                    p->set_exception(std::current_exception());
+                                }
+                            });
+                    }
+                    try
+                    {
+                        return fut.get();
+                    }
+                    catch (...)
+                    {
+                        return false;
+                    }
+                },
                 .luaInterpreter = &luaInterpreter,
                 .assetFactory = &assetFactory,
             };
@@ -479,6 +544,12 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         return;
     }
 
+    if(action == GLFW_PRESS && key == GLFW_KEY_P && mods == GLFW_MOD_CONTROL)
+    {
+        userInterface.toggleDebug();
+        return;
+    }
+
     if (action == GLFW_PRESS
         && !userInterface.processKeyDown(glfwToRmlKey(key)))
     {
@@ -576,16 +647,77 @@ Rml::Input::KeyIdentifier MainWindow::glfwToRmlKey(int key)
     return KI_UNKNOWN;
 }
 
+static const char* gameStateToString(ClientGameState s)
+{
+    switch (s)
+    {
+        case ClientGameState::Init:
+            return "Init";
+        case ClientGameState::LoadingMods:
+            return "LoadingMods";
+        case ClientGameState::MainMenu:
+            return "MainMenu";
+        case ClientGameState::Connecting:
+            return "Connecting";
+        case ClientGameState::Connected:
+            return "Connected";
+        case ClientGameState::LoadWorld:
+            return "LoadWorld";
+        case ClientGameState::GameLoop:
+            return "GameLoop";
+    }
+    return "?";
+}
+
+void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
+{
+    debugData.viewData.frameMs = deltaTimeSec * 1000.f;
+    debugData.viewData.fpsSmoothed = frameTimeFiltered > 1e-6f ? 1.0f / frameTimeFiltered : 0.f;
+    debugData.viewData.zoom = renderEngine.getWorldZoom();
+    debugData.viewData.camX = renderEngine.getWorldCameraPosition().x;
+    debugData.viewData.camY = renderEngine.getWorldCameraPosition().y;
+    debugData.viewData.winW = wInfo.size.x;
+    debugData.viewData.winH = wInfo.size.y;
+    debugData.inputData.ptrOverUi = ptrOverUi;
+    debugData.gameData.gameState = gameStateToString(model.getGameState());
+    debugData.inputData.ptrScreenX = mouseState.mousePos.x;
+    debugData.inputData.ptrScreenY = mouseState.mousePos.y;
+    debugData.inputData.ptrWorldX = renderEngine.screenToWorldPixel(mouseState.mousePos).x;
+    debugData.inputData.ptrWorldY = renderEngine.screenToWorldPixel(mouseState.mousePos).y;
+}
+
 void MainWindow::setupDataModelDebug()
 {
     auto debugConstructor = userInterface.getDataModel("debug");
     if (debugConstructor)
     {
-        LG_D("Data model 'debug' created");
-        debugConstructor.Bind("fpsClient", &fps);
-        debugConstructor.Bind("dbgInput", &debugInput);
-        debugConstructor.BindEventCallback(
-            "onPrint", &UserInterface::onPrint, &userInterface);
+        if (auto md_handle = debugConstructor.RegisterStruct<UiInputData>())
+        {
+            md_handle.RegisterMember("ptrScreenX", &UiInputData::ptrScreenX);
+            md_handle.RegisterMember("ptrScreenY", &UiInputData::ptrScreenY);
+            md_handle.RegisterMember("ptrOverUi", &UiInputData::ptrOverUi);
+            md_handle.RegisterMember("ptrWorldX", &UiInputData::ptrWorldX);
+            md_handle.RegisterMember("ptrWorldY", &UiInputData::ptrWorldY);
+        }
+        debugConstructor.Bind("inputData", &debugData.inputData);
+
+        if (auto md_handle = debugConstructor.RegisterStruct<UiViewData>())
+        {
+            md_handle.RegisterMember("winW", &UiViewData::winW);
+            md_handle.RegisterMember("winH", &UiViewData::winH);
+            md_handle.RegisterMember("fpsSmoothed", &UiViewData::fpsSmoothed);
+            md_handle.RegisterMember("frameMs", &UiViewData::frameMs);
+            md_handle.RegisterMember("zoom", &UiViewData::zoom);
+            md_handle.RegisterMember("camX", &UiViewData::camX);
+            md_handle.RegisterMember("camY", &UiViewData::camY);
+        }
+        debugConstructor.Bind("viewData", &debugData.viewData);
+
+        if (auto md_handle = debugConstructor.RegisterStruct<UiGameData>())
+        {
+            md_handle.RegisterMember("gameState", &UiGameData::gameState);
+        }
+        debugConstructor.Bind("gameData", &debugData.gameData);
         rmlModelDebug = debugConstructor.GetModelHandle();
     }
 }
@@ -619,16 +751,16 @@ void MainWindow::setupDataModelMenu()
         menuConstructor.RegisterArray<std::vector<mod::MenuDataMod>>();
         menuConstructor.Bind("mods", &menuData.mods);
 
-        if (auto md_handle = menuConstructor.RegisterStruct<MenuConnectData>())
+        if (auto md_handle = menuConstructor.RegisterStruct<UiMenuConnectData>())
         {
-            md_handle.RegisterMember("token", &MenuConnectData::token);
-            md_handle.RegisterMember("ipAddress", &MenuConnectData::ipAddress);
+            md_handle.RegisterMember("token", &UiMenuConnectData::token);
+            md_handle.RegisterMember("ipAddress", &UiMenuConnectData::ipAddress);
             md_handle.RegisterMember("udpPortServ",
-                                     &MenuConnectData::udpPortServ);
+                                     &UiMenuConnectData::udpPortServ);
             md_handle.RegisterMember("tcpPortServ",
-                                     &MenuConnectData::tcpPortServ);
+                                     &UiMenuConnectData::tcpPortServ);
             md_handle.RegisterMember("udpPortCli",
-                                     &MenuConnectData::udpPortCli);
+                                     &UiMenuConnectData::udpPortCli);
         }
         menuConstructor.Bind("connectData", &menuData.connectData);
 

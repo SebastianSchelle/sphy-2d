@@ -67,11 +67,27 @@ bool UserInterface::init(glm::ivec2 windowSize)
         return false;
     }
     // Load default font
-    if (!Rml::LoadFontFace("modules/engine/assets/ui/Orbitron-Regular.ttf"))
+    if (!Rml::LoadFontFace("modules/engine/assets/ui/Roboto-Regular.ttf"))
     {
         LG_E("Failed to load default font");
         return false;
     }
+    if (!Rml::LoadFontFace("modules/engine/assets/ui/Roboto-Bold.ttf"))
+    {
+        LG_E("Failed to load default font");
+        return false;
+    }
+    if (!Rml::LoadFontFace("modules/engine/assets/ui/Roboto-Light.ttf"))
+    {
+        LG_E("Failed to load default font");
+        return false;
+    }
+    if (!Rml::LoadFontFace("modules/engine/assets/ui/Roboto-Italic.ttf"))
+    {
+        LG_E("Failed to load default font");
+        return false;
+    }
+
     // Load mod loading ui. This UI is always needed from the start.
     UiDocHandle modLoadingHandle =
         loadDocument("mod-loading", "modules/engine/assets/ui/mod-loading.rml");
@@ -430,18 +446,30 @@ void UserInterface::toggleChat()
 {
     if (chatOpen)
     {
-        LG_D("Closing chat");
         hideDocument(rmlDocLib.getHandle("chat"));
         chatOpen = false;
     }
     else
     {
-        LG_D("Opening chat");
         showDocument(rmlDocLib.getHandle("chat"));
         chatOpen = true;
         enableScrollDown = true;
         scrollChatOnNextUpdate = true;
         focusChatInputOnNextUpdate = true;
+    }
+}
+
+void UserInterface::toggleDebug()
+{
+    if (debugOpen)
+    {
+        hideDocument(rmlDocLib.getHandle("debug"));
+        debugOpen = false;
+    }
+    else
+    {
+        showDocument(rmlDocLib.getHandle("debug"));
+        debugOpen = true;
     }
 }
 

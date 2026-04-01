@@ -96,6 +96,8 @@ class UserInterface
                 Rml::Event& event,
                 const Rml::VariantList& args);
     void toggleChat();
+    void toggleDebug();
+    bool isDebugOpen() const { return debugOpen; }
 
   private:
     void onMenuBackPriv();
@@ -130,6 +132,7 @@ class UserInterface
     bool mouseWheelInteract;
     bool menuOpen = false;
     bool chatOpen = false;
+    bool debugOpen = false;
 
     vector<string> menuStack;
     string currentMenuPage;
