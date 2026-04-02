@@ -12,6 +12,15 @@ TcpClient::TcpClient(boost::asio::io_context& io_context,
     startReceive();
 }
 
+void TcpClient::close()
+{
+    boost::system::error_code ec;
+    [[maybe_unused]] const auto cancelled = socket.cancel(ec);
+    [[maybe_unused]] const auto shut =
+        socket.shutdown(tcp::socket::shutdown_both, ec);
+    [[maybe_unused]] const auto closed = socket.close(ec);
+}
+
 void TcpClient::sendMessage(const std::vector<uint8_t>& data)
 {
     LG_D("Sending TCP message");
@@ -49,7 +58,20 @@ void TcpClient::handleReceive(const boost::system::error_code& error,
     }
     else
     {
-        LG_E("TCP receive failed: {}", error.message());
+        if (error == boost::asio::error::eof)
+        {
+            LG_W("TCP connection closed by peer");
+        }
+        else
+        {
+            LG_E("TCP receive failed: {}", error.message());
+        }
+
+        if (receiveCallback)
+        {
+            // Signal connection close/drop to upper layer.
+            receiveCallback(nullptr, 0);
+        }
     }
 }
 

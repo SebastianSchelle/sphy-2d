@@ -15,6 +15,13 @@ UdpClient::UdpClient(boost::asio::io_context& io_context,
     startReceive();
 }
 
+void UdpClient::close()
+{
+    boost::system::error_code ec;
+    [[maybe_unused]] const auto cancelled = socket.cancel(ec);
+    [[maybe_unused]] const auto closed = socket.close(ec);
+}
+
 void UdpClient::sendMessage(const std::vector<uint8_t>& data)
 {
     socket.async_send_to(

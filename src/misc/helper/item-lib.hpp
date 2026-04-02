@@ -231,11 +231,11 @@ template <class T> void ItemLib<T>::removeItem(int idx)
     {
         items[idx].alive = false;
         freeSlots.push_back(idx);
-        for (const auto& [key, value] : idMap)
+        for (auto it = idMap.begin(); it != idMap.end(); ++it)
         {
-            if (value == idx)
+            if (it->second == idx)
             {
-                idMap.erase(key);
+                idMap.erase(it);
                 break;
             }
         }

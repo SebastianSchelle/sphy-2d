@@ -8,6 +8,7 @@ set(SERVER_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod
     ${MISC_DIR}/data-definitions
     ${MISC_DIR}/containers
+    ${MISC_DIR}
     ${THIRPARTY_DIR}/sol2/include
     ${THIRPARTY_DIR}/entt/src
     ${CMAKE_CURRENT_SOURCE_DIR}/../world

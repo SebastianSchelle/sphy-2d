@@ -16,6 +16,7 @@ class UdpClient
               int port,
               udp::endpoint endpoint,
               ReceiveCallback receiveCallback);
+    void close();
 
     void sendMessage(const std::vector<uint8_t>& data);
 

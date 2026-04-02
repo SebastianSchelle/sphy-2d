@@ -15,6 +15,7 @@ class TcpClient
     TcpClient(boost::asio::io_context& io_context,
               tcp::endpoint endpoint,
               net::TcpReceiveCallback receiveCallback);
+    void close();
     void sendMessage(const std::vector<uint8_t>& data);
     void startReceive();
     void handleReceive(const boost::system::error_code& error,

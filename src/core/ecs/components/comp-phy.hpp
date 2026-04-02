@@ -10,6 +10,7 @@ namespace ecs
 
 struct Transform
 {
+    static const uint16_t VERSION = 1;
     vec2 pos;
     float rot;
 
@@ -24,8 +25,42 @@ struct Transform
     }
 };
 
+#define SER_TRANSFORM                                                          \
+    SOBJ(o.pos);                                                               \
+    S4b(o.rot);
+
+EXT_SER(Transform, SER_TRANSFORM)
+EXT_DES(Transform, SER_TRANSFORM)
+
+struct TransformNet
+{
+    static const uint16_t VERSION = 1;
+
+    TransformNet(Transform transform)
+    {
+        this->transform = transform;
+    }
+    Transform transform;
+
+    static void fromYaml(entt::registry& registry,
+                         entt::entity entity,
+                         const YAML::Node& node)
+    {
+        Transform transform;
+        transform.pos = node["pos"].as<vec2>();
+        transform.rot = node["rot"].as<float>();
+        TransformNet transformNet(transform);
+        registry.emplace<TransformNet>(entity, transformNet);
+    }
+};
+
+#define SER_TRANSFORM_NET SOBJ(o.transform);
+EXT_SER(TransformNet, SER_TRANSFORM_NET)
+EXT_DES(TransformNet, SER_TRANSFORM_NET)
+
 struct PhysicsBody
 {
+    static const uint16_t VERSION = 1;
     float mass = 1.0f;        // kg
     vec2 vel = {0.0f, 0.0f};  // m/s
     vec2 acc = {0.0f, 0.0f};  // m/s^2
@@ -56,42 +91,34 @@ struct PhysicsBody
     }
 };
 
+#define SER_PHYSICS_BODY                                                       \
+    S4b(o.mass);                                                               \
+    S4b(o.inertia);                                                            \
+    SOBJ(o.vel);                                                               \
+    S4b(o.rotVel);                                                             \
+    S4b(o.rotAcc);                                                             \
+    SOBJ(o.acc);
+EXT_SER(PhysicsBody, SER_PHYSICS_BODY)
+EXT_DES(PhysicsBody, SER_PHYSICS_BODY)
+
 }  // namespace ecs
 
+EXT_FMT(ecs::Transform,
+        "(pos: {}, rot: {})",
+        o.pos,
+        o.rot);
 
-template <> struct fmt::formatter<ecs::Transform>
-{
-    constexpr auto parse(fmt::format_parse_context& ctx)
-    {
-        return ctx.begin();
-    }
-    template <typename FormatContext>
-    auto format(const ecs::Transform& transform, FormatContext& ctx) const
-    {
-        return fmt::format_to(ctx.out(),
-                              "Transform(pos: {}, rot: {})",
-                              transform.pos,
-                              transform.rot);
-    }
-};
+EXT_FMT(ecs::TransformNet,
+        "{}",
+        o.transform);
 
-template <> struct fmt::formatter<ecs::PhysicsBody>
-{
-    constexpr auto parse(fmt::format_parse_context& ctx)
-    {
-        return ctx.begin();
-    }
-    template <typename FormatContext>
-    auto format(const ecs::PhysicsBody& physicsBody, FormatContext& ctx) const
-    {
-        return fmt::format_to(
-            ctx.out(),
-            "PhysicsBody(mass: {}, inertia: {}, vel: {}, rotVel: {})",
-            physicsBody.mass,
-            physicsBody.inertia,
-            physicsBody.vel,
-            physicsBody.rotVel);
-    }
-};
+EXT_FMT(ecs::PhysicsBody,
+        "(mass: {}, inertia: {}, vel: {}, acc: {}, rotVel: {}, rotAcc: {})",
+        o.mass,
+        o.inertia,
+        o.vel,
+        o.acc,
+        o.rotVel,
+        o.rotAcc);
 
 #endif

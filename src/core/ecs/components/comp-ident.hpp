@@ -10,6 +10,7 @@ namespace ecs
 
 struct AssetId
 {
+    static const uint16_t VERSION = 1;
     std::string name;
 
     static void fromYaml(entt::registry& registry,
@@ -22,9 +23,17 @@ struct AssetId
     }
 };
 
+#define SER_ASSET_ID                                                           \
+    S4b(o.name);
+EXT_SER(AssetId, SER_ASSET_ID)
+EXT_DES(AssetId, SER_ASSET_ID)
+
+
 struct SectorId
 {
+    static const uint16_t VERSION = 1;
     uint32_t id;
+
     static void fromYaml(entt::registry& registry, entt::entity entity, const YAML::Node& node)
     {
         SectorId sectorId;
@@ -33,34 +42,14 @@ struct SectorId
     }
 };
 
+#define SER_SECTOR_ID                                                           \
+    S4b(o.id);
+EXT_SER(SectorId, SER_SECTOR_ID)
+EXT_DES(SectorId, SER_SECTOR_ID)
+
 }  // namespace ecs
 
-
-
-template <> struct fmt::formatter<ecs::AssetId>
-{
-    constexpr auto parse(fmt::format_parse_context& ctx)
-    {
-        return ctx.begin();
-    }
-    template <typename FormatContext>
-    auto format(const ecs::AssetId& assetId, FormatContext& ctx) const
-    {
-        return fmt::format_to(ctx.out(), "{}", assetId.name);
-    }
-};
-
-template <> struct fmt::formatter<ecs::SectorId>
-{
-    constexpr auto parse(fmt::format_parse_context& ctx)
-    {
-        return ctx.begin();
-    }
-    template <typename FormatContext>
-    auto format(const ecs::SectorId& sectorId, FormatContext& ctx) const
-    {
-        return fmt::format_to(ctx.out(), "{}", sectorId.id);
-    }
-};
+EXT_FMT(ecs::AssetId, "{}", o.name);
+EXT_FMT(ecs::SectorId, "{}", o.id);
 
 #endif

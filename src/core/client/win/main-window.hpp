@@ -21,6 +21,7 @@
 #include <ui/user-interface.hpp>
 #include <asset-factory.hpp>
 #include <model.hpp>
+#include <version.hpp>
 
 namespace ui
 {
@@ -69,6 +70,7 @@ struct UiMenuData
 {
     vector<mod::MenuDataMod> mods;
     UiMenuConnectData connectData;
+    bool inGame = false;
 };
 
 struct UiDbgInputData
@@ -93,6 +95,8 @@ struct UiDbgViewData
 
 struct UiDbgGameData
 {
+  std::string clientVersion = version::VERSION_STRING;
+  std::string serverVersion = "Unknown";
   std::string gameState = "Init";
 };
 
@@ -150,6 +154,7 @@ class MainWindow
     void setupDataModelDebug();
     void updateDebugDataModel(float deltaTimeSec, bool ptrOverUi);
     void setupDataModelMenu();
+    void updateMenuDataModel();
 
     void stopServer();
 
@@ -160,8 +165,17 @@ class MainWindow
     void onConnectToServer(Rml::DataModelHandle handle,
                          Rml::Event& event,
                          const Rml::VariantList& args);
-
     void onCmd(const std::string& cmd);
+
+    void onClientShutdown();
+
+    void onQuit(Rml::DataModelHandle handle,
+                Rml::Event& event,
+                const Rml::VariantList& args);
+
+    void onExitToMenu(Rml::DataModelHandle handle,
+                      Rml::Event& event,
+                      const Rml::VariantList& args);
 
     static Rml::Input::KeyIdentifier glfwToRmlKey(int key);
 

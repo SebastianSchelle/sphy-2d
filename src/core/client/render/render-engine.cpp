@@ -39,10 +39,18 @@ Geometry::Geometry(const void* vertexData,
     ibh = bgfx::createIndexBuffer(bgfx::copy(indexData, iDatSize), flags);
 }
 
-void Geometry::destroy() const
+void Geometry::destroy()
 {
-    bgfx::destroy(vbh);
-    bgfx::destroy(ibh);
+    if (bgfx::isValid(vbh))
+    {
+        bgfx::destroy(vbh);
+        vbh = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(ibh))
+    {
+        bgfx::destroy(ibh);
+        ibh = BGFX_INVALID_HANDLE;
+    }
 }
 
 bgfx::VertexBufferHandle Geometry::getVbh() const
@@ -62,8 +70,18 @@ RenderEngine::RenderEngine(cfg::ConfigManager& config)
 
 RenderEngine::~RenderEngine()
 {
-    cleanUpAll();
+    shutdown();
     LG_D("RenderEngine destroyed");
+}
+
+void RenderEngine::shutdown()
+{
+    if (hasShutdown)
+    {
+        return;
+    }
+    hasShutdown = true;
+    cleanUpAll();
 }
 
 bool RenderEngine::initPre()
@@ -173,7 +191,7 @@ GeometryHandle RenderEngine::compileGeometry(const void* vertexData,
 
 void RenderEngine::releaseGeometry(GeometryHandle handle)
 {
-    const Geometry* geometry = compiledGeometryLib.getItem(handle);
+    Geometry* geometry = compiledGeometryLib.getItem(handle);
     if (geometry)
     {
         geometry->destroy();
@@ -395,6 +413,63 @@ void RenderEngine::cleanUpAll()
     cleanUpTextures();
     cleanUpShaders();
     cleanUpGeometry();
+
+    if (bgfx::isValid(vbhRectangle))
+    {
+        bgfx::destroy(vbhRectangle);
+        vbhRectangle = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(ibhRectangle))
+    {
+        bgfx::destroy(ibhRectangle);
+        ibhRectangle = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(vbhFullScreenTriangles))
+    {
+        bgfx::destroy(vbhFullScreenTriangles);
+        vbhFullScreenTriangles = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(ibhFullScreenTriangles))
+    {
+        bgfx::destroy(ibhFullScreenTriangles);
+        ibhFullScreenTriangles = BGFX_INVALID_HANDLE;
+    }
+
+    if (bgfx::isValid(u_translation))
+    {
+        bgfx::destroy(u_translation);
+        u_translation = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(u_proj))
+    {
+        bgfx::destroy(u_proj);
+        u_proj = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(u_texArray))
+    {
+        bgfx::destroy(u_texArray);
+        u_texArray = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(u_texLayer))
+    {
+        bgfx::destroy(u_texLayer);
+        u_texLayer = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(u_atlasPos))
+    {
+        bgfx::destroy(u_atlasPos);
+        u_atlasPos = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(u_time))
+    {
+        bgfx::destroy(u_time);
+        u_time = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(u_transform))
+    {
+        bgfx::destroy(u_transform);
+        u_transform = BGFX_INVALID_HANDLE;
+    }
 }
 
 void RenderEngine::cleanUpTextures() {}
@@ -411,7 +486,16 @@ void RenderEngine::cleanUpShaders()
 
 void RenderEngine::cleanUpGeometry()
 {
-    // compiledGeometryLib.clear();
+    GeometryHandle handle = GeometryHandle::Invalid();
+    while ((handle = compiledGeometryLib.firstAliveHandle()).isValid())
+    {
+        Geometry* geometry = compiledGeometryLib.getItem(handle);
+        if (geometry)
+        {
+            geometry->destroy();
+        }
+        compiledGeometryLib.removeItem(handle);
+    }
 }
 
 ShaderHandle RenderEngine::loadShader(const std::string& name,

@@ -32,7 +32,9 @@ class Model
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
     void sendCmdToServer(const std::string& command);
     const net::TimeSync& getTimeSyncData() const { return timeSyncData; }
-
+    const net::ModelClientInfo& getClientInfo() const { return clientInfo; }
+    void checkVersion(const net::ModelClientInfo& clientInfo);
+    void disconnectFromServer();
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
 
@@ -40,12 +42,14 @@ class Model
     void modelLoopMenu(float dt);
     void modelLoopGame(float dt);
     void timeSync();
+    void authenticate();
     net::TimeSync timeSyncData;
     ClientGameState gameState = ClientGameState::Init;
     net::ExchangeSequence loadWorldSequence;
     world::World world;
     ui::UserInterface* userInterface;
     tim::Timepoint lastTSync;
+    net::ModelClientInfo clientInfo;
 };
 
 }  // namespace sphyc

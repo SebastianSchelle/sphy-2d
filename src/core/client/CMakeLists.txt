@@ -10,6 +10,7 @@ set(CLIENT_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs
     ${MISC_DIR}/data-definitions
     ${MISC_DIR}/containers
+    ${MISC_DIR}
     ${THIRPARTY_DIR}/glfw/include
     ${THIRPARTY_DIR}/rmlui/Include
     ${THIRPARTY_DIR}/rectpack2D/src

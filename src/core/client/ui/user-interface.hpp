@@ -92,12 +92,10 @@ class UserInterface
     void onPrint(Rml::DataModelHandle handle,
                  Rml::Event& event,
                  const Rml::VariantList& args);
-    void onQuit(Rml::DataModelHandle handle,
-                Rml::Event& event,
-                const Rml::VariantList& args);
     void toggleChat();
     void toggleDebug();
     bool isDebugOpen() const { return debugOpen; }
+    bool isMenuOpen() const { return menuOpen; }
 
   private:
     void onMenuBackPriv();

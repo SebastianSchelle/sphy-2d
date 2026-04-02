@@ -7,6 +7,7 @@
 #include <engine.hpp>
 #include <protocol.hpp>
 #include <server.hpp>
+#include <version.hpp>
 
 namespace sphys
 {
@@ -341,16 +342,34 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
                 sendQueue.enqueue(cmdData);
                 break;
             }
-            case prot::cmd::CONNECT:
+            case prot::cmd::VERSION_CHECK:
+            {
+                CMDAT_PREP(
+                    net::SendType::TCP, prot::cmd::VERSION_CHECK, CMD_FLAG_RESP)
+                cmdser.value2b(version::MAJOR);
+                cmdser.value2b(version::MINOR);
+                cmdser.value2b(version::PATCH);
+                CMDAT_FIN()
+                cmdData.tcpConnection = tcpConnection;
+                sendQueue.enqueue(cmdData);
+                break;
+            }
+            case prot::cmd::AUTHENTICATE:
             {
                 if (cmdData.sendType == net::SendType::TCP)
                 {
-                    LG_I("Connect request from tcp");
+                    LG_I("Authentication request from tcp");
                     std::string token;
                     uint16_t portUdp;
+                    uint16_t major;
+                    uint16_t minor;
+                    uint16_t patch;
+                    cmddes.value2b(major);
+                    cmddes.value2b(minor);
+                    cmddes.value2b(patch);
                     cmddes.text1b(token, 16);
                     cmddes.value2b(portUdp);
-                    if (token.length() == 16)
+                    if (token.length() == 16 && major == version::MAJOR)
                     {
                         net::ClientInfoHandle handle =
                             clientLib.getHandle(token);
@@ -376,7 +395,7 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
                                 token);
                             {
                                 CMDAT_PREP(net::SendType::TCP,
-                                           prot::cmd::CONNECT,
+                                           prot::cmd::AUTHENTICATE,
                                            CMD_FLAG_RESP)
                                 CMDAT_FIN()
                                 cmdData.tcpConnection = clientInfo->connection;
@@ -547,9 +566,8 @@ void Engine::registerConsoleCommands()
     commandManager.registerCommand(
         {"asset", "info"},
         [this](const std::vector<std::string>& arguments)
-        {
-            return assetFactory.assetInfo(arguments[0]);
-        }, 1);
+        { return assetFactory.assetInfo(arguments[0]); },
+        1);
 }
 
 }  // namespace sphys

@@ -37,6 +37,7 @@ using tcp = asio::ip::tcp;
 using udp = asio::ip::udp;
 
 using glm::vec2;
+using glm::vec3;
 using glm::vec4;
 using Buffer = std::vector<uint8_t>;
 using OutputAdapter = bitsery::OutputBufferAdapter<Buffer>;
@@ -77,6 +78,8 @@ constexpr uint32_t hashConst(const char* s, size_t i = 0)
 
 #define SAPI(id) s.value2b(id)
 #define S4b(value) s.value4b(value)
+#define S2b(value) s.value2b(value)
+#define SOBJ(value) s.object(value)
 
 #define EXT_SER(type, block)                                                   \
     template <typename S> void serialize(S& s, type& o)                        \
@@ -88,6 +91,22 @@ constexpr uint32_t hashConst(const char* s, size_t i = 0)
     {                                                                          \
         block                                                                  \
     }
+
+#define EXT_FMT(tName, strFmt, ...)                                            \
+    template <> struct fmt::formatter<tName>                                   \
+    {                                                                          \
+        constexpr auto parse(fmt::format_parse_context& ctx)                   \
+        {                                                                      \
+            return ctx.begin();                                                \
+        }                                                                      \
+        template <typename FormatContext>                                      \
+        auto format(const tName& o, FormatContext& ctx) const                  \
+        {                                                                      \
+            return fmt::format_to(ctx.out(), strFmt, __VA_ARGS__);             \
+        }                                                                      \
+    }
+
+
 #define SAVE_SER_OBJECT(ser_, obj_, type_)                                     \
     ser_.value4b(TYPE_ID(type_));                                              \
     ser_.value2b(type_::VERSION);                                              \
@@ -133,8 +152,9 @@ enum class ClientGameState
     Init,
     LoadingMods,
     MainMenu,
-    Connecting,
-    Connected,
+    VersionCheck,
+    Authenticating,
+    Authenticated,
     LoadWorld,
     GameLoop,
 };
@@ -217,5 +237,22 @@ template <> struct fmt::formatter<vector<string>>
         return fmt::format_to(ctx.out(), "[{}]", joined);
     }
 };
+
+#define SER_VEC2                                                               \
+    S4b(o.x);                                                                  \
+    S4b(o.y);
+#define SER_VEC3                                                               \
+    S4b(o.x);                                                                  \
+    S4b(o.y);                                                                  \
+    S4b(o.z);
+
+EXT_SER(vec2, SER_VEC2)
+EXT_DES(vec2, SER_VEC2)
+EXT_SER(vec3, SER_VEC3)
+EXT_DES(vec3, SER_VEC3)
+
+EXT_FMT(vec2, "[{}, {}]", o.x, o.y);
+EXT_FMT(vec3, "[{}, {}, {}]", o.x, o.y, o.z);
+EXT_FMT(vec4, "[{}, {}, {}, {}]", o.x, o.y, o.z, o.w);
 
 #endif

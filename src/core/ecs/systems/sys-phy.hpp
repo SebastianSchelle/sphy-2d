@@ -34,11 +34,11 @@ const System sysPhysics = {
             physicsBody->acc = {0, 0};
             physicsBody->rotAcc = 0;
 
-            //LG_D("Physics update for entity: {} Position: {}, Rotation: {}", entity, transform->pos, transform->rot);
+            //LG_D("Physics update for entity: {} Position: {}, Rotation: {}, physicsBody: {}", entity, transform->pos, transform->rot, *physicsBody);
         }
     }
 };
 
-}
+}  // namespace ecs
 
 #endif

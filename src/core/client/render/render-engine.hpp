@@ -36,7 +36,7 @@ struct Geometry
 
     bgfx::VertexBufferHandle getVbh() const;
     bgfx::IndexBufferHandle getIbh() const;
-    void destroy() const;
+    void destroy();
 
   private:
     bgfx::VertexBufferHandle vbh;
@@ -70,6 +70,7 @@ class RenderEngine
 
     bool initPre();
     bool initPost();
+    void shutdown();
 
     void startFrame();
     void endFrame();
@@ -207,6 +208,7 @@ class RenderEngine
     uint32_t currentShapeCount = 0;
     uint32_t currentShapeVertices = 0;
     uint32_t currentShapeIndices = 0;
+    bool hasShutdown = false;
 };
 
 }  // namespace gfx

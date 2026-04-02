@@ -83,6 +83,11 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
         static_cast<uint8_t>(std::get<float>(config.get({"loglevel"})));
     debug::createLogger("logs/logClient.txt", logLevel);
     glfwSetErrorCallback(errorCallback);
+    client.setShutdownCallback([this]()
+                               {
+                                   std::lock_guard<std::mutex> lock(uiTaskMutex);
+                                   uiTasks.push_back([this]() { onClientShutdown(); });
+                               });
 }
 
 MainWindow::~MainWindow()
@@ -94,7 +99,7 @@ MainWindow::~MainWindow()
         loadingThread.join();
     }
     stopServer();
-    renderEngine.~RenderEngine();
+    renderEngine.shutdown();
     Rml::Shutdown();
     bgfx::shutdown();
     glfwDestroyWindow(window);
@@ -216,7 +221,8 @@ void MainWindow::winLoop()
         float deltaTime = (float)tim::durationU(lastLoopTime, now) / 1000000.0f;
         lastLoopTime = now;
         frameTimeFiltered = 0.9f * frameTimeFiltered + 0.1f * deltaTime;
-        debugData.viewData.fpsSmoothed = frameTimeFiltered > 1e-6f ? 1.0f / frameTimeFiltered : 0.f;
+        debugData.viewData.fpsSmoothed =
+            frameTimeFiltered > 1e-6f ? 1.0f / frameTimeFiltered : 0.f;
 
         model.modelLoop(deltaTime);
 
@@ -253,6 +259,12 @@ void MainWindow::winLoop()
             rmlModelDebug.DirtyAllVariables();
         }
 
+        if(userInterface.isMenuOpen())
+        {
+            updateMenuDataModel();
+            rmlModelMenu.DirtyAllVariables();
+        }
+
         userInterface.update();
 
         switch (model.getGameState())
@@ -265,8 +277,9 @@ void MainWindow::winLoop()
                 loadingLoop();
                 break;
             case ClientGameState::MainMenu:
+                userInterface.showMenu();
                 break;
-            case ClientGameState::Connected:
+            case ClientGameState::Authenticated:
                 break;
             case ClientGameState::LoadWorld:
                 break;
@@ -287,12 +300,11 @@ void MainWindow::winLoop()
         //     glm::vec2(200.0f + 50.0f * sin(t), 60.0f + 50.0f * cos(t
         //     * 1.5f)));
 
+        renderEngine.drawFullScreenTriangles(
+            0, renderEngine.getShaderHandle("distantstars"));
+
         if (model.getGameState() == ClientGameState::GameLoop)
         {
-            // Draw star background
-            renderEngine.drawFullScreenTriangles(
-                0, renderEngine.getShaderHandle("distantstars"));
-
             renderEngine.drawRectangle(glm::vec2(200.0f + 50.0f * sin(t),
                                                  60.0f + 50.0f * cos(t * 1.5f)),
                                        glm::vec2(10.0f, 10.0f),
@@ -399,8 +411,7 @@ void MainWindow::startLoading()
             mod::PtrHandles ptrHandles{
                 .renderEngine = &renderEngine,
                 .userInterface = &userInterface,
-                .runUiBool =
-                    [this](std::function<bool()> fn) -> bool
+                .runUiBool = [this](std::function<bool()> fn) -> bool
                 {
                     auto p = std::make_shared<std::promise<bool>>();
                     std::future<bool> fut = p->get_future();
@@ -538,13 +549,14 @@ void MainWindow::keyCallback(GLFWwindow* window,
 
 void MainWindow::onKey(int key, int scancode, int action, int mods)
 {
-    if(action == GLFW_PRESS && key == GLFW_KEY_ENTER && mods == GLFW_MOD_CONTROL)
+    if (action == GLFW_PRESS && key == GLFW_KEY_ENTER
+        && mods == GLFW_MOD_CONTROL)
     {
         userInterface.toggleChat();
         return;
     }
 
-    if(action == GLFW_PRESS && key == GLFW_KEY_P && mods == GLFW_MOD_CONTROL)
+    if (action == GLFW_PRESS && key == GLFW_KEY_P && mods == GLFW_MOD_CONTROL)
     {
         userInterface.toggleDebug();
         return;
@@ -657,10 +669,12 @@ static const char* gameStateToString(ClientGameState s)
             return "LoadingMods";
         case ClientGameState::MainMenu:
             return "MainMenu";
-        case ClientGameState::Connecting:
-            return "Connecting";
-        case ClientGameState::Connected:
-            return "Connected";
+        case ClientGameState::VersionCheck:
+            return "VersionCheck";
+        case ClientGameState::Authenticating:
+            return "Authenticating";
+        case ClientGameState::Authenticated:
+            return "Authenticated";
         case ClientGameState::LoadWorld:
             return "LoadWorld";
         case ClientGameState::GameLoop:
@@ -669,10 +683,16 @@ static const char* gameStateToString(ClientGameState s)
     return "?";
 }
 
+void MainWindow::updateMenuDataModel()
+{
+    menuData.inGame = model.getGameState() == ClientGameState::GameLoop;
+}
+
 void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
 {
     debugData.viewData.frameMs = deltaTimeSec * 1000.f;
-    debugData.viewData.fpsSmoothed = frameTimeFiltered > 1e-6f ? 1.0f / frameTimeFiltered : 0.f;
+    debugData.viewData.fpsSmoothed =
+        frameTimeFiltered > 1e-6f ? 1.0f / frameTimeFiltered : 0.f;
     debugData.viewData.zoom = renderEngine.getWorldZoom();
     debugData.viewData.camX = renderEngine.getWorldCameraPosition().x;
     debugData.viewData.camY = renderEngine.getWorldCameraPosition().y;
@@ -682,10 +702,14 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
     debugData.gameData.gameState = gameStateToString(model.getGameState());
     debugData.inputData.ptrScreenX = mouseState.mousePos.x;
     debugData.inputData.ptrScreenY = mouseState.mousePos.y;
-    debugData.inputData.ptrWorldX = renderEngine.screenToWorldPixel(mouseState.mousePos).x;
-    debugData.inputData.ptrWorldY = renderEngine.screenToWorldPixel(mouseState.mousePos).y;
-    debugData.connectionData.serverLatency = model.getTimeSyncData().serverLatency;
-    debugData.connectionData.serverTimeOffset = model.getTimeSyncData().serverOffset;
+    debugData.inputData.ptrWorldX =
+        renderEngine.screenToWorldPixel(mouseState.mousePos).x;
+    debugData.inputData.ptrWorldY =
+        renderEngine.screenToWorldPixel(mouseState.mousePos).y;
+    debugData.connectionData.serverLatency =
+        model.getTimeSyncData().serverLatency;
+    debugData.connectionData.serverTimeOffset =
+        model.getTimeSyncData().serverOffset;
 }
 
 void MainWindow::setupDataModelDebug()
@@ -707,7 +731,8 @@ void MainWindow::setupDataModelDebug()
         {
             md_handle.RegisterMember("winW", &UiDbgViewData::winW);
             md_handle.RegisterMember("winH", &UiDbgViewData::winH);
-            md_handle.RegisterMember("fpsSmoothed", &UiDbgViewData::fpsSmoothed);
+            md_handle.RegisterMember("fpsSmoothed",
+                                     &UiDbgViewData::fpsSmoothed);
             md_handle.RegisterMember("frameMs", &UiDbgViewData::frameMs);
             md_handle.RegisterMember("zoom", &UiDbgViewData::zoom);
             md_handle.RegisterMember("camX", &UiDbgViewData::camX);
@@ -715,10 +740,13 @@ void MainWindow::setupDataModelDebug()
         }
         debugConstructor.Bind("viewData", &debugData.viewData);
 
-        if (auto md_handle = debugConstructor.RegisterStruct<UiDbgConnectionData>())
+        if (auto md_handle =
+                debugConstructor.RegisterStruct<UiDbgConnectionData>())
         {
-            md_handle.RegisterMember("serverLatency", &UiDbgConnectionData::serverLatency);
-            md_handle.RegisterMember("serverTimeOffset", &UiDbgConnectionData::serverTimeOffset);
+            md_handle.RegisterMember("serverLatency",
+                                     &UiDbgConnectionData::serverLatency);
+            md_handle.RegisterMember("serverTimeOffset",
+                                     &UiDbgConnectionData::serverTimeOffset);
         }
         debugConstructor.Bind("connectionData", &debugData.connectionData);
 
@@ -740,9 +768,11 @@ void MainWindow::setupDataModelMenu()
         menuConstructor.BindEventCallback(
             "onNavigate", &UserInterface::onMenuNavigate, &userInterface);
         menuConstructor.BindEventCallback(
-            "onQuit", &UserInterface::onQuit, &userInterface);
+            "onQuit", &MainWindow::onQuit, this);
         menuConstructor.BindEventCallback(
             "onBack", &UserInterface::onMenuBack, &userInterface);
+        menuConstructor.BindEventCallback(
+            "onExitToMenu", &MainWindow::onExitToMenu, this);
         menuConstructor.BindEventCallback(
             "onNewGame", &MainWindow::onNewGame, this);
         menuConstructor.BindEventCallback(
@@ -760,10 +790,12 @@ void MainWindow::setupDataModelMenu()
         menuConstructor.RegisterArray<std::vector<mod::MenuDataMod>>();
         menuConstructor.Bind("mods", &menuData.mods);
 
-        if (auto md_handle = menuConstructor.RegisterStruct<UiMenuConnectData>())
+        if (auto md_handle =
+                menuConstructor.RegisterStruct<UiMenuConnectData>())
         {
             md_handle.RegisterMember("token", &UiMenuConnectData::token);
-            md_handle.RegisterMember("ipAddress", &UiMenuConnectData::ipAddress);
+            md_handle.RegisterMember("ipAddress",
+                                     &UiMenuConnectData::ipAddress);
             md_handle.RegisterMember("udpPortServ",
                                      &UiMenuConnectData::udpPortServ);
             md_handle.RegisterMember("tcpPortServ",
@@ -772,6 +804,8 @@ void MainWindow::setupDataModelMenu()
                                      &UiMenuConnectData::udpPortCli);
         }
         menuConstructor.Bind("connectData", &menuData.connectData);
+
+        menuConstructor.Bind("inGame", &menuData.inGame);
 
         rmlModelMenu = menuConstructor.GetModelHandle();
     }
@@ -811,17 +845,47 @@ void MainWindow::onConnectToServer(Rml::DataModelHandle handle,
                                    Rml::Event& event,
                                    const Rml::VariantList& args)
 {
-    client.connectToServer(menuData.connectData.token,
-                           menuData.connectData.ipAddress,
+    client.connectToServer(menuData.connectData.ipAddress,
                            menuData.connectData.udpPortServ,
                            menuData.connectData.tcpPortServ,
-                           menuData.connectData.udpPortCli);
+                           menuData.connectData.udpPortCli,
+                           menuData.connectData.token);
+    model.checkVersion(net::ModelClientInfo{
+        .token = menuData.connectData.token,
+        .ipAddress = menuData.connectData.ipAddress,
+        .udpPortServ = menuData.connectData.udpPortServ,
+        .tcpPortServ = menuData.connectData.tcpPortServ,
+        .udpPortCli = menuData.connectData.udpPortCli,
+    });
     userInterface.closeMenu();
 }
 
 void MainWindow::onCmd(const std::string& cmd)
 {
     model.sendCmdToServer(cmd);
+}
+
+void MainWindow::onClientShutdown()
+{
+    LG_W("Client disconnected from server");
+    model.disconnectFromServer();
+}
+
+void MainWindow::onQuit(Rml::DataModelHandle handle,
+                        Rml::Event& event,
+                        const Rml::VariantList& args)
+{
+    userInterface.closeMenu();
+    client.shutdown();
+    stopServer();
+    glfwSetWindowShouldClose(window, GLFW_TRUE);
+}
+
+void MainWindow::onExitToMenu(Rml::DataModelHandle handle,
+                              Rml::Event& event,
+                              const Rml::VariantList& args)
+{
+    client.shutdown();
 }
 
 }  // namespace ui

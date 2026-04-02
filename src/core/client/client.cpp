@@ -1,4 +1,5 @@
 #include <client.hpp>
+#include <version.hpp>
 
 namespace sphyc
 {
@@ -6,7 +7,8 @@ namespace sphyc
 Client::Client(cfg::ConfigManager& config,
                ConcurrentQueue<net::CmdQueueData>& modelSendQueue,
                ConcurrentQueue<net::CmdQueueData>& modelReceiveQueue)
-    : modelSendQueue(modelSendQueue), modelReceiveQueue(modelReceiveQueue), config(config), sendTimer(ioContext)
+    : modelSendQueue(modelSendQueue), modelReceiveQueue(modelReceiveQueue),
+      config(config), sendTimer(ioContext)
 {
 }
 
@@ -17,6 +19,11 @@ Client::~Client()
     {
         ioThread.join();
     }
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        udpClient.reset();
+        tcpClient.reset();
+    }
     if (!spdlogShutdown.exchange(true))
     {
         spdlog::shutdown();
@@ -25,19 +32,41 @@ Client::~Client()
 
 void Client::shutdown()
 {
+    if (!shutdownNotified.exchange(true) && shutdownCallback)
+    {
+        shutdownCallback();
+    }
     if (shuttingDown.exchange(true))
     {
         return;  // Already shutting down
     }
     LG_I("Shutting down client...");
+
+    std::lock_guard<std::mutex> lock(lifecycleMutex);
+    boost::system::error_code ec;
+    sendTimer.cancel(ec);
+    if (udpClient)
+    {
+        udpClient->close();
+    }
+    if (tcpClient)
+    {
+        tcpClient->close();
+    }
     ioContext.stop();
 }
 
 void Client::wait()
 {
+    shutdown();
     if (ioThread.joinable())
     {
         ioThread.join();
+    }
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        udpClient.reset();
+        tcpClient.reset();
     }
     if (!spdlogShutdown.exchange(true))
     {
@@ -45,14 +74,30 @@ void Client::wait()
     }
 }
 
-void Client::connectToServer(const std::string& token,
-                             const std::string& ipAddress,
+void Client::connectToServer(const std::string& ipAddress,
                              int udpPortServ,
                              int tcpPortServ,
-                             int udpPortCli)
+                             int udpPortCli,
+                             const std::string& token)
 {
-    clientInfo.token = token;
-    clientInfo.name = "Client";
+    // Always tear down old connection state before reconnecting.
+    // Reassigning a joinable std::thread would call std::terminate.
+    shutdown();
+    if (ioThread.joinable())
+    {
+        ioThread.join();
+    }
+    {
+        std::lock_guard<std::mutex> lock(lifecycleMutex);
+        // Reset transport objects only after io thread has stopped so no
+        // in-flight callbacks can race with these destructions.
+        udpClient.reset();
+        tcpClient.reset();
+        ioContext.restart();
+    }
+
+    shuttingDown = false;
+    shutdownNotified = false;
 
     // tcpClient = std::make_unique<TcpClient>(ioContext, portTcp);
     udpClient = std::make_unique<net::UdpClient>(
@@ -82,27 +127,18 @@ void Client::connectToServer(const std::string& token,
          tcpPortServ,
          udpPortCli);
 
-    // ioContext is already running in ioThread for signal handling
-    // No need to start a new thread
-
-    CMDAT_PREP(net::SendType::TCP, prot::cmd::CONNECT, 0)
-    cmdser.text1b(token, 16);
-    cmdser.value2b((uint16_t)udpPortCli);
-    CMDAT_FIN()
-    modelSendQueue.enqueue(cmdData);
-
     // Post scheduleSend onto the io_context so the timer is armed on the
     // correct executor (same thread that runs io_context.run()).
-    ioContext.post([this]() { scheduleSend(); });
+    ioContext.post([this, token]() { scheduleSend(token); });
     // Start ioContext in background thread for signal handling
     ioThread = std::thread([this]() { ioContext.run(); });
 }
 
-void Client::scheduleSend()
+void Client::scheduleSend(const std::string& token)
 {
     sendTimer.expires_after(std::chrono::milliseconds(10));
     sendTimer.async_wait(
-        [this](boost::system::error_code ec)
+        [this, token](boost::system::error_code ec)
         {
             if (!ec)
             {
@@ -111,21 +147,38 @@ void Client::scheduleSend()
                 {
                     if (sendData.sendType == net::SendType::UDP)
                     {
-                        bitsery::Serializer<OutputAdapter> cmdser(
-                            OutputAdapter(sendData.data));
-                        cmdser.text1b(clientInfo.token, 16);
-                        udpClient->sendMessage(sendData.data);
+                        if (udpClient)
+                        {
+                            bitsery::Serializer<OutputAdapter> cmdser(
+                                OutputAdapter(sendData.data));
+                            cmdser.text1b(token, 16);
+                            udpClient->sendMessage(sendData.data);
+                        }
                     }
                     else if (sendData.sendType == net::SendType::TCP)
                     {
-                        tcpClient->sendMessage(sendData.data);
+                        if (tcpClient)
+                        {
+                            tcpClient->sendMessage(sendData.data);
+                        }
                     }
                 }
-                scheduleSend();  // schedule next check
+                if (!shuttingDown.load())
+                {
+                    scheduleSend(token);  // schedule next check
+                }
             }
             else
             {
-                LG_E("Send timer aborted");
+                if (ec == boost::asio::error::operation_aborted
+                    || shuttingDown.load())
+                {
+                    LG_D("Send timer cancelled");
+                }
+                else
+                {
+                    LG_E("Send timer aborted: {}", ec.message());
+                }
             }
         });
 }
@@ -143,6 +196,18 @@ void Client::udpReceive(const char* data, size_t length)
 
 void Client::tcpReceive(const char* data, size_t length)
 {
+    if (length == 0)
+    {
+        if (!shuttingDown.load())
+        {
+            LG_W(
+                "Server TCP connection lost/closed, shutting down client "
+                "networking");
+        }
+        shutdown();
+        return;
+    }
+
     if (length >= 5)
     {
         net::CmdQueueData cmdData;

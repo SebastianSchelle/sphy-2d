@@ -24,21 +24,21 @@ enum class SendType
     TCP
 };
 
-typedef struct
+struct CmdQueueData
 {
     SendType sendType;
     int udpPort;
     udp::endpoint udpEndpoint;
     std::shared_ptr<TcpConnection> tcpConnection;
     std::vector<uint8_t> data;
-} CmdQueueData;
+};
 
 struct ClientFlags
 {
     uint8_t enConsole : 1;
 };
 
-typedef struct
+struct ClientInfo
 {
     std::string token;
     std::string name;
@@ -47,7 +47,16 @@ typedef struct
     asio::ip::address address;
     udp::endpoint udpEndpoint;
     std::shared_ptr<TcpConnection> connection;
-} ClientInfo;
+};
+
+struct ModelClientInfo
+{
+    std::string token;
+    std::string ipAddress;
+    int udpPortServ;
+    int tcpPortServ;
+    int udpPortCli;
+};
 
 using ClientInfoHandle = typename con::ItemLib<ClientInfo>::Handle;
 

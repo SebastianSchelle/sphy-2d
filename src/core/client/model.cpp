@@ -5,6 +5,7 @@
 #include <protocol.hpp>
 #include <ui/user-interface.hpp>
 #include <world-def.hpp>
+#include <version.hpp>
 
 namespace sphyc
 {
@@ -35,7 +36,9 @@ void Model::modelLoop(float dt)
         case ClientGameState::MainMenu:
             modelLoopMenu(dt);
             break;
-        case ClientGameState::Connected:
+        case ClientGameState::VersionCheck:
+            break;
+        case ClientGameState::Authenticated:
             loadWorldSequence.start(sendQueue);
             gameState = ClientGameState::LoadWorld;
             break;
@@ -168,12 +171,39 @@ void Model::parseCommand(std::vector<uint8_t> data)
             }
             break;
         }
-        case prot::cmd::CONNECT:
+        case prot::cmd::VERSION_CHECK:
+        {
+            if (flags & CMD_FLAG_RESP)
+            {
+                uint16_t major;
+                uint16_t minor;
+                uint16_t patch;
+                cmddes.value2b(major);
+                cmddes.value2b(minor);
+                cmddes.value2b(patch);
+                if (major != version::MAJOR)
+                {
+                    LG_E("Cannot connect to server. Version mismatch. Server: {}.{}.{}, Client: {}.{}.{}", major, minor, patch, version::MAJOR, version::MINOR, version::PATCH);
+                    return;
+                }
+                else
+                {
+                    if (minor != version::MINOR || patch != version::PATCH)
+                    {
+                        LG_W("Version mismatch. Server: {}.{}.{}, Client: {}.{}.{}", major, minor, patch, version::MAJOR, version::MINOR, version::PATCH);
+                    }
+                    LG_I("Version check successful");
+                    authenticate();
+                }
+            }
+            break;
+        }
+        case prot::cmd::AUTHENTICATE:
         {
             if (flags & CMD_FLAG_RESP)
             {
                 LG_I("Authentication successful");
-                gameState = ClientGameState::Connected;
+                gameState = ClientGameState::Authenticated;
             }
             break;
         }
@@ -222,6 +252,49 @@ void Model::sendCmdToServer(const std::string& command)
     cmdser.text1b(command, command.size());
     CMDAT_FIN()
     sendQueue.enqueue(cmdData);
+}
+
+void Model::checkVersion(const net::ModelClientInfo& clientInfo)
+{
+    this->clientInfo = clientInfo;
+    CMDAT_PREP(net::SendType::TCP, prot::cmd::VERSION_CHECK, 0)
+    cmdser.value2b(version::MAJOR);
+    cmdser.value2b(version::MINOR);
+    cmdser.value2b(version::PATCH);
+    CMDAT_FIN()
+    sendQueue.enqueue(cmdData);
+    gameState = ClientGameState::VersionCheck;
+}
+
+void Model::authenticate()
+{
+    LG_I("Authenticating with server...");
+    gameState = ClientGameState::Authenticating;
+    CMDAT_PREP(net::SendType::TCP, prot::cmd::AUTHENTICATE, 0)
+    cmdser.value2b(version::MAJOR);
+    cmdser.value2b(version::MINOR);
+    cmdser.value2b(version::PATCH);
+    cmdser.text1b(clientInfo.token, 16);
+    cmdser.value2b((uint16_t)clientInfo.udpPortCli);
+    CMDAT_FIN()
+    sendQueue.enqueue(cmdData);
+}
+
+void Model::disconnectFromServer()
+{
+    switch (gameState)
+    {
+        case ClientGameState::Authenticating:
+            LG_W("Authentication refused");
+            gameState = ClientGameState::MainMenu;
+            break;
+        case ClientGameState::GameLoop:
+            LG_W("Disconnecting from server");
+            gameState = ClientGameState::MainMenu;
+            break;
+        default:
+            break;
+    }
 }
 
 }  // namespace sphyc

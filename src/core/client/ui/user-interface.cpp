@@ -105,15 +105,13 @@ void UserInterface::update()
 {
     static tim::Timepoint lastUpdateTime = tim::getCurrentTimeU();
     static int i = 0;
-    DO_PERIODIC(
-        lastUpdateTime,
-        TIM_1S,
-        [this]()
-        {
-            addSystemMessage(
-                "Test message " + std::to_string(i));
-            i++;
-        });
+    DO_PERIODIC(lastUpdateTime,
+                TIM_1S,
+                [this]()
+                {
+                    addSystemMessage("Test message " + std::to_string(i));
+                    i++;
+                });
     rmlContext->Update();
     if (focusChatInputOnNextUpdate && chatOpen)
     {
@@ -311,15 +309,18 @@ Rml::DataModelConstructor UserInterface::getDataModel(const std::string& name)
 
 void UserInterface::showMenu()
 {
-    currentMenuPage = "menu";
-    menuStack.clear();
-    showDocument(rmlDocLib.getHandle(currentMenuPage));
-    menuOpen = true;
+    if (!menuOpen)
+    {
+        currentMenuPage = "menu";
+        showDocument(rmlDocLib.getHandle(currentMenuPage));
+        menuOpen = true;
+    }
 }
 
 void UserInterface::closeMenu()
 {
     hideDocument(rmlDocLib.getHandle(currentMenuPage));
+    menuStack.clear();
     menuOpen = false;
 }
 
@@ -394,14 +395,6 @@ void UserInterface::onMenuBackPriv()
         }
     }
     closeMenu();
-}
-
-void UserInterface::onQuit(Rml::DataModelHandle handle,
-                           Rml::Event& event,
-                           const Rml::VariantList& args)
-{
-    closeMenu();
-    exit(0);
 }
 
 void UserInterface::onPrint(Rml::DataModelHandle handle,
