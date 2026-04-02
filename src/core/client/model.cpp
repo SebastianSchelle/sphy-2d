@@ -1,8 +1,10 @@
+#include "logging.hpp"
+#include "std-inc.hpp"
 #include <exchange-sequence.hpp>
 #include <model.hpp>
 #include <protocol.hpp>
-#include <world-def.hpp>
 #include <ui/user-interface.hpp>
+#include <world-def.hpp>
 
 namespace sphyc
 {
@@ -14,6 +16,7 @@ Model::Model(ui::UserInterface* userInterface) : userInterface(userInterface)
         [this]() {},
         [this]() {},
         [this](bitsery::Serializer<OutputAdapter>& ser) {}));
+    lastTSync = tim::getCurrentTimeU();
 }
 
 Model::~Model() {}
@@ -63,8 +66,18 @@ void Model::startModel()
 
 void Model::timeSync()
 {
-    LG_D("Attempting time sync");
-    timeSyncData.t0 = tim::getCurrentTimeU();
+    if (timeSyncData.waiting)
+    {
+        if ((tim::nowU() - timeSyncData.t0) > 1000000)
+        {
+            timeSyncData.waiting = false;
+        }
+        else
+        {
+            return;
+        }
+    }
+    timeSyncData.t0 = tim::nowU();
     timeSyncData.waiting = true;
     CMDAT_PREP_TOKEN(net::SendType::UDP, prot::cmd::TIME_SYNC, 0)
     CMDAT_FIN_TOKEN()
@@ -75,7 +88,6 @@ void Model::modelLoopMenu(float dt) {}
 
 void Model::modelLoopGame(float dt)
 {
-    static tim::Timepoint lastTSync = tim::getCurrentTimeU();
     tim::Timepoint now = tim::getCurrentTimeU();
 
     // Send some stuff to server
@@ -85,10 +97,13 @@ void Model::modelLoopGame(float dt)
     CMDAT_FIN_TOKEN()
     sendQueue.enqueue(cmdData);*/
 
-    if (tim::durationU(lastTSync, now) > 2000000)
+    if (timeSyncData.cnt == 0)
     {
-        timeSync();
-        lastTSync = now;
+        DO_PERIODIC_EXTNOW(lastTSync, 2000000, now, [this]() { timeSync(); });
+    }
+    else
+    {
+        DO_PERIODIC_EXTNOW(lastTSync, 50000, now, [this]() { timeSync(); });
     }
 }
 
@@ -117,9 +132,39 @@ void Model::parseCommand(std::vector<uint8_t> data)
         {
             if (timeSyncData.waiting && flags & CMD_FLAG_RESP && len == 8)
             {
-                timeSyncData.t1 = tim::getCurrentTimeU();
                 timeSyncData.waiting = false;
-                LG_I("Time sync successful");
+                // Server time at request arrival
+                cmddes.value8b(timeSyncData.t1);
+                // Now
+                timeSyncData.t2 = tim::nowU();
+                // Travel time from client to server and back again
+                long rtt = timeSyncData.t2 - timeSyncData.t0;
+
+                // latency = half travel time
+                timeSyncData.latency[timeSyncData.cnt] = rtt / 2;
+                // Server time = server time at request arrival + latency
+                long serverTime =
+                    timeSyncData.t1 + timeSyncData.latency[timeSyncData.cnt];
+                timeSyncData.offset[timeSyncData.cnt] =
+                    serverTime - timeSyncData.t2;
+                timeSyncData.cnt++;
+                if (timeSyncData.cnt == 10)
+                {
+                    long latMin = 1000000000;
+                    long offsMin;
+                    for (uint i = 0; i < 10; ++i)
+                    {
+                        if (timeSyncData.latency[i] < latMin)
+                        {
+                            latMin = timeSyncData.latency[i];
+                            offsMin = timeSyncData.offset[i];
+                        }
+                    }
+                    timeSyncData.serverOffset = offsMin / 1.0e6f;
+                    timeSyncData.serverLatency = latMin / 1.0e6f;
+                    timeSyncData.cnt = 0;
+                }
+                timeSyncData.waiting = false;
             }
             break;
         }

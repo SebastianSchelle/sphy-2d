@@ -31,6 +31,7 @@ class Model
     void startModel();
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
     void sendCmdToServer(const std::string& command);
+    const net::TimeSync& getTimeSyncData() const { return timeSyncData; }
 
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
@@ -44,6 +45,7 @@ class Model
     net::ExchangeSequence loadWorldSequence;
     world::World world;
     ui::UserInterface* userInterface;
+    tim::Timepoint lastTSync;
 };
 
 }  // namespace sphyc

@@ -149,7 +149,7 @@ void Engine::engineLoop()
             parseCommand(recQueueData);
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     if (state == EngineState::Running || state == EngineState::Paused)
@@ -328,13 +328,10 @@ void Engine::parseCommand(const net::CmdQueueData& cmdData)
             }
             case prot::cmd::TIME_SYNC:
             {
-                tim::Duration d = tim::getCurrentTimeU() - tim::epoch;
-                int64_t secs = d.total_seconds();
-                int32_t usec = d.fractional_seconds();
+                long d = tim::nowU();
                 CMDAT_PREP(
                     net::SendType::UDP, prot::cmd::TIME_SYNC, CMD_FLAG_RESP)
-                cmdser.value8b(secs);
-                cmdser.value4b(usec);
+                cmdser.value8b(d);
                 CMDAT_FIN()
                 if (udpEndpoint)
                 {

@@ -71,7 +71,7 @@ struct UiMenuData
     UiMenuConnectData connectData;
 };
 
-struct UiInputData
+struct UiDbgInputData
 {
   float ptrScreenX = 0.f;
   float ptrScreenY = 0.f;
@@ -80,7 +80,7 @@ struct UiInputData
   float ptrWorldY = 0.f;
 };
 
-struct UiViewData
+struct UiDbgViewData
 {
   int winW = 0;
   int winH = 0;
@@ -91,16 +91,23 @@ struct UiViewData
   float camY = 0.f;
 };
 
-struct UiGameData
+struct UiDbgGameData
 {
   std::string gameState = "Init";
 };
 
+struct UiDbgConnectionData
+{
+  float serverLatency = 0.0f;
+  float serverTimeOffset = 0.0f;
+};
+
 struct UiDebugData
 {
-  UiInputData inputData;
-  UiViewData viewData;
-  UiGameData gameData;
+  UiDbgInputData inputData;
+  UiDbgViewData viewData;
+  UiDbgGameData gameData;
+  UiDbgConnectionData connectionData;
 };
 
 class MainWindow

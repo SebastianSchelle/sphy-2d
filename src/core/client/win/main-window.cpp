@@ -684,6 +684,8 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
     debugData.inputData.ptrScreenY = mouseState.mousePos.y;
     debugData.inputData.ptrWorldX = renderEngine.screenToWorldPixel(mouseState.mousePos).x;
     debugData.inputData.ptrWorldY = renderEngine.screenToWorldPixel(mouseState.mousePos).y;
+    debugData.connectionData.serverLatency = model.getTimeSyncData().serverLatency;
+    debugData.connectionData.serverTimeOffset = model.getTimeSyncData().serverOffset;
 }
 
 void MainWindow::setupDataModelDebug()
@@ -691,31 +693,38 @@ void MainWindow::setupDataModelDebug()
     auto debugConstructor = userInterface.getDataModel("debug");
     if (debugConstructor)
     {
-        if (auto md_handle = debugConstructor.RegisterStruct<UiInputData>())
+        if (auto md_handle = debugConstructor.RegisterStruct<UiDbgInputData>())
         {
-            md_handle.RegisterMember("ptrScreenX", &UiInputData::ptrScreenX);
-            md_handle.RegisterMember("ptrScreenY", &UiInputData::ptrScreenY);
-            md_handle.RegisterMember("ptrOverUi", &UiInputData::ptrOverUi);
-            md_handle.RegisterMember("ptrWorldX", &UiInputData::ptrWorldX);
-            md_handle.RegisterMember("ptrWorldY", &UiInputData::ptrWorldY);
+            md_handle.RegisterMember("ptrScreenX", &UiDbgInputData::ptrScreenX);
+            md_handle.RegisterMember("ptrScreenY", &UiDbgInputData::ptrScreenY);
+            md_handle.RegisterMember("ptrOverUi", &UiDbgInputData::ptrOverUi);
+            md_handle.RegisterMember("ptrWorldX", &UiDbgInputData::ptrWorldX);
+            md_handle.RegisterMember("ptrWorldY", &UiDbgInputData::ptrWorldY);
         }
         debugConstructor.Bind("inputData", &debugData.inputData);
 
-        if (auto md_handle = debugConstructor.RegisterStruct<UiViewData>())
+        if (auto md_handle = debugConstructor.RegisterStruct<UiDbgViewData>())
         {
-            md_handle.RegisterMember("winW", &UiViewData::winW);
-            md_handle.RegisterMember("winH", &UiViewData::winH);
-            md_handle.RegisterMember("fpsSmoothed", &UiViewData::fpsSmoothed);
-            md_handle.RegisterMember("frameMs", &UiViewData::frameMs);
-            md_handle.RegisterMember("zoom", &UiViewData::zoom);
-            md_handle.RegisterMember("camX", &UiViewData::camX);
-            md_handle.RegisterMember("camY", &UiViewData::camY);
+            md_handle.RegisterMember("winW", &UiDbgViewData::winW);
+            md_handle.RegisterMember("winH", &UiDbgViewData::winH);
+            md_handle.RegisterMember("fpsSmoothed", &UiDbgViewData::fpsSmoothed);
+            md_handle.RegisterMember("frameMs", &UiDbgViewData::frameMs);
+            md_handle.RegisterMember("zoom", &UiDbgViewData::zoom);
+            md_handle.RegisterMember("camX", &UiDbgViewData::camX);
+            md_handle.RegisterMember("camY", &UiDbgViewData::camY);
         }
         debugConstructor.Bind("viewData", &debugData.viewData);
 
-        if (auto md_handle = debugConstructor.RegisterStruct<UiGameData>())
+        if (auto md_handle = debugConstructor.RegisterStruct<UiDbgConnectionData>())
         {
-            md_handle.RegisterMember("gameState", &UiGameData::gameState);
+            md_handle.RegisterMember("serverLatency", &UiDbgConnectionData::serverLatency);
+            md_handle.RegisterMember("serverTimeOffset", &UiDbgConnectionData::serverTimeOffset);
+        }
+        debugConstructor.Bind("connectionData", &debugData.connectionData);
+
+        if (auto md_handle = debugConstructor.RegisterStruct<UiDbgGameData>())
+        {
+            md_handle.RegisterMember("gameState", &UiDbgGameData::gameState);
         }
         debugConstructor.Bind("gameData", &debugData.gameData);
         rmlModelDebug = debugConstructor.GetModelHandle();

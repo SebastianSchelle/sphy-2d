@@ -55,17 +55,18 @@ using ClientInfoHandle = typename con::ItemLib<ClientInfo>::Handle;
 //        s.value2b(o.portUdp);
 //        s.text1b(o.address, o.address.size());)
 
-typedef struct
+struct TimeSync
 {
-    tim::Timepoint t0;
-    tim::Timepoint t1;
-    tim::Timepoint t2;
-    uint8_t cnt;
+    long t0; // Client time at request sent
+    long t1; // Server time at request arrival
+    long t2; // Client time at response received
+    uint8_t cnt = 0;
     bool waiting = false;
-    float latency[10];
-    float offset[10];
-    float serverOffset;
-} TimeSync;
+    long latency[10];
+    long offset[10];
+    float serverOffset = 0.0f;
+    float serverLatency = 0.0f;
+};
 
 
 }  // namespace net

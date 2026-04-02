@@ -42,13 +42,17 @@ using Buffer = std::vector<uint8_t>;
 using OutputAdapter = bitsery::OutputBufferAdapter<Buffer>;
 using InputAdapter = bitsery::InputBufferAdapter<Buffer>;
 
-#define DO_PERIODIC(timekeeper_, interval_, callback_)                         \
-    tim::Timepoint now = tim::getCurrentTimeU();                               \
+#define DO_PERIODIC_EXTNOW(timekeeper_, interval_, now, callback_)             \
     if (tim::durationU(timekeeper_, now) > interval_)                          \
     {                                                                          \
         callback_();                                                           \
         timekeeper_ = now;                                                     \
     }
+
+#define DO_PERIODIC(timekeeper_, interval_, callback_)                         \
+    tim::Timepoint now = tim::getCurrentTimeU();                               \
+    DO_PERIODIC_EXTNOW(timekeeper_, interval_, now, callback_)
+
 #define TIM_1MS 1000
 #define TIM_10MS 10000
 #define TIM_100MS 100000
@@ -152,6 +156,11 @@ inline long durationU(Timepoint t1, Timepoint t2)
     return (t2 - t1).total_microseconds();
 }
 
+inline long nowU()
+{
+    return durationU(epoch, getCurrentTimeU());
+}
+
 }  // namespace tim
 
 
@@ -199,7 +208,8 @@ template <> struct fmt::formatter<vector<string>>
     auto format(const vector<string>& strings, FormatContext& ctx) const
     {
         std::string joined;
-        for (size_t i = 0; i < strings.size(); ++i) {
+        for (size_t i = 0; i < strings.size(); ++i)
+        {
             joined += strings[i];
             if (i + 1 < strings.size())
                 joined += ", ";
