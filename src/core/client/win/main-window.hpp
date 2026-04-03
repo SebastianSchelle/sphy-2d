@@ -47,7 +47,7 @@ struct MouseState
     glm::vec2 mousePosRel;
     uint32_t mouseZoneX;
     uint32_t mouseZoneY;
-    glm::vec2 mouseWorldZonePos;
+    glm::vec2 mouseWorldPos;
     void processMouseButton(uint8_t i);
 };
 
@@ -210,6 +210,9 @@ class MainWindow
     UiDebugData debugData;
 
     bp::child *serverProcess = nullptr;
+
+    gfx::PanDirection panX = gfx::PanDirection::Stop;
+    gfx::PanDirection panY = gfx::PanDirection::Stop;
 };
 
 }  // namespace ui

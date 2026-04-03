@@ -226,6 +226,8 @@ void MainWindow::winLoop()
         processMouseState();
         handleWinResize();
 
+        mouseState.mouseWorldPos = renderEngine.screenToWorldPixel(mouseState.mousePos);
+
         const bool mouseOverUi =
             userInterface.processMouseMove(mouseState.mousePos, 0);
         debugData.inputData.ptrOverUi = mouseOverUi;
@@ -245,7 +247,14 @@ void MainWindow::winLoop()
 
         if (!mouseOverUi && !mouseWheelInteract)
         {
-            renderEngine.zoomWorld(mouseState.mz);
+            if(mouseState.mz != 0)
+            {
+                glm::vec2 mousePosWorldBefore = renderEngine.screenToWorldPixel(mouseState.mousePos);
+                renderEngine.zoomWorld(mouseState.mz);
+                renderEngine.updateWorldView();
+                glm::vec2 mousePosWorldAfter = renderEngine.screenToWorldPixel(mouseState.mousePos);
+                renderEngine.panWorld(mousePosWorldBefore - mousePosWorldAfter);
+            }
         }
 
         if (userInterface.isDebugOpen())
@@ -300,6 +309,8 @@ void MainWindow::winLoop()
 
         if (model.getGameState() == ClientGameState::GameLoop)
         {
+            renderEngine.panWorld(panX, panY);
+
             renderEngine.drawRectangle(glm::vec2(200.0f + 50.0f * sin(t),
                                                  60.0f + 50.0f * cos(t * 1.5f)),
                                        glm::vec2(10.0f, 10.0f),
@@ -575,6 +586,55 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
                                  == ClientGameState::MainMenu);
         return;
     }
+
+    if (key == GLFW_KEY_W)
+    {
+        if(action == GLFW_PRESS)
+        {
+            panY = gfx::PanDirection::Up;
+        }
+        else if(action == GLFW_RELEASE)
+        {
+            panY = gfx::PanDirection::Stop;
+        }
+        return;
+    }
+    if (key == GLFW_KEY_S)
+    {
+        if(action == GLFW_PRESS)
+        {
+            panY = gfx::PanDirection::Down;
+        }
+        else if(action == GLFW_RELEASE)
+        {
+            panY = gfx::PanDirection::Stop;
+        }
+        return;
+    }
+    if (key == GLFW_KEY_A)
+    {
+        if(action == GLFW_PRESS)
+        {
+            panX = gfx::PanDirection::Left;
+        }
+        else if(action == GLFW_RELEASE)
+        {
+            panX = gfx::PanDirection::Stop;
+        }
+        return;
+    }
+    if (key == GLFW_KEY_D)
+    {
+        if(action == GLFW_PRESS)
+        {
+            panX = gfx::PanDirection::Right;
+        }
+        else if(action == GLFW_RELEASE)
+        {
+            panX = gfx::PanDirection::Stop;
+        }
+        return;
+    }
 }
 
 void MainWindow::charCallback(GLFWwindow* window, unsigned int codepoint)
@@ -693,10 +753,8 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
     debugData.gameData.gameState = gameStateToString(model.getGameState());
     debugData.inputData.ptrScreenX = mouseState.mousePos.x;
     debugData.inputData.ptrScreenY = mouseState.mousePos.y;
-    debugData.inputData.ptrWorldX =
-        renderEngine.screenToWorldPixel(mouseState.mousePos).x;
-    debugData.inputData.ptrWorldY =
-        renderEngine.screenToWorldPixel(mouseState.mousePos).y;
+    debugData.inputData.ptrWorldX = mouseState.mouseWorldPos.x;
+    debugData.inputData.ptrWorldY = mouseState.mouseWorldPos.y;
     debugData.connectionData.serverLatency =
         model.getTimeSyncData().serverLatency;
     debugData.connectionData.serverTimeOffset =

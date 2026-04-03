@@ -101,6 +101,11 @@ bool RenderEngine::initPre()
     float texExcessHeightThreshold = static_cast<float>(
         std::get<float>(config.get({"gfx", "tex-excess-height-threshold"})));
 
+    zoomPanCfgWorld.zoomStep = CFG_FLOAT(config, "gfx", "zoom-step", "world");
+    zoomPanCfgWorld.maxZoom = CFG_FLOAT(config, "gfx", "max-zoom", "world");
+    zoomPanCfgWorld.minZoom = CFG_FLOAT(config, "gfx", "min-zoom", "world");
+    zoomPanCfgWorld.panSpeed = CFG_FLOAT(config, "gfx", "pan-speed", "world");
+
     textureLoader.init(texWidth,
                        texHeight,
                        texLayerCnt,
@@ -717,23 +722,39 @@ void RenderEngine::submitShapes()
 void RenderEngine::zoomWorld(float amount)
 {
     // todo: save in local variable
-    worldZoom += amount * CFG_FLOAT(config, "gfx", "zoom-step", "world");
+    worldZoom += amount * zoomPanCfgWorld.zoomStep;
     if(amount > 0)
     {
-    float maxZoom = CFG_FLOAT(config, "gfx", "max-zoom", "world");
-        if(worldZoom > maxZoom)
+        if(worldZoom > zoomPanCfgWorld.maxZoom)
         {
-            worldZoom = maxZoom;
+            worldZoom = zoomPanCfgWorld.maxZoom;
         }
     }
     else
     {
-        float minZoom = CFG_FLOAT(config, "gfx", "min-zoom", "world");
-        if(worldZoom < minZoom)
+        if(worldZoom < zoomPanCfgWorld.minZoom)
         {
-            worldZoom = minZoom;
+            worldZoom = zoomPanCfgWorld.minZoom;
         }
     }
+}
+
+void RenderEngine::panWorld(PanDirection dirX, PanDirection dirY)
+{
+    worldCameraX += (float)dirX * zoomPanCfgWorld.panSpeed / worldZoom;
+    worldCameraY += (float)dirY * zoomPanCfgWorld.panSpeed / worldZoom;
+}
+
+void RenderEngine::panWorld(const glm::vec2& delta)
+{
+    worldCameraX += delta.x;
+    worldCameraY += delta.y;
+}
+
+void RenderEngine::alignCameraToMousePos(const glm::vec2& mousePosWorld)
+{
+    worldCameraX = worldCameraX - mousePosWorld.x;
+    worldCameraY = mousePosWorld.y + worldCameraY;
 }
 
 void RenderEngine::setWorldCameraPosition(const glm::vec2& position)

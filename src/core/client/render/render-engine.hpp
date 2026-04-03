@@ -47,6 +47,23 @@ struct Geometry
 using GeometryHandle = typename con::ItemLib<Geometry>::Handle;
 using GeometryHandleUuid = typename con::ItemLib<Geometry>::HandleUuid;
 
+struct ZoomPanCfg
+{
+    float zoomStep;
+    float maxZoom;
+    float minZoom;
+    float panSpeed;
+};
+
+enum class PanDirection
+{
+    Up = -1,
+    Down = 1,
+    Left = -1,
+    Right = 1,
+    Stop = 0,
+};
+
 class RenderEngine
 {
   public:
@@ -89,7 +106,10 @@ class RenderEngine
     void setWindowSize(int width, int height);
     void setWorldCamera(const glm::vec2& position, float zoom);
     void zoomWorld(float amount);
-    void setWorldCameraPosition(const glm::vec2& position);
+    void panWorld(PanDirection dirX, PanDirection dirY);
+    void panWorld(const glm::vec2& delta);
+    void setWorldCameraPosition(const glm::vec2& pos);
+    void alignCameraToMousePos(const glm::vec2& mousePosWorld);
     TextureHandle loadTexture(const std::string& name,
                               const std::string& type,
                               const std::string& path);
@@ -125,24 +145,28 @@ class RenderEngine
                        float rotationRad = 0.0f,
                        bgfx::ViewId viewId = 0);
     void drawEllipse(const glm::vec2& pos,
-                    const glm::vec2& size,
-                    uint32_t colorABGR,
-                    float thickness,
-                    float rotationRad = 0.0f,
-                    bgfx::ViewId viewId = 0);
+                     const glm::vec2& size,
+                     uint32_t colorABGR,
+                     float thickness,
+                     float rotationRad = 0.0f,
+                     bgfx::ViewId viewId = 0);
     tim::Timepoint getStartTime() const;
-    float getWorldZoom() const { return worldZoom; }
+    float getWorldZoom() const
+    {
+        return worldZoom;
+    }
     glm::vec2 getWorldCameraPosition() const
     {
         return {worldCameraX, worldCameraY};
     }
-    /// Window pixel position (same space as GLFW cursor) → world XY under the cursor.
+    /// Window pixel position (same space as GLFW cursor) → world XY under the
+    /// cursor.
     glm::vec2 screenToWorldPixel(const glm::vec2& screenPx) const;
+    void updateWorldView();
 
   private:
     void cleanUpAll();
     void updateOrtho();
-    void updateWorldView();
     void cleanUpTextures();
     void cleanUpShaders();
     void cleanUpGeometry();
@@ -192,6 +216,9 @@ class RenderEngine
     float worldView[16];
     float worldViewProj[16];
     float invWvp[16];
+
+    ZoomPanCfg zoomPanCfgWorld;
+
     glm::vec2 scissorRegionPosition;
     glm::vec2 scissorRegionSize;
     bool scissorRegionEnabled;
