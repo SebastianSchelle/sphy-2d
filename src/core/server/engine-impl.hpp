@@ -17,46 +17,101 @@ template <typename Component> void Engine::registerSlowDumpComponent()
             return;
         }
     }
+
+    // todo: start new message if over max udp size
+
     slowDumpComponents.push_back(SlowDumpEntry(
         name,
         [this, name](const net::ClientInfo* clientInfo,
                      std::shared_ptr<ecs::PtrHandle> ptrHandle)
         {
             bool lastSectorEmpty = false;
-            CMDAT_PREP(net::SendType::UDP, prot::cmd::SLOW_DUMP, 0)
-            cmdser.value4b(hashConst(name.c_str()));
-            for (int i = 0; i < ptrHandle->world->getSectorCount(); i++)
+            int sectorIdx = 0;
+            const vector<ecs::EntityId>* entityIds = nullptr;
+            int entIdx = 0;
+            do
             {
-                uint16_t numEntities = 0;
-                world::Sector* sector = ptrHandle->world->getSector(i);
-                cmdser.value4b(sector->getId());
-                size_t cntPos = cmdser.adapter().writtenBytesCount();
-                cmdser.value2b(numEntities);
-                for (auto entity : sector->getEntities())
+                auto writer =
+                    [this,
+                     name,
+                     ptrHandle,
+                     &lastSectorEmpty,
+                     &sectorIdx,
+                     &entityIds,
+                     &entIdx](bitsery::Serializer<OutputAdapter>& cmdser)
                 {
-                    auto component =
-                        ptrHandle->registry->try_get<Component>(entity);
-                    if (component)
+                    bool msgFull = false;
+                    uint16_t numEntities = 0;
+
+                    cmdser.value4b(hashConst(name.c_str()));
+
+                    while (sectorIdx < ptrHandle->world->getSectorCount())
                     {
-                        cmdser.object(*component);
-                        numEntities++;
+                        // Write sector index and dummy entity cnt
+                        world::Sector* sector =
+                            ptrHandle->world->getSector(sectorIdx);
+                        cmdser.value4b(sector->getId());
+                        size_t cntPos = cmdser.adapter().writtenBytesCount();
+                        cmdser.value2b(numEntities);
+                        entityIds = &sector->getEntityIds();
+                        auto entities = &sector->getEntities();
+                        while (entIdx < entityIds->size())
+                        {
+                            auto entityId = (*entityIds)[entIdx];
+                            entt::entity entity =
+                                ptrHandle->ecs->getEntity(entityId);
+                            if (entity != entt::null)
+                            {
+                                auto component =
+                                    ptrHandle->registry->try_get<Component>(
+                                        entity);
+                                if (component)
+                                {
+                                    cmdser.value4b(entityId.index);
+                                    cmdser.value2b(entityId.generation);
+                                    cmdser.object(*component);
+                                    numEntities++;
+                                }
+                            }
+                            entIdx++;
+                        }
+                        cmdser.adapter().currentWritePos(cntPos);
+                        lastSectorEmpty = (numEntities == 0);
+                        if (!lastSectorEmpty)
+                        {
+                            cmdser.value2b(numEntities);
+                            cmdser.adapter().currentWritePos(
+                                cmdser.adapter().writtenBytesCount());
+                        }
+                        else
+                        {
+                            cmdser.adapter().currentWritePos(cntPos - 4);
+                        }
+                        entIdx = 0;
+                        numEntities = 0;
+                        sectorIdx++;
                     }
-                }
-                cmdser.adapter().currentWritePos(cntPos);
-                lastSectorEmpty = (numEntities == 0);
-                if(!lastSectorEmpty)
-                {
-                    cmdser.value2b(numEntities);
-                    cmdser.adapter().currentWritePos(cmdser.adapter().writtenBytesCount());
-                }
-                else
-                {
-                    cmdser.adapter().currentWritePos(cntPos - 4);
-                }
-            }
-            CMDAT_FIN_REM_TAIL_BYTES(lastSectorEmpty ? 6 : 0)
-            cmdData.udpEndpoint = clientInfo->udpEndpoint;
-            sendQueue.enqueue(cmdData);
+                };
+
+                prot::writeMessageUdp(
+                    sendQueue,
+                    &clientInfo->udpEndpoint,
+                    [this,
+                     name,
+                     ptrHandle,
+                     &lastSectorEmpty,
+                     &sectorIdx,
+                     &entityIds,
+                     &entIdx,
+                     writer](bitsery::Serializer<OutputAdapter>& cmdser)
+                    {
+                        prot::writeCommand(
+                            cmdser, prot::cmd::SLOW_DUMP, 0, writer);
+                    },
+                    false,
+                    lastSectorEmpty ? 6 : 0);
+            } while (sectorIdx < ptrHandle->world->getSectorCount()
+                     || entIdx < entityIds->size());
         }));
 }
 

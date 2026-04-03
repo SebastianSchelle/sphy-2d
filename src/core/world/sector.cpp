@@ -19,8 +19,8 @@ void Sector::init(int x,
     coordX = x;
     coordY = y;
     this->sectorSize = sectorSize;
-    worldPosX = coordX * sectorSize + sectorSize / 2;
-    worldPosY = coordY * sectorSize + sectorSize / 2;
+    worldPosX = coordX * sectorSize;
+    worldPosY = coordY * sectorSize;
     this->id = id;
     for (int i = 0; i < 8; i++)
     {
@@ -103,7 +103,7 @@ bool Sector::removeEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
 void Sector::drawDebug(gfx::RenderEngine& renderer, float zoom)
 {
     renderer.drawRectangle(
-        glm::vec2(worldPosX - sectorSize / 2, worldPosY - sectorSize / 2),
+        glm::vec2(worldPosX, worldPosY),
         glm::vec2(sectorSize, sectorSize),
         0x10aaaa00,
         1.0f / zoom);

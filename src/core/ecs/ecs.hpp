@@ -3,8 +3,8 @@
 
 #include <asset-factory.hpp>
 #include <entt/entt.hpp>
-#include <std-inc.hpp>
 #include <ptr-handle.hpp>
+#include <std-inc.hpp>
 
 namespace ecs
 {
@@ -30,7 +30,7 @@ struct System
 struct EntityId
 {
     uint32_t index;
-    uint32_t generation;
+    uint16_t generation;
     bool operator==(const EntityId& other) const
     {
         return index == other.index && generation == other.generation;
@@ -44,7 +44,7 @@ struct EntityId
 struct Slot
 {
     entt::entity entity;
-    uint32_t generation;
+    uint16_t generation;
 };
 
 class Ecs
@@ -62,12 +62,26 @@ class Ecs
                               const std::string& assetId,
                               const AssetFactory& assetFactory);
     entt::registry& getRegistry();
+    entt::entity insertOrReplaceByExistingEntityId(EntityId entityId);
 
   private:
     entt::registry registry;
     vector<Slot> idMap;
     vector<uint32_t> idMapFreeSlots;
     vector<System> registeredSystems;
+};
+
+class EcsClient
+{
+  public:
+    EcsClient();
+    ~EcsClient();
+    entt::registry& getRegistry();
+    entt::entity enttFromServerId(const EntityId& entityId);
+
+  private:
+    entt::registry registry;
+    std::unordered_map<uint32_t, Slot> idMap;
 };
 
 }  // namespace ecs
@@ -99,5 +113,6 @@ template <> struct fmt::formatter<ecs::EntityId>
         return fmt::format_to(ctx.out(), "{}:{}", e.index, e.generation);
     }
 };
+
 
 #endif

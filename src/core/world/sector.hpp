@@ -24,8 +24,10 @@ class Sector
     bool removeEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle, ecs::EntityId entityId);
     const float getWorldPosX() const { return worldPosX; }
     const float getWorldPosY() const { return worldPosY; }
+    const glm::vec2 getWorldPos() const { return glm::vec2(worldPosX, worldPosY); }
     const uint32_t getId() const { return id; }
     const vector<entt::entity>& getEntities() const { return entityIds; }
+    const vector<ecs::EntityId>& getEntityIds() const { return entities; }
 #ifdef CLIENT
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
 #endif

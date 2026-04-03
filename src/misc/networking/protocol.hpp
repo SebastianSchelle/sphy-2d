@@ -46,12 +46,12 @@ typedef std::function<void(bitsery::Serializer<OutputAdapter>&)>
 
 void writeMessageUdp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
                      const udp::endpoint* endpoint,
-                     CmdContentWriter contentWriter, bool useToken = false);
+                     CmdContentWriter contentWriter, bool useToken = false, uint16_t removeTrailingBytes = 0);
 void writeMessageTcp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
                      std::shared_ptr<net::TcpConnection> tcpConnection,
                      CmdContentWriter contentWriter);
 void writeMessage(net::CmdQueueData& cmdData,
-                  CmdContentWriter contentWriter, bool useToken = false);
+                  CmdContentWriter contentWriter, bool useToken = false, uint16_t removeTrailingBytes = 0);
 void writeCommand(bitsery::Serializer<OutputAdapter>& cmdser,
                   uint16_t cmd,
                   uint8_t flags,

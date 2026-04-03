@@ -314,15 +314,12 @@ void MainWindow::winLoop()
                                        2.0f,
                                        t * 4.0f,
                                        0);
-
             renderEngine.drawEllipse(glm::vec2(160.0f, 260.0f),
                                      glm::vec2(50.0f, 100.0f),
                                      0xffffffff,
                                      1.0f,
                                      t,
                                      0);
-
-
             renderEngine.drawEllipse(glm::vec2(160.0f, 260.0f),
                                      glm::vec2(60.0f + 50.0f * sin(t),
                                                60.0f + 50.0f * cos(t * 1.5f)),
@@ -330,7 +327,6 @@ void MainWindow::winLoop()
                                      1.0f,
                                      0,
                                      0);
-
             model.drawDebug(renderEngine, renderEngine.getWorldZoom());
         }
 

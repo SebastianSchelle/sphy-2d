@@ -6,6 +6,7 @@
 #include <net-shared.hpp>
 #include <exchange-sequence.hpp>
 #include <world.hpp>
+#include <ecs.hpp>
 
 namespace ui
 {
@@ -20,7 +21,11 @@ class Model
   public:
     Model(ui::UserInterface* userInterface);
     ~Model();
-    void parseCommand(std::vector<uint8_t> data);
+    void parseCommandData(const net::CmdQueueData& cmdData);
+    void parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
+                      uint16_t cmd,
+                      uint8_t flags,
+                      uint16_t len);
     void modelLoop(float dt);
     ClientGameState getGameState() const { return gameState; }
 
@@ -50,6 +55,7 @@ class Model
     ecs::AssetFactory assetFactory;
     tim::Timepoint lastTSync;
     net::ModelClientInfo clientInfo;
+    ecs::EcsClient ecs;
 };
 
 }  // namespace sphyc

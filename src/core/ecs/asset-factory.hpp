@@ -68,7 +68,7 @@ class ComponentFactory
                 {
                     Component component;
                     s.object(component);
-                    LG_D("Deserialized component: {}", component);
+                    registry.emplace_or_replace<Component>(entity, component);
                 }));
     }
 

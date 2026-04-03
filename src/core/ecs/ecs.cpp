@@ -91,4 +91,43 @@ entt::registry& Ecs::getRegistry()
     return registry;
 }
 
+EcsClient::EcsClient() {}
+
+EcsClient::~EcsClient() {}
+
+entt::entity EcsClient::enttFromServerId(const EntityId& entityId)
+{
+    auto it = idMap.find(entityId.index);
+    if (it == idMap.end())
+    {
+        // Create new entity
+        entt::entity e = registry.create();
+        idMap[entityId.index] = {e, entityId.generation};
+        return e;
+    }
+    else
+    {
+        // Check if existing entity has matching generation
+        Slot& slot = idMap[entityId.index];
+        if (slot.generation == entityId.generation)
+        {
+            // Return entity, as this is still the same entity
+            return slot.entity;
+        }
+        else
+        {
+            // Destroy existing entity and create new
+            registry.destroy(slot.entity);
+            auto e = registry.create();
+            idMap[entityId.index] = {e, entityId.generation};
+            return e;
+        }
+    }
+}
+
+entt::registry& EcsClient::getRegistry()
+{
+    return registry;
+}
+
 }  // namespace ecs

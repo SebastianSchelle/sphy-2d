@@ -6,7 +6,7 @@ namespace prot
 
 void writeMessageUdp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
                      const udp::endpoint* endpoint,
-                     CmdContentWriter contentWriter, bool useToken)
+                     CmdContentWriter contentWriter, bool useToken, uint16_t removeTrailingBytes)
 {
     net::CmdQueueData cmdData;
     cmdData.sendType = net::SendType::UDP;
@@ -14,7 +14,7 @@ void writeMessageUdp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
     {
         cmdData.udpEndpoint = *endpoint;
     }
-    writeMessage(cmdData, contentWriter, useToken);
+    writeMessage(cmdData, contentWriter, useToken, removeTrailingBytes);
     sendQueue.enqueue(cmdData);
 }
 
@@ -30,7 +30,7 @@ void writeMessageTcp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
 }
 
 void writeMessage(net::CmdQueueData& cmdData,
-                  CmdContentWriter contentWriter, bool useToken)
+                  CmdContentWriter contentWriter, bool useToken, uint16_t removeTrailingBytes)
 {
     bitsery::Serializer<OutputAdapter> cmdser(OutputAdapter(cmdData.data));
     if(cmdData.sendType == net::SendType::UDP && useToken)
@@ -38,7 +38,7 @@ void writeMessage(net::CmdQueueData& cmdData,
         cmdser.adapter().currentWritePos(17);
     }
     contentWriter(cmdser);
-    cmdData.data.resize(cmdser.adapter().writtenBytesCount());
+    cmdData.data.resize(cmdser.adapter().writtenBytesCount() - removeTrailingBytes);
 }
 
 void writeCommand(bitsery::Serializer<OutputAdapter>& cmdser,

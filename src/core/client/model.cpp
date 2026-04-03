@@ -26,16 +26,14 @@ Model::Model(ui::UserInterface* userInterface) : userInterface(userInterface)
     cFac->registerComponent<ecs::AssetId>();
 }
 
-Model::~Model()
-{
-}
+Model::~Model() {}
 
 void Model::modelLoop(float dt)
 {
     net::CmdQueueData recQueueData;
     while (receiveQueue.try_dequeue(recQueueData))
     {
-        parseCommand(recQueueData.data);
+        parseCommandData(recQueueData);
     }
     switch (gameState)
     {
@@ -142,16 +140,51 @@ void Model::modelLoopGame(float dt)
     }
 }
 
-void Model::parseCommand(std::vector<uint8_t> data)
+void Model::parseCommandData(const net::CmdQueueData& cmdData)
 {
-    uint16_t cmd;
-    uint8_t flags;
-    uint16_t len;
-    bitsery::Deserializer<InputAdapter> cmddes(
-        InputAdapter{data.begin(), data.size()});
-    cmddes.value2b(cmd);
-    cmddes.value1b(flags);
-    cmddes.value2b(len);
+    try
+    {
+        const std::vector<uint8_t>& data = cmdData.data;
+        bitsery::Deserializer<InputAdapter> cmddes(
+            InputAdapter{data.begin(), data.size()});
+
+        if (cmdData.sendType == net::SendType::UDP)
+        {
+        }
+        else if (cmdData.sendType == net::SendType::TCP)
+        {
+        }
+
+        while (cmddes.adapter().currentReadPos() <= data.size() - 5)
+        {
+            uint16_t cmd;
+            uint8_t flags;
+            uint16_t len;
+            cmddes.value2b(cmd);
+            cmddes.value1b(flags);
+            cmddes.value2b(len);
+            size_t dataStartPos = cmddes.adapter().currentReadPos();
+
+            if (cmddes.adapter().currentReadPos() + len > data.size())
+            {
+                LG_E("Command data too short");
+                break;
+            }
+            parseCommand(cmddes, cmd, flags, dataStartPos + len);
+            cmddes.adapter().currentReadPos(dataStartPos + len);
+        }
+    }
+    catch (const std::exception& e)
+    {
+        LG_E("Error parsing command message: {}", e.what());
+    }
+}
+
+void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
+                         uint16_t cmd,
+                         uint8_t flags,
+                         uint16_t posNextCmdOrEof)
+{
     prot::cmd::State result = prot::cmd::State::SUCCESS;
 
     switch (cmd)
@@ -159,13 +192,14 @@ void Model::parseCommand(std::vector<uint8_t> data)
         case prot::cmd::LOG:
         {
             std::string str;
-            cmddes.text1b(str, len);
+            cmddes.text1b(str, posNextCmdOrEof);
             LG_I("Log from server: {}", str);
             break;
         }
         case prot::cmd::TIME_SYNC:
         {
-            if (timeSyncData.waiting && flags & CMD_FLAG_RESP && len == 8)
+            if (timeSyncData.waiting && flags & CMD_FLAG_RESP
+                && posNextCmdOrEof == 8)
             {
                 timeSyncData.waiting = false;
                 // Server time at request arrival
@@ -216,7 +250,8 @@ void Model::parseCommand(std::vector<uint8_t> data)
                 if (major != version::MAJOR)
                 {
                     LG_E(
-                        "Cannot connect to server. Version mismatch. Server: "
+                        "Cannot connect to server. Version mismatch. "
+                        "Server: "
                         "{}.{}.{}, Client: {}.{}.{}",
                         major,
                         minor,
@@ -270,7 +305,7 @@ void Model::parseCommand(std::vector<uint8_t> data)
             if (flags & CMD_FLAG_RESP)
             {
                 std::string str;
-                cmddes.text1b(str, len);
+                cmddes.text1b(str, posNextCmdOrEof);
                 LG_I("Console cmd response: {}", str);
                 userInterface->addSystemMessage(str);
             }
@@ -278,7 +313,7 @@ void Model::parseCommand(std::vector<uint8_t> data)
         }
         case prot::cmd::SLOW_DUMP:
         {
-            handleSlowDump(cmddes, len);
+            handleSlowDump(cmddes, posNextCmdOrEof);
             break;
         }
         default:
@@ -297,6 +332,22 @@ void Model::parseCommand(std::vector<uint8_t> data)
 void Model::drawDebug(gfx::RenderEngine& renderer, float zoom)
 {
     world.drawDebug(renderer, zoom);
+    auto& reg = ecs.getRegistry();
+    reg.view<ecs::Transform, ecs::SectorId>().each(
+        [this, &renderer](ecs::Transform& transform, ecs::SectorId& sectorId)
+        {
+            world::Sector* sector = world.getSector(sectorId.id);
+            if(sector)
+            {
+                glm::vec2 worldPos = sector->getWorldPos() + transform.pos;
+                renderer.drawEllipse(worldPos,
+                                     glm::vec2(10.0f, 5.0f),
+                                     0xffffffff,
+                                     2.0f,
+                                     transform.rot,
+                                     0);
+            }
+        });
 }
 
 void Model::sendCmdToServer(const std::string& command)
@@ -380,19 +431,36 @@ void Model::disconnectFromServer()
 }
 
 void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
-                           uint16_t numBytes)
+                           uint16_t posNextCmdOrEof)
 {
     uint32_t compHash;
-    LG_D("Slow dump bytes: {}, read Pos: {}",
-         numBytes,
-         cmddes.adapter().currentReadPos());
     cmddes.value4b(compHash);
     for (auto& [hash, helper] :
          assetFactory.componentFactory.getComponentHelpers())
     {
         if (hash == compHash)
         {
-            LG_I("Slow dump for component: {}", helper.name);
+            while (cmddes.adapter().currentReadPos() < posNextCmdOrEof - 6)
+            {
+                uint32_t sectorId;
+                uint16_t numEntities;
+                cmddes.value4b(sectorId);
+                cmddes.value2b(numEntities);
+                for (uint i = 0; i < numEntities; ++i)
+                {
+                    uint32_t index;
+                    uint16_t generation;
+                    cmddes.value4b(index);
+                    cmddes.value2b(generation);
+                    ecs::EntityId entityId = {index, generation};
+                    entt::entity entity = ecs.enttFromServerId(entityId);
+
+                    auto& reg = ecs.getRegistry();
+                    reg.emplace_or_replace<ecs::SectorId>(entity, sectorId);
+                    helper.deserializeIntoRegistry(
+                        reg, entity, cmddes);
+                }
+            }
         }
     }
 }
