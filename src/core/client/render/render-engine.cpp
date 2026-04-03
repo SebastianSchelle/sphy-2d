@@ -751,12 +751,6 @@ void RenderEngine::panWorld(const glm::vec2& delta)
     worldCameraY += delta.y;
 }
 
-void RenderEngine::alignCameraToMousePos(const glm::vec2& mousePosWorld)
-{
-    worldCameraX = worldCameraX - mousePosWorld.x;
-    worldCameraY = mousePosWorld.y + worldCameraY;
-}
-
 void RenderEngine::setWorldCameraPosition(const glm::vec2& position)
 {
     worldCameraX = position.x;

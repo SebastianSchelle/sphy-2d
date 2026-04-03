@@ -109,7 +109,6 @@ class RenderEngine
     void panWorld(PanDirection dirX, PanDirection dirY);
     void panWorld(const glm::vec2& delta);
     void setWorldCameraPosition(const glm::vec2& pos);
-    void alignCameraToMousePos(const glm::vec2& mousePosWorld);
     TextureHandle loadTexture(const std::string& name,
                               const std::string& type,
                               const std::string& path);
