@@ -1,11 +1,12 @@
 #include "logging.hpp"
 #include "std-inc.hpp"
+#include <components/comp-ident.hpp>
 #include <exchange-sequence.hpp>
 #include <model.hpp>
 #include <protocol.hpp>
 #include <ui/user-interface.hpp>
-#include <world-def.hpp>
 #include <version.hpp>
+#include <world-def.hpp>
 
 namespace sphyc
 {
@@ -18,9 +19,16 @@ Model::Model(ui::UserInterface* userInterface) : userInterface(userInterface)
         [this]() {},
         [this](bitsery::Serializer<OutputAdapter>& ser) {}));
     lastTSync = tim::getCurrentTimeU();
+
+    auto cFac = &assetFactory.componentFactory;
+    cFac->registerComponent<ecs::Transform>();
+    cFac->registerComponent<ecs::PhysicsBody>();
+    cFac->registerComponent<ecs::AssetId>();
 }
 
-Model::~Model() {}
+Model::~Model()
+{
+}
 
 void Model::modelLoop(float dt)
 {
@@ -82,9 +90,18 @@ void Model::timeSync()
     }
     timeSyncData.t0 = tim::nowU();
     timeSyncData.waiting = true;
-    CMDAT_PREP_TOKEN(net::SendType::UDP, prot::cmd::TIME_SYNC, 0)
-    CMDAT_FIN_TOKEN()
-    sendQueue.enqueue(cmdData);
+    prot::writeMessageUdp(
+        sendQueue,
+        nullptr,
+        [this](bitsery::Serializer<OutputAdapter>& cmdser)
+        {
+            prot::writeCommand(
+                cmdser,
+                prot::cmd::TIME_SYNC,
+                0,
+                [this](bitsery::Serializer<OutputAdapter>& cmdser) {});
+        },
+        true);
 }
 
 void Model::modelLoopMenu(float dt) {}
@@ -92,6 +109,7 @@ void Model::modelLoopMenu(float dt) {}
 void Model::modelLoopGame(float dt)
 {
     tim::Timepoint now = tim::getCurrentTimeU();
+    static tim::Timepoint testTime = tim::getCurrentTimeU();
 
     // Send some stuff to server
     /*CMDAT_PREP_TOKEN(net::SendType::UDP, prot::cmd::LOG, 0)
@@ -99,6 +117,20 @@ void Model::modelLoopGame(float dt)
     cmdser.text1b(str, str.size());
     CMDAT_FIN_TOKEN()
     sendQueue.enqueue(cmdData);*/
+
+    /*DO_PERIODIC_EXTNOW(testTime, 1000000, now, [this]() {
+        prot::writeMessageUdp(sendQueue, nullptr,
+    [this](bitsery::Serializer<OutputAdapter>& cmdser) {
+            prot::writeCommand(cmdser, prot::cmd::LOG, 0,
+    [this](bitsery::Serializer<OutputAdapter>& cmdser) { std::string str =
+    "Hello World!"; cmdser.text1b(str, str.size());
+            });
+            prot::writeCommand(cmdser, prot::cmd::LOG, 0,
+    [this](bitsery::Serializer<OutputAdapter>& cmdser) { std::string str =
+    "Hello Sector!"; cmdser.text1b(str, str.size());
+            });
+        }, true);
+    });*/
 
     if (timeSyncData.cnt == 0)
     {
@@ -183,14 +215,30 @@ void Model::parseCommand(std::vector<uint8_t> data)
                 cmddes.value2b(patch);
                 if (major != version::MAJOR)
                 {
-                    LG_E("Cannot connect to server. Version mismatch. Server: {}.{}.{}, Client: {}.{}.{}", major, minor, patch, version::MAJOR, version::MINOR, version::PATCH);
+                    LG_E(
+                        "Cannot connect to server. Version mismatch. Server: "
+                        "{}.{}.{}, Client: {}.{}.{}",
+                        major,
+                        minor,
+                        patch,
+                        version::MAJOR,
+                        version::MINOR,
+                        version::PATCH);
                     return;
                 }
                 else
                 {
                     if (minor != version::MINOR || patch != version::PATCH)
                     {
-                        LG_W("Version mismatch. Server: {}.{}.{}, Client: {}.{}.{}", major, minor, patch, version::MAJOR, version::MINOR, version::PATCH);
+                        LG_W(
+                            "Version mismatch. Server: {}.{}.{}, Client: "
+                            "{}.{}.{}",
+                            major,
+                            minor,
+                            patch,
+                            version::MAJOR,
+                            version::MINOR,
+                            version::PATCH);
                     }
                     LG_I("Version check successful");
                     authenticate();
@@ -228,6 +276,11 @@ void Model::parseCommand(std::vector<uint8_t> data)
             }
             break;
         }
+        case prot::cmd::SLOW_DUMP:
+        {
+            handleSlowDump(cmddes, len);
+            break;
+        }
         default:
             break;
     }
@@ -248,36 +301,65 @@ void Model::drawDebug(gfx::RenderEngine& renderer, float zoom)
 
 void Model::sendCmdToServer(const std::string& command)
 {
-    CMDAT_PREP(net::SendType::TCP, prot::cmd::CONSOLE_CMD, 0)
-    cmdser.text1b(command, command.size());
-    CMDAT_FIN()
-    sendQueue.enqueue(cmdData);
+    prot::writeMessageTcp(
+        sendQueue,
+        nullptr,
+        [this, command](bitsery::Serializer<OutputAdapter>& cmdser)
+        {
+            prot::writeCommand(
+                cmdser,
+                prot::cmd::CONSOLE_CMD,
+                0,
+                [this, command](bitsery::Serializer<OutputAdapter>& cmdser)
+                { cmdser.text1b(command, command.size()); });
+        });
 }
 
 void Model::checkVersion(const net::ModelClientInfo& clientInfo)
 {
     this->clientInfo = clientInfo;
-    CMDAT_PREP(net::SendType::TCP, prot::cmd::VERSION_CHECK, 0)
-    cmdser.value2b(version::MAJOR);
-    cmdser.value2b(version::MINOR);
-    cmdser.value2b(version::PATCH);
-    CMDAT_FIN()
-    sendQueue.enqueue(cmdData);
+    prot::writeMessageTcp(
+        sendQueue,
+        nullptr,
+        [this](bitsery::Serializer<OutputAdapter>& cmdser)
+        {
+            prot::writeCommand(
+                cmdser,
+                prot::cmd::VERSION_CHECK,
+                0,
+                [this](bitsery::Serializer<OutputAdapter>& cmdser)
+                {
+                    cmdser.value2b(version::MAJOR);
+                    cmdser.value2b(version::MINOR);
+                    cmdser.value2b(version::PATCH);
+                });
+        });
+
     gameState = ClientGameState::VersionCheck;
 }
 
 void Model::authenticate()
 {
     LG_I("Authenticating with server...");
+    prot::writeMessageTcp(
+        sendQueue,
+        nullptr,
+        [this](bitsery::Serializer<OutputAdapter>& cmdser)
+        {
+            prot::writeCommand(
+                cmdser,
+                prot::cmd::AUTHENTICATE,
+                0,
+                [this](bitsery::Serializer<OutputAdapter>& cmdser)
+                {
+                    cmdser.value2b(version::MAJOR);
+                    cmdser.value2b(version::MINOR);
+                    cmdser.value2b(version::PATCH);
+                    cmdser.text1b(clientInfo.token, 16);
+                    cmdser.value2b((uint16_t)clientInfo.udpPortCli);
+                });
+        });
     gameState = ClientGameState::Authenticating;
-    CMDAT_PREP(net::SendType::TCP, prot::cmd::AUTHENTICATE, 0)
-    cmdser.value2b(version::MAJOR);
-    cmdser.value2b(version::MINOR);
-    cmdser.value2b(version::PATCH);
-    cmdser.text1b(clientInfo.token, 16);
-    cmdser.value2b((uint16_t)clientInfo.udpPortCli);
-    CMDAT_FIN()
-    sendQueue.enqueue(cmdData);
 }
 
 void Model::disconnectFromServer()
@@ -294,6 +376,24 @@ void Model::disconnectFromServer()
             break;
         default:
             break;
+    }
+}
+
+void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
+                           uint16_t numBytes)
+{
+    uint32_t compHash;
+    LG_D("Slow dump bytes: {}, read Pos: {}",
+         numBytes,
+         cmddes.adapter().currentReadPos());
+    cmddes.value4b(compHash);
+    for (auto& [hash, helper] :
+         assetFactory.componentFactory.getComponentHelpers())
+    {
+        if (hash == compHash)
+        {
+            LG_I("Slow dump for component: {}", helper.name);
+        }
     }
 }
 

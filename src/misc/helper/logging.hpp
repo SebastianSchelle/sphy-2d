@@ -8,10 +8,10 @@
 #include <glm/glm.hpp>
 #include "spdlog/fmt/bundled/format.h"
 
-#define LG_D(...) spdlog::debug(__VA_ARGS__);
-#define LG_I(...) spdlog::info(__VA_ARGS__);
-#define LG_E(...) spdlog::critical(__VA_ARGS__);
-#define LG_W(...) spdlog::warn(__VA_ARGS__);
+#define LG_D(...) spdlog::debug(__VA_ARGS__)
+#define LG_I(...) spdlog::info(__VA_ARGS__)
+#define LG_E(...) spdlog::critical(__VA_ARGS__)
+#define LG_W(...) spdlog::warn(__VA_ARGS__)
 
 namespace debug
 {

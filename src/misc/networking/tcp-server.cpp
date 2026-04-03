@@ -1,13 +1,16 @@
 #include "tcp-server.hpp"
+#include <boost/system/detail/error_code.hpp>
 
 namespace net
 {
 
 TcpConnection::pointer
 TcpConnection::create(boost::asio::io_context& io_context,
-                      ReceiveCallbackConn receiveCallback)
+                      ReceiveCallbackConn receiveCallback,
+                      TcpDisconnectCallback disconnectCallback)
 {
-    return pointer(new TcpConnection(io_context, receiveCallback));
+    return pointer(new TcpConnection(
+        io_context, receiveCallback, std::move(disconnectCallback)));
 }
 
 tcp::socket& TcpConnection::socket()
@@ -17,22 +20,51 @@ tcp::socket& TcpConnection::socket()
 
 void TcpConnection::start()
 {
-    running = true;
+    running.store(true);
     doRead();
 }
 
 void TcpConnection::close()
 {
-    LG_D("Closing TCP connection");
-    running = false;
-    socket_.shutdown(tcp::socket::shutdown_both);
+    auto self = shared_from_this();
+    boost::asio::dispatch(socket_.get_executor(), [this, self]()
+    {
+        if (!running.exchange(false))
+            return;
+        LG_D("Closing TCP connection");
+        boost::system::error_code ec;
+        if(socket_.cancel(ec))
+        {
+            LG_W("Failed to cancel socket: {}", ec.message());
+        }
+        if(socket_.shutdown(tcp::socket::shutdown_both, ec))
+        {
+            LG_W("Failed to shutdown socket: {}", ec.message());
+        }
+        if(socket_.close(ec))
+        {
+            LG_W("Failed to close socket: {}", ec.message());
+        }
+        fireDisconnectOnce();
+    });
 }
 
 TcpConnection::TcpConnection(boost::asio::io_context& io_context,
-                             ReceiveCallbackConn receiveCallback)
-    : socket_(io_context), receiveCallback(receiveCallback),
+                             ReceiveCallbackConn receiveCallback,
+                             TcpDisconnectCallback disconnectCallback)
+    : socket_(io_context),
+      receiveCallback(std::move(receiveCallback)),
+      disconnectCallback(std::move(disconnectCallback)),
       clientInfoHandle(ClientInfoHandle::Invalid())
 {
+}
+
+void TcpConnection::fireDisconnectOnce()
+{
+    if (disconnectNotified.exchange(true))
+        return;
+    if (disconnectCallback)
+        disconnectCallback(shared_from_this());
 }
 
 void TcpConnection::doRead()
@@ -42,7 +74,7 @@ void TcpConnection::doRead()
         boost::asio::buffer(recvBuf, TCP_REC_BUF_LEN),
         [this, self](boost::system::error_code ec, std::size_t length)
         {
-            if (!ec && length > 0 && running)
+            if (!ec && length > 0 && running.load())
             {
                 if (receiveCallback)
                 {
@@ -84,10 +116,12 @@ void TcpConnection::sendMessage(const std::vector<uint8_t>& data)
 
 TcpServer::TcpServer(boost::asio::io_context& io_context,
                      int port,
-                     ReceiveCallbackConn receiveCallback)
+                     ReceiveCallbackConn receiveCallback,
+                     TcpDisconnectCallback disconnectCallback)
     : io_context_(io_context),
       acceptor_(io_context, tcp::endpoint(tcp::v4(), port)),
-      receiveCallback(receiveCallback)
+      receiveCallback(std::move(receiveCallback)),
+      disconnectCallback(std::move(disconnectCallback))
 {
     LG_D("Starting TCP server on port {}", port);
     StartAccept();
@@ -95,8 +129,8 @@ TcpServer::TcpServer(boost::asio::io_context& io_context,
 
 void TcpServer::StartAccept()
 {
-    TcpConnection::pointer new_connection =
-        TcpConnection::create(io_context_, receiveCallback);
+    TcpConnection::pointer new_connection = TcpConnection::create(
+        io_context_, receiveCallback, disconnectCallback);
 
     acceptor_.async_accept(
         new_connection->socket(),

@@ -10,58 +10,82 @@ namespace ecs
 class ComponentFactory
 {
   public:
-    using LoaderFunc =
+    using AssetLoaderFunc =
         std::function<void(entt::registry&, entt::entity, const YAML::Node&)>;
-    using CopierFunc = std::function<void(const entt::registry&,
-                                          entt::entity,
-                                          entt::registry&,
-                                          entt::entity)>;
+    using AssetCopierFunc = std::function<void(const entt::registry&,
+                                               entt::entity,
+                                               entt::registry&,
+                                               entt::entity)>;
+    using DeserializeIntoRegistryFunc =
+        std::function<void(entt::registry&,
+                           entt::entity,
+                           bitsery::Deserializer<InputAdapter>&)>;
 
-    void registerLoader(const std::string& name, LoaderFunc func);
-    void registerCopier(const std::string& name, CopierFunc func);
+    struct ComponentHelper
+    {
+        string name;
+        AssetLoaderFunc assetLoader;
+        AssetCopierFunc assetCopier;
+        DeserializeIntoRegistryFunc deserializeIntoRegistry;
+    };
+
+    void registerHelper(const std::string& name, ComponentHelper func);
     void loadComponent(const std::string& name,
                        entt::registry& registry,
                        entt::entity e,
                        const YAML::Node& node);
 
-    template <typename Component>
-    void registerComponent(const std::string& name)
+    template <typename Component> void registerComponent()
     {
-        registerLoader(name, &Component::fromYaml);
-        registerCopier(
+        const std::string name = Component::NAME;
+        registerHelper(
             name,
-            [name](const entt::registry& srcRegistry,
-               entt::entity srcEntity,
-               entt::registry& dstRegistry,
-               entt::entity dstEntity)
-            {
-                auto component = srcRegistry.try_get<Component>(srcEntity);
-                if (component)
+            ComponentHelper(
+                name,
+                &Component::fromYaml,
+                [name](const entt::registry& srcRegistry,
+                       entt::entity srcEntity,
+                       entt::registry& dstRegistry,
+                       entt::entity dstEntity)
                 {
-                    LG_D("Copying component: {} from entity: {} to entity: {} value: {}",
-                         name,
-                         srcEntity,
-                         dstEntity, *component);
-                    dstRegistry.emplace_or_replace<Component>(dstEntity,
-                                                              *component);
-                }
-            });
+                    auto component = srcRegistry.try_get<Component>(srcEntity);
+                    if (component)
+                    {
+                        LG_D(
+                            "Copying component: {} from asset entity: {} "
+                            "to entity: {} value: {}",
+                            name,
+                            srcEntity,
+                            dstEntity,
+                            *component);
+                        dstRegistry.emplace_or_replace<Component>(dstEntity,
+                                                                  *component);
+                    }
+                },
+                [name](entt::registry& registry,
+                       entt::entity entity,
+                       bitsery::Deserializer<InputAdapter>& s)
+                {
+                    Component component;
+                    s.object(component);
+                    LG_D("Deserialized component: {}", component);
+                }));
     }
 
-    const std::unordered_map<std::string, CopierFunc>& getCopiers() const
+    const std::unordered_map<uint32_t, ComponentHelper>&
+    getComponentHelpers() const
     {
-        return copiers;
+        return componentHelpers;
     }
 
   private:
-    std::unordered_map<std::string, LoaderFunc> loaders;
-    std::unordered_map<std::string, CopierFunc> copiers;
+    std::unordered_map<uint32_t, ComponentHelper> componentHelpers;
 };
 
 struct AssetMapItem
 {
-  std::string path;
-  entt::entity entity;
+    std::string path;
+    entt::entity entity;
 };
 
 class AssetFactory

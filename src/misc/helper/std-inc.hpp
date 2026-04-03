@@ -25,10 +25,12 @@
 #include <string>
 #include <variant>
 #include <yaml-cpp/yaml.h>
+#include <concurrentqueue.h>
 
 using std::string;
 using std::unordered_map;
 using std::vector;
+using moodycamel::ConcurrentQueue;
 namespace fs = std::filesystem;
 namespace bp = boost::process;
 
@@ -49,9 +51,19 @@ using InputAdapter = bitsery::InputBufferAdapter<Buffer>;
         callback_();                                                           \
         timekeeper_ = now;                                                     \
     }
+#define DO_PERIODIC_U_EXTNOW(timekeeper_, interval_, now, callback_)           \
+    if ((now - timekeeper_) > interval_)                                       \
+    {                                                                          \
+        callback_();                                                           \
+        timekeeper_ = now;                                                     \
+    }
 
 #define DO_PERIODIC(timekeeper_, interval_, callback_)                         \
     tim::Timepoint now = tim::getCurrentTimeU();                               \
+    DO_PERIODIC_EXTNOW(timekeeper_, interval_, now, callback_)
+
+#define DO_PERIODIC_U(timekeeper_, interval_, callback_)                         \
+    long now = tim::nowU();                               \
     DO_PERIODIC_EXTNOW(timekeeper_, interval_, now, callback_)
 
 #define TIM_1MS 1000
@@ -75,6 +87,7 @@ constexpr uint32_t hashConst(const char* s, size_t i = 0)
                        & 0xFFFFFFFFu;
 }
 #define TYPE_ID(T) (::hashConst(TYPE_NAME_STR(T)))
+#define COMP_HASH(T) (::hashConst(T::NAME.c_str()))
 
 #define SAPI(id) s.value2b(id)
 #define S4b(value) s.value4b(value)
@@ -238,18 +251,34 @@ template <> struct fmt::formatter<vector<string>>
     }
 };
 
-#define SER_VEC2                                                               \
-    S4b(o.x);                                                                  \
-    S4b(o.y);
-#define SER_VEC3                                                               \
-    S4b(o.x);                                                                  \
-    S4b(o.y);                                                                  \
-    S4b(o.z);
-
-EXT_SER(vec2, SER_VEC2)
-EXT_DES(vec2, SER_VEC2)
-EXT_SER(vec3, SER_VEC3)
-EXT_DES(vec3, SER_VEC3)
+// Bitsery finds serialize(S&, T&) via ADL on T. glm::vec2 lives in namespace glm,
+// so these overloads must be in glm — global EXT_SER(vec2) is not visible to
+// bitsery::details::HasSerializeFunction.
+namespace glm
+{
+template <typename S> void serialize(S& s, vec2& o)
+{
+    s.value4b(o.x);
+    s.value4b(o.y);
+}
+template <typename D> void deserialize(D& s, vec2& o)
+{
+    s.value4b(o.x);
+    s.value4b(o.y);
+}
+template <typename S> void serialize(S& s, vec3& o)
+{
+    s.value4b(o.x);
+    s.value4b(o.y);
+    s.value4b(o.z);
+}
+template <typename D> void deserialize(D& s, vec3& o)
+{
+    s.value4b(o.x);
+    s.value4b(o.y);
+    s.value4b(o.z);
+}
+}  // namespace glm
 
 EXT_FMT(vec2, "[{}, {}]", o.x, o.y);
 EXT_FMT(vec3, "[{}, {}, {}]", o.x, o.y, o.z);

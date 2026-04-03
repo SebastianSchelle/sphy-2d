@@ -9,7 +9,7 @@ Server::Server(sphy::CmdLinOptionsServer& options)
     : options(options),
       config(options.workingdir + "/modules/core/defs/server.yaml"),
       sendTimer(ioContext), signals(ioContext, SIGINT, SIGTERM),
-      engine(options)
+      engine(options, config)
 {
     auto path(options.workingdir);
     std::filesystem::current_path(path);
@@ -41,14 +41,17 @@ void Server::startUdpTcp()
             ioContext.stop();
         });
 
-    tcpServer =
-        std::make_unique<net::TcpServer>(ioContext,
-                                         portTcp,
-                                         std::bind(&Server::tcpReceive,
-                                                   this,
-                                                   std::placeholders::_1,
-                                                   std::placeholders::_2,
-                                                   std::placeholders::_3));
+    tcpServer = std::make_unique<net::TcpServer>(
+        ioContext,
+        portTcp,
+        std::bind(&Server::tcpReceive,
+                  this,
+                  std::placeholders::_1,
+                  std::placeholders::_2,
+                  std::placeholders::_3),
+        std::bind(&Server::tcpDisconnected,
+                  this,
+                  std::placeholders::_1));
     LG_D("Setup socket on port-tcp={}", portTcp);
 
     udpServer =
@@ -148,6 +151,15 @@ void Server::tcpReceive(const char* data,
         cmdData.data.insert(cmdData.data.end(), data, data + length);
         engine.receiveQueue.enqueue(cmdData);
     }
+}
+
+void Server::tcpDisconnected(std::shared_ptr<net::TcpConnection> connection)
+{
+    net::CmdQueueData cmdData;
+    cmdData.sendType = net::SendType::TCP;
+    cmdData.tcpConnection = std::move(connection);
+    cmdData.tcpDisconnected = true;
+    engine.receiveQueue.enqueue(cmdData);
 }
 
 

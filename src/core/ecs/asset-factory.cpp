@@ -4,14 +4,10 @@
 namespace ecs
 {
 
-void ComponentFactory::registerLoader(const std::string& name, LoaderFunc func)
+void ComponentFactory::registerHelper(const std::string& name,
+                                      ComponentHelper func)
 {
-    loaders[name] = func;
-}
-
-void ComponentFactory::registerCopier(const std::string& name, CopierFunc func)
-{
-    copiers[name] = func;
+    componentHelpers[hashConst(name.c_str())] = func;
 }
 
 void ComponentFactory::loadComponent(const std::string& name,
@@ -19,10 +15,10 @@ void ComponentFactory::loadComponent(const std::string& name,
                                      entt::entity e,
                                      const YAML::Node& node)
 {
-    auto it = loaders.find(name);
-    if (it != loaders.end())
+    auto it = componentHelpers.find(hashConst(name.c_str()));
+    if (it != componentHelpers.end())
     {
-        it->second(registry, e, node);
+        it->second.assetLoader(registry, e, node);
     }
     else
     {
@@ -81,12 +77,12 @@ void AssetFactory::copyComponentsIntoEntity(entt::registry& registry,
     {
         return;
     }
-    for (const auto& [name, copier] : componentFactory.getCopiers())
+    for (const auto& [hash, helper] : componentFactory.getComponentHelpers())
     {
-        copier(const_cast<entt::registry&>(this->registry),
-               srcEntity,
-               registry,
-               entity);
+        helper.assetCopier(const_cast<entt::registry&>(this->registry),
+                           srcEntity,
+                           registry,
+                           entity);
     }
 }
 
@@ -95,7 +91,8 @@ string AssetFactory::assetList(const string& searchTerm) const
     string info = "List of available assets:\n";
     for (const auto& [name, entity] : assetMap)
     {
-        if (searchTerm.empty() || searchTerm == "all" || name.find(searchTerm) != string::npos)
+        if (searchTerm.empty() || searchTerm == "all"
+            || name.find(searchTerm) != string::npos)
         {
             info += name + "\n";
         }

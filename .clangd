@@ -1,11 +1,62 @@
+# Performance (applies to your TUs). Third-party headers are still parsed when #included;
+# Index.Background: Skip only skips indexing those paths as separate translation units.
+---
+Diagnostics:
+  UnusedIncludes: None
+  MissingIncludes: None
+  ClangTidy:
+    Remove: "*"
+Completion:
+  AllScopes: No
+  HeaderInsertion: Never
+  CodePatterns: None
+InlayHints:
+  Enabled: false
+Index:
+  StandardLibrary: false
+SemanticTokens:
+  DisabledKinds:
+    - Variable
+    - LocalVariable
+    - StaticField
+    - Parameter
+    - StaticMethod
+    - Function
+    - Method
+    - Field
+    - Class
+    - Interface
+    - Enum
+    - EnumConstant
+    - Type
+    - Typedef
+    - Primitive
+    - TemplateParameter
+    - Namespace
+    - Macro
+    - Modifier
+    - Operator
+    - Bracket
+    - Label
+    - InactiveCode
+    - Unknown
+    - Concept
+---
+If:
+  PathMatch: ".*(thirdparty|_deps)/.*"
+Index:
+  Background: Skip
+Diagnostics:
+  Suppress: "*"
+---
+If:
+  PathMatch: ".*build/.*"
+Index:
+  Background: Skip
+---
 CompileFlags:
   Add: [-std=c++20]
 
 Format:
-  # Use the .clang-format file in the project root
-  # Note: .clangd cannot embed all formatting options directly,
-  # so it references the .clang-format file which contains
-  # all your detailed formatting rules
   Style: file
   FallbackStyle: LLVM
-

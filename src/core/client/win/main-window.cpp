@@ -108,11 +108,6 @@ MainWindow::~MainWindow()
 
 bool MainWindow::initPre()
 {
-    auto cFac = &assetFactory.componentFactory;
-    cFac->registerComponent<ecs::Transform>("trans");
-    cFac->registerComponent<ecs::PhysicsBody>("phy");
-    cFac->registerComponent<ecs::AssetId>("asset-id");
-
     if (!glfwInit())
     {
         LG_E("GLFW initialization failed");
@@ -440,7 +435,7 @@ void MainWindow::startLoading()
                     }
                 },
                 .luaInterpreter = &luaInterpreter,
-                .assetFactory = &assetFactory,
+                .assetFactory = model.getAssetFactory(),
             };
             if (!modManager.loadMods(ptrHandles))
             {

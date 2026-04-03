@@ -1,6 +1,7 @@
 #ifndef TCP_SERVER_HPP
 #define TCP_SERVER_HPP
 
+#include <atomic>
 #include <net-shared.hpp>
 #include <std-inc.hpp>
 
@@ -14,7 +15,8 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection>
     typedef std::shared_ptr<TcpConnection> pointer;
 
     static pointer create(boost::asio::io_context& io_context,
-                          ReceiveCallbackConn receiveCallback);
+                          ReceiveCallbackConn receiveCallback,
+                          TcpDisconnectCallback disconnectCallback);
 
     tcp::socket& socket();
     
@@ -26,15 +28,19 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection>
 
   private:
     TcpConnection(boost::asio::io_context& io_context,
-                  ReceiveCallbackConn receiveCallback);
+                  ReceiveCallbackConn receiveCallback,
+                  TcpDisconnectCallback disconnectCallback);
 
     void doRead();
     void handle_write();
+    void fireDisconnectOnce();
 
     tcp::socket socket_;
-    bool running;
+    std::atomic<bool> running{false};
     char recvBuf[TCP_REC_BUF_LEN];
     ReceiveCallbackConn receiveCallback;
+    TcpDisconnectCallback disconnectCallback;
+    std::atomic<bool> disconnectNotified{false};
     ClientInfoHandle clientInfoHandle;
 };
 
@@ -43,7 +49,8 @@ class TcpServer
   public:
     TcpServer(boost::asio::io_context& io_context,
               int port,
-              ReceiveCallbackConn receiveCallback);
+              ReceiveCallbackConn receiveCallback,
+              TcpDisconnectCallback disconnectCallback);
 
   private:
     void StartAccept();
@@ -55,6 +62,7 @@ class TcpServer
     boost::asio::io_context& io_context_;
     tcp::acceptor acceptor_;
     ReceiveCallbackConn receiveCallback;
+    TcpDisconnectCallback disconnectCallback;
 };
 
 }  // namespace net

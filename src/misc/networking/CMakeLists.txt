@@ -7,6 +7,7 @@ set(NETWORKING_SOURCES
     udp-server.cpp
     udp-client.cpp
     tcp-client.cpp
+    protocol.cpp
 )
 
 set(LIBS_PUB

@@ -11,6 +11,8 @@ namespace ecs
 struct Transform
 {
     static const uint16_t VERSION = 1;
+    static constexpr string NAME = "transform";
+
     vec2 pos;
     float rot;
 
@@ -35,13 +37,13 @@ EXT_DES(Transform, SER_TRANSFORM)
 struct TransformNet
 {
     static const uint16_t VERSION = 1;
+    static constexpr string NAME = "trans-net";
 
     TransformNet(Transform transform)
     {
         this->transform = transform;
     }
     Transform transform;
-
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
                          const YAML::Node& node)
@@ -61,6 +63,8 @@ EXT_DES(TransformNet, SER_TRANSFORM_NET)
 struct PhysicsBody
 {
     static const uint16_t VERSION = 1;
+    static constexpr string NAME = "physics-body";
+
     float mass = 1.0f;        // kg
     vec2 vel = {0.0f, 0.0f};  // m/s
     vec2 acc = {0.0f, 0.0f};  // m/s^2
@@ -103,14 +107,9 @@ EXT_DES(PhysicsBody, SER_PHYSICS_BODY)
 
 }  // namespace ecs
 
-EXT_FMT(ecs::Transform,
-        "(pos: {}, rot: {})",
-        o.pos,
-        o.rot);
+EXT_FMT(ecs::Transform, "(pos: {}, rot: {})", o.pos, o.rot);
 
-EXT_FMT(ecs::TransformNet,
-        "{}",
-        o.transform);
+EXT_FMT(ecs::TransformNet, "{}", o.transform);
 
 EXT_FMT(ecs::PhysicsBody,
         "(mass: {}, inertia: {}, vel: {}, acc: {}, rotVel: {}, rotAcc: {})",

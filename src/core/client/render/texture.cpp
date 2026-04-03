@@ -136,7 +136,7 @@ TextureHandle TextureLoader::loadTexture(const std::string& name,
         bimg::imageParseDds(&alloc, buffer.data(), sizef, &err);
     if (!image)
     {
-        LG_E("Failed to parse image: {}", path)
+        LG_E("Failed to parse image: {}", path);
         return TextureHandle::Invalid();
     }
 
@@ -152,7 +152,7 @@ TextureHandle TextureLoader::loadTexture(const std::string& name,
 
     if (!err.isOk() || image->m_data == nullptr)
     {
-        LG_E("Failed to parse image: {}", path)
+        LG_E("Failed to parse image: {}", path);
         bimg::imageFree(image);
         return TextureHandle::Invalid();
     }

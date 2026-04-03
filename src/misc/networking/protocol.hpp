@@ -6,7 +6,7 @@
 
 #define CMD_FLAG_RESP 0x01
 
-#define CMDAT_PREP(sType, cmd, flags)                                     \
+#define CMDAT_PREP(sType, cmd, flags)                                          \
     net::CmdQueueData cmdData;                                                 \
     cmdData.sendType = sType;                                                  \
     bitsery::Serializer<OutputAdapter> cmdser(OutputAdapter(cmdData.data));    \
@@ -17,7 +17,12 @@
     cmdser.adapter().currentWritePos(3);                                       \
     cmdser.value2b((uint16_t)(cmdser.adapter().writtenBytesCount() - 5));      \
     cmdData.data.resize(cmdser.adapter().writtenBytesCount());
-
+#define CMDAT_FIN_REM_TAIL_BYTES(removeTailBytes)                              \
+    cmdser.adapter().currentWritePos(3);                                       \
+    cmdser.value2b((uint16_t)(cmdser.adapter().writtenBytesCount() - 5         \
+                              - (removeTailBytes)));                           \
+    cmdData.data.resize(cmdser.adapter().writtenBytesCount()                   \
+                        - (removeTailBytes));
 
 #define CMDAT_PREP_TOKEN(sType, cmd, flags)                                    \
     net::CmdQueueData cmdData;                                                 \
@@ -32,8 +37,25 @@
     cmdser.value2b((uint16_t)(cmdser.adapter().writtenBytesCount() - 22));     \
     cmdData.data.resize(cmdser.adapter().writtenBytesCount());
 
+
 namespace prot
 {
+
+typedef std::function<void(bitsery::Serializer<OutputAdapter>&)>
+    CmdContentWriter;
+
+void writeMessageUdp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
+                     const udp::endpoint* endpoint,
+                     CmdContentWriter contentWriter, bool useToken = false);
+void writeMessageTcp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
+                     std::shared_ptr<net::TcpConnection> tcpConnection,
+                     CmdContentWriter contentWriter);
+void writeMessage(net::CmdQueueData& cmdData,
+                  CmdContentWriter contentWriter, bool useToken = false);
+void writeCommand(bitsery::Serializer<OutputAdapter>& cmdser,
+                  uint16_t cmd,
+                  uint8_t flags,
+                  CmdContentWriter contentWriter);
 
 namespace cmd
 {
@@ -50,6 +72,7 @@ const uint16_t AUTHENTICATE = 0x0003;
 const uint16_t WORLD_INFO = 0x0004;
 const uint16_t CONSOLE_CMD = 0x0005;
 const uint16_t VERSION_CHECK = 0x0006;
+const uint16_t SLOW_DUMP = 0x0007;
 
 }  // namespace cmd
 

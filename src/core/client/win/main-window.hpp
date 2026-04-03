@@ -19,7 +19,6 @@
 #include <ui/rmlui-renderinterface.hpp>
 #include <ui/rmlui-systeminterface.hpp>
 #include <ui/user-interface.hpp>
-#include <asset-factory.hpp>
 #include <model.hpp>
 #include <version.hpp>
 
@@ -211,7 +210,6 @@ class MainWindow
     UiDebugData debugData;
 
     bp::child *serverProcess = nullptr;
-    ecs::AssetFactory assetFactory;
 };
 
 }  // namespace ui

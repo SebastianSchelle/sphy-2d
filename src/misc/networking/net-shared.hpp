@@ -16,6 +16,8 @@ typedef std::function<void(const char* data,
                            size_t length,
                            std::shared_ptr<TcpConnection> connection)>
     ReceiveCallbackConn;
+typedef std::function<void(std::shared_ptr<TcpConnection> connection)>
+    TcpDisconnectCallback;
 
 
 enum class SendType
@@ -27,10 +29,10 @@ enum class SendType
 struct CmdQueueData
 {
     SendType sendType;
-    int udpPort;
     udp::endpoint udpEndpoint;
     std::shared_ptr<TcpConnection> tcpConnection;
     std::vector<uint8_t> data;
+    bool tcpDisconnected = false;
 };
 
 struct ClientFlags
@@ -47,6 +49,7 @@ struct ClientInfo
     asio::ip::address address;
     udp::endpoint udpEndpoint;
     std::shared_ptr<TcpConnection> connection;
+    long lastSlowDump;
 };
 
 struct ModelClientInfo

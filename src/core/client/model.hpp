@@ -2,13 +2,10 @@
 #define MODEL_HPP
 
 #include <std-inc.hpp>
-#include <concurrentqueue.h>
 #include <client-def.hpp>
 #include <net-shared.hpp>
 #include <exchange-sequence.hpp>
 #include <world.hpp>
-
-using moodycamel::ConcurrentQueue;
 
 namespace ui
 {
@@ -35,6 +32,7 @@ class Model
     const net::ModelClientInfo& getClientInfo() const { return clientInfo; }
     void checkVersion(const net::ModelClientInfo& clientInfo);
     void disconnectFromServer();
+    ecs::AssetFactory* getAssetFactory() { return &assetFactory; }
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
 
@@ -43,11 +41,13 @@ class Model
     void modelLoopGame(float dt);
     void timeSync();
     void authenticate();
+    void handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes, uint16_t numBytes);
     net::TimeSync timeSyncData;
     ClientGameState gameState = ClientGameState::Init;
     net::ExchangeSequence loadWorldSequence;
     world::World world;
     ui::UserInterface* userInterface;
+    ecs::AssetFactory assetFactory;
     tim::Timepoint lastTSync;
     net::ModelClientInfo clientInfo;
 };

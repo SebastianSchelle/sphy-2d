@@ -11,6 +11,8 @@ namespace ecs
 struct AssetId
 {
     static const uint16_t VERSION = 1;
+    static constexpr string NAME = "asset-id";
+
     std::string name;
 
     static void fromYaml(entt::registry& registry,
@@ -23,8 +25,8 @@ struct AssetId
     }
 };
 
-#define SER_ASSET_ID                                                           \
-    S4b(o.name);
+// Bitsery: strings use text1b, not value4b (fundamental types only).
+#define SER_ASSET_ID s.text1b(o.name, 512);
 EXT_SER(AssetId, SER_ASSET_ID)
 EXT_DES(AssetId, SER_ASSET_ID)
 
@@ -32,6 +34,8 @@ EXT_DES(AssetId, SER_ASSET_ID)
 struct SectorId
 {
     static const uint16_t VERSION = 1;
+    static constexpr string NAME = "sector-id";
+
     uint32_t id;
 
     static void fromYaml(entt::registry& registry, entt::entity entity, const YAML::Node& node)

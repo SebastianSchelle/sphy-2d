@@ -19,6 +19,7 @@ set(LIBS_PUB
     yaml-cpp
     spdlog
     bitsery
+    concurrentqueue
 )
 
 add_library(helper OBJECT ${HELPER_SOURCES})

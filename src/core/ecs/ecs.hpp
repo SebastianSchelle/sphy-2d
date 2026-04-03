@@ -6,11 +6,6 @@
 #include <std-inc.hpp>
 #include <ptr-handle.hpp>
 
-namespace util
-{
-struct PtrHandle;
-}
-
 namespace ecs
 {
 

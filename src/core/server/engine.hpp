@@ -8,17 +8,17 @@
 #include <boost/container/vector.hpp>
 #include <client-def.hpp>
 #include <cmd-options.hpp>
-#include <concurrentqueue.h>
+#include <command-node.hpp>
 #include <config-manager/config-manager.hpp>
+#include <functional>
 #include <item-lib.hpp>
 #include <lua-interpreter.hpp>
 #include <mod-manager.hpp>
 #include <net-shared.hpp>
-#include <world.hpp>
+#include <ptr-handle.hpp>
 #include <rerun.hpp>
-#include <command-node.hpp>
-
-using moodycamel::ConcurrentQueue;
+#include <string>
+#include <world.hpp>
 
 namespace ecs
 {
@@ -27,6 +27,15 @@ struct PtrHandle;
 
 namespace sphys
 {
+
+typedef std::function<void(const net::ClientInfo* clientInfo,
+                           std::shared_ptr<ecs::PtrHandle> ptrHandle)>
+    SlowDumpFunction;
+struct SlowDumpEntry
+{
+    string componentName;
+    SlowDumpFunction function;
+};
 
 enum class EngineState
 {
@@ -43,11 +52,14 @@ enum class EngineState
 class Engine
 {
   public:
-    Engine(const sphy::CmdLinOptionsServer& options);
+    Engine(const sphy::CmdLinOptionsServer& options,
+           cfg::ConfigManager& config);
     ~Engine();
     void start();
     void stop();  // request shutdown, save game, join engine thread
-    void registerClient(const std::string& uuid, const std::string& name, net::ClientFlags flags);
+    void registerClient(const std::string& uuid,
+                        const std::string& name,
+                        net::ClientFlags flags);
     void saveGame();
     bool stopped() const
     {
@@ -59,11 +71,22 @@ class Engine
                                        const ecs::Transform& transform);
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
+    template <class T> void registerSlowDumpComponent();
 
   private:
     void engineLoop();
     void startFromFolder();
-    void parseCommand(const net::CmdQueueData& cmdData);
+    void parseCommandData(const net::CmdQueueData& cmdData);
+    void parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
+                      std::string& uuid,
+                      const udp::endpoint* udpEndpoint,
+                      std::shared_ptr<net::TcpConnection>& tcpConnection,
+                      net::ClientInfo* clientInfo,
+                      net::SendType sendType,
+                      uint16_t cmd,
+                      uint8_t flags,
+                      uint16_t len);
+    // void parseCommand(const net::CmdQueueData& cmdData);
     bool loadFromFolder();
     bool createFromConfig();
     bool loadWorld();
@@ -73,6 +96,8 @@ class Engine
     void update(float dt);
     void postWorldSetup();
     void registerConsoleCommands();
+    void runSlowClientDump(long frameTime);
+    void handleTcpDisconnect(const std::shared_ptr<net::TcpConnection>& conn);
 
     const sphy::CmdLinOptionsServer& options;
     std::atomic<bool> stopRequested{false};
@@ -85,6 +110,7 @@ class Engine
     EngineState state;
     world::World world;
     cfg::ConfigManager saveConfig;
+    cfg::ConfigManager& config;
     std::string saveFolder;
     ecs::AssetFactory assetFactory;
     vector<ecs::EntityId> globalEntityIds;
@@ -92,6 +118,9 @@ class Engine
     std::shared_ptr<ecs::PtrHandle> ptrHandle;
     rerun::RecordingStream rerunStream;
     cmd::CommandManager commandManager;
+
+    uint32_t slowDumpUs;
+    vector<SlowDumpEntry> slowDumpComponents;
 
   public:
     ecs::Ecs ecs;

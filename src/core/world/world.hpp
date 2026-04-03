@@ -38,6 +38,7 @@ class World
                       glm::vec2 position,
                       float rotation);
     Sector* getSector(uint32_t sectorId);
+    uint32_t getSectorCount() const { return sectors.getSize(); }
 
   private:
     bool initWorld();

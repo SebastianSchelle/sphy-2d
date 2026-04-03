@@ -4,7 +4,7 @@
 #include "std-inc.hpp"
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
-#include <engine.hpp>
+#include <engine-impl.hpp>
 #include <protocol.hpp>
 #include <server.hpp>
 #include <version.hpp>
@@ -12,8 +12,9 @@
 namespace sphys
 {
 
-Engine::Engine(const sphy::CmdLinOptionsServer& options)
-    : options(options), state(EngineState::Init), saveConfig(),
+Engine::Engine(const sphy::CmdLinOptionsServer& options,
+               cfg::ConfigManager& config)
+    : options(options), config(config), state(EngineState::Init), saveConfig(),
       saveFolder(options.savedir), rerunStream("sphy-2d"), commandManager()
 {
     ptrHandle = std::make_shared<ecs::PtrHandle>();
@@ -23,6 +24,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options)
     ptrHandle->systems = &ecs.getRegisteredSystems();
     ptrHandle->registry = &ecs.getRegistry();
 
+    slowDumpUs = 1000 * CFG_UINT(config, "engine", "slow-dump-ms");
     // rerunStream.spawn().exit_on_failure();
 }
 
@@ -38,10 +40,12 @@ Engine::~Engine()
 void Engine::start()
 {
     auto cFac = &assetFactory.componentFactory;
-    cFac->registerComponent<ecs::Transform>("trans");
-    cFac->registerComponent<ecs::PhysicsBody>("phy");
-    cFac->registerComponent<ecs::AssetId>("asset-id");
+    cFac->registerComponent<ecs::Transform>();
+    cFac->registerComponent<ecs::PhysicsBody>();
+    cFac->registerComponent<ecs::AssetId>();
     registerConsoleCommands();
+
+    registerSlowDumpComponent<ecs::Transform>();
 
     registerClient(
         "1234abcd1234abcd", "Test Client", net::ClientFlags{.enConsole = 1});
@@ -59,14 +63,14 @@ void Engine::stop()
 
 void Engine::engineLoop()
 {
-    tim::Timepoint lastSaveTime = tim::getCurrentTimeU();
-    tim::Timepoint lastUpdateTime = tim::getCurrentTimeU();
+    long lastSaveTime = tim::nowU();
+    long lastUpdateTime = tim::nowU();
 
     while (!stopRequested)
     {
-        tim::Timepoint now = tim::getCurrentTimeU();
-        float dt = tim::durationU(lastUpdateTime, now) / 1000000.0f;
-        lastUpdateTime = now;
+        long nowU = tim::nowU();
+        float dt = (nowU - lastUpdateTime) / 1000000.0f;
+
         switch (state)
         {
             case EngineState::Init:
@@ -114,23 +118,9 @@ void Engine::engineLoop()
                 break;
             case EngineState::Running:
             {
-                DO_PERIODIC(lastSaveTime, TIM_5M, saveGame)
                 update(dt);
-                // test
-                /*for (int i = 0; i < activeClientHandles.size(); i++)
-                {
-                    net::ClientInfoHandle handle = activeClientHandles[i];
-                    net::ClientInfo* clientInfo = clientLib.getItem(handle);
-                    if (clientInfo)
-                    {
-                        CMDAT_PREP(net::SendType::UDP, prot::cmd::LOG, 0)
-                        std::string str = "Hello World!";
-                        cmdser.text1b(str, str.size());
-                        cmdData.udpEndpoint = clientInfo->udpEndpoint;
-                        CMDAT_FIN()
-                        sendQueue.enqueue(cmdData);
-                    }
-                }*/
+                runSlowClientDump(nowU);
+                DO_PERIODIC_U_EXTNOW(lastSaveTime, TIM_5M, nowU, saveGame)
             }
             break;
             case EngineState::Paused:
@@ -147,8 +137,9 @@ void Engine::engineLoop()
         net::CmdQueueData recQueueData;
         while (receiveQueue.try_dequeue(recQueueData))
         {
-            parseCommand(recQueueData);
+            parseCommandData(recQueueData);
         }
+        lastUpdateTime = nowU;
 
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -283,208 +274,292 @@ void Engine::registerClient(const std::string& uuid,
     clientLib.addItem(uuid, clientInfo);
 }
 
-void Engine::parseCommand(const net::CmdQueueData& cmdData)
+void Engine::parseCommandData(const net::CmdQueueData& cmdData)
 {
-    uint16_t cmd;
-    uint8_t flags;
-    uint16_t len;
-    std::string uuid;
-    std::optional<udp::endpoint> udpEndpoint;
-    std::shared_ptr<net::TcpConnection> tcpConnection;
+    if (cmdData.sendType == net::SendType::TCP && cmdData.tcpDisconnected)
+    {
+        handleTcpDisconnect(cmdData.tcpConnection);
+        return;
+    }
 
     try
     {
+        std::string token;
+        const udp::endpoint* udpEndpoint;
+        std::shared_ptr<net::TcpConnection> tcpConnection;
+        net::ClientInfo* clientInfo = nullptr;
+
         const std::vector<uint8_t>& data = cmdData.data;
         bitsery::Deserializer<InputAdapter> cmddes(
             InputAdapter{data.begin(), data.size()});
 
         if (cmdData.sendType == net::SendType::UDP)
         {
-            cmddes.text1b(uuid, 16);
-            udpEndpoint = cmdData.udpEndpoint;
+            cmddes.text1b(token, 16);
+            if (token.length() != 16)
+            {
+                LG_W("Invalid token length received from ip {}",
+                     cmdData.udpEndpoint.address().to_string());
+                return;
+            }
+            net::ClientInfoHandle handle = clientLib.getHandle(token);
+            if (!handle.isValid())
+            {
+                LG_W("Invalid token received from ip {}",
+                     cmdData.udpEndpoint.address().to_string());
+                return;
+            }
+            clientInfo = clientLib.getItem(handle);
+            udpEndpoint = &cmdData.udpEndpoint;
         }
         else if (cmdData.sendType == net::SendType::TCP)
         {
             tcpConnection = cmdData.tcpConnection;
+            net::ClientInfoHandle handle = tcpConnection->getClientInfoHandle();
+            if (handle.isValid())
+            {
+                clientInfo = clientLib.getItem(handle);
+            }
         }
-        cmddes.value2b(cmd);
-        cmddes.value1b(flags);
-        cmddes.value2b(len);
 
-        switch (cmd)
+        while (cmddes.adapter().currentReadPos() <= data.size() - 5)
         {
-            case prot::cmd::LOG:
-            {
-                std::string str;
-                cmddes.text1b(str, 256);
-                if (cmdData.sendType == net::SendType::UDP)
-                {
-                    LG_I("Log from uuid={}: {}", uuid, str);
-                }
-                else if (cmdData.sendType == net::SendType::TCP)
-                {
-                    LG_I("Log from tcp {}", str);
-                }
-                break;
-            }
-            case prot::cmd::TIME_SYNC:
-            {
-                long d = tim::nowU();
-                CMDAT_PREP(
-                    net::SendType::UDP, prot::cmd::TIME_SYNC, CMD_FLAG_RESP)
-                cmdser.value8b(d);
-                CMDAT_FIN()
-                if (udpEndpoint)
-                {
-                    cmdData.udpEndpoint = *udpEndpoint;
-                    cmdData.udpPort = udpEndpoint->port();
-                }
-                sendQueue.enqueue(cmdData);
-                break;
-            }
-            case prot::cmd::VERSION_CHECK:
-            {
-                CMDAT_PREP(
-                    net::SendType::TCP, prot::cmd::VERSION_CHECK, CMD_FLAG_RESP)
-                cmdser.value2b(version::MAJOR);
-                cmdser.value2b(version::MINOR);
-                cmdser.value2b(version::PATCH);
-                CMDAT_FIN()
-                cmdData.tcpConnection = tcpConnection;
-                sendQueue.enqueue(cmdData);
-                break;
-            }
-            case prot::cmd::AUTHENTICATE:
-            {
-                if (cmdData.sendType == net::SendType::TCP)
-                {
-                    LG_I("Authentication request from tcp");
-                    std::string token;
-                    uint16_t portUdp;
-                    uint16_t major;
-                    uint16_t minor;
-                    uint16_t patch;
-                    cmddes.value2b(major);
-                    cmddes.value2b(minor);
-                    cmddes.value2b(patch);
-                    cmddes.text1b(token, 16);
-                    cmddes.value2b(portUdp);
-                    if (token.length() == 16 && major == version::MAJOR)
-                    {
-                        net::ClientInfoHandle handle =
-                            clientLib.getHandle(token);
-                        if (handle.isValid())
-                        {
-                            auto address = cmdData.tcpConnection->socket()
-                                               .local_endpoint()
-                                               .address();
-                            activeClientHandles.push_back(handle);
-                            net::ClientInfo* clientInfo =
-                                clientLib.getItem(handle);
-                            clientInfo->portUdp = portUdp;
-                            clientInfo->address = address;
-                            clientInfo->udpEndpoint =
-                                udp::endpoint(address, portUdp);
-                            clientInfo->connection = cmdData.tcpConnection;
-                            clientInfo->connection->setClientInfoHandle(handle);
-                            LG_I(
-                                "Client authenticated. ip={}, udp port={}, "
-                                "token={}",
-                                address.to_string(),
-                                portUdp,
-                                token);
-                            {
-                                CMDAT_PREP(net::SendType::TCP,
-                                           prot::cmd::AUTHENTICATE,
-                                           CMD_FLAG_RESP)
-                                CMDAT_FIN()
-                                cmdData.tcpConnection = clientInfo->connection;
-                                sendQueue.enqueue(cmdData);
-                            }
-                            return;
-                        }
-                    }
-                    cmdData.tcpConnection->close();
-                    LG_E("Client not authenticated. Close connection. {}",
-                         token);
-                }
-                break;
-            }
-            case prot::cmd::WORLD_INFO:
-            {
-                LG_I("Sending world info");
-                CMDAT_PREP(
-                    net::SendType::TCP, prot::cmd::WORLD_INFO, CMD_FLAG_RESP)
-                auto worldShape = world.getWorldShape();
-                cmdser.value4b(worldShape.numSectorX);
-                cmdser.value4b(worldShape.numSectorY);
-                cmdser.value4b(worldShape.sectorSize);
-                CMDAT_FIN()
-                cmdData.tcpConnection = tcpConnection;
-                sendQueue.enqueue(cmdData);
-                break;
-            }
-            case prot::cmd::CONSOLE_CMD:
-            {
-                if (cmdData.sendType == net::SendType::TCP)
-                {
-                    string data;
-                    string response;
-                    cmddes.text1b(data, len);
-                    net::ClientInfoHandle clientInfoHandle =
-                        tcpConnection->getClientInfoHandle();
-                    if (clientInfoHandle.isValid())
-                    {
-                        net::ClientInfo* clientInfo =
-                            clientLib.getItem(clientInfoHandle);
-                        if (clientInfo)
-                        {
-                            if (clientInfo->flags.enConsole)
-                            {
-                                try
-                                {
-                                    response =
-                                        commandManager.executeCommand(data);
-                                }
-                                catch (const std::exception& e)
-                                {
-                                    response =
-                                        "Failed: " + std::string(e.what());
-                                }
-                            }
-                            else
-                            {
-                                response = "Failed: Client " + clientInfo->name
-                                           + " is not a console";
-                            }
-                        }
-                        else
-                        {
-                            response = "Failed: Client info not found";
-                        }
-                    }
-                    else
-                    {
-                        response = "Failed: Client info handle not valid";
-                    }
+            uint16_t cmd;
+            uint8_t flags;
+            uint16_t len;
+            cmddes.value2b(cmd);
+            cmddes.value1b(flags);
+            cmddes.value2b(len);
+            size_t dataStartPos = cmddes.adapter().currentReadPos();
 
-                    CMDAT_PREP(net::SendType::TCP,
-                               prot::cmd::CONSOLE_CMD,
-                               CMD_FLAG_RESP)
-                    cmdser.text1b(response, response.size());
-                    CMDAT_FIN()
-                    cmdData.tcpConnection = tcpConnection;
-                    sendQueue.enqueue(cmdData);
-                }
+            if (cmddes.adapter().currentReadPos() + len > data.size())
+            {
+                LG_E("Command data too short");
                 break;
             }
-            default:
-                break;
+            parseCommand(cmddes,
+                         token,
+                         udpEndpoint,
+                         tcpConnection,
+                         clientInfo,
+                         cmdData.sendType,
+                         cmd,
+                         flags,
+                         len);
+            cmddes.adapter().currentReadPos(dataStartPos + len);
         }
     }
     catch (const std::exception& e)
     {
-        LG_E("Error parsing command: {}", e.what());
+        LG_E("Error parsing command message: {}", e.what());
+    }
+}
+
+void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
+                          std::string& uuid,
+                          const udp::endpoint* udpEndpoint,
+                          std::shared_ptr<net::TcpConnection>& tcpConnection,
+                          net::ClientInfo* clientInfo,
+                          net::SendType sendType,
+                          uint16_t cmd,
+                          uint8_t flags,
+                          uint16_t len)
+{
+    switch (cmd)
+    {
+        case prot::cmd::LOG:
+        {
+            std::string str;
+            cmddes.text1b(str, 256);
+            if (sendType == net::SendType::UDP)
+            {
+                LG_I("UDP Log from {}: {}", clientInfo->name, str);
+            }
+            else if (sendType == net::SendType::TCP)
+            {
+                LG_I("TCP Log from {}: {}", clientInfo->name, str);
+            }
+            break;
+        }
+        case prot::cmd::TIME_SYNC:
+        {
+            long d = tim::nowU();
+            prot::writeMessageUdp(
+                sendQueue,
+                udpEndpoint,
+                [this, d](bitsery::Serializer<OutputAdapter>& cmdser)
+                {
+                    prot::writeCommand(
+                        cmdser,
+                        prot::cmd::TIME_SYNC,
+                        CMD_FLAG_RESP,
+                        [this, d](bitsery::Serializer<OutputAdapter>& cmdser)
+                        { cmdser.value8b(d); });
+                });
+            break;
+        }
+        case prot::cmd::VERSION_CHECK:
+        {
+            prot::writeMessageTcp(
+                sendQueue,
+                tcpConnection,
+                [this](bitsery::Serializer<OutputAdapter>& cmdser)
+                {
+                    prot::writeCommand(
+                        cmdser,
+                        prot::cmd::VERSION_CHECK,
+                        CMD_FLAG_RESP,
+                        [this](bitsery::Serializer<OutputAdapter>& cmdser)
+                        {
+                            cmdser.value2b(version::MAJOR);
+                            cmdser.value2b(version::MINOR);
+                            cmdser.value2b(version::PATCH);
+                        });
+                });
+            break;
+        }
+        case prot::cmd::AUTHENTICATE:
+        {
+            if (sendType == net::SendType::TCP)
+            {
+                LG_I("Authentication request from tcp");
+                std::string token;
+                uint16_t portUdp;
+                uint16_t major;
+                uint16_t minor;
+                uint16_t patch;
+                cmddes.value2b(major);
+                cmddes.value2b(minor);
+                cmddes.value2b(patch);
+                cmddes.text1b(token, 16);
+                cmddes.value2b(portUdp);
+                if (token.length() == 16 && major == version::MAJOR)
+                {
+                    net::ClientInfoHandle handle = clientLib.getHandle(token);
+                    if (handle.isValid())
+                    {
+                        auto address =
+                            tcpConnection->socket().local_endpoint().address();
+                        activeClientHandles.push_back(handle);
+                        net::ClientInfo* clientInfo = clientLib.getItem(handle);
+                        clientInfo->portUdp = portUdp;
+                        clientInfo->address = address;
+                        clientInfo->udpEndpoint =
+                            udp::endpoint(address, portUdp);
+                        clientInfo->connection = tcpConnection;
+                        clientInfo->connection->setClientInfoHandle(handle);
+                        LG_I(
+                            "Client authenticated. ip={}, udp port={}, "
+                            "token={}",
+                            address.to_string(),
+                            portUdp,
+                            token);
+                        {
+                            prot::writeMessageTcp(
+                                sendQueue,
+                                tcpConnection,
+                                [this](
+                                    bitsery::Serializer<OutputAdapter>& cmdser)
+                                {
+                                    prot::writeCommand(
+                                        cmdser,
+                                        prot::cmd::AUTHENTICATE,
+                                        CMD_FLAG_RESP,
+                                        [this](
+                                            bitsery::Serializer<OutputAdapter>&
+                                                cmdser) {});
+                                });
+                        }
+                        return;
+                    }
+                }
+                tcpConnection->close();
+                LG_E("Client not authenticated. Close connection. {}", token);
+            }
+            break;
+        }
+        case prot::cmd::WORLD_INFO:
+        {
+            LG_I("Sending world info");
+            prot::writeMessageTcp(
+                sendQueue,
+                tcpConnection,
+                [this](bitsery::Serializer<OutputAdapter>& cmdser)
+                {
+                    prot::writeCommand(
+                        cmdser,
+                        prot::cmd::WORLD_INFO,
+                        CMD_FLAG_RESP,
+                        [this](bitsery::Serializer<OutputAdapter>& cmdser)
+                        {
+                            auto worldShape = world.getWorldShape();
+                            cmdser.value4b(worldShape.numSectorX);
+                            cmdser.value4b(worldShape.numSectorY);
+                            cmdser.value4b(worldShape.sectorSize);
+                        });
+                });
+            break;
+        }
+        case prot::cmd::CONSOLE_CMD:
+        {
+            if (sendType == net::SendType::TCP)
+            {
+                string data;
+                string response;
+                cmddes.text1b(data, len);
+                net::ClientInfoHandle clientInfoHandle =
+                    tcpConnection->getClientInfoHandle();
+                if (clientInfoHandle.isValid())
+                {
+                    net::ClientInfo* clientInfo =
+                        clientLib.getItem(clientInfoHandle);
+                    if (clientInfo)
+                    {
+                        if (clientInfo->flags.enConsole)
+                        {
+                            try
+                            {
+                                response = commandManager.executeCommand(data);
+                            }
+                            catch (const std::exception& e)
+                            {
+                                response = "Failed: " + std::string(e.what());
+                            }
+                        }
+                        else
+                        {
+                            response = "Failed: Client " + clientInfo->name
+                                       + " is not a console";
+                        }
+                    }
+                    else
+                    {
+                        response = "Failed: Client info not found";
+                    }
+                }
+                else
+                {
+                    response = "Failed: Client info handle not valid";
+                }
+
+                prot::writeMessageTcp(
+                    sendQueue,
+                    tcpConnection,
+                    [this, response](bitsery::Serializer<OutputAdapter>& cmdser)
+                    {
+                        prot::writeCommand(
+                            cmdser,
+                            prot::cmd::CONSOLE_CMD,
+                            CMD_FLAG_RESP,
+                            [this, response](
+                                bitsery::Serializer<OutputAdapter>& cmdser)
+                            { cmdser.text1b(response, response.size()); });
+                    });
+            }
+            break;
+        }
+        default:
+            break;
     }
 }
 
@@ -569,6 +644,49 @@ void Engine::registerConsoleCommands()
         { return assetFactory.assetInfo(arguments[0]); },
         1);
 }
+
+void Engine::runSlowClientDump(long frameTime)
+{
+    for (int i = 0; i < activeClientHandles.size(); i++)
+    {
+        net::ClientInfoHandle handle = activeClientHandles[i];
+        net::ClientInfo* clientInfo = clientLib.getItem(handle);
+        DO_PERIODIC_U_EXTNOW(clientInfo->lastSlowDump,
+                             slowDumpUs,
+                             frameTime,
+                             [&]()
+                             {
+                                 for (auto& component : slowDumpComponents)
+                                 {
+                                     component.function(clientInfo, ptrHandle);
+                                 }
+                             });
+    }
+}
+
+void Engine::handleTcpDisconnect(
+    const std::shared_ptr<net::TcpConnection>& conn)
+{
+    if (!conn)
+        return;
+    net::ClientInfoHandle handle = conn->getClientInfoHandle();
+    conn->setClientInfoHandle(net::ClientInfoHandle::Invalid());
+    if (!handle.isValid())
+        return;
+    const uint32_t hv = handle.value();
+    for (auto it = activeClientHandles.begin();
+         it != activeClientHandles.end();)
+    {
+        if (it->value() == hv)
+            it = activeClientHandles.erase(it);
+        else
+            ++it;
+    }
+    if (net::ClientInfo* ci = clientLib.getItem(handle))
+        ci->connection.reset();
+    LG_I("TCP client disconnected (handle value={})", hv);
+}
+
 
 }  // namespace sphys
 
