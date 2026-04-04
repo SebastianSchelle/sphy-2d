@@ -51,7 +51,8 @@ template <typename Component> void Engine::registerSlowDumpComponent()
                         world::Sector* sector =
                             ptrHandle->world->getSector(sectorIdx);
                         cmdser.value4b(sector->getId());
-                        size_t cntPos = cmdser.adapter().writtenBytesCount();
+                        size_t cntPos = cmdser.adapter().writtenBytesCount()
+                                        - (lastSectorEmpty ? 2 : 0);
                         cmdser.value2b(numEntities);
                         entityIds = &sector->getEntityIds();
                         auto entities = &sector->getEntities();
