@@ -99,14 +99,23 @@ bool Sector::removeEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
     return true;
 }
 
+vec2 Sector::getWorldPosSectorOffset(int32_t sectorOffsetX,
+                                     int32_t sectorOffsetY) const
+{
+    return vec2((float)(coordX - sectorOffsetX) * sectorSize,
+                (float)(coordY - sectorOffsetY) * sectorSize);
+}
+
 #ifdef CLIENT
 void Sector::drawDebug(gfx::RenderEngine& renderer, float zoom)
 {
-    renderer.drawRectangle(
-        glm::vec2(worldPosX, worldPosY),
-        glm::vec2(sectorSize, sectorSize),
-        0x10aaaa00,
-        1.0f / zoom);
+    int32_t sectorOffsetX = renderer.getSectorOffsetX();
+    int32_t sectorOffsetY = renderer.getSectorOffsetY();
+    glm::vec2 pos = getWorldPosSectorOffset(sectorOffsetX, sectorOffsetY);
+    renderer.drawRectangle(pos,
+                           glm::vec2(sectorSize, sectorSize),
+                           0x10aaaa00,
+                           1.0f / zoom);
 }
 #endif
 

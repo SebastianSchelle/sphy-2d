@@ -2,24 +2,24 @@
 #define MAIN_WINDOW_HPP
 
 #include "std-inc.hpp"
-#include <functional>
-#include <future>
-#include <mutex>
-#include <vector>
 #include <GLFW/glfw3.h>
 #include <bgfx/bgfx.h>
 #include <bx/math.h>
 #include <client.hpp>
 #include <cmd-options.hpp>
 #include <config-manager/config-manager.hpp>
+#include <functional>
+#include <future>
 #include <lua-interpreter.hpp>
 #include <mod-manager.hpp>
+#include <model.hpp>
+#include <mutex>
 #include <render/render-engine.hpp>
 #include <render/texture.hpp>
 #include <ui/rmlui-renderinterface.hpp>
 #include <ui/rmlui-systeminterface.hpp>
 #include <ui/user-interface.hpp>
-#include <model.hpp>
+#include <vector>
 #include <version.hpp>
 
 namespace ui
@@ -45,9 +45,7 @@ struct MouseState
     bool longClick[3] = {false, false, false};
     bool hold[3] = {false, false, false};
     glm::vec2 mousePosRel;
-    uint32_t mouseZoneX;
-    uint32_t mouseZoneY;
-    glm::vec2 mouseWorldPos;
+    def::SectorCoords mouseSectorCoords;
     void processMouseButton(uint8_t i);
 };
 
@@ -58,11 +56,11 @@ struct WindowInfo
 
 struct UiMenuConnectData
 {
-  std::string token = "1234abcd1234abcd";
-  std::string ipAddress = "127.0.0.1";
-  int udpPortServ = 29201;
-  int tcpPortServ = 29200;
-  int udpPortCli = 29202;
+    std::string token = "1234abcd1234abcd";
+    std::string ipAddress = "127.0.0.1";
+    int udpPortServ = 29201;
+    int tcpPortServ = 29200;
+    int udpPortCli = 29202;
 };
 
 struct UiMenuData
@@ -74,43 +72,47 @@ struct UiMenuData
 
 struct UiDbgInputData
 {
-  float ptrScreenX = 0.f;
-  float ptrScreenY = 0.f;
-  bool ptrOverUi = false;
-  float ptrWorldX = 0.f;
-  float ptrWorldY = 0.f;
+    float ptrScreenX = 0.f;
+    float ptrScreenY = 0.f;
+    bool ptrOverUi = false;
+    uint32_t ptrSectorX = 0;
+    uint32_t ptrSectorY = 0;
+    float ptrSectorPosX = 0.f;
+    float ptrSectorPosY = 0.f;
 };
 
 struct UiDbgViewData
 {
-  int winW = 0;
-  int winH = 0;
-  float fpsSmoothed = 0.f;
-  float frameMs = 0.f;
-  float zoom = 0.f;
-  float camX = 0.f;
-  float camY = 0.f;
+    int winW = 0;
+    int winH = 0;
+    float fpsSmoothed = 0.f;
+    float frameMs = 0.f;
+    float zoom = 0.f;
+    float camX = 0.f;
+    float camY = 0.f;
+    int32_t sectorOffsetX = 0;
+    int32_t sectorOffsetY = 0;
 };
 
 struct UiDbgGameData
 {
-  std::string clientVersion = version::VERSION_STRING;
-  std::string serverVersion = "Unknown";
-  std::string gameState = "Init";
+    std::string clientVersion = version::VERSION_STRING;
+    std::string serverVersion = "Unknown";
+    std::string gameState = "Init";
 };
 
 struct UiDbgConnectionData
 {
-  float serverLatency = 0.0f;
-  float serverTimeOffset = 0.0f;
+    float serverLatency = 0.0f;
+    float serverTimeOffset = 0.0f;
 };
 
 struct UiDebugData
 {
-  UiDbgInputData inputData;
-  UiDbgViewData viewData;
-  UiDbgGameData gameData;
-  UiDbgConnectionData connectionData;
+    UiDbgInputData inputData;
+    UiDbgViewData viewData;
+    UiDbgGameData gameData;
+    UiDbgConnectionData connectionData;
 };
 
 class MainWindow
@@ -162,8 +164,8 @@ class MainWindow
                    const Rml::VariantList& args);
 
     void onConnectToServer(Rml::DataModelHandle handle,
-                         Rml::Event& event,
-                         const Rml::VariantList& args);
+                           Rml::Event& event,
+                           const Rml::VariantList& args);
     void onCmd(const std::string& cmd);
 
     void onClientShutdown();
@@ -175,6 +177,8 @@ class MainWindow
     void onExitToMenu(Rml::DataModelHandle handle,
                       Rml::Event& event,
                       const Rml::VariantList& args);
+
+    void onAfterLoadWorld();
 
     static Rml::Input::KeyIdentifier glfwToRmlKey(int key);
 
@@ -209,7 +213,7 @@ class MainWindow
     UiMenuData menuData;
     UiDebugData debugData;
 
-    bp::child *serverProcess = nullptr;
+    bp::child* serverProcess = nullptr;
 
     gfx::PanDirection panX = gfx::PanDirection::Stop;
     gfx::PanDirection panY = gfx::PanDirection::Stop;

@@ -10,6 +10,7 @@
 #include <shader.hpp>
 #include <texture.hpp>
 #include <vertex-defines.hpp>
+#include <world-def.hpp>
 
 namespace gfx
 {
@@ -104,7 +105,7 @@ class RenderEngine
                                 TextureHandle textureHandle,
                                 bgfx::ViewId viewId = 0);
     void setWindowSize(int width, int height);
-    void setWorldCamera(const glm::vec2& position, float zoom);
+    void setWorldCamera(const vec2& position, float zoom);
     void zoomWorld(float amount);
     void panWorld(PanDirection dirX, PanDirection dirY);
     void panWorld(const glm::vec2& delta);
@@ -160,8 +161,19 @@ class RenderEngine
     }
     /// Window pixel position (same space as GLFW cursor) → world XY under the
     /// cursor.
-    glm::vec2 screenToWorldPixel(const glm::vec2& screenPx) const;
+    vec2 screenToWorldPixel(const vec2& screenPx) const;
     void updateWorldView();
+    void setWorldShape(const def::WorldShape* worldShape);
+    int32_t getSectorOffsetX() const
+    {
+        return sectorOffsetX;
+    }
+    int32_t getSectorOffsetY() const
+    {
+        return sectorOffsetY;
+    }
+    void screenToSectorCoords(const glm::vec2& screenPx,
+                              def::SectorCoords& sectorCoords) const;
 
   private:
     void cleanUpAll();
@@ -179,6 +191,8 @@ class RenderEngine
                       float thickness,
                       float rotationRad = 0.0f,
                       bgfx::ViewId viewId = 0);
+    void updatePosWithSectorOffset();
+
 
     TextureLoader textureLoader;
     cfg::ConfigManager& config;
@@ -235,6 +249,9 @@ class RenderEngine
     uint32_t currentShapeVertices = 0;
     uint32_t currentShapeIndices = 0;
     bool hasShutdown = false;
+    const def::WorldShape* worldShape = nullptr;
+    int32_t sectorOffsetX = 0;
+    int32_t sectorOffsetY = 0;
 };
 
 }  // namespace gfx

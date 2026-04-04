@@ -39,7 +39,9 @@ class World
                       float rotation);
     Sector* getSector(uint32_t sectorId);
     uint32_t getSectorCount() const { return sectors.getSize(); }
-
+    std::pair<uint32_t, uint32_t> idToSectorCoords(uint32_t sectorId) const;
+    vec2 getWorldPosSectorOffset(uint32_t sectorId, int32_t sectorOffsetX, int32_t sectorOffsetY) const;
+    vec2 getWorldPosSectorOffset(uint32_t sectorX, uint32_t sectorY, int32_t sectorOffsetX, int32_t sectorOffsetY) const;
   private:
     bool initWorld();
     bool initSectors(bool fromSave);

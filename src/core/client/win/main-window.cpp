@@ -75,7 +75,7 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
       client(config, model.sendQueue, model.receiveQueue), modManager(),
       modLoadingHandle(UiDocHandle::Invalid()),
       userInterface(std::bind(&MainWindow::onCmd, this, std::placeholders::_1)),
-      model(&userInterface)
+      model(&userInterface, std::bind(&MainWindow::onAfterLoadWorld, this))
 {
     auto path(options.workingdir);
     std::filesystem::current_path(path);
@@ -83,11 +83,12 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
         static_cast<uint8_t>(std::get<float>(config.get({"loglevel"})));
     debug::createLogger("logs/logClient.txt", logLevel);
     glfwSetErrorCallback(errorCallback);
-    client.setShutdownCallback([this]()
-                               {
-                                   std::lock_guard<std::mutex> lock(uiTaskMutex);
-                                   uiTasks.push_back([this]() { onClientShutdown(); });
-                               });
+    client.setShutdownCallback(
+        [this]()
+        {
+            std::lock_guard<std::mutex> lock(uiTaskMutex);
+            uiTasks.push_back([this]() { onClientShutdown(); });
+        });
 }
 
 MainWindow::~MainWindow()
@@ -226,7 +227,7 @@ void MainWindow::winLoop()
         processMouseState();
         handleWinResize();
 
-        mouseState.mouseWorldPos = renderEngine.screenToWorldPixel(mouseState.mousePos);
+        renderEngine.screenToSectorCoords(mouseState.mousePos, mouseState.mouseSectorCoords);
 
         const bool mouseOverUi =
             userInterface.processMouseMove(mouseState.mousePos, 0);
@@ -247,12 +248,14 @@ void MainWindow::winLoop()
 
         if (!mouseOverUi && !mouseWheelInteract)
         {
-            if(mouseState.mz != 0)
+            if (mouseState.mz != 0)
             {
-                glm::vec2 mousePosWorldBefore = renderEngine.screenToWorldPixel(mouseState.mousePos);
+                glm::vec2 mousePosWorldBefore =
+                    renderEngine.screenToWorldPixel(mouseState.mousePos);
                 renderEngine.zoomWorld(mouseState.mz);
                 renderEngine.updateWorldView();
-                glm::vec2 mousePosWorldAfter = renderEngine.screenToWorldPixel(mouseState.mousePos);
+                glm::vec2 mousePosWorldAfter =
+                    renderEngine.screenToWorldPixel(mouseState.mousePos);
                 renderEngine.panWorld(mousePosWorldBefore - mousePosWorldAfter);
             }
         }
@@ -263,7 +266,7 @@ void MainWindow::winLoop()
             rmlModelDebug.DirtyAllVariables();
         }
 
-        if(userInterface.isMenuOpen())
+        if (userInterface.isMenuOpen())
         {
             updateMenuDataModel();
             rmlModelMenu.DirtyAllVariables();
@@ -309,7 +312,19 @@ void MainWindow::winLoop()
 
         if (model.getGameState() == ClientGameState::GameLoop)
         {
+            float zoom = renderEngine.getWorldZoom();
+
             renderEngine.panWorld(panX, panY);
+
+
+            renderEngine.drawRectangle(glm::vec2(0.0f, 0.0f),
+                                       glm::vec2(1000000.0f, 1.0f/zoom),
+                                       0x10ffffff,
+                                       1.0f/zoom);
+            renderEngine.drawRectangle(glm::vec2(0.0f, 0.0f),
+                                       glm::vec2(1.0f/zoom, 1000000.0f),
+                                       0x10ffffff,
+                                       1.0f/zoom);
 
             renderEngine.drawRectangle(glm::vec2(200.0f + 50.0f * sin(t),
                                                  60.0f + 50.0f * cos(t * 1.5f)),
@@ -338,7 +353,7 @@ void MainWindow::winLoop()
                                      1.0f,
                                      0,
                                      0);
-            model.drawDebug(renderEngine, renderEngine.getWorldZoom());
+            model.drawDebug(renderEngine, zoom);
         }
 
         userInterface.render();
@@ -589,11 +604,11 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
 
     if (key == GLFW_KEY_W)
     {
-        if(action == GLFW_PRESS)
+        if (action == GLFW_PRESS)
         {
             panY = gfx::PanDirection::Up;
         }
-        else if(action == GLFW_RELEASE)
+        else if (action == GLFW_RELEASE && panY == gfx::PanDirection::Up)
         {
             panY = gfx::PanDirection::Stop;
         }
@@ -601,11 +616,11 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
     }
     if (key == GLFW_KEY_S)
     {
-        if(action == GLFW_PRESS)
+        if (action == GLFW_PRESS)
         {
             panY = gfx::PanDirection::Down;
         }
-        else if(action == GLFW_RELEASE)
+        else if (action == GLFW_RELEASE && panY == gfx::PanDirection::Down)
         {
             panY = gfx::PanDirection::Stop;
         }
@@ -613,11 +628,11 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
     }
     if (key == GLFW_KEY_A)
     {
-        if(action == GLFW_PRESS)
+        if (action == GLFW_PRESS)
         {
             panX = gfx::PanDirection::Left;
         }
-        else if(action == GLFW_RELEASE)
+        else if (action == GLFW_RELEASE && panX == gfx::PanDirection::Left)
         {
             panX = gfx::PanDirection::Stop;
         }
@@ -625,11 +640,11 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
     }
     if (key == GLFW_KEY_D)
     {
-        if(action == GLFW_PRESS)
+        if (action == GLFW_PRESS)
         {
             panX = gfx::PanDirection::Right;
         }
-        else if(action == GLFW_RELEASE)
+        else if (action == GLFW_RELEASE && panX == gfx::PanDirection::Right)
         {
             panX = gfx::PanDirection::Stop;
         }
@@ -750,15 +765,19 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
     debugData.viewData.winW = wInfo.size.x;
     debugData.viewData.winH = wInfo.size.y;
     debugData.inputData.ptrOverUi = ptrOverUi;
-    debugData.gameData.gameState = gameStateToString(model.getGameState());
     debugData.inputData.ptrScreenX = mouseState.mousePos.x;
     debugData.inputData.ptrScreenY = mouseState.mousePos.y;
-    debugData.inputData.ptrWorldX = mouseState.mouseWorldPos.x;
-    debugData.inputData.ptrWorldY = mouseState.mouseWorldPos.y;
+    debugData.inputData.ptrSectorX = mouseState.mouseSectorCoords.sectorX;
+    debugData.inputData.ptrSectorY = mouseState.mouseSectorCoords.sectorY;
+    debugData.inputData.ptrSectorPosX = mouseState.mouseSectorCoords.sectorPos.x;
+    debugData.inputData.ptrSectorPosY = mouseState.mouseSectorCoords.sectorPos.y;
+    debugData.gameData.gameState = gameStateToString(model.getGameState());
     debugData.connectionData.serverLatency =
         model.getTimeSyncData().serverLatency;
     debugData.connectionData.serverTimeOffset =
         model.getTimeSyncData().serverOffset;
+    debugData.viewData.sectorOffsetX = renderEngine.getSectorOffsetX();
+    debugData.viewData.sectorOffsetY = renderEngine.getSectorOffsetY();
 }
 
 void MainWindow::setupDataModelDebug()
@@ -771,8 +790,10 @@ void MainWindow::setupDataModelDebug()
             md_handle.RegisterMember("ptrScreenX", &UiDbgInputData::ptrScreenX);
             md_handle.RegisterMember("ptrScreenY", &UiDbgInputData::ptrScreenY);
             md_handle.RegisterMember("ptrOverUi", &UiDbgInputData::ptrOverUi);
-            md_handle.RegisterMember("ptrWorldX", &UiDbgInputData::ptrWorldX);
-            md_handle.RegisterMember("ptrWorldY", &UiDbgInputData::ptrWorldY);
+            md_handle.RegisterMember("ptrSectorX", &UiDbgInputData::ptrSectorX);
+            md_handle.RegisterMember("ptrSectorY", &UiDbgInputData::ptrSectorY);
+            md_handle.RegisterMember("ptrSectorPosX", &UiDbgInputData::ptrSectorPosX);
+            md_handle.RegisterMember("ptrSectorPosY", &UiDbgInputData::ptrSectorPosY);
         }
         debugConstructor.Bind("inputData", &debugData.inputData);
 
@@ -786,6 +807,8 @@ void MainWindow::setupDataModelDebug()
             md_handle.RegisterMember("zoom", &UiDbgViewData::zoom);
             md_handle.RegisterMember("camX", &UiDbgViewData::camX);
             md_handle.RegisterMember("camY", &UiDbgViewData::camY);
+            md_handle.RegisterMember("sectorOffsetX", &UiDbgViewData::sectorOffsetX);
+            md_handle.RegisterMember("sectorOffsetY", &UiDbgViewData::sectorOffsetY);
         }
         debugConstructor.Bind("viewData", &debugData.viewData);
 
@@ -816,8 +839,7 @@ void MainWindow::setupDataModelMenu()
         LG_D("Data model 'menu' created");
         menuConstructor.BindEventCallback(
             "onNavigate", &UserInterface::onMenuNavigate, &userInterface);
-        menuConstructor.BindEventCallback(
-            "onQuit", &MainWindow::onQuit, this);
+        menuConstructor.BindEventCallback("onQuit", &MainWindow::onQuit, this);
         menuConstructor.BindEventCallback(
             "onBack", &UserInterface::onMenuBack, &userInterface);
         menuConstructor.BindEventCallback(
@@ -935,6 +957,11 @@ void MainWindow::onExitToMenu(Rml::DataModelHandle handle,
                               const Rml::VariantList& args)
 {
     client.shutdown();
+}
+
+void MainWindow::onAfterLoadWorld()
+{
+    renderEngine.setWorldShape(&model.getWorldShape());
 }
 
 }  // namespace ui

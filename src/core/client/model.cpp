@@ -11,7 +11,9 @@
 namespace sphyc
 {
 
-Model::Model(ui::UserInterface* userInterface) : userInterface(userInterface)
+Model::Model(ui::UserInterface* userInterface,
+             std::function<void(void)> afterLoadWorldClb)
+    : userInterface(userInterface), afterLoadWorldClb(afterLoadWorldClb)
 {
     loadWorldSequence.registerExchange(net::Exchange(
         prot::cmd::WORLD_INFO,
@@ -52,6 +54,7 @@ void Model::modelLoop(float dt)
             if (loadWorldSequence.done())
             {
                 LG_I("Exchanging world info with server done");
+                afterLoadWorldClb();
                 gameState = ClientGameState::GameLoop;
             }
             break;
@@ -336,17 +339,17 @@ void Model::drawDebug(gfx::RenderEngine& renderer, float zoom)
     reg.view<ecs::Transform, ecs::SectorId>().each(
         [this, &renderer](ecs::Transform& transform, ecs::SectorId& sectorId)
         {
-            world::Sector* sector = world.getSector(sectorId.id);
-            if(sector)
-            {
-                glm::vec2 worldPos = sector->getWorldPos() + transform.pos;
-                renderer.drawEllipse(worldPos,
-                                     glm::vec2(10.0f, 5.0f),
-                                     0xffffffff,
-                                     2.0f,
-                                     transform.rot,
-                                     0);
-            }
+            glm::vec2 worldPos =
+                world.getWorldPosSectorOffset(sectorId.id,
+                                              renderer.getSectorOffsetX(),
+                                              renderer.getSectorOffsetY())
+                + transform.pos;
+            renderer.drawEllipse(worldPos,
+                                 glm::vec2(10.0f, 5.0f),
+                                 0xffffffff,
+                                 2.0f,
+                                 transform.rot,
+                                 0);
         });
 }
 
@@ -457,8 +460,7 @@ void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
 
                     auto& reg = ecs.getRegistry();
                     reg.emplace_or_replace<ecs::SectorId>(entity, sectorId);
-                    helper.deserializeIntoRegistry(
-                        reg, entity, cmddes);
+                    helper.deserializeIntoRegistry(reg, entity, cmddes);
                 }
             }
         }

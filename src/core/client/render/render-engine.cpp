@@ -4,6 +4,7 @@
 #include "logging.hpp"
 #include "std-inc.hpp"
 #include "vertex-defines.hpp"
+#include <algorithm>
 
 namespace gfx
 {
@@ -288,24 +289,21 @@ void RenderEngine::setWindowSize(int width, int height)
     bgfx::setViewRect(kUiView, 0, 0, bgfx::BackbufferRatio::Equal);
 }
 
-void RenderEngine::setWorldCamera(const glm::vec2& position, float zoom)
+void RenderEngine::setWorldCamera(const vec2& position, float zoom)
 {
     worldCameraX = position.x;
     worldCameraY = position.y;
     worldZoom = zoom;
 }
 
-glm::vec2 RenderEngine::screenToWorldPixel(const glm::vec2& screenPx) const
+vec2 RenderEngine::screenToWorldPixel(const vec2& screenPx) const
 {
     const float wf = float(winWidth);
     const float hf = float(winHeight);
     const float ndcX = 2.f * screenPx.x / wf - 1.f;
     const float ndcY = 1.f - 2.f * screenPx.y / hf;
 
-    float clip[4] = {ndcX,
-                     ndcY,
-                     0.0f,
-                     1.0f};
+    float clip[4] = {ndcX, ndcY, 0.0f, 1.0f};
 
     float worldH[4];
     bx::vec4MulMtx(worldH, clip, invWvp);
@@ -614,34 +612,50 @@ void RenderEngine::drawBoxShape(float shapeType,
     vec2 hs = size / 2.0f;
     const float cx = pos.x, cy = pos.y;
 
-    vertices[currentShapeVertices++] = PosColorShapeVertex{-hs.x, -hs.y,
-                                                           -1.0f, -1.0f,
+    vertices[currentShapeVertices++] = PosColorShapeVertex{-hs.x,
+                                                           -hs.y,
+                                                           -1.0f,
+                                                           -1.0f,
                                                            colorRGBA,
                                                            shapeType,
                                                            thicknessX,
                                                            thicknessY,
-                                                           cx, cy, rotationRad};
-    vertices[currentShapeVertices++] = PosColorShapeVertex{hs.x, -hs.y,
-                                                           1.0f, -1.0f,
+                                                           cx,
+                                                           cy,
+                                                           rotationRad};
+    vertices[currentShapeVertices++] = PosColorShapeVertex{hs.x,
+                                                           -hs.y,
+                                                           1.0f,
+                                                           -1.0f,
                                                            colorRGBA,
                                                            shapeType,
                                                            thicknessX,
                                                            thicknessY,
-                                                           cx, cy, rotationRad};
-    vertices[currentShapeVertices++] = PosColorShapeVertex{-hs.x, hs.y,
-                                                           -1.0f, 1.0f,
+                                                           cx,
+                                                           cy,
+                                                           rotationRad};
+    vertices[currentShapeVertices++] = PosColorShapeVertex{-hs.x,
+                                                           hs.y,
+                                                           -1.0f,
+                                                           1.0f,
                                                            colorRGBA,
                                                            shapeType,
                                                            thicknessX,
                                                            thicknessY,
-                                                           cx, cy, rotationRad};
-    vertices[currentShapeVertices++] = PosColorShapeVertex{hs.x, hs.y,
-                                                           1.0f, 1.0f,
+                                                           cx,
+                                                           cy,
+                                                           rotationRad};
+    vertices[currentShapeVertices++] = PosColorShapeVertex{hs.x,
+                                                           hs.y,
+                                                           1.0f,
+                                                           1.0f,
                                                            colorRGBA,
                                                            shapeType,
                                                            thicknessX,
                                                            thicknessY,
-                                                           cx, cy, rotationRad};
+                                                           cx,
+                                                           cy,
+                                                           rotationRad};
     uint16_t* indices = (uint16_t*)tibSdf.data;
     indices[currentShapeIndices++] = currentShapeVertices - 4;
     indices[currentShapeIndices++] = currentShapeVertices - 3;
@@ -659,8 +673,13 @@ void RenderEngine::drawEllipse(const glm::vec2& pos,
                                float rotationRad,
                                bgfx::ViewId viewId)
 {
-    drawBoxShape(SHAPE_TYPE_CIRCLE, pos, size, colorRGBA, thickness,
-                 rotationRad, viewId);
+    drawBoxShape(SHAPE_TYPE_CIRCLE,
+                 pos,
+                 size,
+                 colorRGBA,
+                 thickness,
+                 rotationRad,
+                 viewId);
 }
 
 void RenderEngine::drawRectangle(const glm::vec2& pos,
@@ -670,8 +689,13 @@ void RenderEngine::drawRectangle(const glm::vec2& pos,
                                  float rotationRad,
                                  bgfx::ViewId viewId)
 {
-    drawBoxShape(SHAPE_TYPE_RECTANGLE, pos, size, colorRGBA, thickness,
-                 rotationRad, viewId);
+    drawBoxShape(SHAPE_TYPE_RECTANGLE,
+                 pos,
+                 size,
+                 colorRGBA,
+                 thickness,
+                 rotationRad,
+                 viewId);
 }
 
 tim::Timepoint RenderEngine::getStartTime() const
@@ -704,8 +728,9 @@ void RenderEngine::submitShapes()
             BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
             | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
                                     BGFX_STATE_BLEND_INV_SRC_ALPHA);
-        
-        const float* projForView = (currentViewId == kWorldView) ? worldViewProj : ortho;
+
+        const float* projForView =
+            (currentViewId == kWorldView) ? worldViewProj : ortho;
         bgfx::setUniform(u_proj, projForView);
         bgfx::setState(state);
         bgfx::setVertexBuffer(0, &tvbSdf, 0, currentShapeVertices);
@@ -723,16 +748,16 @@ void RenderEngine::zoomWorld(float amount)
 {
     // todo: save in local variable
     worldZoom += amount * zoomPanCfgWorld.zoomStep;
-    if(amount > 0)
+    if (amount > 0)
     {
-        if(worldZoom > zoomPanCfgWorld.maxZoom)
+        if (worldZoom > zoomPanCfgWorld.maxZoom)
         {
             worldZoom = zoomPanCfgWorld.maxZoom;
         }
     }
     else
     {
-        if(worldZoom < zoomPanCfgWorld.minZoom)
+        if (worldZoom < zoomPanCfgWorld.minZoom)
         {
             worldZoom = zoomPanCfgWorld.minZoom;
         }
@@ -743,18 +768,80 @@ void RenderEngine::panWorld(PanDirection dirX, PanDirection dirY)
 {
     worldCameraX += (float)dirX * zoomPanCfgWorld.panSpeed / worldZoom;
     worldCameraY += (float)dirY * zoomPanCfgWorld.panSpeed / worldZoom;
+    updatePosWithSectorOffset();
 }
 
 void RenderEngine::panWorld(const glm::vec2& delta)
 {
     worldCameraX += delta.x;
     worldCameraY += delta.y;
+    updatePosWithSectorOffset();
 }
 
 void RenderEngine::setWorldCameraPosition(const glm::vec2& position)
 {
     worldCameraX = position.x;
     worldCameraY = position.y;
+    updatePosWithSectorOffset();
+}
+
+void RenderEngine::setWorldShape(const def::WorldShape* worldShape)
+{
+    this->worldShape = worldShape;
+}
+
+void RenderEngine::updatePosWithSectorOffset()
+{
+    if (!worldShape)
+    {
+        return;
+    }
+    int deltaOffsX =
+        std::clamp((int)floorf(worldCameraX / worldShape->sectorSize + 0.5f),
+                   (int32_t)(-sectorOffsetX),
+                   (int32_t)(worldShape->numSectorX - 1) - sectorOffsetX);
+    int deltaOffsY =
+        std::clamp((int)floorf(worldCameraY / worldShape->sectorSize + 0.5f),
+                   (int32_t)(-sectorOffsetY),
+                   (int32_t)(worldShape->numSectorY - 1) - sectorOffsetY);
+    sectorOffsetX += deltaOffsX;
+    sectorOffsetY += deltaOffsY;
+    worldCameraX =
+        std::clamp(worldCameraX - deltaOffsX * worldShape->sectorSize,
+                   -worldShape->sectorSize / 2.0f,
+                   worldShape->sectorSize / 2.0f);
+    worldCameraY =
+        std::clamp(worldCameraY - deltaOffsY * worldShape->sectorSize,
+                   -worldShape->sectorSize / 2.0f,
+                   worldShape->sectorSize / 2.0f);
+}
+
+void RenderEngine::screenToSectorCoords(const vec2& screenPx,
+                                        def::SectorCoords& sectorCoords) const
+{
+    if (!worldShape)
+    {
+        return;
+    }
+    const float sectorSizeHalf = worldShape->sectorSize / 2.0f;
+    vec2 worldPos = screenToWorldPixel(screenPx);
+    int xOffset = (int)floorf(worldPos.x / worldShape->sectorSize + 0.5f);
+    sectorCoords.sectorX = std::clamp(
+        xOffset + sectorOffsetX, 0, (int32_t)(worldShape->numSectorX - 1));
+    int yOffset = (int)floorf(worldPos.y / worldShape->sectorSize + 0.5f);
+    sectorCoords.sectorY = std::clamp(
+        yOffset + sectorOffsetY, 0, (int32_t)(worldShape->numSectorY - 1));
+
+    const float S = worldShape->sectorSize;
+    // worldPos is in camera-local space (same as worldCamera* after rebasing).
+    // Absolute sector sx has world center sx*S in absolute coords; in local space
+    // that center is (sx - sectorOffset) * S — see Sector / worldToLocal style math.
+    const float cx =
+        (float(sectorCoords.sectorX) - float(sectorOffsetX)) * S;
+    const float cy =
+        (float(sectorCoords.sectorY) - float(sectorOffsetY)) * S;
+    sectorCoords.sectorPos = {std::clamp(worldPos.x - cx, -sectorSizeHalf, sectorSizeHalf),
+                              std::clamp(worldPos.y - cy, -sectorSizeHalf, sectorSizeHalf)};
 }
 
 }  // namespace gfx

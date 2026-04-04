@@ -19,6 +19,12 @@ enum class Direction
     NONE,
 };
 
+struct SectorCoords
+{
+    uint32_t sectorX;
+    uint32_t sectorY;
+    vec2 sectorPos;
+};
 
 struct WorldShape
 {

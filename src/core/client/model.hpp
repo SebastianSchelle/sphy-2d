@@ -19,7 +19,7 @@ namespace sphyc
 class Model
 {
   public:
-    Model(ui::UserInterface* userInterface);
+    Model(ui::UserInterface* userInterface, std::function<void(void)> afterLoadWorldClb);
     ~Model();
     void parseCommandData(const net::CmdQueueData& cmdData);
     void parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
@@ -40,6 +40,7 @@ class Model
     ecs::AssetFactory* getAssetFactory() { return &assetFactory; }
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
+    const def::WorldShape& getWorldShape() const { return world.getWorldShape(); }
 
   private:
     void modelLoopMenu(float dt);
@@ -56,6 +57,8 @@ class Model
     tim::Timepoint lastTSync;
     net::ModelClientInfo clientInfo;
     ecs::EcsClient ecs;
+
+    std::function<void(void)> afterLoadWorldClb;
 };
 
 }  // namespace sphyc

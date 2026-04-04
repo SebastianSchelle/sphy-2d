@@ -272,6 +272,22 @@ Sector* World::getSector(uint32_t sectorId)
     return sectors.at(sectorId);
 }
 
+std::pair<uint32_t, uint32_t> World::idToSectorCoords(uint32_t sectorId) const
+{
+    return std::make_pair(sectorId % worldShape.numSectorX, sectorId / worldShape.numSectorY);
+}
+
+vec2 World::getWorldPosSectorOffset(uint32_t sectorX, uint32_t sectorY, int32_t sectorOffsetX, int32_t sectorOffsetY) const
+{
+    return vec2(sectorX - sectorOffsetX, sectorY - sectorOffsetY) * worldShape.sectorSize;
+}
+
+vec2 World::getWorldPosSectorOffset(uint32_t sectorId, int32_t sectorOffsetX, int32_t sectorOffsetY) const
+{
+    auto [sectorX, sectorY] = idToSectorCoords(sectorId);
+    return getWorldPosSectorOffset(sectorX, sectorY, sectorOffsetX, sectorOffsetY);
+}
+
 #ifdef CLIENT
 void World::drawDebug(gfx::RenderEngine& renderer, float zoom)
 {
