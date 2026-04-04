@@ -98,6 +98,8 @@ class Engine
     void registerConsoleCommands();
     void runSlowClientDump(long frameTime);
     void handleTcpDisconnect(const std::shared_ptr<net::TcpConnection>& conn);
+    void sendAllComponents(ecs::EntityId entityId,
+                           const std::shared_ptr<net::TcpConnection>& conn);
 
     const sphy::CmdLinOptionsServer& options;
     std::atomic<bool> stopRequested{false};

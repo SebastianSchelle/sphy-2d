@@ -778,6 +778,77 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
         model.getTimeSyncData().serverOffset;
     debugData.viewData.sectorOffsetX = renderEngine.getSectorOffsetX();
     debugData.viewData.sectorOffsetY = renderEngine.getSectorOffsetY();
+
+    auto& reg = model.getRegistry();
+    auto& go = debugData.selGameObject;
+    go.entityId = model.getSelectedEntity().index;
+    go.generation = model.getSelectedEntity().generation;
+    entt::entity entity = model.getEcs()->enttFromServerId(model.getSelectedEntity());
+    go.hasTransform = false;
+    go.hasPhysicsBody = false;
+    go.hasPhyThrust = false;
+    go.hasSectorId = false;
+    go.sectorId = 0;
+    if (entity != entt::null && reg.valid(entity))
+    {
+        go.posX = go.posY = go.rot = 0.f;
+        go.mass = go.inertia = 0.f;
+        go.velX = go.velY = go.rotVel = go.rotAcc = go.accX = go.accY = 0.f;
+        go.thrustGlobalX = go.thrustGlobalY = go.thrustLocalX = go.thrustLocalY =
+            0.f;
+        go.torque = go.maxTorque = go.maxRotVel = 0.f;
+        go.thrustMainMax = go.thrustManeuverMax = go.maxSpd = 0.f;
+        if (auto sectorIdComp = reg.try_get<ecs::SectorId>(entity))
+        {
+            go.hasSectorId = true;
+            go.sectorId = sectorIdComp->id;
+        }
+        if (auto transform = reg.try_get<ecs::Transform>(entity))
+        {
+            go.hasTransform = true;
+            go.posX = transform->pos.x;
+            go.posY = transform->pos.y;
+            go.rot = transform->rot;
+        }
+        if (auto physicsBody = reg.try_get<ecs::PhysicsBody>(entity))
+        {
+            go.hasPhysicsBody = true;
+            go.mass = physicsBody->mass;
+            go.inertia = physicsBody->inertia;
+            go.velX = physicsBody->vel.x;
+            go.velY = physicsBody->vel.y;
+            go.rotVel = physicsBody->rotVel;
+            go.rotAcc = physicsBody->rotAcc;
+            go.accX = physicsBody->acc.x;
+            go.accY = physicsBody->acc.y;
+        }
+        if (auto phyThrust = reg.try_get<ecs::PhyThrust>(entity))
+        {
+            go.hasPhyThrust = true;
+            go.thrustGlobalX = phyThrust->thrustGlobal.x;
+            go.thrustGlobalY = phyThrust->thrustGlobal.y;
+            go.thrustLocalX = phyThrust->thrustLocal.x;
+            go.thrustLocalY = phyThrust->thrustLocal.y;
+            go.torque = phyThrust->torque;
+            go.maxTorque = phyThrust->maxTorque;
+            go.maxRotVel = phyThrust->maxRotVel;
+            go.thrustMainMax = phyThrust->thrustMainMax;
+            go.thrustManeuverMax = phyThrust->thrustManeuverMax;
+            go.maxSpd = phyThrust->maxSpd;
+        }
+    }
+    else
+    {
+        go.hasSectorId = false;
+        go.sectorId = 0;
+        go.posX = go.posY = go.rot = 0.f;
+        go.mass = go.inertia = 0.f;
+        go.velX = go.velY = go.rotVel = go.rotAcc = go.accX = go.accY = 0.f;
+        go.thrustGlobalX = go.thrustGlobalY = go.thrustLocalX = go.thrustLocalY =
+            0.f;
+        go.torque = go.maxTorque = go.maxRotVel = 0.f;
+        go.thrustMainMax = go.thrustManeuverMax = go.maxSpd = 0.f;
+    }
 }
 
 void MainWindow::setupDataModelDebug()
@@ -785,6 +856,40 @@ void MainWindow::setupDataModelDebug()
     auto debugConstructor = userInterface.getDataModel("debug");
     if (debugConstructor)
     {
+        if (auto md_handle = debugConstructor.RegisterStruct<UiDebugGameObject>())
+        {
+            md_handle.RegisterMember("entityId", &UiDebugGameObject::entityId);
+            md_handle.RegisterMember("generation", &UiDebugGameObject::generation);
+            md_handle.RegisterMember("hasSectorId", &UiDebugGameObject::hasSectorId);
+            md_handle.RegisterMember("sectorId", &UiDebugGameObject::sectorId);
+            md_handle.RegisterMember("hasTransform", &UiDebugGameObject::hasTransform);
+            md_handle.RegisterMember("posX", &UiDebugGameObject::posX);
+            md_handle.RegisterMember("posY", &UiDebugGameObject::posY);
+            md_handle.RegisterMember("rot", &UiDebugGameObject::rot);
+            md_handle.RegisterMember("hasPhysicsBody", &UiDebugGameObject::hasPhysicsBody);
+            md_handle.RegisterMember("mass", &UiDebugGameObject::mass);
+            md_handle.RegisterMember("inertia", &UiDebugGameObject::inertia);
+            md_handle.RegisterMember("velX", &UiDebugGameObject::velX);
+            md_handle.RegisterMember("velY", &UiDebugGameObject::velY);
+            md_handle.RegisterMember("rotVel", &UiDebugGameObject::rotVel);
+            md_handle.RegisterMember("rotAcc", &UiDebugGameObject::rotAcc);
+            md_handle.RegisterMember("accX", &UiDebugGameObject::accX);
+            md_handle.RegisterMember("accY", &UiDebugGameObject::accY);
+            md_handle.RegisterMember("hasPhyThrust", &UiDebugGameObject::hasPhyThrust);
+            md_handle.RegisterMember("thrustGlobalX", &UiDebugGameObject::thrustGlobalX);
+            md_handle.RegisterMember("thrustGlobalY", &UiDebugGameObject::thrustGlobalY);
+            md_handle.RegisterMember("thrustLocalX", &UiDebugGameObject::thrustLocalX);
+            md_handle.RegisterMember("thrustLocalY", &UiDebugGameObject::thrustLocalY);
+            md_handle.RegisterMember("torque", &UiDebugGameObject::torque);
+            md_handle.RegisterMember("maxTorque", &UiDebugGameObject::maxTorque);
+            md_handle.RegisterMember("maxRotVel", &UiDebugGameObject::maxRotVel);
+            md_handle.RegisterMember("thrustMainMax", &UiDebugGameObject::thrustMainMax);
+            md_handle.RegisterMember("thrustManeuverMax",
+                                      &UiDebugGameObject::thrustManeuverMax);
+            md_handle.RegisterMember("maxSpd", &UiDebugGameObject::maxSpd);
+        }
+        debugConstructor.Bind("selGameObject", &debugData.selGameObject);
+
         if (auto md_handle = debugConstructor.RegisterStruct<UiDbgInputData>())
         {
             md_handle.RegisterMember("ptrScreenX", &UiDbgInputData::ptrScreenX);

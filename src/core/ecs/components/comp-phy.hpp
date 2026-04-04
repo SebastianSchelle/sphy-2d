@@ -85,8 +85,8 @@ struct PhysicsBody
                          const YAML::Node& node)
     {
         PhysicsBody physicsBody;
-        physicsBody.mass = node["mass"].as<float>();
-        physicsBody.inertia = node["inertia"].as<float>();
+        TRY_YAML_DICT(physicsBody.mass, node["mass"], 1.0f);
+        TRY_YAML_DICT(physicsBody.inertia, node["inertia"], 1.0f);
         TRY_YAML_DICT(physicsBody.vel, node["vel"], vec2(0.0f, 0.0f));
         TRY_YAML_DICT(physicsBody.rotVel, node["rotVel"], 0.0f);
         TRY_YAML_DICT(physicsBody.rotAcc, node["rotAcc"], 0.0f);
@@ -105,6 +105,85 @@ struct PhysicsBody
 EXT_SER(PhysicsBody, SER_PHYSICS_BODY)
 EXT_DES(PhysicsBody, SER_PHYSICS_BODY)
 
+
+struct PhyThrust
+{
+    static const uint16_t VERSION = 1;
+    static constexpr string NAME = "phy-thrust";
+
+    glm::vec2 thrustGlobal;
+    glm::vec2 thrustLocal;
+    float torque;
+    float maxTorque;
+    float maxRotVel;
+    float thrustMainMax;
+    float thrustManeuverMax;
+    float maxSpd;
+
+    void setThrustGlobal(glm::vec2 th, Transform& tr)
+    {
+        thrustLocal = hmath::rotateVec2(th, tr.rot);
+        thrustLocal[0] =
+            std::clamp(thrustLocal[0], -thrustManeuverMax, thrustManeuverMax);
+        thrustLocal[1] =
+            std::clamp(thrustLocal[1], -thrustMainMax, thrustMainMax);
+        thrustGlobal = hmath::rotateVec2(thrustLocal, -tr.rot);
+    }
+
+    void setThrustLocal(glm::vec2 th, Transform& tr)
+    {
+        thrustLocal = th;
+        thrustLocal[0] =
+            std::clamp(thrustLocal[0], -thrustManeuverMax, thrustManeuverMax);
+        thrustLocal[1] =
+            std::clamp(thrustLocal[1], -thrustMainMax, thrustMainMax);
+        thrustGlobal = hmath::rotateVec2(thrustLocal, -tr.rot);
+    }
+
+    void setTorque(float trq)
+    {
+        trq = std::clamp(trq, -maxTorque, maxTorque);
+        torque = trq;
+    }
+    void setTorqueNorm(float trq)
+    {
+        trq = std::clamp(trq, -1.0f, 1.0f);
+        torque = trq * maxTorque;
+    }
+
+    static void fromYaml(entt::registry& registry,
+                         entt::entity entity,
+                         const YAML::Node& node)
+    {
+        PhyThrust phyThrust;
+        TRY_YAML_DICT(phyThrust.thrustGlobal,
+                      node["thrustGlobal"],
+                      glm::vec2(0.0f, 0.0f));
+        TRY_YAML_DICT(
+            phyThrust.thrustLocal, node["thrustLocal"], glm::vec2(0.0f, 0.0f));
+        TRY_YAML_DICT(phyThrust.torque, node["torque"], 0.0f);
+        TRY_YAML_DICT(phyThrust.maxTorque, node["maxTorque"], 0.0f);
+        TRY_YAML_DICT(phyThrust.maxRotVel, node["maxRotVel"], 0.0f);
+        TRY_YAML_DICT(phyThrust.thrustMainMax, node["thrustMainMax"], 0.0f);
+        TRY_YAML_DICT(
+            phyThrust.thrustManeuverMax, node["thrustManeuverMax"], 0.0f);
+        TRY_YAML_DICT(phyThrust.maxSpd, node["maxSpd"], 0.0f);
+        registry.emplace<PhyThrust>(entity, phyThrust);
+    }
+};
+
+#define SER_PHY_THRUST                                                         \
+    SOBJ(o.thrustGlobal);                                                      \
+    SOBJ(o.thrustLocal);                                                       \
+    S4b(o.torque);                                                             \
+    S4b(o.maxTorque);                                                          \
+    S4b(o.maxRotVel);                                                          \
+    S4b(o.thrustMainMax);                                                      \
+    S4b(o.thrustManeuverMax);                                                  \
+    S4b(o.maxSpd);
+EXT_SER(PhyThrust, SER_PHY_THRUST)
+EXT_DES(PhyThrust, SER_PHY_THRUST)
+
 }  // namespace ecs
 
 EXT_FMT(ecs::Transform, "(pos: {}, rot: {})", o.pos, o.rot);
@@ -119,5 +198,16 @@ EXT_FMT(ecs::PhysicsBody,
         o.acc,
         o.rotVel,
         o.rotAcc);
+EXT_FMT(ecs::PhyThrust,
+        "(thrustGlobal: {}, thrustLocal: {}, torque: {}, maxTorque: {}, "
+        "maxRotVel: {}, thrustMainMax: {}, thrustManeuverMax: {}, maxSpd: {})",
+        o.thrustGlobal,
+        o.thrustLocal,
+        o.torque,
+        o.maxTorque,
+        o.maxRotVel,
+        o.thrustMainMax,
+        o.thrustManeuverMax,
+        o.maxSpd);
 
 #endif

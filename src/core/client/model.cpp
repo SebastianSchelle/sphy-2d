@@ -26,6 +26,9 @@ Model::Model(ui::UserInterface* userInterface,
     cFac->registerComponent<ecs::Transform>();
     cFac->registerComponent<ecs::PhysicsBody>();
     cFac->registerComponent<ecs::AssetId>();
+    cFac->registerComponent<ecs::PhyThrust>();
+
+    selectedEntity = {0, 1};
 }
 
 Model::~Model() {}
@@ -111,6 +114,7 @@ void Model::modelLoopGame(float dt)
 {
     tim::Timepoint now = tim::getCurrentTimeU();
     static tim::Timepoint testTime = tim::getCurrentTimeU();
+    static tim::Timepoint lastReqAllComponents = tim::getCurrentTimeU();
 
     // Send some stuff to server
     /*CMDAT_PREP_TOKEN(net::SendType::UDP, prot::cmd::LOG, 0)
@@ -141,6 +145,9 @@ void Model::modelLoopGame(float dt)
     {
         DO_PERIODIC_EXTNOW(lastTSync, 50000, now, [this]() { timeSync(); });
     }
+
+    DO_PERIODIC_EXTNOW(
+        lastReqAllComponents, 1000000, now, [this]() { reqAllComponents(selectedEntity); });
 }
 
 void Model::parseCommandData(const net::CmdQueueData& cmdData)
@@ -319,6 +326,13 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             handleSlowDump(cmddes, posNextCmdOrEof);
             break;
         }
+        case prot::cmd::REQ_ALL_COMPONENTS:
+        {
+            if (flags & CMD_FLAG_RESP)
+            {
+                handleReqAllComponentsResp(cmddes, posNextCmdOrEof);
+            }
+        }
         default:
             break;
     }
@@ -465,6 +479,45 @@ void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
             }
         }
     }
+}
+
+void Model::handleReqAllComponentsResp(bitsery::Deserializer<InputAdapter>& cmddes, uint16_t posNextCmdOrEof)
+{
+    ecs::EntityId entityId;
+    cmddes.value4b(entityId.index);
+    cmddes.value2b(entityId.generation);
+    entt::entity entity = ecs.enttFromServerId(entityId);
+    while (cmddes.adapter().currentReadPos() < posNextCmdOrEof - 4)
+    {
+        uint32_t compHash;
+        cmddes.value4b(compHash);
+        auto compHelper = assetFactory.componentFactory.getComponentHelpers();
+        auto it = compHelper.find(compHash);
+        if (it != compHelper.end())
+        {
+            auto& reg = ecs.getRegistry();
+            it->second.deserializeIntoRegistry(reg, entity, cmddes);
+        }
+    }
+}
+
+void Model::reqAllComponents(ecs::EntityId entityId)
+{
+    prot::writeMessageTcp(
+        sendQueue,
+        nullptr,
+        [this, entityId](bitsery::Serializer<OutputAdapter>& cmdser)
+        {
+            prot::writeCommand(
+                cmdser,
+                prot::cmd::REQ_ALL_COMPONENTS,
+                0,
+                [this, entityId](bitsery::Serializer<OutputAdapter>& cmdser)
+                {
+                    cmdser.value4b(entityId.index);
+                    cmdser.value2b(entityId.generation);
+                });
+        });
 }
 
 }  // namespace sphyc

@@ -280,6 +280,47 @@ template <typename D> void deserialize(D& s, vec3& o)
 }
 }  // namespace glm
 
+
+namespace hmath
+{
+
+inline float between(float d, float min, float max)
+{
+    return d >= min && d <= max;
+}
+
+inline float angleError(float target, float current)
+{
+    float error = fmodf(target - current + M_PI, 2.0f * M_PI);
+    if (error < 0)
+        error += 2.0f * M_PI;
+    return error - M_PI;
+}
+
+inline float angleClamp(float angle)
+{
+    if (angle > 2 * M_PIf) {
+        return angle - 2 * M_PIf;
+    } else if (angle < 0.0f) {
+        return angle + 2 * M_PIf;
+    }
+    return angle;
+}
+
+inline vec2 rotateVec2(const vec2 &v, float radians)
+{
+    float c = std::cos(radians);
+    float s = std::sin(radians);
+    return vec2(c * v.x - s * v.y, s * v.x + c * v.y);
+}
+
+inline vec2 perpVec2(vec2 vec)
+{
+	return vec2(-vec.y, vec.x);
+}
+
+} // namespace hmath
+
 EXT_FMT(vec2, "[{}, {}]", o.x, o.y);
 EXT_FMT(vec3, "[{}, {}, {}]", o.x, o.y, o.z);
 EXT_FMT(vec4, "[{}, {}, {}, {}]", o.x, o.y, o.z, o.w);

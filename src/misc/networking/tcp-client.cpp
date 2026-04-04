@@ -23,7 +23,6 @@ void TcpClient::close()
 
 void TcpClient::sendMessage(const std::vector<uint8_t>& data)
 {
-    LG_D("Sending TCP message");
     try{
         size_t bytesSent = socket.send(boost::asio::buffer(data));
     }

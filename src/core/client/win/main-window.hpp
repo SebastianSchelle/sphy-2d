@@ -70,6 +70,38 @@ struct UiMenuData
     bool inGame = false;
 };
 
+struct UiDebugGameObject
+{
+    uint32_t entityId = 0;
+    uint16_t generation = 0;
+    bool hasSectorId = false;
+    uint32_t sectorId = 0;
+    bool hasTransform = false;
+    float posX = 0.0f;
+    float posY = 0.0f;
+    float rot = 0.0f;
+    bool hasPhysicsBody = false;
+    float mass = 0.0f;
+    float inertia = 0.0f;
+    float velX = 0.0f;
+    float velY = 0.0f;
+    float rotVel = 0.0f;
+    float rotAcc = 0.0f;
+    float accX = 0.0f;
+    float accY = 0.0f;
+    bool hasPhyThrust = false;
+    float thrustGlobalX = 0.0f;
+    float thrustGlobalY = 0.0f;
+    float thrustLocalX = 0.0f;
+    float thrustLocalY = 0.0f;
+    float torque = 0.0f;
+    float maxTorque = 0.0f;
+    float maxRotVel = 0.0f;
+    float thrustMainMax = 0.0f;
+    float thrustManeuverMax = 0.0f;
+    float maxSpd = 0.0f;
+};
+
 struct UiDbgInputData
 {
     float ptrScreenX = 0.f;
@@ -109,6 +141,7 @@ struct UiDbgConnectionData
 
 struct UiDebugData
 {
+    UiDebugGameObject selGameObject;
     UiDbgInputData inputData;
     UiDbgViewData viewData;
     UiDbgGameData gameData;

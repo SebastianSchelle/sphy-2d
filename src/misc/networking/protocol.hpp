@@ -73,6 +73,7 @@ const uint16_t WORLD_INFO = 0x0004;
 const uint16_t CONSOLE_CMD = 0x0005;
 const uint16_t VERSION_CHECK = 0x0006;
 const uint16_t SLOW_DUMP = 0x0007;
+const uint16_t REQ_ALL_COMPONENTS = 0x0008;
 
 }  // namespace cmd
 

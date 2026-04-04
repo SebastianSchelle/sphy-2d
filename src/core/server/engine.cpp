@@ -43,6 +43,8 @@ void Engine::start()
     cFac->registerComponent<ecs::Transform>();
     cFac->registerComponent<ecs::PhysicsBody>();
     cFac->registerComponent<ecs::AssetId>();
+    cFac->registerComponent<ecs::PhyThrust>();
+
     registerConsoleCommands();
 
     registerSlowDumpComponent<ecs::Transform>();
@@ -369,58 +371,68 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
     {
         case prot::cmd::LOG:
         {
-            std::string str;
-            cmddes.text1b(str, 256);
-            if (sendType == net::SendType::UDP)
+            if (sendType == net::SendType::UDP && (flags & CMD_FLAG_RESP) == 0)
             {
-                LG_I("UDP Log from {}: {}", clientInfo->name, str);
-            }
-            else if (sendType == net::SendType::TCP)
-            {
-                LG_I("TCP Log from {}: {}", clientInfo->name, str);
+                std::string str;
+                cmddes.text1b(str, 256);
+                if (sendType == net::SendType::UDP)
+                {
+                    LG_I("UDP Log from {}: {}", clientInfo->name, str);
+                }
+                else if (sendType == net::SendType::TCP)
+                {
+                    LG_I("TCP Log from {}: {}", clientInfo->name, str);
+                }
             }
             break;
         }
         case prot::cmd::TIME_SYNC:
         {
-            long d = tim::nowU();
-            prot::writeMessageUdp(
-                sendQueue,
-                udpEndpoint,
-                [this, d](bitsery::Serializer<OutputAdapter>& cmdser)
-                {
-                    prot::writeCommand(
-                        cmdser,
-                        prot::cmd::TIME_SYNC,
-                        CMD_FLAG_RESP,
-                        [this, d](bitsery::Serializer<OutputAdapter>& cmdser)
-                        { cmdser.value8b(d); });
-                });
+            if (sendType == net::SendType::UDP && (flags & CMD_FLAG_RESP) == 0)
+            {
+                long d = tim::nowU();
+                prot::writeMessageUdp(
+                    sendQueue,
+                    udpEndpoint,
+                    [this, d](bitsery::Serializer<OutputAdapter>& cmdser)
+                    {
+                        prot::writeCommand(
+                            cmdser,
+                            prot::cmd::TIME_SYNC,
+                            CMD_FLAG_RESP,
+                            [this,
+                             d](bitsery::Serializer<OutputAdapter>& cmdser)
+                            { cmdser.value8b(d); });
+                    });
+            }
             break;
         }
         case prot::cmd::VERSION_CHECK:
         {
-            prot::writeMessageTcp(
-                sendQueue,
-                tcpConnection,
-                [this](bitsery::Serializer<OutputAdapter>& cmdser)
-                {
-                    prot::writeCommand(
-                        cmdser,
-                        prot::cmd::VERSION_CHECK,
-                        CMD_FLAG_RESP,
-                        [this](bitsery::Serializer<OutputAdapter>& cmdser)
-                        {
-                            cmdser.value2b(version::MAJOR);
-                            cmdser.value2b(version::MINOR);
-                            cmdser.value2b(version::PATCH);
-                        });
-                });
+            if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
+            {
+                prot::writeMessageTcp(
+                    sendQueue,
+                    tcpConnection,
+                    [this](bitsery::Serializer<OutputAdapter>& cmdser)
+                    {
+                        prot::writeCommand(
+                            cmdser,
+                            prot::cmd::VERSION_CHECK,
+                            CMD_FLAG_RESP,
+                            [this](bitsery::Serializer<OutputAdapter>& cmdser)
+                            {
+                                cmdser.value2b(version::MAJOR);
+                                cmdser.value2b(version::MINOR);
+                                cmdser.value2b(version::PATCH);
+                            });
+                    });
+            }
             break;
         }
         case prot::cmd::AUTHENTICATE:
         {
-            if (sendType == net::SendType::TCP)
+            if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
             {
                 LG_I("Authentication request from tcp");
                 std::string token;
@@ -480,29 +492,32 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         }
         case prot::cmd::WORLD_INFO:
         {
-            LG_I("Sending world info");
-            prot::writeMessageTcp(
-                sendQueue,
-                tcpConnection,
-                [this](bitsery::Serializer<OutputAdapter>& cmdser)
-                {
-                    prot::writeCommand(
-                        cmdser,
-                        prot::cmd::WORLD_INFO,
-                        CMD_FLAG_RESP,
-                        [this](bitsery::Serializer<OutputAdapter>& cmdser)
-                        {
-                            auto worldShape = world.getWorldShape();
-                            cmdser.value4b(worldShape.numSectorX);
-                            cmdser.value4b(worldShape.numSectorY);
-                            cmdser.value4b(worldShape.sectorSize);
-                        });
-                });
+            if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
+            {
+                LG_I("Sending world info");
+                prot::writeMessageTcp(
+                    sendQueue,
+                    tcpConnection,
+                    [this](bitsery::Serializer<OutputAdapter>& cmdser)
+                    {
+                        prot::writeCommand(
+                            cmdser,
+                            prot::cmd::WORLD_INFO,
+                            CMD_FLAG_RESP,
+                            [this](bitsery::Serializer<OutputAdapter>& cmdser)
+                            {
+                                auto worldShape = world.getWorldShape();
+                                cmdser.value4b(worldShape.numSectorX);
+                                cmdser.value4b(worldShape.numSectorY);
+                                cmdser.value4b(worldShape.sectorSize);
+                            });
+                    });
+            }
             break;
         }
         case prot::cmd::CONSOLE_CMD:
         {
-            if (sendType == net::SendType::TCP)
+            if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
             {
                 string data;
                 string response;
@@ -557,6 +572,16 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                     });
             }
             break;
+        }
+        case prot::cmd::REQ_ALL_COMPONENTS:
+        {
+            if ((flags & CMD_FLAG_RESP) == 0)
+            {
+                ecs::EntityId entityId;
+                cmddes.value4b(entityId.index);
+                cmddes.value2b(entityId.generation);
+                sendAllComponents(entityId, tcpConnection);
+            }
         }
         default:
             break;
@@ -685,6 +710,40 @@ void Engine::handleTcpDisconnect(
     if (net::ClientInfo* ci = clientLib.getItem(handle))
         ci->connection.reset();
     LG_I("TCP client disconnected (handle value={})", hv);
+}
+
+void Engine::sendAllComponents(ecs::EntityId entityId,
+                               const std::shared_ptr<net::TcpConnection>& conn)
+{
+    entt::entity ent = ecs.getEntity(entityId);
+    if (ent == entt::null)
+    {
+        // todo: reply needed in error case?
+        return;
+    }
+    // todo: prevent exceeding tcp packet size
+    prot::writeMessageTcp(
+        sendQueue,
+        conn,
+        [this, entityId, ent](bitsery::Serializer<OutputAdapter>& cmdser)
+        {
+            prot::writeCommand(
+                cmdser,
+                prot::cmd::REQ_ALL_COMPONENTS,
+                CMD_FLAG_RESP,
+                [this, entityId, ent](
+                    bitsery::Serializer<OutputAdapter>& cmdser)
+                {
+                    cmdser.value4b(entityId.index);
+                    cmdser.value2b(entityId.generation);
+                    auto& reg = ecs.getRegistry();
+                    for (auto& [hash, helper] :
+                         assetFactory.componentFactory.getComponentHelpers())
+                    {
+                        helper.serializeFromRegistry(reg, ent, cmdser);
+                    }
+                });
+        });
 }
 
 

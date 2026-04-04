@@ -20,6 +20,10 @@ class ComponentFactory
         std::function<void(entt::registry&,
                            entt::entity,
                            bitsery::Deserializer<InputAdapter>&)>;
+    using SerializeFromRegistryFunc =
+        std::function<void(entt::registry&,
+                           entt::entity,
+                           bitsery::Serializer<OutputAdapter>&)>;
 
     struct ComponentHelper
     {
@@ -27,6 +31,7 @@ class ComponentFactory
         AssetLoaderFunc assetLoader;
         AssetCopierFunc assetCopier;
         DeserializeIntoRegistryFunc deserializeIntoRegistry;
+        SerializeFromRegistryFunc serializeFromRegistry;
     };
 
     void registerHelper(const std::string& name, ComponentHelper func);
@@ -38,6 +43,7 @@ class ComponentFactory
     template <typename Component> void registerComponent()
     {
         const std::string name = Component::NAME;
+        const uint32_t hash = hashConst(name.c_str());
         registerHelper(
             name,
             ComponentHelper(
@@ -69,6 +75,17 @@ class ComponentFactory
                     Component component;
                     s.object(component);
                     registry.emplace_or_replace<Component>(entity, component);
+                },
+                [name, hash](entt::registry& registry,
+                       entt::entity entity,
+                       bitsery::Serializer<OutputAdapter>& s)
+                {
+                    auto component = registry.try_get<Component>(entity);
+                    if (component)
+                    {
+                        s.value4b(hash);
+                        s.object(*component);
+                    }
                 }));
     }
 
