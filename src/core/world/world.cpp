@@ -1,7 +1,7 @@
+#include <comp-ident.hpp>
 #include <config-manager.hpp>
 #include <ptr-handle.hpp>
 #include <world.hpp>
-#include <comp-ident.hpp>
 
 const uint16_t def::WorldShape::VERSION;
 
@@ -102,6 +102,7 @@ bool World::initWorld()
     {
         LG_E("Invalid world shape. World initialization failed");
     }
+    halfSectorSize = worldShape.sectorSize / 2.0f;
     sectors.init(worldShape.numSectorX, worldShape.numSectorY);
     LG_I("World initialized with {} sectors", sectors.getSize());
     return true;
@@ -170,64 +171,103 @@ void World::update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle)
             sectors.at(i, j)->update(dt, ptrHandle);
         }
     }
+    handleSectorMoveRequests();
 }
 
-Sector* World::getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir)
+bool World::getNeighboringSectorId(uint32_t sectorId,
+                                   def::Direction dir,
+                                   def::SectorPos& newPos)
+{
+    auto [sectorX, sectorY] = idToSectorCoords(sectorId);
+    return getNeighboringSectorId(sectorX, sectorY, dir, newPos);
+}
+
+bool World::getNeighboringSectorId(uint32_t sectorX,
+                                   uint32_t sectorY,
+                                   def::Direction dir,
+                                   def::SectorPos& newPos)
 {
     switch (dir)
     {
         case def::Direction::N:
-            if (y == 0)
+            if (sectorY == 0)
             {
-                return nullptr;
+                return false;
             }
-            return sectors.at(x, y - 1);
+            newPos.x = sectorX;
+            newPos.y = sectorY - 1;
+            return true;
         case def::Direction::S:
-            if (y == worldShape.numSectorY - 1)
+            if (sectorY == worldShape.numSectorY - 1)
             {
-                return nullptr;
+                return false;
             }
-            return sectors.at(x, y + 1);
+            newPos.x = sectorX;
+            newPos.y = sectorY + 1;
+            return true;
         case def::Direction::W:
-            if (x == 0)
+            if (sectorX == 0)
             {
-                return nullptr;
+                return false;
             }
-            return sectors.at(x - 1, y);
+            newPos.x = sectorX - 1;
+            newPos.y = sectorY;
+            return true;
         case def::Direction::E:
-            if (x == worldShape.numSectorX - 1)
+            if (sectorX == worldShape.numSectorX - 1)
             {
-                return nullptr;
+                return false;
             }
-            return sectors.at(x + 1, y);
+            newPos.x = sectorX + 1;
+            newPos.y = sectorY;
+            return true;
         case def::Direction::NW:
-            if (x == 0 || y == 0)
+            if (sectorX == 0 || sectorY == 0)
             {
-                return nullptr;
+                return false;
             }
-            return sectors.at(x - 1, y - 1);
+            newPos.x = sectorX - 1;
+            newPos.y = sectorY - 1;
+            return true;
         case def::Direction::NE:
-            if (x == worldShape.numSectorX - 1 || y == 0)
+            if (sectorX == worldShape.numSectorX - 1 || sectorY == 0)
             {
-                return nullptr;
+                return false;
             }
-            return sectors.at(x + 1, y - 1);
+            newPos.x = sectorX + 1;
+            newPos.y = sectorY - 1;
+            return true;
         case def::Direction::SW:
-            if (x == 0 || y == worldShape.numSectorY - 1)
+            if (sectorX == 0 || sectorY == worldShape.numSectorY - 1)
             {
-                return nullptr;
+                return false;
             }
-            return sectors.at(x - 1, y + 1);
+            newPos.x = sectorX - 1;
+            newPos.y = sectorY + 1;
+            return true;
         case def::Direction::SE:
-            if (x == worldShape.numSectorX - 1
-                || y == worldShape.numSectorY - 1)
+            if (sectorX == worldShape.numSectorX - 1
+                || sectorY == worldShape.numSectorY - 1)
             {
-                return nullptr;
+                return false;
             }
-            return sectors.at(x + 1, y + 1);
+            newPos.x = sectorX + 1;
+            newPos.y = sectorY + 1;
+            return true;
         default:
-            return nullptr;
+            return false;
     }
+    return true;
+}
+
+Sector* World::getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir)
+{
+    def::SectorPos newPos;
+    if (!getNeighboringSectorId(x, y, dir, newPos))
+    {
+        return nullptr;
+    }
+    return sectors.at(newPos.x, newPos.y);
 }
 
 bool World::moveEntityTo(std::shared_ptr<ecs::PtrHandle> ptrHandle,
@@ -236,34 +276,44 @@ bool World::moveEntityTo(std::shared_ptr<ecs::PtrHandle> ptrHandle,
                          glm::vec2 position,
                          float rotation)
 {
+    switchSector(ptrHandle, entityId, sectorId);
+
+    auto reg = ptrHandle->registry;
+    entt::entity entity = ptrHandle->ecs->getEntity(entityId);
+    ecs::Transform& transform = reg->get_or_emplace<ecs::Transform>(entity);
+    transform.pos = position;
+    transform.rot = rotation;
+    return true;
+}
+
+bool World::switchSector(std::shared_ptr<ecs::PtrHandle> ptrHandle,
+                         ecs::EntityId entityId,
+                         uint32_t newSectorId)
+{
     if (!ptrHandle->ecs->validId(entityId))
     {
         LG_W("Entity not valid: {}", entityId);
         return false;
     }
-    Sector* newSector = sectors.at(sectorId);
+    Sector* newSector = sectors.at(newSectorId);
     if (newSector == nullptr)
     {
-        LG_W("Sector not found: {}", sectorId);
+        LG_W("Sector not found: {}", newSectorId);
         return false;
     }
 
     auto reg = ptrHandle->registry;
     entt::entity entity = ptrHandle->ecs->getEntity(entityId);
     auto sector = reg->try_get<ecs::SectorId>(entity);
-    if(sector && sector->id != sectorId)
+    if (sector && sector->id != newSectorId)
     {
         Sector* oldSector = sectors.at(sector->id);
-        if(oldSector)
+        if (oldSector)
         {
             oldSector->removeEntity(ptrHandle, entityId);
         }
     }
     newSector->addEntity(ptrHandle, entityId);
-
-    ecs::Transform& transform = reg->get_or_emplace<ecs::Transform>(entity);
-    transform.pos = position;
-    transform.rot = rotation;
     return true;
 }
 
@@ -274,18 +324,243 @@ Sector* World::getSector(uint32_t sectorId)
 
 std::pair<uint32_t, uint32_t> World::idToSectorCoords(uint32_t sectorId) const
 {
-    return std::make_pair(sectorId % worldShape.numSectorX, sectorId / worldShape.numSectorY);
+    return std::make_pair(sectorId % worldShape.numSectorX,
+                          sectorId / worldShape.numSectorY);
 }
 
-vec2 World::getWorldPosSectorOffset(uint32_t sectorX, uint32_t sectorY, int32_t sectorOffsetX, int32_t sectorOffsetY) const
+uint32_t World::sectorCoordsToId(uint32_t sectorX, uint32_t sectorY) const
 {
-    return vec2(sectorX - sectorOffsetX, sectorY - sectorOffsetY) * worldShape.sectorSize;
+    return sectorX + sectorY * worldShape.numSectorX;
 }
 
-vec2 World::getWorldPosSectorOffset(uint32_t sectorId, int32_t sectorOffsetX, int32_t sectorOffsetY) const
+vec2 World::getWorldPosSectorOffset(uint32_t sectorX,
+                                    uint32_t sectorY,
+                                    int32_t sectorOffsetX,
+                                    int32_t sectorOffsetY) const
+{
+    return vec2((int32_t)sectorX - sectorOffsetX,
+                (int32_t)sectorY - sectorOffsetY)
+           * worldShape.sectorSize;
+}
+
+vec2 World::getWorldPosSectorOffset(uint32_t sectorId,
+                                    int32_t sectorOffsetX,
+                                    int32_t sectorOffsetY) const
 {
     auto [sectorX, sectorY] = idToSectorCoords(sectorId);
-    return getWorldPosSectorOffset(sectorX, sectorY, sectorOffsetX, sectorOffsetY);
+    return getWorldPosSectorOffset(
+        sectorX, sectorY, sectorOffsetX, sectorOffsetY);
+}
+
+void World::checkSectorSwitchAfterMove(
+    ecs::EntityId entityId,
+    entt::entity entity,
+    ecs::SectorId* sectorId,
+    ecs::Transform* transform,
+    std::shared_ptr<ecs::PtrHandle> ptrHandle)
+{
+    vec2& pos = transform->pos;
+    def::Direction dir = def::Direction::NONE;
+    def::SectorPos newPos;
+    if (pos.x < -halfSectorSize)
+    {
+        if (pos.y < -halfSectorSize)
+        {
+            dir = def::Direction::NW;
+            if (!getNeighboringSectorId(sectorId->id, dir, newPos))
+            {
+                if (getNeighboringSectorId(
+                        sectorId->id, def::Direction::N, newPos))
+                {
+                    pos.x = -halfSectorSize;
+                    dir = def::Direction::N;
+                }
+                else if (getNeighboringSectorId(
+                             sectorId->id, def::Direction::W, newPos))
+                {
+                    pos.y = -halfSectorSize;
+                    dir = def::Direction::W;
+                }
+            }
+        }
+        else if (pos.y > halfSectorSize)
+        {
+            dir = def::Direction::SW;
+            if (!getNeighboringSectorId(sectorId->id, dir, newPos))
+            {
+                if (getNeighboringSectorId(
+                        sectorId->id, def::Direction::S, newPos))
+                {
+                    pos.x = -halfSectorSize;
+                    dir = def::Direction::S;
+                }
+                else if (getNeighboringSectorId(
+                             sectorId->id, def::Direction::W, newPos))
+                {
+                    pos.y = halfSectorSize;
+                    dir = def::Direction::W;
+                }
+            }
+        }
+        else
+        {
+            dir = def::Direction::W;
+        }
+    }
+    else if (pos.x > halfSectorSize)
+    {
+        if (pos.y < -halfSectorSize)
+        {
+            dir = def::Direction::NE;
+            if (!getNeighboringSectorId(sectorId->id, dir, newPos))
+            {
+                if (getNeighboringSectorId(
+                        sectorId->id, def::Direction::N, newPos))
+                {
+                    pos.x = halfSectorSize;
+                    dir = def::Direction::N;
+                }
+                else if (getNeighboringSectorId(
+                             sectorId->id, def::Direction::E, newPos))
+                {
+                    pos.y = -halfSectorSize;
+                    dir = def::Direction::E;
+                }
+            }
+        }
+        else if (pos.y > halfSectorSize)
+        {
+            dir = def::Direction::SE;
+            if (!getNeighboringSectorId(sectorId->id, dir, newPos))
+            {
+                if (getNeighboringSectorId(
+                        sectorId->id, def::Direction::S, newPos))
+                {
+                    pos.x = halfSectorSize;
+                    dir = def::Direction::S;
+                }
+                else if (getNeighboringSectorId(
+                             sectorId->id, def::Direction::E, newPos))
+                {
+                    pos.y = halfSectorSize;
+                    dir = def::Direction::E;
+                }
+            }
+        }
+        else
+        {
+            dir = def::Direction::E;
+        }
+    }
+    else if (pos.y < -halfSectorSize)
+    {
+        dir = def::Direction::N;
+    }
+    else if (pos.y > halfSectorSize)
+    {
+        dir = def::Direction::S;
+    }
+    if (dir != def::Direction::NONE)
+    {
+        if (getNeighboringSectorId(sectorId->id, dir, newPos))
+        {
+            uint32_t newSectorId = sectorCoordsToId(newPos.x, newPos.y);
+            addSectorMoveRequest(ptrHandle, entityId, newSectorId);
+            switch (dir)
+            {
+                case def::Direction::N:
+                    pos.y = pos.y + worldShape.sectorSize;
+                    break;
+                case def::Direction::S:
+                    pos.y = pos.y - worldShape.sectorSize;
+                    break;
+                case def::Direction::W:
+                    pos.x = pos.x + worldShape.sectorSize;
+                    break;
+                case def::Direction::E:
+                    pos.x = pos.x - worldShape.sectorSize;
+                    break;
+                case def::Direction::NW:
+                    pos.x = pos.x + worldShape.sectorSize;
+                    pos.y = pos.y + worldShape.sectorSize;
+                    break;
+                case def::Direction::NE:
+                    pos.x = pos.x - worldShape.sectorSize;
+                    pos.y = pos.y + worldShape.sectorSize;
+                    break;
+                case def::Direction::SW:
+                    pos.x = pos.x + worldShape.sectorSize;
+                    pos.y = pos.y - worldShape.sectorSize;
+                    break;
+                case def::Direction::SE:
+                    pos.x = pos.x - worldShape.sectorSize;
+                    pos.y = pos.y - worldShape.sectorSize;
+                    break;
+                default:
+                    break;
+            }
+        }
+        else
+        {
+            switch (dir)
+            {
+                case def::Direction::N:
+                    pos.y = -halfSectorSize;
+                    break;
+                case def::Direction::S:
+                    pos.y = halfSectorSize;
+                    break;
+                case def::Direction::W:
+                    pos.x = -halfSectorSize;
+                    break;
+                case def::Direction::E:
+                    pos.x = halfSectorSize;
+                    break;
+                case def::Direction::NW:
+                    pos.x = -halfSectorSize;
+                    pos.y = -halfSectorSize;
+                    break;
+                case def::Direction::NE:
+                    pos.x = halfSectorSize;
+                    pos.y = -halfSectorSize;
+                    break;
+                case def::Direction::SW:
+                    pos.x = -halfSectorSize;
+                    pos.y = halfSectorSize;
+                    break;
+                case def::Direction::SE:
+                    pos.x = halfSectorSize;
+                    pos.y = halfSectorSize;
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+}
+
+void World::addSectorMoveRequest(std::shared_ptr<ecs::PtrHandle> ptrHandle,
+                                 ecs::EntityId entityId,
+                                 uint32_t newSectorId)
+{
+    sectorMoveRequests.push_back(
+        SectorMoveRequest{ptrHandle, entityId, newSectorId});
+}
+
+void World::handleSectorMoveRequests()
+{
+    while (!sectorMoveRequests.empty())
+    {
+        auto& request = sectorMoveRequests.back();
+        if (!switchSector(
+                request.ptrHandle, request.entityId, request.newSectorId))
+        {
+            LG_E("Failed to switch sector for entity: {} to sector: {}",
+                 request.entityId,
+                 request.newSectorId);
+        }
+        sectorMoveRequests.pop_back();
+    }
 }
 
 #ifdef CLIENT

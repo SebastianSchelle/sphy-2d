@@ -826,10 +826,10 @@ void RenderEngine::screenToSectorCoords(const vec2& screenPx,
     const float sectorSizeHalf = worldShape->sectorSize / 2.0f;
     vec2 worldPos = screenToWorldPixel(screenPx);
     int xOffset = (int)floorf(worldPos.x / worldShape->sectorSize + 0.5f);
-    sectorCoords.sectorX = std::clamp(
+    sectorCoords.pos.x = std::clamp(
         xOffset + sectorOffsetX, 0, (int32_t)(worldShape->numSectorX - 1));
     int yOffset = (int)floorf(worldPos.y / worldShape->sectorSize + 0.5f);
-    sectorCoords.sectorY = std::clamp(
+    sectorCoords.pos.y = std::clamp(
         yOffset + sectorOffsetY, 0, (int32_t)(worldShape->numSectorY - 1));
 
     const float S = worldShape->sectorSize;
@@ -837,9 +837,9 @@ void RenderEngine::screenToSectorCoords(const vec2& screenPx,
     // Absolute sector sx has world center sx*S in absolute coords; in local space
     // that center is (sx - sectorOffset) * S — see Sector / worldToLocal style math.
     const float cx =
-        (float(sectorCoords.sectorX) - float(sectorOffsetX)) * S;
+        (float(sectorCoords.pos.x) - float(sectorOffsetX)) * S;
     const float cy =
-        (float(sectorCoords.sectorY) - float(sectorOffsetY)) * S;
+        (float(sectorCoords.pos.y) - float(sectorOffsetY)) * S;
     sectorCoords.sectorPos = {std::clamp(worldPos.x - cx, -sectorSizeHalf, sectorSizeHalf),
                               std::clamp(worldPos.y - cy, -sectorSizeHalf, sectorSizeHalf)};
 }

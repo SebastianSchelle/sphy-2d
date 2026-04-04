@@ -8,9 +8,22 @@
 
 namespace ecs
 {
+struct EntityId
+{
+    uint32_t index;
+    uint16_t generation;
+    bool operator==(const EntityId& other) const
+    {
+        return index == other.index && generation == other.generation;
+    }
+    bool operator!=(const EntityId& other) const
+    {
+        return !(*this == other);
+    }
+};
 
 typedef std::function<
-    void(entt::entity entity, float dt, std::shared_ptr<PtrHandle> ptrHandle)>
+    void(entt::entity, const ecs::EntityId&, float, std::shared_ptr<PtrHandle>)>
     SystemFunction;
 
 struct System
@@ -22,20 +35,6 @@ struct System
         return name == other.name;
     }
     bool operator!=(const System& other) const
-    {
-        return !(*this == other);
-    }
-};
-
-struct EntityId
-{
-    uint32_t index;
-    uint16_t generation;
-    bool operator==(const EntityId& other) const
-    {
-        return index == other.index && generation == other.generation;
-    }
-    bool operator!=(const EntityId& other) const
     {
         return !(*this == other);
     }

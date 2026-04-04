@@ -45,11 +45,11 @@ class Sector
     }
     const vector<entt::entity>& getEntities() const
     {
-        return entityIds;
+        return entities;
     }
     const vector<ecs::EntityId>& getEntityIds() const
     {
-        return entities;
+        return entityIds;
     }
 #ifdef CLIENT
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
@@ -65,8 +65,8 @@ class Sector
     Sector* neighbors[8];  // Neighboring Sectors (8 neighbors)
     bool dirty;            // Sector dirty flag
 
-    vector<ecs::EntityId> entities;
-    vector<entt::entity> entityIds;
+    vector<ecs::EntityId> entityIds;
+    vector<entt::entity> entities;
 };
 
 }  // namespace world

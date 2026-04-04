@@ -19,10 +19,15 @@ enum class Direction
     NONE,
 };
 
+struct SectorPos
+{
+    uint32_t x;
+    uint32_t y;
+};
+
 struct SectorCoords
 {
-    uint32_t sectorX;
-    uint32_t sectorY;
+    SectorPos pos;
     vec2 sectorPos;
 };
 

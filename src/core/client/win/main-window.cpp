@@ -767,8 +767,8 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
     debugData.inputData.ptrOverUi = ptrOverUi;
     debugData.inputData.ptrScreenX = mouseState.mousePos.x;
     debugData.inputData.ptrScreenY = mouseState.mousePos.y;
-    debugData.inputData.ptrSectorX = mouseState.mouseSectorCoords.sectorX;
-    debugData.inputData.ptrSectorY = mouseState.mouseSectorCoords.sectorY;
+    debugData.inputData.ptrSectorX = mouseState.mouseSectorCoords.pos.x;
+    debugData.inputData.ptrSectorY = mouseState.mouseSectorCoords.pos.y;
     debugData.inputData.ptrSectorPosX = mouseState.mouseSectorCoords.sectorPos.x;
     debugData.inputData.ptrSectorPosY = mouseState.mouseSectorCoords.sectorPos.y;
     debugData.gameData.gameState = gameStateToString(model.getGameState());

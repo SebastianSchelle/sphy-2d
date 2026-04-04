@@ -92,15 +92,7 @@ void Engine::engineLoop()
                 if (loadFromFolder())
                 {
                     spawnEntityFromAsset(
-                        "test", 0, ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
-                    spawnEntityFromAsset(
-                        "test",
-                        1,
-                        ecs::Transform{glm::vec2{-3.0f, 5.0f}, 2.0f});
-                    spawnEntityFromAsset(
-                        "test",
-                        2,
-                        ecs::Transform{glm::vec2{-3.0f, 5.0f}, 2.0f});
+                        "test", 27, ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
                     state = EngineState::Running;
                 }
                 else
@@ -161,7 +153,7 @@ void Engine::update(float dt)
         entt::entity entity = globalEntities[i];
         for (auto system : *ptrHandle->systems)
         {
-            system.function(entity, dt, ptrHandle);
+            system.function(entity, entityId, dt, ptrHandle);
         }
     }
     world.update(dt, ptrHandle);
