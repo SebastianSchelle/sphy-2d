@@ -2,6 +2,7 @@
 #include "RmlUi/Core/DataModelHandle.h"
 #include "RmlUi/Core/EventListener.h"
 #include "RmlUi/Core/ID.h"
+#include "RmlUi/Core/Input.h"
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -55,6 +56,11 @@ UserInterface::UserInterface(CmdCallback cmdCallback) : cmdCallback(cmdCallback)
 }
 
 UserInterface::~UserInterface() = default;
+
+void UserInterface::setChatCmdHistoryMax(unsigned maxHistoryEntries)
+{
+    maxCmdHistoryEntries = maxHistoryEntries;
+}
 
 bool UserInterface::init(glm::ivec2 windowSize)
 {
@@ -164,6 +170,16 @@ bool UserInterface::processMouseButtonUp(int button, int keyMod)
 
 bool UserInterface::processKeyDown(Rml::Input::KeyIdentifier key)
 {
+    if (chatOpen && chatData.currMsgTarget == "cmd" && isChatInputFocused())
+    {
+        if (key == Rml::Input::KI_UP || key == Rml::Input::KI_DOWN)
+        {
+            if (handleCmdHistoryKey(key))
+            {
+                return false;
+            }
+        }
+    }
     return rmlContext->ProcessKeyDown(Rml::Input::KeyIdentifier(key), 0);
 }
 
@@ -581,6 +597,7 @@ void UserInterface::onChatSenderClick(Rml::DataModelHandle handle,
     {
         chatData.currMsgTarget = sender;
         handle.DirtyVariable("curr_msg_target");
+        resetCmdHistoryBrowse();
     }
 }
 
@@ -600,6 +617,11 @@ void UserInterface::submitChatInput()
         chatData.currMsgTarget = parseData.target;
         rmlModelChat.DirtyVariable("curr_msg_target");
     }
+    if (parseData.target == "cmd")
+    {
+        pushCmdHistory(parseData.message);
+    }
+    resetCmdHistoryBrowse();
     chatData.addMessage(
         {"me", parseData.message, parseData.target, tim::getCurrentTimeU()});
     chatInputText.clear();
@@ -669,6 +691,97 @@ bool UserInterface::parseSendMsg(const string& message,
         parseData.message = remaining;
     }
     return true;
+}
+
+bool UserInterface::isChatInputFocused() const
+{
+    if (!rmlContext || !chatOpen)
+    {
+        return false;
+    }
+    Rml::Element* el = rmlContext->GetFocusElement();
+    while (el)
+    {
+        if (el->GetId() == "chat-input")
+        {
+            return true;
+        }
+        el = el->GetParentNode();
+    }
+    return false;
+}
+
+void UserInterface::resetCmdHistoryBrowse()
+{
+    cmdHistoryBrowseIndex = -1;
+    cmdHistoryDraft.clear();
+}
+
+void UserInterface::pushCmdHistory(const std::string& cmd)
+{
+    if (maxCmdHistoryEntries == 0 || cmd.empty())
+    {
+        return;
+    }
+    if (!cmdHistory.empty() && cmdHistory.back() == cmd)
+    {
+        return;
+    }
+    cmdHistory.push_back(cmd);
+    while (cmdHistory.size() > maxCmdHistoryEntries)
+    {
+        cmdHistory.erase(cmdHistory.begin());
+    }
+}
+
+bool UserInterface::handleCmdHistoryKey(Rml::Input::KeyIdentifier key)
+{
+    if (cmdHistory.empty() || maxCmdHistoryEntries == 0)
+    {
+        return false;
+    }
+    if (key == Rml::Input::KI_UP)
+    {
+        if (cmdHistoryBrowseIndex < 0)
+        {
+            cmdHistoryDraft = chatInputText;
+            cmdHistoryBrowseIndex =
+                static_cast<int>(cmdHistory.size()) - 1;
+        }
+        else if (cmdHistoryBrowseIndex > 0)
+        {
+            cmdHistoryBrowseIndex--;
+        }
+        else
+        {
+            return true;
+        }
+        chatInputText = cmdHistory[static_cast<size_t>(cmdHistoryBrowseIndex)];
+        rmlModelChat.DirtyVariable("chat_input_text");
+        return true;
+    }
+    if (key == Rml::Input::KI_DOWN)
+    {
+        if (cmdHistoryBrowseIndex < 0)
+        {
+            return false;
+        }
+        if (cmdHistoryBrowseIndex
+            < static_cast<int>(cmdHistory.size()) - 1)
+        {
+            cmdHistoryBrowseIndex++;
+            chatInputText =
+                cmdHistory[static_cast<size_t>(cmdHistoryBrowseIndex)];
+        }
+        else
+        {
+            cmdHistoryBrowseIndex = -1;
+            chatInputText = cmdHistoryDraft;
+        }
+        rmlModelChat.DirtyVariable("chat_input_text");
+        return true;
+    }
+    return false;
 }
 
 }  // namespace ui

@@ -48,6 +48,7 @@ template <typename Component> void Engine::registerSlowDumpComponent()
                     // todo: prevent exceeding udp packet size
                     while (sectorIdx < ptrHandle->world->getSectorCount())
                     {
+                        entIdx = 0;
                         // Write sector index and dummy entity cnt
                         world::Sector* sector =
                             ptrHandle->world->getSector(sectorIdx);
@@ -89,7 +90,6 @@ template <typename Component> void Engine::registerSlowDumpComponent()
                         {
                             cmdser.adapter().currentWritePos(cntPos - 4);
                         }
-                        entIdx = 0;
                         numEntities = 0;
                         sectorIdx++;
                     }

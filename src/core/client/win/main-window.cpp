@@ -112,7 +112,11 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
         config, (float)0x2085e085, "theme", "input", "drag-box", "color");
     dragBoxThickness = CFG_FLOAT(
         config, 1.0f, "theme", "input", "drag-box", "thickness");
-    
+
+    const unsigned chatCmdHistoryEntries =
+        CFG_UINT(config, 50.0f, "chat", "cmd-history-entries");
+    userInterface.setChatCmdHistoryMax(chatCmdHistoryEntries);
+
     LG_I("drag threshold: 0x{:x}", dragBoxColor);
 
     glfwSetErrorCallback(errorCallback);

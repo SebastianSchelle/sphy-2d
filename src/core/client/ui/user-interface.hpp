@@ -5,6 +5,7 @@
 #include "RmlUi/Core/DataModelHandle.h"
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
+#include <functional>
 #include <item-lib.hpp>
 #include <memory>
 #include <ptr-handle.hpp>
@@ -71,6 +72,7 @@ class UserInterface
     void processEsc(bool keepMenuOpen = false);
     void addSystemMessage(const string& message);
     void addChatMessage(const ChatMessage& message);
+    void setChatCmdHistoryMax(unsigned maxHistoryEntries);
     UiDocHandle loadDocument(const std::string& name,
                              const std::string& documentPath);
     void unloadDocument(UiDocHandle handle);
@@ -118,6 +120,10 @@ class UserInterface
     void submitChatInput();
     void focusChatInput();
     bool parseSendMsg(const string& message, InputMsgParseData& parseData);
+    bool isChatInputFocused() const;
+    bool handleCmdHistoryKey(Rml::Input::KeyIdentifier key);
+    void pushCmdHistory(const std::string& cmd);
+    void resetCmdHistoryBrowse();
 
     friend class ChatInputChangeListener;
 
@@ -145,6 +151,10 @@ class UserInterface
     std::unique_ptr<ChatInputChangeListener> chatInputChangeListener;
 
     CmdCallback cmdCallback;
+    unsigned maxCmdHistoryEntries = 50;
+    std::vector<std::string> cmdHistory;
+    int cmdHistoryBrowseIndex = -1;
+    std::string cmdHistoryDraft;
 };
 
 }  // namespace ui
