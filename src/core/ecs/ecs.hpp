@@ -55,6 +55,7 @@ class Ecs
     void destroyEntity(EntityId entityId);
     bool validId(EntityId entityId);
     entt::entity getEntity(EntityId entityId);
+    EntityId getEntityIdFromIdx(uint32_t index);
     const vector<System>& getRegisteredSystems();
     void registerSystem(const System system);
     bool spawnEntityFromAsset(EntityId entityId,

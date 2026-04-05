@@ -4,9 +4,11 @@
 #include "std-inc.hpp"
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
+#include <components/comp-phy.hpp>
 #include <engine-impl.hpp>
 #include <protocol.hpp>
 #include <server.hpp>
+#include <sys-phy.hpp>
 #include <version.hpp>
 
 namespace sphys
@@ -44,6 +46,11 @@ void Engine::start()
     cFac->registerComponent<ecs::PhysicsBody>();
     cFac->registerComponent<ecs::AssetId>();
     cFac->registerComponent<ecs::PhyThrust>();
+    cFac->registerComponent<ecs::PhyPidHold>();
+
+    ecs.registerSystem(ecs::sysPhyPidHold);
+    ecs.registerSystem(ecs::sysPhyThrust);
+    ecs.registerSystem(ecs::sysPhysics);
 
     registerConsoleCommands();
 
@@ -92,7 +99,9 @@ void Engine::engineLoop()
                 if (loadFromFolder())
                 {
                     spawnEntityFromAsset(
-                        "test", 27, ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
+                        "test",
+                        27,
+                        ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
                     state = EngineState::Running;
                 }
                 else
@@ -612,29 +621,26 @@ void Engine::registerConsoleCommands()
 {
     commandManager.registerCommand(
         {"ping"},
-        [this](const cmd::CommandArgs&)
-        { return "Ok: Pong"; },
+        [this](const cmd::CommandArgs&) { return "Ok: Pong"; },
         "Reply with a pong message");
 
-    commandManager.registerCommand(
-        {"log", "warn"},
-        [this](const cmd::CommandArgs& a)
-        {
-            LG_W("{}", a.flags.at("-m"));
-            return "Ok";
-        },
-        "Log a warning on the server",
-        {{"-m", "Message text", true}});
+    commandManager.registerCommand({"log", "warn"},
+                                   [this](const cmd::CommandArgs& a)
+                                   {
+                                       LG_W("{}", a.flags.at("-m"));
+                                       return "Ok";
+                                   },
+                                   "Log a warning on the server",
+                                   {{"-m", "Message text", true}});
 
-    commandManager.registerCommand(
-        {"log"},
-        [this](const cmd::CommandArgs& a)
-        {
-            LG_I("{}", a.flags.at("-m"));
-            return "Ok";
-        },
-        "Log an info message on the server",
-        {{"-m", "Message text", true}});
+    commandManager.registerCommand({"log"},
+                                   [this](const cmd::CommandArgs& a)
+                                   {
+                                       LG_I("{}", a.flags.at("-m"));
+                                       return "Ok";
+                                   },
+                                   "Log an info message on the server",
+                                   {{"-m", "Message text", true}});
 
     commandManager.registerCommand(
         {"help"},
@@ -651,7 +657,8 @@ void Engine::registerConsoleCommands()
             }
             return commandManager.help(path);
         },
-        "List all commands, or: help <cmd> [subcmd ...] (e.g. help asset list)");
+        "List all commands, or: help <cmd> [subcmd ...] (e.g. help asset "
+        "list)");
 
     commandManager.registerCommand(
         {"asset", "list"},
@@ -678,6 +685,62 @@ void Engine::registerConsoleCommands()
         { return assetFactory.assetInfo(a.flags.at("-a")); },
         "Print information for one asset",
         {{"-a", "Asset id", true}});
+
+    commandManager.registerCommand(
+        {"phy-pid-hold", "set"},
+        [this](const cmd::CommandArgs& a) -> std::string
+        {
+            try
+            {
+                std::string idxStr = a.flags.at("-e");
+                uint32_t idx = std::stoul(idxStr);
+                ecs::EntityId entityId = ecs.getEntityIdFromIdx(idx);
+
+                entt::entity ent = ecs.getEntity(entityId);
+                if (ent == entt::null)
+                {
+                    return "Failed: Entity not found";
+                }
+
+                if (ecs.getRegistry().all_of<ecs::PhyPidHold>(ent))
+                {
+                    auto& pidHold = ecs.getRegistry().get<ecs::PhyPidHold>(ent);
+
+                    if (const auto it = a.flags.find("-x");
+                        it != a.flags.end() && !it->second.empty())
+                    {
+                        pidHold.posSet.x = std::stof(it->second);
+                    }
+                    if (const auto it = a.flags.find("-y");
+                        it != a.flags.end() && !it->second.empty())
+                    {
+                        pidHold.posSet.y = std::stof(it->second);
+                    }
+                    if (const auto it = a.flags.find("-r");
+                        it != a.flags.end() && !it->second.empty())
+                    {
+                        pidHold.rotSet = std::stof(it->second);
+                    }
+
+                    pidHold.enabled = true;
+                }
+                else
+                {
+                    return "Failed: PhyPidHold component not found";
+                }
+
+                return "Ok";
+            }
+            catch (const std::exception& e)
+            {
+                return std::string("Failed: ") + e.what();
+            }
+        },
+        "Update phy-pid-hold for an entity",
+        {{"-e", "Entity id", true},
+         {"-x", "X position", false},
+         {"-y", "Y position", false},
+         {"-r", "Rotation", false}});
 }
 
 void Engine::runSlowClientDump(long frameTime)

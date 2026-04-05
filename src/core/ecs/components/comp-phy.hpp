@@ -184,6 +184,70 @@ struct PhyThrust
 EXT_SER(PhyThrust, SER_PHY_THRUST)
 EXT_DES(PhyThrust, SER_PHY_THRUST)
 
+/// Cascaded position / heading hold. \a posSet is sector-local (same frame as
+/// \ref Transform::pos). When \a enabled, \ref sysPhyPidHold overwrites thrust
+/// and torque using mass- and inertia-scaled PID outputs.
+struct PhyPidHold
+{
+    static const uint16_t VERSION = 1;
+    static constexpr string NAME = "phy-pid-hold";
+
+    bool enabled = false;
+    vec2 posSet = {0.0f, 0.0f};
+    float rotSet = 0.0f;
+
+    vec2 velIntegral = {0.0f, 0.0f};
+    vec2 prevVelErr = {0.0f, 0.0f};
+    float rotVelIntegral = 0.0f;
+    float prevOmegaErr = 0.0f;
+    bool prevValid = false;
+
+    static void fromYaml(entt::registry& registry,
+                         entt::entity entity,
+                         const YAML::Node& node)
+    {
+        PhyPidHold c;
+        TRY_YAML_DICT(c.enabled, node["enabled"], false);
+        TRY_YAML_DICT(c.posSet, node["posSet"], vec2(0.0f, 0.0f));
+        TRY_YAML_DICT(c.rotSet, node["rotSet"], 0.0f);
+        c.velIntegral = {0.0f, 0.0f};
+        c.prevVelErr = {0.0f, 0.0f};
+        c.rotVelIntegral = 0.0f;
+        c.prevOmegaErr = 0.0f;
+        c.prevValid = false;
+        registry.emplace<PhyPidHold>(entity, c);
+    }
+};
+
+#define SER_PHY_PID_HOLD                                                       \
+    float phyPidHold_enF = o.enabled ? 1.0f : 0.0f;                            \
+    S4b(phyPidHold_enF);                                                       \
+    SOBJ(o.posSet);                                                            \
+    S4b(o.rotSet);                                                             \
+    SOBJ(o.velIntegral);                                                       \
+    SOBJ(o.prevVelErr);                                                        \
+    S4b(o.rotVelIntegral);                                                     \
+    S4b(o.prevOmegaErr);                                                       \
+    float phyPidHold_pvF = o.prevValid ? 1.0f : 0.0f;                          \
+    S4b(phyPidHold_pvF);
+
+#define DES_PHY_PID_HOLD                                                       \
+    float phyPidHold_enF;                                                      \
+    S4b(phyPidHold_enF);                                                       \
+    o.enabled = phyPidHold_enF > 0.5f;                                         \
+    SOBJ(o.posSet);                                                            \
+    S4b(o.rotSet);                                                             \
+    SOBJ(o.velIntegral);                                                       \
+    SOBJ(o.prevVelErr);                                                        \
+    S4b(o.rotVelIntegral);                                                     \
+    S4b(o.prevOmegaErr);                                                       \
+    float phyPidHold_pvF;                                                      \
+    S4b(phyPidHold_pvF);                                                       \
+    o.prevValid = phyPidHold_pvF > 0.5f;
+
+EXT_SER(PhyPidHold, SER_PHY_PID_HOLD)
+EXT_DES(PhyPidHold, DES_PHY_PID_HOLD)
+
 }  // namespace ecs
 
 EXT_FMT(ecs::Transform, "(pos: {}, rot: {})", o.pos, o.rot);
@@ -209,5 +273,10 @@ EXT_FMT(ecs::PhyThrust,
         o.thrustMainMax,
         o.thrustManeuverMax,
         o.maxSpd);
+EXT_FMT(ecs::PhyPidHold,
+        "(enabled: {}, posSet: {}, rotSet: {})",
+        o.enabled,
+        o.posSet,
+        o.rotSet);
 
 #endif

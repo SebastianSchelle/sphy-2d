@@ -58,6 +58,15 @@ entt::entity Ecs::getEntity(EntityId entityId)
     return idMap[entityId.index].entity;
 }
 
+EntityId Ecs::getEntityIdFromIdx(uint32_t index)
+{
+    if(index < idMap.size())
+    {
+        return {index, idMap[index].generation};
+    }
+    return {0, 0};
+}
+
 const vector<System>& Ecs::getRegisteredSystems()
 {
     return registeredSystems;
