@@ -105,13 +105,6 @@ void UserInterface::update()
 {
     static tim::Timepoint lastUpdateTime = tim::getCurrentTimeU();
     static int i = 0;
-    DO_PERIODIC(lastUpdateTime,
-                TIM_1S,
-                [this]()
-                {
-                    addSystemMessage("Test message " + std::to_string(i));
-                    i++;
-                });
     rmlContext->Update();
     if (focusChatInputOnNextUpdate && chatOpen)
     {

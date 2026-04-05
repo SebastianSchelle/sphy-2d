@@ -612,54 +612,72 @@ void Engine::registerConsoleCommands()
 {
     commandManager.registerCommand(
         {"ping"},
-        [this](const std::vector<std::string>& arguments)
-        { return "Ok: Pong"; });
+        [this](const cmd::CommandArgs&)
+        { return "Ok: Pong"; },
+        "Reply with a pong message");
 
     commandManager.registerCommand(
         {"log", "warn"},
-        [this](const std::vector<std::string>& arguments)
+        [this](const cmd::CommandArgs& a)
         {
-            LG_W("{}", arguments);
+            LG_W("{}", a.flags.at("-m"));
             return "Ok";
         },
-        1);
+        "Log a warning on the server",
+        {{"-m", "Message text", true}});
 
     commandManager.registerCommand(
         {"log"},
-        [this](const std::vector<std::string>& arguments)
+        [this](const cmd::CommandArgs& a)
         {
-            LG_I("{}", arguments);
+            LG_I("{}", a.flags.at("-m"));
             return "Ok";
         },
-        1);
+        "Log an info message on the server",
+        {{"-m", "Message text", true}});
 
     commandManager.registerCommand(
         {"help"},
-        [this](const std::vector<std::string>& arguments)
+        [this](const cmd::CommandArgs& a)
         {
-            if (arguments.empty())
+            if (a.positionals.empty())
             {
                 return commandManager.help("");
             }
-            else
+            string path = a.positionals[0];
+            for (size_t i = 1; i < a.positionals.size(); ++i)
             {
-                return commandManager.help(arguments[0]);
+                path += "." + a.positionals[i];
             }
-        });
+            return commandManager.help(path);
+        },
+        "List all commands, or: help <cmd> [subcmd ...] (e.g. help asset list)");
 
     commandManager.registerCommand(
         {"asset", "list"},
-        [this](const std::vector<std::string>& arguments)
+        [this](const cmd::CommandArgs& a)
         {
-            return assetFactory.assetList(arguments.empty() ? "all"
-                                                            : arguments[0]);
-        });
+            string cat = "all";
+            const auto it = a.flags.find("-c");
+            if (it != a.flags.end() && !it->second.empty())
+            {
+                cat = it->second;
+            }
+            else if (!a.positionals.empty())
+            {
+                cat = a.positionals[0];
+            }
+            return assetFactory.assetList(cat);
+        },
+        "List assets, optionally filtered by category",
+        {{"-c", "Category filter (default: all)", false}});
 
     commandManager.registerCommand(
         {"asset", "info"},
-        [this](const std::vector<std::string>& arguments)
-        { return assetFactory.assetInfo(arguments[0]); },
-        1);
+        [this](const cmd::CommandArgs& a)
+        { return assetFactory.assetInfo(a.flags.at("-a")); },
+        "Print information for one asset",
+        {{"-a", "Asset id", true}});
 }
 
 void Engine::runSlowClientDump(long frameTime)

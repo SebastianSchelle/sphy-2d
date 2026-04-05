@@ -2,12 +2,25 @@
 #define COMMAND_NODE_HPP
 
 #include <std-inc.hpp>
+#include <unordered_map>
 
 namespace cmd
 {
 
-typedef std::function<string(const std::vector<std::string>& arguments)>
-    CommandCallback;
+struct CommandArgs
+{
+    std::unordered_map<string, string> flags;
+    std::vector<string> positionals;
+};
+
+struct CommandFlagDef
+{
+    string name;
+    string help;
+    bool required = false;
+};
+
+typedef std::function<string(const CommandArgs&)> CommandCallback;
 
 class CommandNode
 {
@@ -16,12 +29,13 @@ class CommandNode
     virtual ~CommandNode();
     virtual bool registerCommand(vector<std::string> commandPath,
                                  CommandCallback callback,
-                                 uint8_t minArgCnt = 0) = 0;
+                                 const string& commandHelp,
+                                 const std::vector<CommandFlagDef>& flagDefs) = 0;
     virtual string execute(vector<std::string> commandPath,
-                           const std::vector<std::string>& arguments) = 0;
+                           const CommandArgs& args) = 0;
     const string& getKeyword() const;
     virtual bool isLeaf() const = 0;
-    virtual string help(const string& command) = 0;
+    virtual string helpSummary(const string& dottedPath) const = 0;
 
   protected:
     std::string keyword;
@@ -34,16 +48,20 @@ class CommandBranch : public CommandNode
     ~CommandBranch();
     bool registerCommand(vector<std::string> commandPath,
                          CommandCallback callback,
-                         uint8_t minArgCnt = 0) override;
+                         const string& commandHelp,
+                         const std::vector<CommandFlagDef>& flagDefs) override;
     string execute(vector<std::string> commandPath,
-                   const std::vector<std::string>& arguments) override;
-    auto findChildBranch(const string& keyword);
-    auto findChildLeaf(const string& keyword);
+                   const CommandArgs& args) override;
+    auto findChildBranch(const string& kw) const;
+    auto findChildLeaf(const string& kw) const;
     bool isLeaf() const override
     {
         return false;
     }
-    string help(const string& command) override;
+    string helpSummary(const string& dottedPath) const override;
+    string helpList(const string& prefix) const;
+    string helpNavigate(const std::vector<string>& path,
+                        const string& prefix) const;
 
   private:
     std::vector<std::shared_ptr<CommandNode>> children;
@@ -54,23 +72,26 @@ class CommandLeaf : public CommandNode
   public:
     CommandLeaf(const string& key,
                 CommandCallback callback,
-                uint8_t minArgCnt = 0);
+                string commandHelp,
+                std::vector<CommandFlagDef> flagDefs);
     ~CommandLeaf();
     bool registerCommand(vector<std::string> commandPath,
                          CommandCallback callback,
-                         uint8_t minArgCnt = 0) override;
+                         const string& commandHelp,
+                         const std::vector<CommandFlagDef>& flagDefs) override;
     string execute(vector<std::string> commandPath,
-                   const std::vector<std::string>& arguments) override;
+                   const CommandArgs& args) override;
     bool isLeaf() const override
     {
         return true;
     }
-    string help(const string& command) override;
+    string helpSummary(const string& dottedPath) const override;
+    string formatFullHelp(const string& dottedPath) const;
 
   private:
-    std::string value;
     CommandCallback callback;
-    uint8_t minArgCnt;
+    string commandHelp;
+    std::vector<CommandFlagDef> flagDefs;
 };
 
 class CommandManager
@@ -80,9 +101,12 @@ class CommandManager
     ~CommandManager();
     bool registerCommand(vector<std::string> commandPath,
                          CommandCallback callback,
-                         uint8_t minArgCnt = 0);
+                         const string& commandHelp = {},
+                         const std::vector<CommandFlagDef>& flagDefs = {});
     string executeCommand(const std::string& command);
-    string help(const std::string& command);
+    string help(const std::string& commandPath);
+
+    static CommandArgs parseArgumentTokens(const std::vector<string>& tokens);
 
   private:
     CommandBranch commandTree;
