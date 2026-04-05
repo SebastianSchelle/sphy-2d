@@ -14,9 +14,9 @@ World::~World() {}
 
 bool World::createFromConfig(cfg::ConfigManager& config)
 {
-    worldShape.numSectorX = CFG_UINT(config, "world", "num-sector-x");
-    worldShape.numSectorY = CFG_UINT(config, "world", "num-sector-y");
-    worldShape.sectorSize = CFG_FLOAT(config, "world", "sector-size");
+    worldShape.numSectorX = CFG_UINT(config, 10.0f, "world", "num-sector-x");
+    worldShape.numSectorY = CFG_UINT(config, 10.0f, "world", "num-sector-y");
+    worldShape.sectorSize = CFG_FLOAT(config, 5000.0f, "world", "sector-size");
     if (!initWorld())
     {
         LG_E("World initialization failed");

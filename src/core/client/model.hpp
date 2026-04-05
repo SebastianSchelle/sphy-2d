@@ -19,7 +19,7 @@ namespace sphyc
 class Model
 {
   public:
-    Model(ui::UserInterface* userInterface, std::function<void(void)> afterLoadWorldClb);
+    Model(ui::UserInterface* userInterface, cfg::ConfigManager& config, std::function<void(void)> afterLoadWorldClb);
     ~Model();
     void parseCommandData(const net::CmdQueueData& cmdData);
     void parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
@@ -44,6 +44,7 @@ class Model
     entt::registry& getRegistry() { return ecs.getRegistry(); }
     ecs::EntityId getSelectedEntity() const { return selectedEntity; }
     ecs::EcsClient* getEcs() { return &ecs; }
+    world::World& getWorld() { return world; }
 
   private:
     void modelLoopMenu(float dt);
@@ -54,6 +55,7 @@ class Model
     void reqAllComponents(ecs::EntityId entity);
     void handleReqAllComponentsResp(bitsery::Deserializer<InputAdapter>& cmddes, uint16_t posNextCmdOrEof);
 
+    cfg::ConfigManager& config;
     net::TimeSync timeSyncData;
     ClientGameState gameState = ClientGameState::Init;
     net::ExchangeSequence loadWorldSequence;

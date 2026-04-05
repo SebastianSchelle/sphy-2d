@@ -52,28 +52,27 @@ ConfigBranch::ConfigBranch(const string& file,
 
 ConfigBranch::~ConfigBranch() {}
 
-nodeVal_t ConfigBranch::get(std::vector<string>& path) const
+nodeVal_t ConfigBranch::get(std::vector<string>& path,
+                            const nodeVal_t& def) const
 {
-    if(!path.empty())
+    if (!path.empty())
     {
-        const auto &child = children.find(path.back());
-        if(child != children.end())        
+        const auto& child = children.find(path.back());
+        if (child != children.end())
         {
             path.pop_back();
-            return child->second->get(path);
+            return child->second->get(path, def);
         }
-        LG_E("Config branch {} not found", path.back());
     }
-    LG_E("Config request ended in branch {}", name.c_str());
-    return nodeVal_t(0.0f);
+    return def;
 }
 
 void ConfigBranch::set(std::vector<string>& path, nodeVal_t value)
 {
-    if(!path.empty())
+    if (!path.empty())
     {
-        const auto &child = children.find(path.back());
-        if(child != children.end())        
+        const auto& child = children.find(path.back());
+        if (child != children.end())
         {
             path.pop_back();
             child->second->set(path, value);
@@ -85,7 +84,6 @@ void ConfigBranch::set(std::vector<string>& path, nodeVal_t value)
 
 void ConfigBranch::addDefs(YAML::Node& node, const string& file)
 {
-    
     for (auto it = node.begin(); it != node.end(); ++it)
     {
         const string& branchName = it->first.as<std::string>();
@@ -120,7 +118,9 @@ void ConfigBranch::addDefs(YAML::Node& node, const string& file)
 }
 
 
-ConfigLeaf::ConfigLeaf(const string& file, const string& name, const YAML::Node& node)
+ConfigLeaf::ConfigLeaf(const string& file,
+                       const string& name,
+                       const YAML::Node& node)
     : ConfigNode(name)
 {
     if (!node.IsScalar())
@@ -134,29 +134,37 @@ ConfigLeaf::ConfigLeaf(const string& file, const string& name, const YAML::Node&
         LG_D(
             "Create config leaf {} ({})", name.c_str(), std::get<float>(value));
     }
-    catch (std::exception& e)
+    catch (YAML::BadConversion& e)
     {
         try
         {
-            value = node.as<string>();
+            value = (float)node.as<uint>();
             valueDefault = value;
-            LG_D("Create config leaf {} ({})",
-                 name.c_str(),
-                 std::get<string>(value).c_str());
+            LG_D("Create config leaf {} ({})", name.c_str(), std::get<float>(value));
         }
-        catch (std::exception& e)
+        catch (YAML::BadConversion& e)
         {
-            throw InvalidConfigItem(file, name);
+            try
+            {
+                value = node.as<string>();
+                valueDefault = value;
+                LG_D("Create config leaf {} ({})",
+                     name.c_str(),
+                     std::get<string>(value).c_str());
+            }
+            catch (YAML::BadConversion& e)
+            {
+                throw InvalidConfigItem(file, name);
+            }
         }
     }
 }
 
 ConfigLeaf::~ConfigLeaf() {}
 
-nodeVal_t ConfigLeaf::get(std::vector<string>& path) const
+nodeVal_t ConfigLeaf::get(std::vector<string>& path, const nodeVal_t& def) const
 {
     return value;
-    LG_D("Get config leaf {} to {}", name.c_str(), std::get<float>(value));
 }
 
 void ConfigLeaf::set(std::vector<string>& path, nodeVal_t value)

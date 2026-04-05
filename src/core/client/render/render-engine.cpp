@@ -91,21 +91,21 @@ bool RenderEngine::initPre()
 
     VertexPosColTex::init();
 
-    texWidth =
-        static_cast<int>(std::get<float>(config.get({"gfx", "tex-width"})));
-    texHeight =
-        static_cast<int>(std::get<float>(config.get({"gfx", "tex-height"})));
-    int texLayerCnt =
-        static_cast<int>(std::get<float>(config.get({"gfx", "tex-layer-cnt"})));
-    int texBucketSize = static_cast<int>(
-        std::get<float>(config.get({"gfx", "tex-bucket-size"})));
-    float texExcessHeightThreshold = static_cast<float>(
-        std::get<float>(config.get({"gfx", "tex-excess-height-threshold"})));
-
-    zoomPanCfgWorld.zoomStep = CFG_FLOAT(config, "gfx", "zoom-step", "world");
-    zoomPanCfgWorld.maxZoom = CFG_FLOAT(config, "gfx", "max-zoom", "world");
-    zoomPanCfgWorld.minZoom = CFG_FLOAT(config, "gfx", "min-zoom", "world");
-    zoomPanCfgWorld.panSpeed = CFG_FLOAT(config, "gfx", "pan-speed", "world");
+    texWidth = CFG_INT(config, 2000.0f, "gfx", "tex-width");
+    texHeight = CFG_INT(config, 2000.0f, "gfx", "tex-height");
+    const int texLayerCnt = CFG_INT(config, 16.0f, "gfx", "tex-layer-cnt");
+    const int texBucketSize =
+        CFG_INT(config, 1000.0f, "gfx", "tex-bucket-size");
+    const float texExcessHeightThreshold =
+        CFG_FLOAT(config, 0.8f, "gfx", "tex-excess-height-threshold");
+    zoomPanCfgWorld.zoomStep =
+        CFG_FLOAT(config, 0.1f, "gfx", "zoom-step", "world");
+    zoomPanCfgWorld.maxZoom =
+        CFG_FLOAT(config, 10.0f, "gfx", "max-zoom", "world");
+    zoomPanCfgWorld.minZoom =
+        CFG_FLOAT(config, 0.01f, "gfx", "min-zoom", "world");
+    zoomPanCfgWorld.panSpeed =
+        CFG_FLOAT(config, 10.0f, "gfx", "pan-speed", "world");
 
     textureLoader.init(texWidth,
                        texHeight,
@@ -834,14 +834,14 @@ void RenderEngine::screenToSectorCoords(const vec2& screenPx,
 
     const float S = worldShape->sectorSize;
     // worldPos is in camera-local space (same as worldCamera* after rebasing).
-    // Absolute sector sx has world center sx*S in absolute coords; in local space
-    // that center is (sx - sectorOffset) * S — see Sector / worldToLocal style math.
-    const float cx =
-        (float(sectorCoords.pos.x) - float(sectorOffsetX)) * S;
-    const float cy =
-        (float(sectorCoords.pos.y) - float(sectorOffsetY)) * S;
-    sectorCoords.sectorPos = {std::clamp(worldPos.x - cx, -sectorSizeHalf, sectorSizeHalf),
-                              std::clamp(worldPos.y - cy, -sectorSizeHalf, sectorSizeHalf)};
+    // Absolute sector sx has world center sx*S in absolute coords; in local
+    // space that center is (sx - sectorOffset) * S — see Sector / worldToLocal
+    // style math.
+    const float cx = (float(sectorCoords.pos.x) - float(sectorOffsetX)) * S;
+    const float cy = (float(sectorCoords.pos.y) - float(sectorOffsetY)) * S;
+    sectorCoords.sectorPos = {
+        std::clamp(worldPos.x - cx, -sectorSizeHalf, sectorSizeHalf),
+        std::clamp(worldPos.y - cy, -sectorSizeHalf, sectorSizeHalf)};
 }
 
 }  // namespace gfx

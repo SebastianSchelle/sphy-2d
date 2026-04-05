@@ -3,19 +3,21 @@
 
 #include "config-node.hpp"
 
-#define CFG_INT(cfg_, ...)                                                     \
-    static_cast<int>(std::get<float>(cfg_.get({__VA_ARGS__})));
-#define CFG_UINT(cfg_, ...)                                                    \
-    static_cast<uint>(std::get<float>(cfg_.get({__VA_ARGS__})) >= 0.0f     \
-                              ? std::get<float>(cfg_.get({__VA_ARGS__}))       \
-                              : 0.0f);
-#define CFG_FLOAT(cfg_, ...) std::get<float>(cfg_.get({__VA_ARGS__}));
-#define CFG_STRING(cfg_, ...) std::get<string>(cfg_.get({__VA_ARGS__}));
-#define CFG_BOOL(cfg_, ...) std::get<float>(cfg_.get({__VA_ARGS__}) > 0.0f);
+#define CFG_INT(cfg_, def_, ...)                                               \
+    static_cast<int>(std::get<float>(cfg_.get({__VA_ARGS__}, def_)));
+#define CFG_UINT(cfg_, def_, ...)                                              \
+    static_cast<uint>(std::get<float>(cfg_.get({__VA_ARGS__}, def_)) >= 0.0f   \
+                          ? std::get<float>(cfg_.get({__VA_ARGS__}, def_))     \
+                          : 0.0f);
+#define CFG_FLOAT(cfg_, def_, ...)                                             \
+    std::get<float>(cfg_.get({__VA_ARGS__}, def_));
+#define CFG_STRING(cfg_, def_, ...)                                            \
+    std::get<string>(cfg_.get({__VA_ARGS__}, def_));
+#define CFG_BOOL(cfg_, def_, ...)                                              \
+    std::get<float>(cfg_.get({__VA_ARGS__}, def_) > 0.0f);
 
 namespace cfg
 {
-
 
 class ConfigManager
 {
@@ -24,7 +26,8 @@ class ConfigManager
     ConfigManager();
     ~ConfigManager();
     void clear();
-    nodeVal_t get(std::vector<string> path) const;
+    nodeVal_t get(std::vector<string> path,
+                  const nodeVal_t& def = nodeVal_t(0.0f)) const;
     void set(std::vector<string> path, nodeVal_t value);
     void addDefs(const string& file);
 

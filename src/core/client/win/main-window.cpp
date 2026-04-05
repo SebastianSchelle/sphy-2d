@@ -9,6 +9,8 @@
 #include <memory>
 #include <os-helper.hpp>
 #include <sol/sol.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/norm.hpp>
 
 #if BX_PLATFORM_LINUX
 #define GLFW_EXPOSE_NATIVE_X11
@@ -24,7 +26,7 @@ namespace ui
 {
 
 
-void MouseState::processMouseButton(uint8_t i)
+void MouseState::processMouseButton(uint8_t i, float zoom, float dragThreshold)
 {
     buttonReleased[i] = false;
     singleClick[i] = false;
@@ -32,10 +34,14 @@ void MouseState::processMouseButton(uint8_t i)
     longClick[i] = false;
     buttonPressed[i] = false;
     hold[i] = false;
+    bool dragActiveLast = dragActive[i];
+    dragActive[i] = false;
+    dragFinished[i] = false;
 
     if (buttons[i] && !lastButtons[i])
     {
         timePressed[i] = tim::getCurrentTimeU();
+        mouseCoordsPressed[i] = mouseCoords;
         buttonPressed[i] = true;
         long clickDelta = tim::durationU(lastSingleClick[i], timePressed[i]);
         if (clickDelta < 300000U)
@@ -53,18 +59,34 @@ void MouseState::processMouseButton(uint8_t i)
     {
         auto now = tim::getCurrentTimeU();
         buttonReleased[i] = true;
+        mouseCoordsReleased[i] = mouseCoords;
         long clickDuration = tim::durationU(timePressed[i], now);
-        if (clickDuration > 300000U)
+        if (dragActiveLast)
+        {
+            LG_D("button {} drag finished {} - {}",
+                 i,
+                 mouseCoordsPressed[i],
+                 mouseCoordsReleased[i]);
+            dragFinished[i] = true;
+        }
+        else if (clickDuration > 300000U)
         {
             longClick[i] = true;
-            // LG_D("button {} long click", i);
         }
         else
         {
             singleClick[i] = true;
             lastSingleClick[i] = now;
-            // LG_D("button {} short click", i);
         }
+    }
+    else if (buttons[i]
+             && (mouseCoords.pos != mouseCoordsPressed[i].pos
+                 || glm::length2(mouseCoords.sectorPos
+                                 - mouseCoordsPressed[i].sectorPos)
+                        >= dragThreshold / (zoom * zoom)))
+    {
+        dragActive[i] = true;
+        LG_D("button {} drag active", i);
     }
 }
 
@@ -75,13 +97,24 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
       client(config, model.sendQueue, model.receiveQueue), modManager(),
       modLoadingHandle(UiDocHandle::Invalid()),
       userInterface(std::bind(&MainWindow::onCmd, this, std::placeholders::_1)),
-      model(&userInterface, std::bind(&MainWindow::onAfterLoadWorld, this))
+      model(&userInterface,
+            config,
+            std::bind(&MainWindow::onAfterLoadWorld, this))
 {
     auto path(options.workingdir);
     std::filesystem::current_path(path);
-    uint8_t logLevel =
-        static_cast<uint8_t>(std::get<float>(config.get({"loglevel"})));
+
+    uint8_t logLevel = CFG_UINT(config, 1.0f, "loglevel");
     debug::createLogger("logs/logClient.txt", logLevel);
+    dragThreshold =
+        CFG_FLOAT(config, 300.0f, "input", "drag-threshold", "world");
+    dragBoxColor = CFG_UINT(
+        config, (float)0x2085e085, "theme", "input", "drag-box", "color");
+    dragBoxThickness = CFG_FLOAT(
+        config, 1.0f, "theme", "input", "drag-box", "thickness");
+    
+    LG_I("drag threshold: 0x{:x}", dragBoxColor);
+
     glfwSetErrorCallback(errorCallback);
     client.setShutdownCallback(
         [this]()
@@ -156,8 +189,8 @@ bool MainWindow::initPost()
 
 bool MainWindow::createWindow()
 {
-    uint32_t wWidth = CFG_UINT(config, "win", "width");
-    uint32_t wHeight = CFG_UINT(config, "win", "height");
+    uint32_t wWidth = CFG_UINT(config, 1200.0f, "win", "width");
+    uint32_t wHeight = CFG_UINT(config, 800.0f, "win", "height");
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     window = glfwCreateWindow(wWidth, wHeight, "window", nullptr, nullptr);
@@ -224,10 +257,8 @@ void MainWindow::winLoop()
 
         mouseState.mz = 0;
         glfwPollEvents();
-        processMouseState();
+        setupMouseState();
         handleWinResize();
-
-        renderEngine.screenToSectorCoords(mouseState.mousePos, mouseState.mouseSectorCoords);
 
         const bool mouseOverUi =
             userInterface.processMouseMove(mouseState.mousePos, 0);
@@ -245,6 +276,8 @@ void MainWindow::winLoop()
                 userInterface.processMouseButtonUp(i, 0);
             }
         }
+
+        ProcessMouseStateNoui();
 
         if (!mouseOverUi && !mouseWheelInteract)
         {
@@ -327,14 +360,16 @@ void MainWindow::winLoop()
             //                            1.0f/zoom);
 
             // renderEngine.drawRectangle(glm::vec2(200.0f + 50.0f * sin(t),
-            //                                      60.0f + 50.0f * cos(t * 1.5f)),
+            //                                      60.0f + 50.0f * cos(t
+            //                                      * 1.5f)),
             //                            glm::vec2(10.0f, 10.0f),
             //                            0xffffffff,
             //                            4.0f,
             //                            -t * 50.0f,
             //                            0);
             // renderEngine.drawRectangle(glm::vec2(200.0f + 50.0f * sin(t),
-            //                                      60.0f + 50.0f * cos(t * 1.5f)),
+            //                                      60.0f + 50.0f * cos(t
+            //                                      * 1.5f)),
             //                            glm::vec2(200.0f, 200.0f),
             //                            0xff00ff10,
             //                            2.0f,
@@ -348,17 +383,50 @@ void MainWindow::winLoop()
             //                          0);
             // renderEngine.drawEllipse(glm::vec2(160.0f, 260.0f),
             //                          glm::vec2(60.0f + 50.0f * sin(t),
-            //                                    60.0f + 50.0f * cos(t * 1.5f)),
+            //                                    60.0f + 50.0f * cos(t
+            //                                    * 1.5f)),
             //                          0xab0112ff,
             //                          1.0f,
             //                          0,
             //                          0);
             model.drawDebug(renderEngine, zoom);
+
+            if (mouseState.dragActive[0])
+            {
+                drawWorldRectangle(mouseState.mouseCoordsPressed[0],
+                                   mouseState.mouseCoords,
+                                   dragBoxColor,
+                                   dragBoxThickness / zoom,
+                                   0.0f);
+            }
         }
 
         userInterface.render();
         renderEngine.endFrame();
     }
+}
+
+void MainWindow::drawWorldRectangle(const def::SectorCoords& A,
+                                    const def::SectorCoords& B,
+                                    uint32_t colorABGR,
+                                    float thickness,
+                                    float rotationRad)
+{
+    vec2 offsA = model.getWorld().getWorldPosSectorOffset(
+        A.pos.x,
+        A.pos.y,
+        renderEngine.getSectorOffsetX(),
+        renderEngine.getSectorOffsetY());
+    vec2 offsB = model.getWorld().getWorldPosSectorOffset(
+        B.pos.x,
+        B.pos.y,
+        renderEngine.getSectorOffsetX(),
+        renderEngine.getSectorOffsetY());
+    vec2 a = offsA + A.sectorPos;
+    vec2 b = offsB + B.sectorPos;
+    vec2 pos = (a + b) / 2.0f;
+    vec2 size = glm::abs(b - a);
+    renderEngine.drawRectangle(pos, size, colorABGR, thickness, rotationRad);
 }
 
 void MainWindow::processUiTasks()
@@ -502,7 +570,7 @@ void MainWindow::loadingLoop()
     }
 }
 
-void MainWindow::processMouseState()
+void MainWindow::setupMouseState()
 {
     double mx, my;
     glfwGetCursorPos(window, &mx, &my);
@@ -514,17 +582,17 @@ void MainWindow::processMouseState()
         glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
     mouseState.buttons[2] =
         glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS;
+}
 
-    mouseState.mousePosRel.x =
-        (float)mouseState.mousePos.x / (float)wInfo.size.x
-        - 0.5f;  // 0.0 to 1.0
-    mouseState.mousePosRel.y =
-        (float)mouseState.mousePos.y / (float)wInfo.size.y
-        - 0.5f;  // 0.0 to 1.0
+void MainWindow::ProcessMouseStateNoui()
+{
+    renderEngine.screenToSectorCoords(mouseState.mousePos,
+                                      mouseState.mouseCoords);
 
-    mouseState.processMouseButton(0);
-    mouseState.processMouseButton(1);
-    mouseState.processMouseButton(2);
+    float zoom = renderEngine.getWorldZoom();
+    mouseState.processMouseButton(0, zoom, dragThreshold);
+    mouseState.processMouseButton(1, zoom, dragThreshold);
+    mouseState.processMouseButton(2, zoom, dragThreshold);
 
     mouseState.lastButtons[0] = mouseState.buttons[0];
     mouseState.lastButtons[1] = mouseState.buttons[1];
@@ -767,10 +835,10 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
     debugData.inputData.ptrOverUi = ptrOverUi;
     debugData.inputData.ptrScreenX = mouseState.mousePos.x;
     debugData.inputData.ptrScreenY = mouseState.mousePos.y;
-    debugData.inputData.ptrSectorX = mouseState.mouseSectorCoords.pos.x;
-    debugData.inputData.ptrSectorY = mouseState.mouseSectorCoords.pos.y;
-    debugData.inputData.ptrSectorPosX = mouseState.mouseSectorCoords.sectorPos.x;
-    debugData.inputData.ptrSectorPosY = mouseState.mouseSectorCoords.sectorPos.y;
+    debugData.inputData.ptrSectorX = mouseState.mouseCoords.pos.x;
+    debugData.inputData.ptrSectorY = mouseState.mouseCoords.pos.y;
+    debugData.inputData.ptrSectorPosX = mouseState.mouseCoords.sectorPos.x;
+    debugData.inputData.ptrSectorPosY = mouseState.mouseCoords.sectorPos.y;
     debugData.gameData.gameState = gameStateToString(model.getGameState());
     debugData.connectionData.serverLatency =
         model.getTimeSyncData().serverLatency;
@@ -783,7 +851,8 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
     auto& go = debugData.selGameObject;
     go.entityId = model.getSelectedEntity().index;
     go.generation = model.getSelectedEntity().generation;
-    entt::entity entity = model.getEcs()->enttFromServerId(model.getSelectedEntity());
+    entt::entity entity =
+        model.getEcs()->enttFromServerId(model.getSelectedEntity());
     go.hasTransform = false;
     go.hasPhysicsBody = false;
     go.hasPhyThrust = false;
@@ -794,8 +863,8 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
         go.posX = go.posY = go.rot = 0.f;
         go.mass = go.inertia = 0.f;
         go.velX = go.velY = go.rotVel = go.rotAcc = go.accX = go.accY = 0.f;
-        go.thrustGlobalX = go.thrustGlobalY = go.thrustLocalX = go.thrustLocalY =
-            0.f;
+        go.thrustGlobalX = go.thrustGlobalY = go.thrustLocalX =
+            go.thrustLocalY = 0.f;
         go.torque = go.maxTorque = go.maxRotVel = 0.f;
         go.thrustMainMax = go.thrustManeuverMax = go.maxSpd = 0.f;
         if (auto sectorIdComp = reg.try_get<ecs::SectorId>(entity))
@@ -844,8 +913,8 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
         go.posX = go.posY = go.rot = 0.f;
         go.mass = go.inertia = 0.f;
         go.velX = go.velY = go.rotVel = go.rotAcc = go.accX = go.accY = 0.f;
-        go.thrustGlobalX = go.thrustGlobalY = go.thrustLocalX = go.thrustLocalY =
-            0.f;
+        go.thrustGlobalX = go.thrustGlobalY = go.thrustLocalX =
+            go.thrustLocalY = 0.f;
         go.torque = go.maxTorque = go.maxRotVel = 0.f;
         go.thrustMainMax = go.thrustManeuverMax = go.maxSpd = 0.f;
     }
@@ -856,17 +925,22 @@ void MainWindow::setupDataModelDebug()
     auto debugConstructor = userInterface.getDataModel("debug");
     if (debugConstructor)
     {
-        if (auto md_handle = debugConstructor.RegisterStruct<UiDebugGameObject>())
+        if (auto md_handle =
+                debugConstructor.RegisterStruct<UiDebugGameObject>())
         {
             md_handle.RegisterMember("entityId", &UiDebugGameObject::entityId);
-            md_handle.RegisterMember("generation", &UiDebugGameObject::generation);
-            md_handle.RegisterMember("hasSectorId", &UiDebugGameObject::hasSectorId);
+            md_handle.RegisterMember("generation",
+                                     &UiDebugGameObject::generation);
+            md_handle.RegisterMember("hasSectorId",
+                                     &UiDebugGameObject::hasSectorId);
             md_handle.RegisterMember("sectorId", &UiDebugGameObject::sectorId);
-            md_handle.RegisterMember("hasTransform", &UiDebugGameObject::hasTransform);
+            md_handle.RegisterMember("hasTransform",
+                                     &UiDebugGameObject::hasTransform);
             md_handle.RegisterMember("posX", &UiDebugGameObject::posX);
             md_handle.RegisterMember("posY", &UiDebugGameObject::posY);
             md_handle.RegisterMember("rot", &UiDebugGameObject::rot);
-            md_handle.RegisterMember("hasPhysicsBody", &UiDebugGameObject::hasPhysicsBody);
+            md_handle.RegisterMember("hasPhysicsBody",
+                                     &UiDebugGameObject::hasPhysicsBody);
             md_handle.RegisterMember("mass", &UiDebugGameObject::mass);
             md_handle.RegisterMember("inertia", &UiDebugGameObject::inertia);
             md_handle.RegisterMember("velX", &UiDebugGameObject::velX);
@@ -875,17 +949,25 @@ void MainWindow::setupDataModelDebug()
             md_handle.RegisterMember("rotAcc", &UiDebugGameObject::rotAcc);
             md_handle.RegisterMember("accX", &UiDebugGameObject::accX);
             md_handle.RegisterMember("accY", &UiDebugGameObject::accY);
-            md_handle.RegisterMember("hasPhyThrust", &UiDebugGameObject::hasPhyThrust);
-            md_handle.RegisterMember("thrustGlobalX", &UiDebugGameObject::thrustGlobalX);
-            md_handle.RegisterMember("thrustGlobalY", &UiDebugGameObject::thrustGlobalY);
-            md_handle.RegisterMember("thrustLocalX", &UiDebugGameObject::thrustLocalX);
-            md_handle.RegisterMember("thrustLocalY", &UiDebugGameObject::thrustLocalY);
+            md_handle.RegisterMember("hasPhyThrust",
+                                     &UiDebugGameObject::hasPhyThrust);
+            md_handle.RegisterMember("thrustGlobalX",
+                                     &UiDebugGameObject::thrustGlobalX);
+            md_handle.RegisterMember("thrustGlobalY",
+                                     &UiDebugGameObject::thrustGlobalY);
+            md_handle.RegisterMember("thrustLocalX",
+                                     &UiDebugGameObject::thrustLocalX);
+            md_handle.RegisterMember("thrustLocalY",
+                                     &UiDebugGameObject::thrustLocalY);
             md_handle.RegisterMember("torque", &UiDebugGameObject::torque);
-            md_handle.RegisterMember("maxTorque", &UiDebugGameObject::maxTorque);
-            md_handle.RegisterMember("maxRotVel", &UiDebugGameObject::maxRotVel);
-            md_handle.RegisterMember("thrustMainMax", &UiDebugGameObject::thrustMainMax);
+            md_handle.RegisterMember("maxTorque",
+                                     &UiDebugGameObject::maxTorque);
+            md_handle.RegisterMember("maxRotVel",
+                                     &UiDebugGameObject::maxRotVel);
+            md_handle.RegisterMember("thrustMainMax",
+                                     &UiDebugGameObject::thrustMainMax);
             md_handle.RegisterMember("thrustManeuverMax",
-                                      &UiDebugGameObject::thrustManeuverMax);
+                                     &UiDebugGameObject::thrustManeuverMax);
             md_handle.RegisterMember("maxSpd", &UiDebugGameObject::maxSpd);
         }
         debugConstructor.Bind("selGameObject", &debugData.selGameObject);
@@ -897,8 +979,10 @@ void MainWindow::setupDataModelDebug()
             md_handle.RegisterMember("ptrOverUi", &UiDbgInputData::ptrOverUi);
             md_handle.RegisterMember("ptrSectorX", &UiDbgInputData::ptrSectorX);
             md_handle.RegisterMember("ptrSectorY", &UiDbgInputData::ptrSectorY);
-            md_handle.RegisterMember("ptrSectorPosX", &UiDbgInputData::ptrSectorPosX);
-            md_handle.RegisterMember("ptrSectorPosY", &UiDbgInputData::ptrSectorPosY);
+            md_handle.RegisterMember("ptrSectorPosX",
+                                     &UiDbgInputData::ptrSectorPosX);
+            md_handle.RegisterMember("ptrSectorPosY",
+                                     &UiDbgInputData::ptrSectorPosY);
         }
         debugConstructor.Bind("inputData", &debugData.inputData);
 
@@ -912,8 +996,10 @@ void MainWindow::setupDataModelDebug()
             md_handle.RegisterMember("zoom", &UiDbgViewData::zoom);
             md_handle.RegisterMember("camX", &UiDbgViewData::camX);
             md_handle.RegisterMember("camY", &UiDbgViewData::camY);
-            md_handle.RegisterMember("sectorOffsetX", &UiDbgViewData::sectorOffsetX);
-            md_handle.RegisterMember("sectorOffsetY", &UiDbgViewData::sectorOffsetY);
+            md_handle.RegisterMember("sectorOffsetX",
+                                     &UiDbgViewData::sectorOffsetX);
+            md_handle.RegisterMember("sectorOffsetY",
+                                     &UiDbgViewData::sectorOffsetY);
         }
         debugConstructor.Bind("viewData", &debugData.viewData);
 

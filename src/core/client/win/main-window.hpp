@@ -44,9 +44,12 @@ struct MouseState
     bool doubleClick[3] = {false, false, false};
     bool longClick[3] = {false, false, false};
     bool hold[3] = {false, false, false};
-    glm::vec2 mousePosRel;
-    def::SectorCoords mouseSectorCoords;
-    void processMouseButton(uint8_t i);
+    bool dragFinished[3] = {false, false, false};
+    bool dragActive[3] = {false, false, false};
+    def::SectorCoords mouseCoordsPressed[3];
+    def::SectorCoords mouseCoordsReleased[3];
+    def::SectorCoords mouseCoords;
+    void processMouseButton(uint8_t i, float zoom, float dragThreshold);
 };
 
 struct WindowInfo
@@ -177,7 +180,8 @@ class MainWindow
     static void charCallback(GLFWwindow* window, unsigned int codepoint);
     static void
     scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
-    void processMouseState();
+    void setupMouseState();
+    void ProcessMouseStateNoui();
     void handleWinResize();
 
     void startLoading();
@@ -212,6 +216,12 @@ class MainWindow
                       const Rml::VariantList& args);
 
     void onAfterLoadWorld();
+
+    void drawWorldRectangle(const def::SectorCoords& start,
+                            const def::SectorCoords& end,
+                            uint32_t colorABGR,
+                            float thickness,
+                            float rotationRad = 0.0f);
 
     static Rml::Input::KeyIdentifier glfwToRmlKey(int key);
 
@@ -250,6 +260,10 @@ class MainWindow
 
     gfx::PanDirection panX = gfx::PanDirection::Stop;
     gfx::PanDirection panY = gfx::PanDirection::Stop;
+
+    float dragThreshold = 0.0f;
+    uint32_t dragBoxColor = 0x20ffffff;
+    float dragBoxThickness = 1.0f;
 };
 
 }  // namespace ui

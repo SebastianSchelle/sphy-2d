@@ -36,7 +36,7 @@ class ConfigNode
   public:
     ConfigNode(const string& name);
     virtual ~ConfigNode();
-    virtual nodeVal_t get(std::vector<string>& path) const = 0;
+    virtual nodeVal_t get(std::vector<string>& path, const nodeVal_t& def = nodeVal_t(0.0f)) const = 0;
     virtual void set(std::vector<string>& path, nodeVal_t value) = 0;
   protected:
     const string name;
@@ -47,7 +47,7 @@ class ConfigBranch : public ConfigNode
   public:
     ConfigBranch(const string& file, const string& name, YAML::Node& node);
     ~ConfigBranch();
-    nodeVal_t get(std::vector<string>& path) const override;
+    nodeVal_t get(std::vector<string>& path, const nodeVal_t& def = nodeVal_t(0.0f)) const override;
     void set(std::vector<string>& path, nodeVal_t value) override;
     void addDefs(YAML::Node& node, const string& file);
   private:
@@ -59,7 +59,7 @@ class ConfigLeaf : public ConfigNode
   public:
     ConfigLeaf(const string& file, const string& name, const YAML::Node& node);
     ~ConfigLeaf();
-    nodeVal_t get(std::vector<string>& path) const override;
+    nodeVal_t get(std::vector<string>& path, const nodeVal_t& def = nodeVal_t(0.0f)) const override;
     void set(std::vector<string>& path, nodeVal_t value) override;
   private:
     nodeVal_t valueDefault;

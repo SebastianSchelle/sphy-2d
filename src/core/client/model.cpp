@@ -12,8 +12,9 @@ namespace sphyc
 {
 
 Model::Model(ui::UserInterface* userInterface,
+             cfg::ConfigManager& config,
              std::function<void(void)> afterLoadWorldClb)
-    : userInterface(userInterface), afterLoadWorldClb(afterLoadWorldClb)
+    : userInterface(userInterface), config(config), afterLoadWorldClb(afterLoadWorldClb)
 {
     loadWorldSequence.registerExchange(net::Exchange(
         prot::cmd::WORLD_INFO,

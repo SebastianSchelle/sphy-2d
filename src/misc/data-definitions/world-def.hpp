@@ -23,12 +23,29 @@ struct SectorPos
 {
     uint32_t x;
     uint32_t y;
+
+    bool operator==(const SectorPos& other) const
+    {
+        return x == other.x && y == other.y;
+    }
+    bool operator!=(const SectorPos& other) const
+    {
+        return x != other.x || y != other.y;
+    }
 };
 
 struct SectorCoords
 {
     SectorPos pos;
     vec2 sectorPos;
+    bool operator==(const SectorCoords& other) const
+    {
+        return pos == other.pos && sectorPos == other.sectorPos;
+    }
+    bool operator!=(const SectorCoords& other) const
+    {
+        return pos != other.pos || sectorPos != other.sectorPos;
+    }
 };
 
 struct WorldShape
@@ -53,5 +70,8 @@ EXT_SER(WorldShape, SER_WORLD_SHAPE)
 EXT_DES(WorldShape, SER_WORLD_SHAPE)
 
 }  // namespace def
+
+EXT_FMT(def::SectorPos, "({}, {})", o.x, o.y);
+EXT_FMT(def::SectorCoords, "(s:{}, p:{})", o.pos, o.sectorPos);
 
 #endif

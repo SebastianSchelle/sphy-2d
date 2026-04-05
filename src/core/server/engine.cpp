@@ -24,7 +24,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->systems = &ecs.getRegisteredSystems();
     ptrHandle->registry = &ecs.getRegistry();
 
-    slowDumpUs = 1000 * CFG_UINT(config, "engine", "slow-dump-ms");
+    slowDumpUs = 1000 * CFG_UINT(config, 1000.0f, "engine", "slow-dump-ms");
     // rerunStream.spawn().exit_on_failure();
 }
 
