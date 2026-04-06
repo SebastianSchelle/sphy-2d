@@ -345,10 +345,13 @@ typedef struct
     float kp;
     float kd;
     float prev_error;
+    float setpoint;
 } PD;
 
 void pdInit(PD* pd, float kp, float kd);
 float pdCompute(PD* pd, float dt, float error);
+/// Same as pdCompute but does not clamp to [-1,1] (for torque limits elsewhere).
+float pdComputeUnclamped(PD* pd, float dt, float error);
 
 typedef struct
 {

@@ -17,7 +17,8 @@ namespace sphys
 Engine::Engine(const sphy::CmdLinOptionsServer& options,
                cfg::ConfigManager& config)
     : options(options), config(config), state(EngineState::Init), saveConfig(),
-      saveFolder(options.savedir), rerunStream("sphy-2d"), commandManager()
+      saveFolder(options.savedir), rerunStream("sphy-2d-rotpid"),
+      commandManager()
 {
     ptrHandle = std::make_shared<ecs::PtrHandle>();
     ptrHandle->ecs = &ecs;
@@ -27,7 +28,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->registry = &ecs.getRegistry();
 
     slowDumpUs = 1000 * CFG_UINT(config, 1000.0f, "engine", "slow-dump-ms");
-    // rerunStream.spawn().exit_on_failure();
+    rerunStream.spawn().exit_on_failure();
 }
 
 Engine::~Engine()
@@ -99,9 +100,7 @@ void Engine::engineLoop()
                 if (loadFromFolder())
                 {
                     spawnEntityFromAsset(
-                        "test",
-                        0,
-                        ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
+                        "test", 0, ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
                     state = EngineState::Running;
                 }
                 else
@@ -166,28 +165,55 @@ void Engine::update(float dt)
         }
     }
     world.update(dt, ptrHandle);
-
-    // Debugging
-    // std::vector<rerun::Position2D> positions = {};
-    // auto view = ptrHandle->registry->view<const ecs::EntityId,
-    //                                       const ecs::SectorId,
-    //                                       const ecs::Transform>();
-    // view.each(
-    //     [&positions, this](const auto entity,
-    //                        const auto& entityId,
-    //                        const auto& sectorId,
-    //                        const auto& trans)
-    //     {
-    //         world::Sector* sector = world.getSector(sectorId.id);
-    //         if (sector)
-    //         {
-    //             positions.push_back({trans.pos.x + sector->getWorldPosX(),
-    //                                  trans.pos.y + sector->getWorldPosY()});
-    //         }
-    //     });
-
-    // rerunStream.log("points", rerun::Points2D(positions));
+    //rerunDebugMovePhy();
 }
+
+#ifdef DEBUG
+void Engine::rerunDebugMovePhy()
+{
+    const ecs::EntityId entityId0 = ecs.getEntityIdFromIdx(0);
+    if (!ecs.validId(entityId0))
+    {
+        return;
+    }
+    entt::entity ent0 = ecs.getEntity(entityId0);
+    if (ent0 == entt::null || !ptrHandle->registry->valid(ent0))
+    {
+        return;
+    }
+
+    auto& reg = *ptrHandle->registry;
+    auto* tr = reg.try_get<ecs::Transform>(ent0);
+    auto* pb = reg.try_get<ecs::PhysicsBody>(ent0);
+    auto* th = reg.try_get<ecs::PhyThrust>(ent0);
+    auto* pid = reg.try_get<ecs::PhyPid>(ent0);
+    if (!tr || !pb)
+    {
+        return;
+    }
+
+    const std::string base = "";
+    // rerunStream.log((base + "/pos/x").c_str(), rerun::Scalars({tr->pos.x}));
+    // rerunStream.log((base + "/pos/y").c_str(), rerun::Scalars({tr->pos.y}));
+    // rerunStream.log((base + "/sp_pos/x").c_str(),
+    // rerun::Scalars({pid->spPos.x})); rerunStream.log((base +
+    // "/sp_pos/y").c_str(), rerun::Scalars({pid->spPos.y}));
+    // rerunStream.log((base + "/sp_rot").c_str(),
+    // rerun::Scalars({pid->spRot})); rerunStream.log((base + "/vel/x").c_str(),
+    // rerun::Scalars({pb->vel.x})); rerunStream.log((base + "/vel/y").c_str(),
+    // rerun::Scalars({pb->vel.y})); rerunStream.log((base + "/rot").c_str(),
+    // rerun::Scalars({tr->rot}));
+    rerunStream.log((base + "/rot_vel").c_str(), rerun::Scalars({pb->rotVel}));
+
+    // rerunStream.log((base + "/desired_vel/x").c_str(),
+    // rerun::Scalars({pid->spVelX})); rerunStream.log((base +
+    // "/desired_vel/y").c_str(), rerun::Scalars({pid->spVelY}));
+    rerunStream.log((base + "/desired_rot_vel").c_str(),
+                    rerun::Scalars({pid->spRotVel}));
+    rerunStream.log((base + "/rot_vel_err").c_str(), rerun::Scalars({pb->rotVel - pid->spRotVel}));
+    rerunStream.log((base + "/rot_trq").c_str(), rerun::Scalars({th->torque}));
+}
+#endif
 
 void Engine::startFromFolder()
 {
@@ -741,6 +767,127 @@ void Engine::registerConsoleCommands()
          {"-x", "X position", false},
          {"-y", "Y position", false},
          {"-r", "Rotation", false}});
+
+    commandManager.registerCommand(
+        {"phypid", "setk"},
+        [this](const cmd::CommandArgs& a) -> std::string
+        {
+            try
+            {
+                std::string idxStr = a.flags.at("-e");
+                uint32_t idx = std::stoul(idxStr);
+                ecs::EntityId entityId = ecs.getEntityIdFromIdx(idx);
+
+                entt::entity ent = ecs.getEntity(entityId);
+                if (ent == entt::null)
+                {
+                    return "Failed: Entity not found";
+                }
+                if (!ecs.getRegistry().all_of<ecs::PhyPid>(ent))
+                {
+                    return "Failed: PhyPid component not found";
+                }
+
+                auto& pid = ecs.getRegistry().get<ecs::PhyPid>(ent);
+
+                auto set_pd =
+                    [&a](ctrl::PD& pd, const char* kpFlag, const char* kdFlag)
+                {
+                    if (const auto it = a.flags.find(kpFlag);
+                        it != a.flags.end() && !it->second.empty())
+                    {
+                        pd.kp = std::stof(it->second);
+                    }
+                    if (const auto it = a.flags.find(kdFlag);
+                        it != a.flags.end() && !it->second.empty())
+                    {
+                        pd.kd = std::stof(it->second);
+                    }
+                };
+
+                // Optional global override for all loops first.
+                set_pd(pid.pdFwd, "-kp", "-kd");
+                set_pd(pid.pdSide, "-kp", "-kd");
+
+                // Optional per-loop overrides.
+                set_pd(pid.pdFwd, "-kpf", "-kdf");
+                set_pd(pid.pdSide, "-kps", "-kds");
+
+                ctrl::pdInit(&pid.pdFwd, pid.pdFwd.kp, pid.pdFwd.kd);
+                ctrl::pdInit(&pid.pdSide, pid.pdSide.kp, pid.pdSide.kd);
+
+                return "Ok";
+            }
+            catch (const std::exception& e)
+            {
+                return std::string("Failed: ") + e.what();
+            }
+        },
+        "Set phy-pid PD constants for one entity",
+        {{"-e", "Entity id", true},
+         {"-kp", "Global kp (all loops)", false},
+         {"-kd", "Global kd (all loops)", false},
+         {"-kpf", "Forward-loop kp", false},
+         {"-kdf", "Forward-loop kd", false},
+         {"-kps", "Side-loop kp", false},
+         {"-kds", "Side-loop kd", false}});
+
+    commandManager.registerCommand(
+        {"phy", "set"},
+        [this](const cmd::CommandArgs& a) -> std::string
+        {
+            try
+            {
+                const uint32_t idx = std::stoul(a.flags.at("-e"));
+                ecs::EntityId entityId = ecs.getEntityIdFromIdx(idx);
+                entt::entity ent = ecs.getEntity(entityId);
+                if (ent == entt::null)
+                {
+                    return "Failed: Entity not found";
+                }
+                auto* pb = ecs.getRegistry().try_get<ecs::PhysicsBody>(ent);
+                if (!pb)
+                {
+                    return "Failed: PhysicsBody component not found";
+                }
+                const auto mIt = a.flags.find("-m");
+                const auto iIt = a.flags.find("-i");
+                const bool hasMass = mIt != a.flags.end() && !mIt->second.empty();
+                const bool hasInertia =
+                    iIt != a.flags.end() && !iIt->second.empty();
+                if (!hasMass && !hasInertia)
+                {
+                    return "Failed: Provide -m and/or -i";
+                }
+                if (hasMass)
+                {
+                    const float mass = std::stof(mIt->second);
+                    if (!(mass > 0.0f))
+                    {
+                        return "Failed: mass must be > 0";
+                    }
+                    pb->mass = mass;
+                }
+                if (hasInertia)
+                {
+                    const float inertia = std::stof(iIt->second);
+                    if (!(inertia > 0.0f))
+                    {
+                        return "Failed: inertia must be > 0";
+                    }
+                    pb->inertia = inertia;
+                }
+                return "Ok";
+            }
+            catch (const std::exception& e)
+            {
+                return std::string("Failed: ") + e.what();
+            }
+        },
+        "Set physics body mass/inertia for one entity",
+        {{"-e", "Entity id", true},
+         {"-m", "Mass (>0)", false},
+         {"-i", "Inertia (>0)", false}});
 }
 
 void Engine::runSlowClientDump(long frameTime)

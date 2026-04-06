@@ -3,6 +3,8 @@
 #include "RmlUi/Core/EventListener.h"
 #include "RmlUi/Core/ID.h"
 #include "RmlUi/Core/Input.h"
+#include "RmlUi/Core/Elements/ElementFormControlInput.h"
+#include <climits>
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -758,6 +760,7 @@ bool UserInterface::handleCmdHistoryKey(Rml::Input::KeyIdentifier key)
         }
         chatInputText = cmdHistory[static_cast<size_t>(cmdHistoryBrowseIndex)];
         rmlModelChat.DirtyVariable("chat_input_text");
+        moveChatInputCursorToEnd();
         return true;
     }
     if (key == Rml::Input::KI_DOWN)
@@ -779,9 +782,35 @@ bool UserInterface::handleCmdHistoryKey(Rml::Input::KeyIdentifier key)
             chatInputText = cmdHistoryDraft;
         }
         rmlModelChat.DirtyVariable("chat_input_text");
+        moveChatInputCursorToEnd();
         return true;
     }
     return false;
+}
+
+void UserInterface::moveChatInputCursorToEnd()
+{
+    const UiDocHandle chatDoc = rmlDocLib.getHandle("chat");
+    if (!chatDoc.isValid())
+    {
+        return;
+    }
+    auto docPtr = rmlDocLib.getItem(chatDoc.getIdx());
+    if (!docPtr || !*docPtr)
+    {
+        return;
+    }
+    Rml::Element* el = (*docPtr)->GetElementById("chat-input");
+    if (!el)
+    {
+        return;
+    }
+    auto* input = dynamic_cast<Rml::ElementFormControlInput*>(el);
+    if (!input)
+    {
+        return;
+    }
+    input->SetSelectionRange(INT_MAX, INT_MAX);
 }
 
 }  // namespace ui

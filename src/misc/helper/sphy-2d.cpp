@@ -107,7 +107,7 @@ void pdInit(PD* pd, float kp, float kd)
     pd->prev_error = 0.0f;
 }
 
-float pdCompute(PD* pd, float dt, float error)
+float pdComputeUnclamped(PD* pd, float dt, float error)
 {
     float P = pd->kp * error;
 
@@ -115,6 +115,14 @@ float pdCompute(PD* pd, float dt, float error)
     float D = pd->kd * derivative;
 
     float output = P + D;
+
+    pd->prev_error = error;
+    return output;
+}
+
+float pdCompute(PD* pd, float dt, float error)
+{
+    float output = pdComputeUnclamped(pd, dt, error);
 
     if (output > 1.0)
     {
@@ -125,7 +133,6 @@ float pdCompute(PD* pd, float dt, float error)
         output = -1.0;
     }
 
-    pd->prev_error = error;
     return output;
 }
 

@@ -193,9 +193,14 @@ struct PhyPid
     vec2 spPos;
     float spRot;
 
-    ctrl::PD pdTurn;
     ctrl::PD pdFwd;
     ctrl::PD pdSide;
+
+#ifdef DEBUG
+    float spVelX;
+    float spVelY;
+    float spRotVel;
+#endif
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
@@ -206,9 +211,14 @@ struct PhyPid
         TRY_YAML_DICT(c.spPos.x, node["spPos"][0], 0.0f);
         TRY_YAML_DICT(c.spPos.y, node["spPos"][1], 0.0f);
         TRY_YAML_DICT(c.spRot, node["spRot"], 0.0f);
-        ctrl::pdInit(&c.pdFwd, 0.01, 0.005f);
-        ctrl::pdInit(&c.pdSide, 0.01, 0.005f);
-        ctrl::pdInit(&c.pdTurn, 0.01, 0.005f);
+        // Tuned for smoother approach: less derivative kick and stronger
+        // rotational damping.
+        float kpFwd; TRY_YAML_DICT(kpFwd, node["kpFwd"], 0.05f);
+        float kdFwd; TRY_YAML_DICT(kdFwd, node["kdFwd"], 0.01f);
+        float kpSide; TRY_YAML_DICT(kpSide, node["kpSide"], 0.05f);
+        float kdSide; TRY_YAML_DICT(kpSide, node["kdSide"], 0.01f);
+        ctrl::pdInit(&c.pdFwd, kpFwd, kdFwd);
+        ctrl::pdInit(&c.pdSide, kpSide, kdSide);
         registry.emplace<PhyPid>(entity, c);
     }
 };
@@ -218,16 +228,14 @@ struct PhyPid
     SOBJ(o.spPos);                                                             \
     S4b(o.spRot);                                                              \
     S4b(o.pdFwd.prev_error);                                                   \
-    S4b(o.pdSide.prev_error);                                                  \
-    S4b(o.pdTurn.prev_error);
+    S4b(o.pdSide.prev_error);
 
 #define DES_PHY_PID_HOLD                                                       \
     S1b(o.active);                                                             \
     SOBJ(o.spPos);                                                             \
     S4b(o.spRot);                                                              \
     S4b(o.pdFwd.prev_error);                                                   \
-    S4b(o.pdSide.prev_error);                                                  \
-    S4b(o.pdTurn.prev_error);
+    S4b(o.pdSide.prev_error);
 
 EXT_SER(PhyPid, SER_PHY_PID_HOLD)
 EXT_DES(PhyPid, DES_PHY_PID_HOLD)

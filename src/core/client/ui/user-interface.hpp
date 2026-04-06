@@ -122,6 +122,7 @@ class UserInterface
     bool parseSendMsg(const string& message, InputMsgParseData& parseData);
     bool isChatInputFocused() const;
     bool handleCmdHistoryKey(Rml::Input::KeyIdentifier key);
+    void moveChatInputCursorToEnd();
     void pushCmdHistory(const std::string& cmd);
     void resetCmdHistoryBrowse();
 
