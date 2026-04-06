@@ -17,6 +17,7 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <concurrentqueue.h>
 #include <filesystem>
 #include <fstream>
 #include <glm/glm.hpp>
@@ -25,12 +26,11 @@
 #include <string>
 #include <variant>
 #include <yaml-cpp/yaml.h>
-#include <concurrentqueue.h>
 
+using moodycamel::ConcurrentQueue;
 using std::string;
 using std::unordered_map;
 using std::vector;
-using moodycamel::ConcurrentQueue;
 namespace fs = std::filesystem;
 namespace bp = boost::process;
 
@@ -62,8 +62,8 @@ using InputAdapter = bitsery::InputBufferAdapter<Buffer>;
     tim::Timepoint now = tim::getCurrentTimeU();                               \
     DO_PERIODIC_EXTNOW(timekeeper_, interval_, now, callback_)
 
-#define DO_PERIODIC_U(timekeeper_, interval_, callback_)                         \
-    long now = tim::nowU();                               \
+#define DO_PERIODIC_U(timekeeper_, interval_, callback_)                       \
+    long now = tim::nowU();                                                    \
     DO_PERIODIC_EXTNOW(timekeeper_, interval_, now, callback_)
 
 #define TIM_1MS 1000
@@ -92,6 +92,7 @@ constexpr uint32_t hashConst(const char* s, size_t i = 0)
 #define SAPI(id) s.value2b(id)
 #define S4b(value) s.value4b(value)
 #define S2b(value) s.value2b(value)
+#define S1b(value) s.value1b(value)
 #define SOBJ(value) s.object(value)
 
 #define EXT_SER(type, block)                                                   \
@@ -251,9 +252,9 @@ template <> struct fmt::formatter<vector<string>>
     }
 };
 
-// Bitsery finds serialize(S&, T&) via ADL on T. glm::vec2 lives in namespace glm,
-// so these overloads must be in glm — global EXT_SER(vec2) is not visible to
-// bitsery::details::HasSerializeFunction.
+// Bitsery finds serialize(S&, T&) via ADL on T. glm::vec2 lives in namespace
+// glm, so these overloads must be in glm — global EXT_SER(vec2) is not visible
+// to bitsery::details::HasSerializeFunction.
 namespace glm
 {
 template <typename S> void serialize(S& s, vec2& o)
@@ -299,15 +300,18 @@ inline float angleError(float target, float current)
 
 inline float angleClamp(float angle)
 {
-    if (angle > 2 * M_PIf) {
+    if (angle > 2 * M_PIf)
+    {
         return angle - 2 * M_PIf;
-    } else if (angle < 0.0f) {
+    }
+    else if (angle < 0.0f)
+    {
         return angle + 2 * M_PIf;
     }
     return angle;
 }
 
-inline vec2 rotateVec2(const vec2 &v, float radians)
+inline vec2 rotateVec2(const vec2& v, float radians)
 {
     float c = std::cos(radians);
     float s = std::sin(radians);
@@ -316,10 +320,46 @@ inline vec2 rotateVec2(const vec2 &v, float radians)
 
 inline vec2 perpVec2(vec2 vec)
 {
-	return vec2(-vec.y, vec.x);
+    return vec2(-vec.y, vec.x);
 }
 
-} // namespace hmath
+}  // namespace hmath
+
+namespace ctrl
+{
+
+typedef struct
+{
+    float kp;
+    float ki;
+    float kd;
+    float prev_error;
+    float integral;
+} PID;
+
+void pidInit(PID* pid, float kp, float ki, float kd);
+float pidCompute(PID* pid, float dt, float error);
+
+typedef struct
+{
+    float kp;
+    float kd;
+    float prev_error;
+} PD;
+
+void pdInit(PD* pd, float kp, float kd);
+float pdCompute(PD* pd, float dt, float error);
+
+typedef struct
+{
+    glm::vec2 kp;
+    glm::vec2 ki;
+    glm::vec2 kd;
+    glm::vec2 prev_error;
+    glm::vec2 integral;
+} PID2D;
+
+}  // namespace ctrl
 
 EXT_FMT(vec2, "[{}, {}]", o.x, o.y);
 EXT_FMT(vec3, "[{}, {}, {}]", o.x, o.y, o.z);

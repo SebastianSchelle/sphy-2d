@@ -3,8 +3,8 @@
 
 #include <algorithm>
 #include <cmath>
-#include <components/comp-phy.hpp>
 #include <components/comp-ident.hpp>
+#include <components/comp-phy.hpp>
 #include <ecs.hpp>
 #include <std-inc.hpp>
 #include <world.hpp>
@@ -12,44 +12,26 @@
 namespace ecs
 {
 
-const System sysPhyPidHold = {
-    "sysPhyPidHold",
+const System sysPhyPid = {
+    "sysPhyPid",
     [](entt::entity entity,
        const ecs::EntityId& entityId,
        float dt,
        std::shared_ptr<PtrHandle> ptrHandle)
     {
-
         // I don't like this crap
         /*
         - calculate direction vector and corresponding max thrust vector
-        - from max thrust vector, distance and mass calcute max velocity (clamp with maxVel from thrust system)
+        - from max thrust vector, distance and mass calcute max velocity (clamp
+        with maxVel from thrust system)
         - PID control thrust with [-1,1] in x/y direction and scale with thrust
-        - Use from hive2d_v2, this is exactly what i have done already / use sqrtf
+        - Use from hive2d_v2, this is exactly what i have done already / use
+        sqrtf
 
         */
 
-
-
-        // Outer: position -> desired velocity; inner: velocity error -> a_cmd,
-        // F = m * a_cmd. Rotation: angle -> ω_des, then τ = I * α_cmd.
-        constexpr float kPidPos = 0.4f;
-        constexpr float kPidVel = 2.0f;
-        constexpr float kPidVelI = 0.1f;
-        constexpr float kPidVelD = 0.05f;
-        constexpr float kPidVelIntClamp = 5.0f;
-        constexpr float kPidRot = 2.0f;
-        constexpr float kPidOmega = 3.0f;
-        constexpr float kPidOmegaI = 0.5f;
-        constexpr float kPidOmegaD = 0.02f;
-        constexpr float kPidOmegaIntClamp = 2.0f;
-
         auto reg = ptrHandle->registry;
-        auto* pid = reg->try_get<PhyPidHold>(entity);
-        if (!pid)
-        {
-            return;
-        }
+        auto* pid = reg->try_get<PhyPid>(entity);
         auto* transform = reg->try_get<Transform>(entity);
         auto* physicsBody = reg->try_get<PhysicsBody>(entity);
         auto* phyThrust = reg->try_get<PhyThrust>(entity);
@@ -58,72 +40,45 @@ const System sysPhyPidHold = {
             return;
         }
 
-        if (!pid->enabled || dt <= 1e-8f)
+        if (!pid->active)
         {
-            if (!pid->enabled)
-            {
-                pid->velIntegral = {};
-                pid->prevVelErr = {};
-                pid->rotVelIntegral = 0.0f;
-                pid->prevOmegaErr = 0.0f;
-                pid->prevValid = false;
-            }
+            return;
+        }
+        float angleErr = hmath::angleError(pid->spRot, transform->rot);
+        if (physicsBody->inertia == 0)
+        {
+            return;
+        }
+        float maxAcc = phyThrust->maxTorque / physicsBody->inertia;
+        float desW = 0.7f * sqrtf(2 * maxAcc * abs(angleErr));
+        desW *= glm::sign(angleErr);
+        float werr = desW - physicsBody->rotVel;
+        float trq = phyThrust->maxTorque * ctrl::pdCompute(&pid->pdTurn, dt, werr);
+        if (trq == trq)
+        {
+            phyThrust->setTorque(trq);
+        }
+
+        /*glm::vec2 worldDir = pid->spPos - transform->pos;
+        float dist = glm::length(worldDir);
+        if (dist == 0.0f || physicsBody->mass <= 0.0f)
+        {
             return;
         }
 
-        const vec2 pos_err = pid->posSet - transform->pos;
-        vec2 vel_des = kPidPos * pos_err;
-        const float vdes_len = glm::length(vel_des);
-        if (vdes_len > phyThrust->maxSpd && vdes_len > 1e-8f)
-        {
-            vel_des *= phyThrust->maxSpd / vdes_len;
-        }
+        maxAcc = phyThrust->thrustManeuverMax / physicsBody->mass;
+        float desVel =
+            fminf(phyThrust->maxSpd,
+                     sqrtf(2.0f * maxAcc * dist));  //(maxAcc * dist) / (1 + dist);
+        glm::vec2 desVelV = worldDir / dist * desVel;
 
-        const vec2 vel_err = vel_des - physicsBody->vel;
-        pid->velIntegral += vel_err * dt;
-        const float vi_len = glm::length(pid->velIntegral);
-        if (vi_len > kPidVelIntClamp && vi_len > 1e-8f)
-        {
-            pid->velIntegral *= kPidVelIntClamp / vi_len;
-        }
+        glm::vec2 err = desVelV - physicsBody->vel;
+        float y =
+            phyThrust->thrustMainMax * ctrl::pdCompute(&pid->pdFwd, dt, err.y);
+        float x =
+            phyThrust->thrustMainMax * ctrl::pdCompute(&pid->pdSide, dt, err.x);
 
-        vec2 d_vel_err{};
-        if (pid->prevValid)
-        {
-            d_vel_err = (vel_err - pid->prevVelErr) / dt;
-        }
-        pid->prevVelErr = vel_err;
-
-        const vec2 a_cmd = kPidVel * vel_err + kPidVelI * pid->velIntegral
-                           + kPidVelD * d_vel_err;
-        const vec2 F_world = physicsBody->mass * a_cmd;
-        phyThrust->setThrustGlobal(F_world, *transform);
-
-        const float ang_err = hmath::angleError(pid->rotSet, transform->rot);
-        float omega_des = kPidRot * ang_err;
-        omega_des =
-            std::clamp(omega_des, -phyThrust->maxRotVel, phyThrust->maxRotVel);
-
-        const float omega_err = omega_des - physicsBody->rotVel;
-        pid->rotVelIntegral += omega_err * dt;
-        pid->rotVelIntegral =
-            std::clamp(pid->rotVelIntegral,
-                       -kPidOmegaIntClamp,
-                       kPidOmegaIntClamp);
-
-        float d_omega_err = 0.0f;
-        if (pid->prevValid)
-        {
-            d_omega_err = (omega_err - pid->prevOmegaErr) / dt;
-        }
-        pid->prevOmegaErr = omega_err;
-        pid->prevValid = true;
-
-        const float alpha_cmd = kPidOmega * omega_err
-                                + kPidOmegaI * pid->rotVelIntegral
-                                + kPidOmegaD * d_omega_err;
-        const float torque_cmd = physicsBody->inertia * alpha_cmd;
-        phyThrust->setTorque(torque_cmd);
+        phyThrust->setThrustGlobal(glm::vec2(x, y), *transform);*/
     }};
 
 const System sysPhyThrust = {

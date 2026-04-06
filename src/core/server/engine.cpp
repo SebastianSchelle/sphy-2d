@@ -46,9 +46,9 @@ void Engine::start()
     cFac->registerComponent<ecs::PhysicsBody>();
     cFac->registerComponent<ecs::AssetId>();
     cFac->registerComponent<ecs::PhyThrust>();
-    cFac->registerComponent<ecs::PhyPidHold>();
+    cFac->registerComponent<ecs::PhyPid>();
 
-    ecs.registerSystem(ecs::sysPhyPidHold);
+    ecs.registerSystem(ecs::sysPhyPid);
     ecs.registerSystem(ecs::sysPhyThrust);
     ecs.registerSystem(ecs::sysPhysics);
 
@@ -100,7 +100,7 @@ void Engine::engineLoop()
                 {
                     spawnEntityFromAsset(
                         "test",
-                        27,
+                        0,
                         ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
                     state = EngineState::Running;
                 }
@@ -687,7 +687,7 @@ void Engine::registerConsoleCommands()
         {{"-a", "Asset id", true}});
 
     commandManager.registerCommand(
-        {"phy-pid-hold", "set"},
+        {"phy-pid", "set"},
         [this](const cmd::CommandArgs& a) -> std::string
         {
             try
@@ -702,27 +702,27 @@ void Engine::registerConsoleCommands()
                     return "Failed: Entity not found";
                 }
 
-                if (ecs.getRegistry().all_of<ecs::PhyPidHold>(ent))
+                if (ecs.getRegistry().all_of<ecs::PhyPid>(ent))
                 {
-                    auto& pidHold = ecs.getRegistry().get<ecs::PhyPidHold>(ent);
+                    auto& pidHold = ecs.getRegistry().get<ecs::PhyPid>(ent);
 
                     if (const auto it = a.flags.find("-x");
                         it != a.flags.end() && !it->second.empty())
                     {
-                        pidHold.posSet.x = std::stof(it->second);
+                        pidHold.spPos.x = std::stof(it->second);
                     }
                     if (const auto it = a.flags.find("-y");
                         it != a.flags.end() && !it->second.empty())
                     {
-                        pidHold.posSet.y = std::stof(it->second);
+                        pidHold.spPos.y = std::stof(it->second);
                     }
                     if (const auto it = a.flags.find("-r");
                         it != a.flags.end() && !it->second.empty())
                     {
-                        pidHold.rotSet = std::stof(it->second);
+                        pidHold.spRot = std::stof(it->second);
                     }
 
-                    pidHold.enabled = true;
+                    pidHold.active = true;
                 }
                 else
                 {

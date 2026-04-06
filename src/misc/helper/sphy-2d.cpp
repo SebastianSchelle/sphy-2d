@@ -49,9 +49,9 @@ bool LOAD_OBJ(
         des_.value4b(typeId);
         uint16_t version = 0;
         des_.value2b(version);
-        if(callback)
+        if (callback)
         {
-            if(!callback(typeId, version, des_))
+            if (!callback(typeId, version, des_))
             {
                 return false;
             }
@@ -59,3 +59,74 @@ bool LOAD_OBJ(
     }
     return true;
 }
+
+namespace ctrl
+{
+
+void pidInit(PID* pid, float kp, float ki, float kd)
+{
+    pid->kp = kp;
+    pid->ki = ki;
+    pid->kd = kd;
+    pid->prev_error = 0.0f;
+    pid->integral = 0.0f;
+}
+
+float pidCompute(PID* pid, float dt, float setpoint, float measured)
+{
+    float error = setpoint - measured;
+    float P = pid->kp * error;
+
+    pid->integral += error * dt;
+    float I = pid->ki * pid->integral;
+
+    float derivative = (error - pid->prev_error) / dt;
+    float D = pid->kd * derivative;
+
+    float output = P + I + D;
+
+    if (output > 1.0)
+    {
+        output = 1.0;
+        pid->integral -= error * dt;  // Prevent integral windup
+    }
+    else if (output < -1.0)
+    {
+        output = -1.0;
+        pid->integral -= error * dt;
+    }
+
+    pid->prev_error = error;
+    return output;
+}
+
+void pdInit(PD* pd, float kp, float kd)
+{
+    pd->kp = kp;
+    pd->kd = kd;
+    pd->prev_error = 0.0f;
+}
+
+float pdCompute(PD* pd, float dt, float error)
+{
+    float P = pd->kp * error;
+
+    float derivative = (error - pd->prev_error) / dt;
+    float D = pd->kd * derivative;
+
+    float output = P + D;
+
+    if (output > 1.0)
+    {
+        output = 1.0;
+    }
+    else if (output < -1.0)
+    {
+        output = -1.0;
+    }
+
+    pd->prev_error = error;
+    return output;
+}
+
+}  // namespace ctrl

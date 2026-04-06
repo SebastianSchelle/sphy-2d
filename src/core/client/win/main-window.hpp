@@ -103,6 +103,14 @@ struct UiDebugGameObject
     float thrustMainMax = 0.0f;
     float thrustManeuverMax = 0.0f;
     float maxSpd = 0.0f;
+    bool hasPhyPid = false;
+    bool phyPidActive = false;
+    float spPosX = 0.0f;
+    float spPosY = 0.0f;
+    float spRot = 0.0f;
+    float errorX = 0.0f;
+    float errorY = 0.0f;
+    float errorRot = 0.0f;
 };
 
 struct UiDbgInputData
