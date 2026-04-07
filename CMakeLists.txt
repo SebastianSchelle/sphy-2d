@@ -29,6 +29,42 @@ project(
     VERSION 1.0
     LANGUAGES CXX)
 
+# test this
+# if(APPLE)
+#     # macOS (Homebrew workaround)
+#     find_package(Boost REQUIRED)
+
+#     target_include_directories(your_target PRIVATE
+#         /opt/homebrew/opt/boost/include
+#     )
+
+#     target_link_directories(your_target PRIVATE
+#         /opt/homebrew/opt/boost/lib
+#     )
+
+#     target_link_libraries(your_target PRIVATE
+#         boost_system
+#         boost_thread
+#         boost_regex
+#         boost_program_options
+#         boost_chrono
+#     )
+
+# else()
+#     # Linux / Windows (proper way)
+#     find_package(Boost REQUIRED COMPONENTS
+#         system thread regex program_options chrono
+#     )
+
+#     target_link_libraries(your_target PRIVATE
+#         Boost::system
+#         Boost::thread
+#         Boost::regex
+#         Boost::program_options
+#         Boost::chrono
+#     )
+# endif()
+
 find_package(Boost REQUIRED COMPONENTS regex thread system chrono program_options)
 find_package(GTest REQUIRED)
 
