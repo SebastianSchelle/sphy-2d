@@ -12,93 +12,95 @@
 namespace ecs
 {
 
-const float kpTurn = 0.15f;
-const float velMargin = 0.5f;
-const float inertiaRef = 10.0f;
+const float velMargin = 0.8f;
+const float posDeadband = 0.1f;
+const float velDeadband = 0.04f;
+const float rotDeadband = 0.03f;
+const float rotVelDeadband = 0.03f;
 
-const System sysPhyPid = {
-    "sysPhyPid",
+const System sysMoveCtrl = {
+    "sysMoveCtrl",
     [](entt::entity entity,
        const ecs::EntityId& entityId,
        float dt,
        std::shared_ptr<PtrHandle> ptrHandle)
     {
         auto reg = ptrHandle->registry;
-        auto* pid = reg->try_get<PhyPid>(entity);
+        auto* moveCtrl = reg->try_get<MoveCtrl>(entity);
         auto* transform = reg->try_get<Transform>(entity);
         auto* physicsBody = reg->try_get<PhysicsBody>(entity);
         auto* phyThrust = reg->try_get<PhyThrust>(entity);
-        if (!pid || !transform || !physicsBody || !phyThrust || dt <= 1e-6f
-            || !pid->active)
+        if (!moveCtrl || !transform || !physicsBody || !phyThrust || dt <= 1e-6f
+            || !moveCtrl->active)
         {
             return;
         }
 
-        // Torque control
-        if (physicsBody->inertia > 1e-8f && phyThrust->maxTorque > 0.0f)
+        // Torque control =====================
+        const float angleErr =
+            hmath::angleError(moveCtrl->spRot, transform->rot);
+        const bool inRotDeadzone =
+            std::abs(angleErr) < rotDeadband
+            && std::abs(physicsBody->rotVel) < rotVelDeadband;
+        float desW = 0.0f;
+        if (!inRotDeadzone)
         {
-            const float angleErr =
-                hmath::angleError(pid->spRot, transform->rot);
             const float maxAngAcc = phyThrust->maxTorque / physicsBody->inertia;
             const float desWMag =
                 velMargin
                 * std::sqrt(
                     std::max(0.0f, 2.0f * maxAngAcc * std::abs(angleErr)));
             const float maxRotVel = std::max(0.0f, phyThrust->maxRotVel);
-            float desW = std::min(desWMag, maxRotVel);
+            desW = std::min(desWMag, maxRotVel);
             desW *= glm::sign(angleErr);
+        }
 #ifdef DEBUG
-            pid->spRotVel = desW;
+        moveCtrl->spRotVel = desW;
 #endif
+        if (inRotDeadzone)
+        {
+            phyThrust->setTorque(0.0f);
+        }
+        else
+        {
             const float werr = desW - physicsBody->rotVel;
-            float trqNorm = kpTurn * werr;
-            trqNorm *= physicsBody->inertia / inertiaRef;
-            const float trq = phyThrust->maxTorque * trqNorm;
+            float trq = ptrHandle->kpTurn * werr * physicsBody->inertia;
             phyThrust->setTorque(trq);
         }
 
-        // Thrust control
-        /*
-                if (physicsBody->mass <= 1e-8f)
-                {
-                    return;
-                }
+        // Thrust control =====================
+        const glm::vec2 worldDir = moveCtrl->spPos - transform->pos;
+        const float dist = glm::length(worldDir);
+        const float speed = glm::length(physicsBody->vel);
+        const bool inPosDeadzone = dist < posDeadband && speed < velDeadband;
+        if (inPosDeadzone)
+        {
+            phyThrust->setThrustGlobal(glm::vec2(0.0f), *transform);
+        }
+        else if (dist > 1e-8f)
+        {
+            glm::vec2 desVelV(0.0f);
+            const float maxAcc = std::max(
+                0.0f,
+                std::min(phyThrust->thrustManeuverMax, phyThrust->thrustMainMax)
+                    / physicsBody->mass);
+            if (maxAcc > 0.0f)
+            {
+                const float desVelMag =
+                    velMargin * std::sqrt(2.0f * maxAcc * dist);
+                const float desVel = std::min(phyThrust->maxSpd, desVelMag);
+                desVelV = worldDir / dist * desVel;
+#ifdef DEBUG
+                moveCtrl->spVelX = desVelV.x;
+                moveCtrl->spVelY = desVelV.y;
+#endif
+            }
 
-                // Translation: stop-distance speed profile and PD on velocity.
-                const glm::vec2 worldDir = pid->spPos - transform->pos;
-                const float dist = glm::length(worldDir);
-                const float speed = glm::length(physicsBody->vel);
-                glm::vec2 desVelV(0.0f);
-                // if (dist > kPosDeadband)
-                // {
-                const float maxAcc = std::max(
-                    0.0f,
-                    std::min(phyThrust->thrustManeuverMax,
-           phyThrust->thrustMainMax) / physicsBody->mass); if (maxAcc > 0.0f)
-                {
-                    const float desVel =
-                        std::min(phyThrust->maxSpd, std::sqrt(2.0f * maxAcc *
-           dist)); desVelV = worldDir / dist * desVel; pid->spVelX = desVelV.x;
-                    pid->spVelY = desVelV.y;
-                }
-                //}
-                // else if (speed < kVelDeadband)
-                // {
-                //     pid->pdFwd.prev_error = 0.0f;
-                //     pid->pdSide.prev_error = 0.0f;
-                //     return;
-                //}
-
-                const glm::vec2 err = desVelV - physicsBody->vel;
-                const float y =
-                    phyThrust->thrustMainMax * ctrl::pdCompute(&pid->pdFwd, dt,
-           err.y); const float x = phyThrust->thrustManeuverMax
-                                * ctrl::pdCompute(&pid->pdSide, dt, err.x);
-                if (std::isfinite(x) && std::isfinite(y))
-                {
-                    phyThrust->setThrustGlobal(glm::vec2(x, y), *transform);
-                }
-        */
+            const glm::vec2 err = desVelV - physicsBody->vel;
+            const glm::vec2 thrust =
+                ptrHandle->kpThrust * physicsBody->mass * err;
+            phyThrust->setThrustGlobal(thrust, *transform);
+        }
     }};
 
 const System sysPhyThrust = {
@@ -161,6 +163,8 @@ const System sysPhysics = {
         auto* physicsBody = reg->try_get<PhysicsBody>(entity);
         if (transform && physicsBody)
         {
+            physicsBody->acc += -ptrHandle->linDrag * physicsBody->vel;
+            physicsBody->rotAcc += -ptrHandle->angDrag * physicsBody->rotVel;
             physicsBody->vel += physicsBody->acc * dt;
             physicsBody->rotVel += physicsBody->rotAcc * dt;
             transform->pos += physicsBody->vel * dt;

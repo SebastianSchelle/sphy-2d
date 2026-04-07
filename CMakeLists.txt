@@ -29,6 +29,9 @@ project(
     VERSION 1.0
     LANGUAGES CXX)
 
+# Define DEBUG only for Debug configuration.
+add_compile_definitions($<$<CONFIG:Debug>:DEBUG>)
+
 find_package(Boost REQUIRED COMPONENTS regex thread system chrono program_options)
 find_package(GTest REQUIRED)
 

@@ -17,7 +17,7 @@ namespace sphys
 Engine::Engine(const sphy::CmdLinOptionsServer& options,
                cfg::ConfigManager& config)
     : options(options), config(config), state(EngineState::Init), saveConfig(),
-      saveFolder(options.savedir), rerunStream("sphy-2d-rotpid"),
+      saveFolder(options.savedir), rerunStream("sphy-2d-move-ctrl"),
       commandManager()
 {
     ptrHandle = std::make_shared<ecs::PtrHandle>();
@@ -26,7 +26,14 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->engine = this;
     ptrHandle->systems = &ecs.getRegisteredSystems();
     ptrHandle->registry = &ecs.getRegistry();
-
+    ptrHandle->kpThrust =
+        CFG_FLOAT(config, 25.0f, "engine", "physics", "kp-thrust");
+    ptrHandle->kpTurn =
+        CFG_FLOAT(config, 25.0f, "engine", "physics", "kp-turn");
+    ptrHandle->angDrag =
+        CFG_FLOAT(config, 0.1f, "engine", "physics", "ang-drag");
+    ptrHandle->linDrag =
+        CFG_FLOAT(config, 0.1f, "engine", "physics", "lin-drag");
     slowDumpUs = 1000 * CFG_UINT(config, 1000.0f, "engine", "slow-dump-ms");
     rerunStream.spawn().exit_on_failure();
 }
@@ -47,9 +54,9 @@ void Engine::start()
     cFac->registerComponent<ecs::PhysicsBody>();
     cFac->registerComponent<ecs::AssetId>();
     cFac->registerComponent<ecs::PhyThrust>();
-    cFac->registerComponent<ecs::PhyPid>();
+    cFac->registerComponent<ecs::MoveCtrl>();
 
-    ecs.registerSystem(ecs::sysPhyPid);
+    ecs.registerSystem(ecs::sysMoveCtrl);
     ecs.registerSystem(ecs::sysPhyThrust);
     ecs.registerSystem(ecs::sysPhysics);
 
@@ -165,7 +172,7 @@ void Engine::update(float dt)
         }
     }
     world.update(dt, ptrHandle);
-    //rerunDebugMovePhy();
+    rerunDebugMovePhy();
 }
 
 #ifdef DEBUG
@@ -186,32 +193,45 @@ void Engine::rerunDebugMovePhy()
     auto* tr = reg.try_get<ecs::Transform>(ent0);
     auto* pb = reg.try_get<ecs::PhysicsBody>(ent0);
     auto* th = reg.try_get<ecs::PhyThrust>(ent0);
-    auto* pid = reg.try_get<ecs::PhyPid>(ent0);
+    auto* moveCtrl = reg.try_get<ecs::MoveCtrl>(ent0);
     if (!tr || !pb)
     {
         return;
     }
 
-    const std::string base = "";
-    // rerunStream.log((base + "/pos/x").c_str(), rerun::Scalars({tr->pos.x}));
-    // rerunStream.log((base + "/pos/y").c_str(), rerun::Scalars({tr->pos.y}));
-    // rerunStream.log((base + "/sp_pos/x").c_str(),
-    // rerun::Scalars({pid->spPos.x})); rerunStream.log((base +
-    // "/sp_pos/y").c_str(), rerun::Scalars({pid->spPos.y}));
-    // rerunStream.log((base + "/sp_rot").c_str(),
-    // rerun::Scalars({pid->spRot})); rerunStream.log((base + "/vel/x").c_str(),
-    // rerun::Scalars({pb->vel.x})); rerunStream.log((base + "/vel/y").c_str(),
-    // rerun::Scalars({pb->vel.y})); rerunStream.log((base + "/rot").c_str(),
-    // rerun::Scalars({tr->rot}));
-    rerunStream.log((base + "/rot_vel").c_str(), rerun::Scalars({pb->rotVel}));
-
-    // rerunStream.log((base + "/desired_vel/x").c_str(),
-    // rerun::Scalars({pid->spVelX})); rerunStream.log((base +
-    // "/desired_vel/y").c_str(), rerun::Scalars({pid->spVelY}));
-    rerunStream.log((base + "/desired_rot_vel").c_str(),
-                    rerun::Scalars({pid->spRotVel}));
-    rerunStream.log((base + "/rot_vel_err").c_str(), rerun::Scalars({pb->rotVel - pid->spRotVel}));
-    rerunStream.log((base + "/rot_trq").c_str(), rerun::Scalars({th->torque}));
+    rerunStream.log("rot/vel", rerun::Scalars({pb->rotVel}));
+    if (moveCtrl)
+    {
+        rerunStream.log("rot/des_vel", rerun::Scalars({moveCtrl->spRotVel}));
+        rerunStream.log(
+            "rot/vel_err",
+            rerun::Scalars({pb->rotVel - moveCtrl->spRotVel}));
+    }
+    rerunStream.log("rot/trq", rerun::Scalars({th ? th->torque : 0.f}));
+    rerunStream.log("pos/x", rerun::Scalars({tr->pos.x}));
+    rerunStream.log("pos/y", rerun::Scalars({tr->pos.y}));
+    if (moveCtrl)
+    {
+        rerunStream.log("pos/des/x", rerun::Scalars({moveCtrl->spPos.x}));
+        rerunStream.log("pos/des/y", rerun::Scalars({moveCtrl->spPos.y}));
+    }
+    rerunStream.log("pos/vel/x", rerun::Scalars({pb->vel.x}));
+    rerunStream.log("pos/vel/y", rerun::Scalars({pb->vel.y}));
+    if (moveCtrl)
+    {
+        rerunStream.log("pos/des_vel/x", rerun::Scalars({moveCtrl->spVelX}));
+        rerunStream.log("pos/des_vel/y", rerun::Scalars({moveCtrl->spVelY}));
+        rerunStream.log(
+            "pos/vel_err/x",
+            rerun::Scalars({pb->vel.x - moveCtrl->spVelX}));
+        rerunStream.log(
+            "pos/vel_err/y",
+            rerun::Scalars({pb->vel.y - moveCtrl->spVelY}));
+    }
+    rerunStream.log("pos/thrust/x",
+                    rerun::Scalars({th ? th->thrustGlobal.x : 0.f}));
+    rerunStream.log("pos/thrust/y",
+                    rerun::Scalars({th ? th->thrustGlobal.y : 0.f}));
 }
 #endif
 
@@ -713,7 +733,7 @@ void Engine::registerConsoleCommands()
         {{"-a", "Asset id", true}});
 
     commandManager.registerCommand(
-        {"phy-pid", "set"},
+        {"move-ctrl", "set"},
         [this](const cmd::CommandArgs& a) -> std::string
         {
             try
@@ -728,31 +748,31 @@ void Engine::registerConsoleCommands()
                     return "Failed: Entity not found";
                 }
 
-                if (ecs.getRegistry().all_of<ecs::PhyPid>(ent))
+                if (ecs.getRegistry().all_of<ecs::MoveCtrl>(ent))
                 {
-                    auto& pidHold = ecs.getRegistry().get<ecs::PhyPid>(ent);
+                    auto& mc = ecs.getRegistry().get<ecs::MoveCtrl>(ent);
 
                     if (const auto it = a.flags.find("-x");
                         it != a.flags.end() && !it->second.empty())
                     {
-                        pidHold.spPos.x = std::stof(it->second);
+                        mc.spPos.x = std::stof(it->second);
                     }
                     if (const auto it = a.flags.find("-y");
                         it != a.flags.end() && !it->second.empty())
                     {
-                        pidHold.spPos.y = std::stof(it->second);
+                        mc.spPos.y = std::stof(it->second);
                     }
                     if (const auto it = a.flags.find("-r");
                         it != a.flags.end() && !it->second.empty())
                     {
-                        pidHold.spRot = std::stof(it->second);
+                        mc.spRot = std::stof(it->second);
                     }
 
-                    pidHold.active = true;
+                    mc.active = true;
                 }
                 else
                 {
-                    return "Failed: PhyPidHold component not found";
+                    return "Failed: MoveCtrl component not found";
                 }
 
                 return "Ok";
@@ -762,75 +782,11 @@ void Engine::registerConsoleCommands()
                 return std::string("Failed: ") + e.what();
             }
         },
-        "Update phy-pid-hold for an entity",
+        "Update move-ctrl setpoints for an entity",
         {{"-e", "Entity id", true},
          {"-x", "X position", false},
          {"-y", "Y position", false},
          {"-r", "Rotation", false}});
-
-    commandManager.registerCommand(
-        {"phypid", "setk"},
-        [this](const cmd::CommandArgs& a) -> std::string
-        {
-            try
-            {
-                std::string idxStr = a.flags.at("-e");
-                uint32_t idx = std::stoul(idxStr);
-                ecs::EntityId entityId = ecs.getEntityIdFromIdx(idx);
-
-                entt::entity ent = ecs.getEntity(entityId);
-                if (ent == entt::null)
-                {
-                    return "Failed: Entity not found";
-                }
-                if (!ecs.getRegistry().all_of<ecs::PhyPid>(ent))
-                {
-                    return "Failed: PhyPid component not found";
-                }
-
-                auto& pid = ecs.getRegistry().get<ecs::PhyPid>(ent);
-
-                auto set_pd =
-                    [&a](ctrl::PD& pd, const char* kpFlag, const char* kdFlag)
-                {
-                    if (const auto it = a.flags.find(kpFlag);
-                        it != a.flags.end() && !it->second.empty())
-                    {
-                        pd.kp = std::stof(it->second);
-                    }
-                    if (const auto it = a.flags.find(kdFlag);
-                        it != a.flags.end() && !it->second.empty())
-                    {
-                        pd.kd = std::stof(it->second);
-                    }
-                };
-
-                // Optional global override for all loops first.
-                set_pd(pid.pdFwd, "-kp", "-kd");
-                set_pd(pid.pdSide, "-kp", "-kd");
-
-                // Optional per-loop overrides.
-                set_pd(pid.pdFwd, "-kpf", "-kdf");
-                set_pd(pid.pdSide, "-kps", "-kds");
-
-                ctrl::pdInit(&pid.pdFwd, pid.pdFwd.kp, pid.pdFwd.kd);
-                ctrl::pdInit(&pid.pdSide, pid.pdSide.kp, pid.pdSide.kd);
-
-                return "Ok";
-            }
-            catch (const std::exception& e)
-            {
-                return std::string("Failed: ") + e.what();
-            }
-        },
-        "Set phy-pid PD constants for one entity",
-        {{"-e", "Entity id", true},
-         {"-kp", "Global kp (all loops)", false},
-         {"-kd", "Global kd (all loops)", false},
-         {"-kpf", "Forward-loop kp", false},
-         {"-kdf", "Forward-loop kd", false},
-         {"-kps", "Side-loop kp", false},
-         {"-kds", "Side-loop kd", false}});
 
     commandManager.registerCommand(
         {"phy", "set"},
@@ -852,7 +808,8 @@ void Engine::registerConsoleCommands()
                 }
                 const auto mIt = a.flags.find("-m");
                 const auto iIt = a.flags.find("-i");
-                const bool hasMass = mIt != a.flags.end() && !mIt->second.empty();
+                const bool hasMass =
+                    mIt != a.flags.end() && !mIt->second.empty();
                 const bool hasInertia =
                     iIt != a.flags.end() && !iIt->second.empty();
                 if (!hasMass && !hasInertia)
@@ -888,6 +845,51 @@ void Engine::registerConsoleCommands()
         {{"-e", "Entity id", true},
          {"-m", "Mass (>0)", false},
          {"-i", "Inertia (>0)", false}});
+
+    commandManager.registerCommand(
+        {"phy", "setk"},
+        [this](const cmd::CommandArgs& a) -> std::string
+        {
+            try
+            {
+                const auto ktIt = a.flags.find("-kt");
+                const auto krIt = a.flags.find("-kr");
+                const bool hasKt =
+                    ktIt != a.flags.end() && !ktIt->second.empty();
+                const bool hasKr =
+                    krIt != a.flags.end() && !krIt->second.empty();
+                if (!hasKt && !hasKr)
+                {
+                    return "Failed: Provide -kt and/or -kr";
+                }
+                if (hasKt)
+                {
+                    const float kpThrust = std::stof(ktIt->second);
+                    if (!(kpThrust >= 0.0f))
+                    {
+                        return "Failed: kp-thrust must be >= 0";
+                    }
+                    ptrHandle->kpThrust = kpThrust;
+                }
+                if (hasKr)
+                {
+                    const float kpTurn = std::stof(krIt->second);
+                    if (!(kpTurn >= 0.0f))
+                    {
+                        return "Failed: kp-turn must be >= 0";
+                    }
+                    ptrHandle->kpTurn = kpTurn;
+                }
+                return "Ok";
+            }
+            catch (const std::exception& e)
+            {
+                return std::string("Failed: ") + e.what();
+            }
+        },
+        "Set global physics controller gains (thrust/turn)",
+        {{"-kt", "Thrust velocity P gain (>=0)", false},
+         {"-kr", "Turn velocity P gain (>=0)", false}});
 }
 
 void Engine::runSlowClientDump(long frameTime)

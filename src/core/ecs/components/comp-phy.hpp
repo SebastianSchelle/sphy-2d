@@ -91,6 +91,14 @@ struct PhysicsBody
         TRY_YAML_DICT(physicsBody.rotVel, node["rotVel"], 0.0f);
         TRY_YAML_DICT(physicsBody.rotAcc, node["rotAcc"], 0.0f);
         TRY_YAML_DICT(physicsBody.acc, node["acc"], vec2(0.0f, 0.0f));
+        if (physicsBody.inertia <= 1e-8f)
+        {
+            physicsBody.inertia = 1.0f;
+        }
+        if (physicsBody.mass <= 1e-8f)
+        {
+            physicsBody.mass = 1.0f;
+        }
         registry.emplace<PhysicsBody>(entity, physicsBody);
     }
 };
@@ -105,6 +113,38 @@ struct PhysicsBody
 EXT_SER(PhysicsBody, SER_PHYSICS_BODY)
 EXT_DES(PhysicsBody, SER_PHYSICS_BODY)
 
+/// Scale local thrust uniformly so |x|<=maneuverMax, |y|<=mainMax; preserves
+/// direction (per-axis clamp does not). Hot path: already inside box (no div).
+inline void clampThrustLocalToActuatorBox(vec2& local,
+                                          float maneuverMax,
+                                          float mainMax)
+{
+    constexpr float eps = 1e-12f;
+    const float tx = local.x;
+    const float ty = local.y;
+    const float ax = std::fabsf(tx);
+    const float ay = std::fabsf(ty);
+    if (ax < eps && ay < eps)
+    {
+        local = vec2(0.0f);
+        return;
+    }
+    if (ax <= maneuverMax && ay <= mainMax)
+    {
+        return;
+    }
+    float s = 1.0f;
+    if (ax > eps)
+    {
+        s = std::fminf(s, maneuverMax / ax);
+    }
+    if (ay > eps)
+    {
+        s = std::fminf(s, mainMax / ay);
+    }
+    local.x = tx * s;
+    local.y = ty * s;
+}
 
 struct PhyThrust
 {
@@ -123,20 +163,16 @@ struct PhyThrust
     void setThrustGlobal(glm::vec2 th, Transform& tr)
     {
         thrustLocal = hmath::rotateVec2(th, tr.rot);
-        thrustLocal[0] =
-            std::clamp(thrustLocal[0], -thrustManeuverMax, thrustManeuverMax);
-        thrustLocal[1] =
-            std::clamp(thrustLocal[1], -thrustMainMax, thrustMainMax);
+        clampThrustLocalToActuatorBox(
+            thrustLocal, thrustManeuverMax, thrustMainMax);
         thrustGlobal = hmath::rotateVec2(thrustLocal, -tr.rot);
     }
 
     void setThrustLocal(glm::vec2 th, Transform& tr)
     {
         thrustLocal = th;
-        thrustLocal[0] =
-            std::clamp(thrustLocal[0], -thrustManeuverMax, thrustManeuverMax);
-        thrustLocal[1] =
-            std::clamp(thrustLocal[1], -thrustMainMax, thrustMainMax);
+        clampThrustLocalToActuatorBox(
+            thrustLocal, thrustManeuverMax, thrustMainMax);
         thrustGlobal = hmath::rotateVec2(thrustLocal, -tr.rot);
     }
 
@@ -184,17 +220,14 @@ struct PhyThrust
 EXT_SER(PhyThrust, SER_PHY_THRUST)
 EXT_DES(PhyThrust, SER_PHY_THRUST)
 
-struct PhyPid
+struct MoveCtrl
 {
     static const uint16_t VERSION = 1;
-    static constexpr string NAME = "phy-pid";
+    static constexpr string NAME = "move-ctrl";
 
     bool active = false;
     vec2 spPos;
     float spRot;
-
-    ctrl::PD pdFwd;
-    ctrl::PD pdSide;
 
 #ifdef DEBUG
     float spVelX;
@@ -206,39 +239,27 @@ struct PhyPid
                          entt::entity entity,
                          const YAML::Node& node)
     {
-        PhyPid c;
+        MoveCtrl c;
         TRY_YAML_DICT(c.active, node["active"], false);
         TRY_YAML_DICT(c.spPos.x, node["spPos"][0], 0.0f);
         TRY_YAML_DICT(c.spPos.y, node["spPos"][1], 0.0f);
         TRY_YAML_DICT(c.spRot, node["spRot"], 0.0f);
-        // Tuned for smoother approach: less derivative kick and stronger
-        // rotational damping.
-        float kpFwd; TRY_YAML_DICT(kpFwd, node["kpFwd"], 0.05f);
-        float kdFwd; TRY_YAML_DICT(kdFwd, node["kdFwd"], 0.01f);
-        float kpSide; TRY_YAML_DICT(kpSide, node["kpSide"], 0.05f);
-        float kdSide; TRY_YAML_DICT(kpSide, node["kdSide"], 0.01f);
-        ctrl::pdInit(&c.pdFwd, kpFwd, kdFwd);
-        ctrl::pdInit(&c.pdSide, kpSide, kdSide);
-        registry.emplace<PhyPid>(entity, c);
+        registry.emplace<MoveCtrl>(entity, c);
     }
 };
 
-#define SER_PHY_PID_HOLD                                                       \
+#define SER_MOVE_CTRL_HOLD                                                     \
     S1b(o.active);                                                             \
     SOBJ(o.spPos);                                                             \
-    S4b(o.spRot);                                                              \
-    S4b(o.pdFwd.prev_error);                                                   \
-    S4b(o.pdSide.prev_error);
+    S4b(o.spRot);
 
-#define DES_PHY_PID_HOLD                                                       \
+#define DES_MOVE_CTRL_HOLD                                                     \
     S1b(o.active);                                                             \
     SOBJ(o.spPos);                                                             \
-    S4b(o.spRot);                                                              \
-    S4b(o.pdFwd.prev_error);                                                   \
-    S4b(o.pdSide.prev_error);
+    S4b(o.spRot);
 
-EXT_SER(PhyPid, SER_PHY_PID_HOLD)
-EXT_DES(PhyPid, DES_PHY_PID_HOLD)
+EXT_SER(MoveCtrl, SER_MOVE_CTRL_HOLD)
+EXT_DES(MoveCtrl, DES_MOVE_CTRL_HOLD)
 
 }  // namespace ecs
 
@@ -265,7 +286,7 @@ EXT_FMT(ecs::PhyThrust,
         o.thrustMainMax,
         o.thrustManeuverMax,
         o.maxSpd);
-EXT_FMT(ecs::PhyPid,
+EXT_FMT(ecs::MoveCtrl,
         "(active: {}, spPos: {}, spRot: {})",
         o.active,
         o.spPos,

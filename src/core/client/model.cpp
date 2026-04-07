@@ -28,7 +28,7 @@ Model::Model(ui::UserInterface* userInterface,
     cFac->registerComponent<ecs::PhysicsBody>();
     cFac->registerComponent<ecs::AssetId>();
     cFac->registerComponent<ecs::PhyThrust>();
-    cFac->registerComponent<ecs::PhyPid>();
+    cFac->registerComponent<ecs::MoveCtrl>();
 
     selectedEntity = {0, 1};
 }

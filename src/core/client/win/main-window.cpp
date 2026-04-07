@@ -909,16 +909,13 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
             go.thrustManeuverMax = phyThrust->thrustManeuverMax;
             go.maxSpd = phyThrust->maxSpd;
         }
-        if (auto phyPid = reg.try_get<ecs::PhyPid>(entity))
+        if (auto moveCtrl = reg.try_get<ecs::MoveCtrl>(entity))
         {
-            go.hasPhyPid = true;
-            go.phyPidActive = phyPid->active;
-            go.spPosX = phyPid->spPos.x;
-            go.spPosY = phyPid->spPos.y;
-            go.spRot = phyPid->spRot;
-            go.errorX = phyPid->pdFwd.prev_error;
-            go.errorY = phyPid->pdSide.prev_error;
-            go.errorRot = phyPid->pdTurn.prev_error;
+            go.hasMoveCtrl = true;
+            go.moveCtrlActive = moveCtrl->active;
+            go.spPosX = moveCtrl->spPos.x;
+            go.spPosY = moveCtrl->spPos.y;
+            go.spRot = moveCtrl->spRot;
         }
     }
     else
@@ -932,6 +929,8 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
             go.thrustLocalY = 0.f;
         go.torque = go.maxTorque = go.maxRotVel = 0.f;
         go.thrustMainMax = go.thrustManeuverMax = go.maxSpd = 0.f;
+        go.hasMoveCtrl = false;
+        go.moveCtrlActive = false;
     }
 }
 
@@ -984,14 +983,12 @@ void MainWindow::setupDataModelDebug()
             md_handle.RegisterMember("thrustManeuverMax",
                                      &UiDebugGameObject::thrustManeuverMax);
             md_handle.RegisterMember("maxSpd", &UiDebugGameObject::maxSpd);
-            md_handle.RegisterMember("hasPhyPid", &UiDebugGameObject::hasPhyPid);
-            md_handle.RegisterMember("phyPidActive", &UiDebugGameObject::phyPidActive);
+            md_handle.RegisterMember("hasMoveCtrl", &UiDebugGameObject::hasMoveCtrl);
+            md_handle.RegisterMember("moveCtrlActive",
+                                     &UiDebugGameObject::moveCtrlActive);
             md_handle.RegisterMember("spPosX", &UiDebugGameObject::spPosX);
             md_handle.RegisterMember("spPosY", &UiDebugGameObject::spPosY);
             md_handle.RegisterMember("spRot", &UiDebugGameObject::spRot);
-            md_handle.RegisterMember("errorX", &UiDebugGameObject::errorX);
-            md_handle.RegisterMember("errorY", &UiDebugGameObject::errorY);
-            md_handle.RegisterMember("errorRot", &UiDebugGameObject::errorRot);
         }
         debugConstructor.Bind("selGameObject", &debugData.selGameObject);
 

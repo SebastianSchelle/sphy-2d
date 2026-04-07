@@ -31,6 +31,10 @@ struct PtrHandle
     world::World* world;
 #ifdef SERVER
     sphys::Engine* engine;
+    float kpThrust;
+    float kpTurn;
+    float angDrag;
+    float linDrag;
 #elif CLIENT
     sphyc::Client* client;
 #endif
