@@ -4,6 +4,8 @@
 #include <entt/entt.hpp>
 #include <std-inc.hpp>
 #include <yaml-cpp/yaml.h>
+#include <magic_enum/magic_enum.hpp>
+#include <world-def.hpp>
 
 namespace ecs
 {
@@ -115,9 +117,8 @@ EXT_DES(PhysicsBody, SER_PHYSICS_BODY)
 
 /// Scale local thrust uniformly so |x|<=maneuverMax, |y|<=mainMax; preserves
 /// direction (per-axis clamp does not). Hot path: already inside box (no div).
-inline void clampThrustLocalToActuatorBox(vec2& local,
-                                          float maneuverMax,
-                                          float mainMax)
+inline void
+clampThrustLocalToActuatorBox(vec2& local, float maneuverMax, float mainMax)
 {
     constexpr float eps = 1e-12f;
     const float tx = local.x;
@@ -222,28 +223,47 @@ EXT_DES(PhyThrust, SER_PHY_THRUST)
 
 struct MoveCtrl
 {
+    enum class FaceDirMode : uint8_t
+    {
+        None,
+        Forward,
+        TargetPoint,
+    };
+
     static const uint16_t VERSION = 1;
     static constexpr string NAME = "move-ctrl";
 
     bool active = false;
-    vec2 spPos;
+    FaceDirMode faceDirMode;
+    def::SectorCoords spPos;
+    // lookAt only works in sector
+    vec2 lookAt;
     float spRot;
-
-#ifdef DEBUG
-    float spVelX;
-    float spVelY;
-    float spRotVel;
-#endif
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
                          const YAML::Node& node)
     {
         MoveCtrl c;
+        string dirMode;
         TRY_YAML_DICT(c.active, node["active"], false);
-        TRY_YAML_DICT(c.spPos.x, node["spPos"][0], 0.0f);
-        TRY_YAML_DICT(c.spPos.y, node["spPos"][1], 0.0f);
+        TRY_YAML_DICT(c.spPos.sectorPos.x, node["spPos"][0], 0.0f);
+        TRY_YAML_DICT(c.spPos.sectorPos.y, node["spPos"][1], 0.0f);
+        TRY_YAML_DICT(c.spPos.pos.x, node["spPosSec"][0], 0u);
+        TRY_YAML_DICT(c.spPos.pos.y, node["spPosSec"][1], 0u);
         TRY_YAML_DICT(c.spRot, node["spRot"], 0.0f);
+        TRY_YAML_DICT(dirMode, node["faceDirMode"], "None");
+        auto faceDirMode = magic_enum::enum_cast<FaceDirMode>(dirMode);
+        if(faceDirMode.has_value())
+        {
+            c.faceDirMode = faceDirMode.value();
+        }
+        else
+        {
+            c.faceDirMode = FaceDirMode::None;
+        }
+        TRY_YAML_DICT(c.lookAt.x, node["lookAt"][0], 0.0f);
+        TRY_YAML_DICT(c.lookAt.y, node["lookAt"][1], 0.0f);
         registry.emplace<MoveCtrl>(entity, c);
     }
 };
@@ -251,15 +271,11 @@ struct MoveCtrl
 #define SER_MOVE_CTRL_HOLD                                                     \
     S1b(o.active);                                                             \
     SOBJ(o.spPos);                                                             \
-    S4b(o.spRot);
-
-#define DES_MOVE_CTRL_HOLD                                                     \
-    S1b(o.active);                                                             \
-    SOBJ(o.spPos);                                                             \
-    S4b(o.spRot);
-
+    S4b(o.spRot);                                                              \
+    S1b(o.faceDirMode);                                                        \
+    SOBJ(o.lookAt);
 EXT_SER(MoveCtrl, SER_MOVE_CTRL_HOLD)
-EXT_DES(MoveCtrl, DES_MOVE_CTRL_HOLD)
+EXT_DES(MoveCtrl, SER_MOVE_CTRL_HOLD)
 
 }  // namespace ecs
 
@@ -287,9 +303,11 @@ EXT_FMT(ecs::PhyThrust,
         o.thrustManeuverMax,
         o.maxSpd);
 EXT_FMT(ecs::MoveCtrl,
-        "(active: {}, spPos: {}, spRot: {})",
+        "(active: {}, spPos: {}, spRot: {}, faceDirMode: {}, lookAt: {})",
         o.active,
         o.spPos,
-        o.spRot);
+        o.spRot,
+        magic_enum::enum_name(o.faceDirMode),
+        o.lookAt);
 
 #endif

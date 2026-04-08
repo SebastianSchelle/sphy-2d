@@ -77,25 +77,42 @@ class CmdLinOptionsServer : public CmdLineOptions
         {
             return false;
         }
+        if (vm.count("rerun"))
+        {
+            enableRerun = vm["rerun"].as<bool>();
+        }
         return true;
     }
     static void createCmdLineOptions(po::options_description& desc)
     {
         CmdLineOptions::createCmdLineOptions(desc);
+        desc.add_options()(
+            "rerun,R",
+            po::bool_switch()->default_value(false),
+            "Enable rerun streaming from server");
     }
     static bool handleDefaultCmdLineOptions(int argc,
                                             char* argv[],
                                             po::options_description& desc,
                                             po::variables_map& vm,
-                                            CmdLineOptions& options)
+                                            CmdLinOptionsServer& options)
     {
-        if (CmdLineOptions::handleDefaultCmdLineOptions(
-                argc, argv, desc, vm, options))
+        po::store(po::parse_command_line(argc, argv, desc), vm);
+        po::notify(vm);
+        if (vm.count("help"))
         {
+            std::cout << desc << std::endl;
+            return true;
+        }
+        if (!options.parse(vm))
+        {
+            std::cout << "Could not parse command line options" << std::endl;
             return true;
         }
         return false;
     }
+
+    bool enableRerun = false;
 };
 
 

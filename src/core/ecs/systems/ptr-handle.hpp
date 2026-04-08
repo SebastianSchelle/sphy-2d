@@ -35,6 +35,8 @@ struct PtrHandle
     float kpTurn;
     float angDrag;
     float linDrag;
+    float minFaceForwardDist;
+    float minFaceTargetDist;
 #elif CLIENT
     sphyc::Client* client;
 #endif

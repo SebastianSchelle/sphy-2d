@@ -37,23 +37,29 @@ struct SectorId
     static constexpr string NAME = "sector-id";
 
     uint32_t id;
+    uint32_t x;
+    uint32_t y;
 
     static void fromYaml(entt::registry& registry, entt::entity entity, const YAML::Node& node)
     {
         SectorId sectorId;
-        sectorId.id = node["id"].as<uint32_t>();
+        TRY_YAML_DICT(sectorId.id, node["id"], 0u);
+        TRY_YAML_DICT(sectorId.x, node["x"], 0u);
+        TRY_YAML_DICT(sectorId.y, node["y"], 0u);
         registry.emplace<SectorId>(entity, sectorId);
     }
 };
 
 #define SER_SECTOR_ID                                                           \
-    S4b(o.id);
+    S4b(o.id);                                                               \
+    S4b(o.x);                                                                 \
+    S4b(o.y);
 EXT_SER(SectorId, SER_SECTOR_ID)
 EXT_DES(SectorId, SER_SECTOR_ID)
 
 }  // namespace ecs
 
 EXT_FMT(ecs::AssetId, "{}", o.name);
-EXT_FMT(ecs::SectorId, "{}", o.id);
+EXT_FMT(ecs::SectorId, "s:{}, x:{}, y:{}", o.id, o.x, o.y);
 
 #endif

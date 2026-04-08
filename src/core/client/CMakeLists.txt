@@ -16,6 +16,7 @@ set(CLIENT_INC_PUBLIC
     ${THIRPARTY_DIR}/rectpack2D/src
     ${THIRPARTY_DIR}/sol2/include
     ${THIRPARTY_DIR}/entt/src
+    ${THIRPARTY_DIR}/magic_enum/include
     ${BGFX_DIR}/bgfx/include
     ${BGFX_DIR}/bgfx/examples/common
     ${BGFX_DIR}/bgfx/3rdparty

@@ -110,8 +110,8 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
         CFG_FLOAT(config, 300.0f, "input", "drag-threshold", "world");
     dragBoxColor = CFG_UINT(
         config, (float)0x2085e085, "theme", "input", "drag-box", "color");
-    dragBoxThickness = CFG_FLOAT(
-        config, 1.0f, "theme", "input", "drag-box", "thickness");
+    dragBoxThickness =
+        CFG_FLOAT(config, 1.0f, "theme", "input", "drag-box", "thickness");
 
     const unsigned chatCmdHistoryEntries =
         CFG_UINT(config, 50.0f, "chat", "cmd-history-entries");
@@ -913,9 +913,14 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
         {
             go.hasMoveCtrl = true;
             go.moveCtrlActive = moveCtrl->active;
-            go.spPosX = moveCtrl->spPos.x;
-            go.spPosY = moveCtrl->spPos.y;
+            go.spPosX = moveCtrl->spPos.sectorPos.x;
+            go.spPosY = moveCtrl->spPos.sectorPos.y;
+            go.spPosSecX = moveCtrl->spPos.pos.x;
+            go.spPosSecY = moveCtrl->spPos.pos.y;
             go.spRot = moveCtrl->spRot;
+            go.moveCtrlFaceDirMode = magic_enum::enum_name(moveCtrl->faceDirMode);
+            go.lookAtX = moveCtrl->lookAt.x;
+            go.lookAtY = moveCtrl->lookAt.y;
         }
     }
     else
@@ -931,6 +936,13 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
         go.thrustMainMax = go.thrustManeuverMax = go.maxSpd = 0.f;
         go.hasMoveCtrl = false;
         go.moveCtrlActive = false;
+        go.moveCtrlFaceDirMode = "None";
+        go.spPosSecX = 0;
+        go.spPosSecY = 0;
+        go.spPosX = 0.f;
+        go.spPosY = 0.f;
+        go.lookAtX = 0.f;
+        go.lookAtY = 0.f;
     }
 }
 
@@ -983,12 +995,19 @@ void MainWindow::setupDataModelDebug()
             md_handle.RegisterMember("thrustManeuverMax",
                                      &UiDebugGameObject::thrustManeuverMax);
             md_handle.RegisterMember("maxSpd", &UiDebugGameObject::maxSpd);
-            md_handle.RegisterMember("hasMoveCtrl", &UiDebugGameObject::hasMoveCtrl);
+            md_handle.RegisterMember("hasMoveCtrl",
+                                     &UiDebugGameObject::hasMoveCtrl);
             md_handle.RegisterMember("moveCtrlActive",
                                      &UiDebugGameObject::moveCtrlActive);
             md_handle.RegisterMember("spPosX", &UiDebugGameObject::spPosX);
             md_handle.RegisterMember("spPosY", &UiDebugGameObject::spPosY);
+            md_handle.RegisterMember("spPosSecX", &UiDebugGameObject::spPosSecX);
+            md_handle.RegisterMember("spPosSecY", &UiDebugGameObject::spPosSecY);
             md_handle.RegisterMember("spRot", &UiDebugGameObject::spRot);
+            md_handle.RegisterMember("moveCtrlFaceDirMode",
+                                     &UiDebugGameObject::moveCtrlFaceDirMode);
+            md_handle.RegisterMember("lookAtX", &UiDebugGameObject::lookAtX);
+            md_handle.RegisterMember("lookAtY", &UiDebugGameObject::lookAtY);
         }
         debugConstructor.Bind("selGameObject", &debugData.selGameObject);
 

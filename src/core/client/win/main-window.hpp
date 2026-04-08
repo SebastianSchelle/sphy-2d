@@ -107,7 +107,12 @@ struct UiDebugGameObject
     bool moveCtrlActive = false;
     float spPosX = 0.0f;
     float spPosY = 0.0f;
+    uint32_t spPosSecX = 0;
+    uint32_t spPosSecY = 0;
     float spRot = 0.0f;
+    std::string moveCtrlFaceDirMode = "None";
+    float lookAtX = 0.0f;
+    float lookAtY = 0.0f;
 };
 
 struct UiDbgInputData

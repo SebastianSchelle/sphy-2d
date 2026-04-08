@@ -34,8 +34,16 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
         CFG_FLOAT(config, 0.1f, "engine", "physics", "ang-drag");
     ptrHandle->linDrag =
         CFG_FLOAT(config, 0.1f, "engine", "physics", "lin-drag");
+    ptrHandle->minFaceForwardDist =
+        CFG_FLOAT(config, 1.0f, "engine", "physics", "min-face-forward-dist");
+    ptrHandle->minFaceTargetDist =
+        CFG_FLOAT(config, 1.0f, "engine", "physics", "min-face-target-dist");
     slowDumpUs = 1000 * CFG_UINT(config, 1000.0f, "engine", "slow-dump-ms");
-    rerunStream.spawn().exit_on_failure();
+
+    if (options.enableRerun)
+    {
+        rerunStream.spawn().exit_on_failure();
+    }
 }
 
 Engine::~Engine()
@@ -175,9 +183,12 @@ void Engine::update(float dt)
     rerunDebugMovePhy();
 }
 
-#ifdef DEBUG
 void Engine::rerunDebugMovePhy()
 {
+    if (!options.enableRerun)
+    {
+        return;
+    }
     const ecs::EntityId entityId0 = ecs.getEntityIdFromIdx(0);
     if (!ecs.validId(entityId0))
     {
@@ -199,41 +210,24 @@ void Engine::rerunDebugMovePhy()
         return;
     }
 
-    rerunStream.log("rot/vel", rerun::Scalars({pb->rotVel}));
-    if (moveCtrl)
+    if (moveCtrl && tr && pb && th)
     {
-        rerunStream.log("rot/des_vel", rerun::Scalars({moveCtrl->spRotVel}));
-        rerunStream.log(
-            "rot/vel_err",
-            rerun::Scalars({pb->rotVel - moveCtrl->spRotVel}));
+        rerunStream.log("rot/vel", rerun::Scalars({pb->rotVel}));
+        rerunStream.log("rot/trq", rerun::Scalars({th ? th->torque : 0.f}));
+        rerunStream.log("pos/x", rerun::Scalars({tr->pos.x}));
+        rerunStream.log("pos/y", rerun::Scalars({tr->pos.y}));
+        rerunStream.log("pos/des/x",
+                        rerun::Scalars({moveCtrl->spPos.sectorPos.x}));
+        rerunStream.log("pos/des/y",
+                        rerun::Scalars({moveCtrl->spPos.sectorPos.y}));
+        rerunStream.log("pos/vel/x", rerun::Scalars({pb->vel.x}));
+        rerunStream.log("pos/vel/y", rerun::Scalars({pb->vel.y}));
+        rerunStream.log("pos/thrust/x",
+                        rerun::Scalars({th ? th->thrustGlobal.x : 0.f}));
+        rerunStream.log("pos/thrust/y",
+                        rerun::Scalars({th ? th->thrustGlobal.y : 0.f}));
     }
-    rerunStream.log("rot/trq", rerun::Scalars({th ? th->torque : 0.f}));
-    rerunStream.log("pos/x", rerun::Scalars({tr->pos.x}));
-    rerunStream.log("pos/y", rerun::Scalars({tr->pos.y}));
-    if (moveCtrl)
-    {
-        rerunStream.log("pos/des/x", rerun::Scalars({moveCtrl->spPos.x}));
-        rerunStream.log("pos/des/y", rerun::Scalars({moveCtrl->spPos.y}));
-    }
-    rerunStream.log("pos/vel/x", rerun::Scalars({pb->vel.x}));
-    rerunStream.log("pos/vel/y", rerun::Scalars({pb->vel.y}));
-    if (moveCtrl)
-    {
-        rerunStream.log("pos/des_vel/x", rerun::Scalars({moveCtrl->spVelX}));
-        rerunStream.log("pos/des_vel/y", rerun::Scalars({moveCtrl->spVelY}));
-        rerunStream.log(
-            "pos/vel_err/x",
-            rerun::Scalars({pb->vel.x - moveCtrl->spVelX}));
-        rerunStream.log(
-            "pos/vel_err/y",
-            rerun::Scalars({pb->vel.y - moveCtrl->spVelY}));
-    }
-    rerunStream.log("pos/thrust/x",
-                    rerun::Scalars({th ? th->thrustGlobal.x : 0.f}));
-    rerunStream.log("pos/thrust/y",
-                    rerun::Scalars({th ? th->thrustGlobal.y : 0.f}));
 }
-#endif
 
 void Engine::startFromFolder()
 {
@@ -751,21 +745,82 @@ void Engine::registerConsoleCommands()
                 if (ecs.getRegistry().all_of<ecs::MoveCtrl>(ent))
                 {
                     auto& mc = ecs.getRegistry().get<ecs::MoveCtrl>(ent);
+                    auto* sectorId = ecs.getRegistry().try_get<ecs::SectorId>(ent);
+
+                    const auto sxIt = a.flags.find("-sx");
+                    const auto syIt = a.flags.find("-sy");
+                    const bool hasSx =
+                        sxIt != a.flags.end() && !sxIt->second.empty();
+                    const bool hasSy =
+                        syIt != a.flags.end() && !syIt->second.empty();
+                    if (hasSx != hasSy)
+                    {
+                        return "Failed: provide both -sx and -sy";
+                    }
+                    if (hasSx)
+                    {
+                        mc.spPos.pos.x = std::stoul(sxIt->second);
+                        mc.spPos.pos.y = std::stoul(syIt->second);
+                    }
+                    else if (!mc.active && sectorId)
+                    {
+                        // On first activation, default target sector to current.
+                        auto [sx, sy] = ptrHandle->world->idToSectorCoords(sectorId->id);
+                        mc.spPos.pos.x = sx;
+                        mc.spPos.pos.y = sy;
+                    }
 
                     if (const auto it = a.flags.find("-x");
                         it != a.flags.end() && !it->second.empty())
                     {
-                        mc.spPos.x = std::stof(it->second);
+                        mc.spPos.sectorPos.x = std::stof(it->second);
                     }
                     if (const auto it = a.flags.find("-y");
                         it != a.flags.end() && !it->second.empty())
                     {
-                        mc.spPos.y = std::stof(it->second);
+                        mc.spPos.sectorPos.y = std::stof(it->second);
                     }
                     if (const auto it = a.flags.find("-r");
                         it != a.flags.end() && !it->second.empty())
                     {
                         mc.spRot = std::stof(it->second);
+                    }
+                    if (const auto it = a.flags.find("-fd");
+                        it != a.flags.end() && !it->second.empty())
+                    {
+                        string mode = it->second;
+                        std::transform(mode.begin(),
+                                       mode.end(),
+                                       mode.begin(),
+                                       [](unsigned char c)
+                                       { return std::tolower(c); });
+                        if (mode == "none")
+                        {
+                            mc.faceDirMode = ecs::MoveCtrl::FaceDirMode::None;
+                        }
+                        else if (mode == "forward")
+                        {
+                            mc.faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
+                        }
+                        else if (mode == "targetpoint")
+                        {
+                            mc.faceDirMode =
+                                ecs::MoveCtrl::FaceDirMode::TargetPoint;
+                        }
+                        else
+                        {
+                            return "Failed: -fd must be none|forward|targetpoint";
+                        }
+                    }
+                    if (const auto it = a.flags.find("-tx");
+                        it != a.flags.end() && !it->second.empty())
+                    {
+                        mc.lookAt.x = std::stof(it->second);
+                    }
+                    if (const auto it = a.flags.find("-ty");
+                        it != a.flags.end() && !it->second.empty())
+                    {
+                        mc.lookAt.y = std::stof(it->second);
                     }
 
                     mc.active = true;
@@ -784,9 +839,14 @@ void Engine::registerConsoleCommands()
         },
         "Update move-ctrl setpoints for an entity",
         {{"-e", "Entity id", true},
-         {"-x", "X position", false},
-         {"-y", "Y position", false},
-         {"-r", "Rotation", false}});
+         {"-sx", "Target sector X (must be used with -sy)", false},
+         {"-sy", "Target sector Y (must be used with -sx)", false},
+         {"-x", "Target in-sector X position", false},
+         {"-y", "Target in-sector Y position", false},
+         {"-r", "Target rotation (rad)", false},
+         {"-fd", "Face direction mode: none|forward|targetpoint", false},
+         {"-tx", "Target-point X (for -fd targetpoint)", false},
+         {"-ty", "Target-point Y (for -fd targetpoint)", false}});
 
     commandManager.registerCommand(
         {"phy", "set"},

@@ -48,6 +48,14 @@ struct SectorCoords
     }
 };
 
+#define SER_SECTOR_COORDS                                                       \
+    S4b(o.pos.x);                                                             \
+    S4b(o.pos.y);                                                             \
+    SOBJ(o.sectorPos);
+
+EXT_SER(SectorCoords, SER_SECTOR_COORDS)
+EXT_DES(SectorCoords, SER_SECTOR_COORDS)
+
 struct WorldShape
 {
     static const uint16_t VERSION = 1;

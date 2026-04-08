@@ -26,17 +26,77 @@ const System sysMoveCtrl = {
        std::shared_ptr<PtrHandle> ptrHandle)
     {
         auto reg = ptrHandle->registry;
+        auto* sectorId = reg->try_get<ecs::SectorId>(entity);
         auto* moveCtrl = reg->try_get<MoveCtrl>(entity);
         auto* transform = reg->try_get<Transform>(entity);
         auto* physicsBody = reg->try_get<PhysicsBody>(entity);
         auto* phyThrust = reg->try_get<PhyThrust>(entity);
-        if (!moveCtrl || !transform || !physicsBody || !phyThrust || dt <= 1e-6f
-            || !moveCtrl->active)
+        if (!moveCtrl || !transform || !physicsBody || !phyThrust || !sectorId
+            || !moveCtrl->active || dt <= 1e-6f)
         {
             return;
         }
 
+        // Thrust control =====================
+        vec2 relTargetPos = (vec2(moveCtrl->spPos.pos.x, moveCtrl->spPos.pos.y)
+                             - vec2(sectorId->x, sectorId->y))
+                                * ptrHandle->world->getWorldShape().sectorSize
+                            + moveCtrl->spPos.sectorPos;
+        const vec2 worldDir = relTargetPos - transform->pos;
+        const float dist = length(worldDir);
+        const float speed = length(physicsBody->vel);
+        const bool inPosDeadzone = dist < posDeadband && speed < velDeadband;
+        vec2 dir;
+        if (inPosDeadzone)
+        {
+            phyThrust->setThrustGlobal(vec2(0.0f), *transform);
+        }
+        else if (dist > 1e-8f)
+        {
+            glm::vec2 desVelV(0.0f);
+            const float maxAcc = fmaxf(
+                0.0f,
+                std::min(phyThrust->thrustManeuverMax, phyThrust->thrustMainMax)
+                    / physicsBody->mass);
+            if (maxAcc > 0.0f)
+            {
+                dir = worldDir / dist;
+                const float desVelMag = velMargin * sqrtf(2.0f * maxAcc * dist);
+                const float desVel = fminf(phyThrust->maxSpd, desVelMag);
+                desVelV = dir * desVel;
+            }
+
+            const glm::vec2 err = desVelV - physicsBody->vel;
+            const glm::vec2 thrust =
+                ptrHandle->kpThrust * physicsBody->mass * err;
+            phyThrust->setThrustGlobal(thrust, *transform);
+        }
+
         // Torque control =====================
+
+        switch (moveCtrl->faceDirMode)
+        {
+            case MoveCtrl::FaceDirMode::Forward:
+                if (dist > ptrHandle->minFaceForwardDist)
+                {
+                    moveCtrl->spRot = atan2f(dir.y, dir.x);
+                }
+                break;
+            case MoveCtrl::FaceDirMode::TargetPoint:
+            {
+                vec2 tgtDir = vec2(moveCtrl->lookAt.x - transform->pos.x,
+                                   moveCtrl->lookAt.y - transform->pos.y);
+                if (fabs(tgtDir.x) + fabs(tgtDir.y)
+                    > ptrHandle->minFaceTargetDist)
+                {
+                    moveCtrl->spRot = atan2f(tgtDir.y, tgtDir.x);
+                }
+            }
+            break;
+            default:
+                break;
+        }
+
         const float angleErr =
             hmath::angleError(moveCtrl->spRot, transform->rot);
         const bool inRotDeadzone =
@@ -54,9 +114,6 @@ const System sysMoveCtrl = {
             desW = std::min(desWMag, maxRotVel);
             desW *= glm::sign(angleErr);
         }
-#ifdef DEBUG
-        moveCtrl->spRotVel = desW;
-#endif
         if (inRotDeadzone)
         {
             phyThrust->setTorque(0.0f);
@@ -66,40 +123,6 @@ const System sysMoveCtrl = {
             const float werr = desW - physicsBody->rotVel;
             float trq = ptrHandle->kpTurn * werr * physicsBody->inertia;
             phyThrust->setTorque(trq);
-        }
-
-        // Thrust control =====================
-        const glm::vec2 worldDir = moveCtrl->spPos - transform->pos;
-        const float dist = glm::length(worldDir);
-        const float speed = glm::length(physicsBody->vel);
-        const bool inPosDeadzone = dist < posDeadband && speed < velDeadband;
-        if (inPosDeadzone)
-        {
-            phyThrust->setThrustGlobal(glm::vec2(0.0f), *transform);
-        }
-        else if (dist > 1e-8f)
-        {
-            glm::vec2 desVelV(0.0f);
-            const float maxAcc = std::max(
-                0.0f,
-                std::min(phyThrust->thrustManeuverMax, phyThrust->thrustMainMax)
-                    / physicsBody->mass);
-            if (maxAcc > 0.0f)
-            {
-                const float desVelMag =
-                    velMargin * std::sqrt(2.0f * maxAcc * dist);
-                const float desVel = std::min(phyThrust->maxSpd, desVelMag);
-                desVelV = worldDir / dist * desVel;
-#ifdef DEBUG
-                moveCtrl->spVelX = desVelV.x;
-                moveCtrl->spVelY = desVelV.y;
-#endif
-            }
-
-            const glm::vec2 err = desVelV - physicsBody->vel;
-            const glm::vec2 thrust =
-                ptrHandle->kpThrust * physicsBody->mass * err;
-            phyThrust->setThrustGlobal(thrust, *transform);
         }
     }};
 

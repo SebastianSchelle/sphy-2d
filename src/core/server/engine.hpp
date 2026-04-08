@@ -95,9 +95,7 @@ class Engine
     bool loadMods();
     void update(float dt);
     void postWorldSetup();
-#ifdef DEBUG
     void rerunDebugMovePhy();
-#endif
     void registerConsoleCommands();
     void runSlowClientDump(long frameTime);
     void handleTcpDisconnect(const std::shared_ptr<net::TcpConnection>& conn);
