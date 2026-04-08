@@ -89,9 +89,6 @@ struct UiDebugGameObject
     float velX = 0.0f;
     float velY = 0.0f;
     float rotVel = 0.0f;
-    float rotAcc = 0.0f;
-    float accX = 0.0f;
-    float accY = 0.0f;
     bool hasPhyThrust = false;
     float thrustGlobalX = 0.0f;
     float thrustGlobalY = 0.0f;

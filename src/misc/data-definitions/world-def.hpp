@@ -46,11 +46,87 @@ struct SectorCoords
     {
         return pos != other.pos || sectorPos != other.sectorPos;
     }
+    static const SectorCoords& minX(const SectorCoords& a, const SectorCoords& b)
+    {
+        if (a.pos.x < b.pos.x)
+        {
+            return a;
+        }
+        else if (a.pos.x > b.pos.x)
+        {
+            return b;
+        }
+        else if (a.sectorPos.x < b.sectorPos.x)
+        {
+            return a;
+        }
+        else
+        {
+            return b;
+        }
+    }
+    static const SectorCoords& minY(const SectorCoords& a, const SectorCoords& b)
+    {
+        if (a.pos.y < b.pos.y)
+        {
+            return a;
+        }
+        else if (a.pos.y > b.pos.y)
+        {
+            return b;
+        }
+        else if (a.sectorPos.y < b.sectorPos.y)
+        {
+            return a;
+        }
+        else
+        {
+            return b;
+        }
+    }
+    static const SectorCoords& maxX(const SectorCoords& a, const SectorCoords& b)
+    {
+        if (a.pos.x > b.pos.x)
+        {
+            return a;
+        }
+        else if (a.pos.x < b.pos.x)
+        {
+            return b;
+        }
+        else if (a.sectorPos.x > b.sectorPos.x)
+        {
+            return a;
+        }
+        else
+        {
+            return b;
+        }
+    }
+    static const SectorCoords& maxY(const SectorCoords& a, const SectorCoords& b)
+    {
+        if (a.pos.y > b.pos.y)
+        {
+            return a;
+        }
+        else if (a.pos.y < b.pos.y)
+        {
+            return b;
+        }
+        else if (a.sectorPos.y > b.sectorPos.y)
+        {
+            return a;
+        }
+        else
+        {
+            return b;
+        }
+    }
 };
 
-#define SER_SECTOR_COORDS                                                       \
-    S4b(o.pos.x);                                                             \
-    S4b(o.pos.y);                                                             \
+#define SER_SECTOR_COORDS                                                      \
+    S4b(o.pos.x);                                                              \
+    S4b(o.pos.y);                                                              \
     SOBJ(o.sectorPos);
 
 EXT_SER(SectorCoords, SER_SECTOR_COORDS)

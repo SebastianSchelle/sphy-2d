@@ -1,12 +1,30 @@
 #ifndef COMP_IDENT_HPP
 #define COMP_IDENT_HPP
 
-#include <ecs.hpp>
 #include <std-inc.hpp>
 #include <yaml-cpp/yaml.h>
+#include <entt/entt.hpp>
 
 namespace ecs
 {
+
+struct EntityId
+{
+    uint32_t index;
+    uint16_t generation;
+    bool operator==(const EntityId& other) const
+    {
+        return index == other.index && generation == other.generation;
+    }
+    bool operator!=(const EntityId& other) const
+    {
+        return !(*this == other);
+    }
+};
+
+#define SER_ENTITY_ID S4b(o.index); S2b(o.generation);
+EXT_SER(EntityId, SER_ENTITY_ID)
+EXT_DES(EntityId, SER_ENTITY_ID)
 
 struct AssetId
 {
@@ -40,7 +58,9 @@ struct SectorId
     uint32_t x;
     uint32_t y;
 
-    static void fromYaml(entt::registry& registry, entt::entity entity, const YAML::Node& node)
+    static void fromYaml(entt::registry& registry,
+                         entt::entity entity,
+                         const YAML::Node& node)
     {
         SectorId sectorId;
         TRY_YAML_DICT(sectorId.id, node["id"], 0u);
@@ -50,15 +70,16 @@ struct SectorId
     }
 };
 
-#define SER_SECTOR_ID                                                           \
-    S4b(o.id);                                                               \
-    S4b(o.x);                                                                 \
+#define SER_SECTOR_ID                                                          \
+    S4b(o.id);                                                                 \
+    S4b(o.x);                                                                  \
     S4b(o.y);
 EXT_SER(SectorId, SER_SECTOR_ID)
 EXT_DES(SectorId, SER_SECTOR_ID)
 
 }  // namespace ecs
 
+EXT_FMT(ecs::EntityId, "{}:{}", o.index, o.generation);
 EXT_FMT(ecs::AssetId, "{}", o.name);
 EXT_FMT(ecs::SectorId, "s:{}, x:{}, y:{}", o.id, o.x, o.y);
 

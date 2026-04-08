@@ -63,10 +63,6 @@ void MouseState::processMouseButton(uint8_t i, float zoom, float dragThreshold)
         long clickDuration = tim::durationU(timePressed[i], now);
         if (dragActiveLast)
         {
-            LG_D("button {} drag finished {} - {}",
-                 i,
-                 mouseCoordsPressed[i],
-                 mouseCoordsReleased[i]);
             dragFinished[i] = true;
         }
         else if (clickDuration > 300000U)
@@ -86,7 +82,6 @@ void MouseState::processMouseButton(uint8_t i, float zoom, float dragThreshold)
                         >= dragThreshold / (zoom * zoom)))
     {
         dragActive[i] = true;
-        LG_D("button {} drag active", i);
     }
 }
 
@@ -349,6 +344,12 @@ void MainWindow::winLoop()
 
         if (model.getGameState() == ClientGameState::GameLoop)
         {
+            if (mouseState.dragFinished[0])
+            {
+                model.selectEntitiesInsideRect(
+                    mouseState.mouseCoordsPressed[0],
+                    mouseState.mouseCoordsReleased[0]);
+            }
             float zoom = renderEngine.getWorldZoom();
 
             renderEngine.panWorld(panX, panY);
@@ -866,7 +867,7 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
     {
         go.posX = go.posY = go.rot = 0.f;
         go.mass = go.inertia = 0.f;
-        go.velX = go.velY = go.rotVel = go.rotAcc = go.accX = go.accY = 0.f;
+        go.velX = go.velY = go.rotVel = 0.f;
         go.thrustGlobalX = go.thrustGlobalY = go.thrustLocalX =
             go.thrustLocalY = 0.f;
         go.torque = go.maxTorque = go.maxRotVel = 0.f;
@@ -891,9 +892,6 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
             go.velX = physicsBody->vel.x;
             go.velY = physicsBody->vel.y;
             go.rotVel = physicsBody->rotVel;
-            go.rotAcc = physicsBody->rotAcc;
-            go.accX = physicsBody->acc.x;
-            go.accY = physicsBody->acc.y;
         }
         if (auto phyThrust = reg.try_get<ecs::PhyThrust>(entity))
         {
@@ -918,7 +916,8 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
             go.spPosSecX = moveCtrl->spPos.pos.x;
             go.spPosSecY = moveCtrl->spPos.pos.y;
             go.spRot = moveCtrl->spRot;
-            go.moveCtrlFaceDirMode = magic_enum::enum_name(moveCtrl->faceDirMode);
+            go.moveCtrlFaceDirMode =
+                magic_enum::enum_name(moveCtrl->faceDirMode);
             go.lookAtX = moveCtrl->lookAt.x;
             go.lookAtY = moveCtrl->lookAt.y;
         }
@@ -929,7 +928,7 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
         go.sectorId = 0;
         go.posX = go.posY = go.rot = 0.f;
         go.mass = go.inertia = 0.f;
-        go.velX = go.velY = go.rotVel = go.rotAcc = go.accX = go.accY = 0.f;
+        go.velX = go.velY = go.rotVel = 0.f;
         go.thrustGlobalX = go.thrustGlobalY = go.thrustLocalX =
             go.thrustLocalY = 0.f;
         go.torque = go.maxTorque = go.maxRotVel = 0.f;
@@ -972,9 +971,6 @@ void MainWindow::setupDataModelDebug()
             md_handle.RegisterMember("velX", &UiDebugGameObject::velX);
             md_handle.RegisterMember("velY", &UiDebugGameObject::velY);
             md_handle.RegisterMember("rotVel", &UiDebugGameObject::rotVel);
-            md_handle.RegisterMember("rotAcc", &UiDebugGameObject::rotAcc);
-            md_handle.RegisterMember("accX", &UiDebugGameObject::accX);
-            md_handle.RegisterMember("accY", &UiDebugGameObject::accY);
             md_handle.RegisterMember("hasPhyThrust",
                                      &UiDebugGameObject::hasPhyThrust);
             md_handle.RegisterMember("thrustGlobalX",
@@ -1001,8 +997,10 @@ void MainWindow::setupDataModelDebug()
                                      &UiDebugGameObject::moveCtrlActive);
             md_handle.RegisterMember("spPosX", &UiDebugGameObject::spPosX);
             md_handle.RegisterMember("spPosY", &UiDebugGameObject::spPosY);
-            md_handle.RegisterMember("spPosSecX", &UiDebugGameObject::spPosSecX);
-            md_handle.RegisterMember("spPosSecY", &UiDebugGameObject::spPosSecY);
+            md_handle.RegisterMember("spPosSecX",
+                                     &UiDebugGameObject::spPosSecX);
+            md_handle.RegisterMember("spPosSecY",
+                                     &UiDebugGameObject::spPosSecY);
             md_handle.RegisterMember("spRot", &UiDebugGameObject::spRot);
             md_handle.RegisterMember("moveCtrlFaceDirMode",
                                      &UiDebugGameObject::moveCtrlFaceDirMode);

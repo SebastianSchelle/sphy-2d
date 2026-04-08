@@ -70,8 +70,7 @@ template <typename Component> void Engine::registerSlowDumpComponent()
                                         entity);
                                 if (component)
                                 {
-                                    cmdser.value4b(entityId.index);
-                                    cmdser.value2b(entityId.generation);
+                                    cmdser.object(entityId);
                                     cmdser.object(*component);
                                     numEntities++;
                                 }

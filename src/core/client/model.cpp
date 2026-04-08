@@ -14,7 +14,8 @@ namespace sphyc
 Model::Model(ui::UserInterface* userInterface,
              cfg::ConfigManager& config,
              std::function<void(void)> afterLoadWorldClb)
-    : userInterface(userInterface), config(config), afterLoadWorldClb(afterLoadWorldClb)
+    : userInterface(userInterface), config(config),
+      afterLoadWorldClb(afterLoadWorldClb)
 {
     loadWorldSequence.registerExchange(net::Exchange(
         prot::cmd::WORLD_INFO,
@@ -148,8 +149,10 @@ void Model::modelLoopGame(float dt)
         DO_PERIODIC_EXTNOW(lastTSync, 50000, now, [this]() { timeSync(); });
     }
 
-    DO_PERIODIC_EXTNOW(
-        lastReqAllComponents, 1000000, now, [this]() { reqAllComponents(selectedEntity); });
+    DO_PERIODIC_EXTNOW(lastReqAllComponents,
+                       1000000,
+                       now,
+                       [this]() { reqAllComponents(selectedEntity); });
 }
 
 void Model::parseCommandData(const net::CmdQueueData& cmdData)
@@ -467,15 +470,13 @@ void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
                 cmddes.value2b(numEntities);
                 for (uint i = 0; i < numEntities; ++i)
                 {
-                    uint32_t index;
-                    uint16_t generation;
-                    cmddes.value4b(index);
-                    cmddes.value2b(generation);
-                    ecs::EntityId entityId = {index, generation};
+                    ecs::EntityId entityId;
+                    cmddes.object(entityId);
                     entt::entity entity = ecs.enttFromServerId(entityId);
 
                     auto& reg = ecs.getRegistry();
                     reg.emplace_or_replace<ecs::SectorId>(entity, sectorId);
+                    reg.emplace_or_replace<ecs::EntityId>(entity, entityId);
                     helper.deserializeIntoRegistry(reg, entity, cmddes);
                 }
             }
@@ -483,7 +484,9 @@ void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
     }
 }
 
-void Model::handleReqAllComponentsResp(bitsery::Deserializer<InputAdapter>& cmddes, uint16_t posNextCmdOrEof)
+void Model::handleReqAllComponentsResp(
+    bitsery::Deserializer<InputAdapter>& cmddes,
+    uint16_t posNextCmdOrEof)
 {
     ecs::EntityId entityId;
     cmddes.value4b(entityId.index);
@@ -519,6 +522,29 @@ void Model::reqAllComponents(ecs::EntityId entityId)
                     cmdser.value4b(entityId.index);
                     cmdser.value2b(entityId.generation);
                 });
+        });
+}
+
+void Model::selectEntitiesInsideRect(const def::SectorCoords& start,
+                                     const def::SectorCoords& end)
+{
+    auto& reg = ecs.getRegistry();
+    auto& xMin = def::SectorCoords::minX(start, end);
+    auto& xMax = def::SectorCoords::maxX(start, end);
+    auto& yMin = def::SectorCoords::minY(start, end);
+    auto& yMax = def::SectorCoords::maxY(start, end);
+    reg.view<ecs::SectorId, ecs::Transform, ecs::EntityId>().each(
+        [this, &xMin, &xMax, &yMin, &yMax](ecs::SectorId& sid, ecs::Transform& tr, ecs::EntityId& eid)
+        {
+            bool xMinBool = sid.x > xMin.pos.x || (sid.x == xMin.pos.x && tr.pos.x > xMin.sectorPos.x);
+            bool xMaxBool = sid.x < xMax.pos.x || (sid.x == xMax.pos.x && tr.pos.x < xMax.sectorPos.x);
+            bool yMinBool = sid.y > yMin.pos.y || (sid.y == yMin.pos.y && tr.pos.y > yMin.sectorPos.y);
+            bool yMaxBool = sid.y < yMax.pos.y || (sid.y == yMax.pos.y && tr.pos.y < yMax.sectorPos.y);
+            LG_D("Entity: {} xMin: {} xMax: {} yMin: {} yMax: {}", eid, xMinBool, xMaxBool, yMinBool, yMaxBool);
+            if (xMinBool && xMaxBool && yMinBool && yMaxBool)
+            {
+                LG_D("Entity inside drag selection: {}", eid);
+            }
         });
 }
 
