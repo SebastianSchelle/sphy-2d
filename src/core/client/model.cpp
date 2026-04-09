@@ -475,7 +475,8 @@ void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
                     entt::entity entity = ecs.enttFromServerId(entityId);
 
                     auto& reg = ecs.getRegistry();
-                    reg.emplace_or_replace<ecs::SectorId>(entity, sectorId);
+                    auto [x, y] = world.idToSectorCoords(sectorId);
+                    reg.emplace_or_replace<ecs::SectorId>(entity, sectorId, x, y);
                     reg.emplace_or_replace<ecs::EntityId>(entity, entityId);
                     helper.deserializeIntoRegistry(reg, entity, cmddes);
                 }
@@ -534,16 +535,52 @@ void Model::selectEntitiesInsideRect(const def::SectorCoords& start,
     auto& yMin = def::SectorCoords::minY(start, end);
     auto& yMax = def::SectorCoords::maxY(start, end);
     reg.view<ecs::SectorId, ecs::Transform, ecs::EntityId>().each(
-        [this, &xMin, &xMax, &yMin, &yMax](ecs::SectorId& sid, ecs::Transform& tr, ecs::EntityId& eid)
+        [this, &xMin, &xMax, &yMin, &yMax](
+            ecs::SectorId& sid, ecs::Transform& tr, ecs::EntityId& eid)
         {
-            bool xMinBool = sid.x > xMin.pos.x || (sid.x == xMin.pos.x && tr.pos.x > xMin.sectorPos.x);
-            bool xMaxBool = sid.x < xMax.pos.x || (sid.x == xMax.pos.x && tr.pos.x < xMax.sectorPos.x);
-            bool yMinBool = sid.y > yMin.pos.y || (sid.y == yMin.pos.y && tr.pos.y > yMin.sectorPos.y);
-            bool yMaxBool = sid.y < yMax.pos.y || (sid.y == yMax.pos.y && tr.pos.y < yMax.sectorPos.y);
-            LG_D("Entity: {} xMin: {} xMax: {} yMin: {} yMax: {}", eid, xMinBool, xMaxBool, yMinBool, yMaxBool);
+            bool xMinBool =
+                sid.x > xMin.pos.x
+                || (sid.x == xMin.pos.x && tr.pos.x > xMin.sectorPos.x);
+            bool xMaxBool =
+                sid.x < xMax.pos.x
+                || (sid.x == xMax.pos.x && tr.pos.x < xMax.sectorPos.x);
+            bool yMinBool =
+                sid.y > yMin.pos.y
+                || (sid.y == yMin.pos.y && tr.pos.y > yMin.sectorPos.y);
+            bool yMaxBool =
+                sid.y < yMax.pos.y
+                || (sid.y == yMax.pos.y && tr.pos.y < yMax.sectorPos.y);
             if (xMinBool && xMaxBool && yMinBool && yMaxBool)
             {
-                LG_D("Entity inside drag selection: {}", eid);
+                selectedEntities.push_back(eid);
+            }
+        });
+}
+
+void Model::clearSelectedEntities()
+{
+    selectedEntities.clear();
+}
+
+void Model::selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords)
+{
+    prot::writeMessageTcp(
+        sendQueue,
+        nullptr,
+        [this, sectorCoords](bitsery::Serializer<OutputAdapter>& cmdser)
+        {
+            for (auto& entityId : selectedEntities)
+            {
+                prot::writeCommand(
+                    cmdser,
+                    prot::cmd::ENT_CMD_MOVETO_POS,
+                    0,
+                    [this, entityId, sectorCoords](
+                        bitsery::Serializer<OutputAdapter>& cmdser)
+                    {
+                        cmdser.object(entityId);
+                        cmdser.object(sectorCoords);
+                    });
             }
         });
 }

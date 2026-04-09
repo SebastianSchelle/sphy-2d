@@ -238,6 +238,7 @@ void MainWindow::winLoop()
 {
     lastLoopTime = tim::getCurrentTimeU();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    tim::Timepoint lastSelectedEntitiesMoveCmd = tim::getCurrentTimeU();
 
     while (!glfwWindowShouldClose(window))
     {
@@ -350,6 +351,22 @@ void MainWindow::winLoop()
                     mouseState.mouseCoordsPressed[0],
                     mouseState.mouseCoordsReleased[0]);
             }
+            else if (mouseState.singleClick[0])
+            {
+                model.clearSelectedEntities();
+            }
+            // else if(mouseState.singleClick[1])
+            // {
+            //     model.selectedEntitiesMoveCmd(mouseState.mouseCoordsReleased[1]);
+            // }
+            // DO_PERIODIC_EXTNOW(lastSelectedEntitiesMoveCmd, 100000, now,
+            // [this]() {
+            if (mouseState.buttons[1] && model.getSelectedEntities().size() > 0)
+            {
+                model.selectedEntitiesMoveCmd(mouseState.mouseCoords);
+            }
+            // });
+
             float zoom = renderEngine.getWorldZoom();
 
             renderEngine.panWorld(panX, panY);

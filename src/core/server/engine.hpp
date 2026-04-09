@@ -101,6 +101,7 @@ class Engine
     void handleTcpDisconnect(const std::shared_ptr<net::TcpConnection>& conn);
     void sendAllComponents(ecs::EntityId entityId,
                            const std::shared_ptr<net::TcpConnection>& conn);
+    void testSpawn();
 
     const sphy::CmdLinOptionsServer& options;
     std::atomic<bool> stopRequested{false};

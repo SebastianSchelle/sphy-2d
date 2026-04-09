@@ -41,31 +41,26 @@ class Model
                       uint8_t flags,
                       uint16_t len);
     void modelLoop(float dt);
-    ClientGameState getGameState() const
-    {
-        return gameState;
-    }
 
     void startLoadingMods();
     void startModel();
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
     void sendCmdToServer(const std::string& command);
-    const net::TimeSync& getTimeSyncData() const
-    {
-        return timeSyncData;
-    }
-    const net::ModelClientInfo& getClientInfo() const
-    {
-        return clientInfo;
-    }
     void checkVersion(const net::ModelClientInfo& clientInfo);
     void disconnectFromServer();
-    ecs::AssetFactory* getAssetFactory()
-    {
-        return &assetFactory;
-    }
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
+
+    void selectEntitiesInsideRect(const def::SectorCoords& start,
+                                  const def::SectorCoords& end);
+    void clearSelectedEntities();
+    void selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords);
+
+
+    const std::vector<ecs::EntityId>& getSelectedEntities() const
+    {
+        return selectedEntities;
+    }
     const def::WorldShape& getWorldShape() const
     {
         return world.getWorldShape();
@@ -86,8 +81,22 @@ class Model
     {
         return world;
     }
-    void selectEntitiesInsideRect(const def::SectorCoords& start,
-                                  const def::SectorCoords& end);
+    ecs::AssetFactory* getAssetFactory()
+    {
+        return &assetFactory;
+    }
+    const net::TimeSync& getTimeSyncData() const
+    {
+        return timeSyncData;
+    }
+    const net::ModelClientInfo& getClientInfo() const
+    {
+        return clientInfo;
+    }
+    ClientGameState getGameState() const
+    {
+        return gameState;
+    }
 
   private:
     void modelLoopMenu(float dt);
@@ -113,6 +122,7 @@ class Model
     ecs::EntityId selectedEntity;
 
     std::function<void(void)> afterLoadWorldClb;
+    std::vector<ecs::EntityId> selectedEntities;
 };
 
 }  // namespace sphyc

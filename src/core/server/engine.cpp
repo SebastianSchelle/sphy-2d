@@ -10,6 +10,7 @@
 #include <server.hpp>
 #include <sys-phy.hpp>
 #include <version.hpp>
+#include <random>
 
 namespace sphys
 {
@@ -114,8 +115,7 @@ void Engine::engineLoop()
             case EngineState::LoadWorld:
                 if (loadFromFolder())
                 {
-                    spawnEntityFromAsset(
-                        "test", 0, ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
+                    testSpawn();
                     state = EngineState::Running;
                 }
                 else
@@ -126,6 +126,7 @@ void Engine::engineLoop()
             case EngineState::CreateWorld:
                 if (createFromConfig())
                 {
+                    testSpawn();
                     state = EngineState::Running;
                 }
                 else
@@ -389,7 +390,15 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
                          cmd,
                          flags,
                          len);
-            cmddes.adapter().currentReadPos(dataStartPos + len);
+            size_t readPos = cmddes.adapter().currentReadPos();
+            if (readPos - dataStartPos != len)
+            {
+                LG_W("Command data length mismatch. Expected: {}, Read: {}",
+                     len,
+                     cmddes.adapter().currentReadPos() - dataStartPos);
+                return;
+            }
+            //cmddes.adapter().currentReadPos(dataStartPos + len);
         }
     }
     catch (const std::exception& e)
@@ -452,6 +461,12 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         {
             if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
             {
+                uint16_t major;
+                uint16_t minor;
+                uint16_t patch;
+                cmddes.value2b(major);
+                cmddes.value2b(minor);
+                cmddes.value2b(patch);
                 prot::writeMessageTcp(
                     sendQueue,
                     tcpConnection,
@@ -623,6 +638,33 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 cmddes.value2b(entityId.generation);
                 sendAllComponents(entityId, tcpConnection);
             }
+            break;
+        }
+        case prot::cmd::ENT_CMD_MOVETO_POS:
+        {
+            if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
+            {
+                ecs::EntityId entityId;
+                def::SectorCoords sectorCoords;
+                cmddes.object(entityId);
+                cmddes.object(sectorCoords);
+                entt::entity ent = ecs.getEntity(entityId);
+                if (ent == entt::null)
+                {
+                    // todo: error handling?
+                    return;
+                }
+                // todo: check if allowed
+                auto* moveCtrl =
+                    ptrHandle->registry->try_get<ecs::MoveCtrl>(ent);
+                if (moveCtrl)
+                {
+                    moveCtrl->active = true;
+                    moveCtrl->spPos = sectorCoords;
+                    moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
+                }
+            }
+            break;
         }
         default:
             break;
@@ -648,7 +690,7 @@ ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId,
     ecs::EntityId ent = spawnEntityFromAsset(assetId);
     if (!ecs.validId(ent))
     {
-        LG_E("Failed to spawn entity");
+        LG_E("Failed to spawn entity. Asset with id {} does not exist", assetId);
         return ent;
     }
     world.moveEntityTo(ptrHandle, ent, sectorId, transform.pos, transform.rot);
@@ -745,7 +787,8 @@ void Engine::registerConsoleCommands()
                 if (ecs.getRegistry().all_of<ecs::MoveCtrl>(ent))
                 {
                     auto& mc = ecs.getRegistry().get<ecs::MoveCtrl>(ent);
-                    auto* sectorId = ecs.getRegistry().try_get<ecs::SectorId>(ent);
+                    auto* sectorId =
+                        ecs.getRegistry().try_get<ecs::SectorId>(ent);
 
                     const auto sxIt = a.flags.find("-sx");
                     const auto syIt = a.flags.find("-sy");
@@ -764,8 +807,10 @@ void Engine::registerConsoleCommands()
                     }
                     else if (!mc.active && sectorId)
                     {
-                        // On first activation, default target sector to current.
-                        auto [sx, sy] = ptrHandle->world->idToSectorCoords(sectorId->id);
+                        // On first activation, default target sector to
+                        // current.
+                        auto [sx, sy] =
+                            ptrHandle->world->idToSectorCoords(sectorId->id);
                         mc.spPos.pos.x = sx;
                         mc.spPos.pos.y = sy;
                     }
@@ -800,7 +845,8 @@ void Engine::registerConsoleCommands()
                         }
                         else if (mode == "forward")
                         {
-                            mc.faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
+                            mc.faceDirMode =
+                                ecs::MoveCtrl::FaceDirMode::Forward;
                         }
                         else if (mode == "targetpoint")
                         {
@@ -809,7 +855,8 @@ void Engine::registerConsoleCommands()
                         }
                         else
                         {
-                            return "Failed: -fd must be none|forward|targetpoint";
+                            return "Failed: -fd must be "
+                                   "none|forward|targetpoint";
                         }
                     }
                     if (const auto it = a.flags.find("-tx");
@@ -1028,6 +1075,24 @@ void Engine::sendAllComponents(ecs::EntityId entityId,
         });
 }
 
+void Engine::testSpawn()
+{
+    static constexpr const char* kAssets[] = {"test1", "test2", "test3", "test4"};
+    static constexpr float kTwoPi = 6.2831855f;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> posDist(-200.0f, 200.0f);
+    std::uniform_real_distribution<float> rotDist(0.0f, kTwoPi);
+    std::uniform_int_distribution<int> assetPick(0, 3);
+
+    for (int i = 0; i < 20; ++i)
+    {
+        spawnEntityFromAsset(
+            kAssets[assetPick(gen)],
+            0,
+            ecs::Transform{glm::vec2{posDist(gen), posDist(gen)}, rotDist(gen)});
+    }
+}
 
 }  // namespace sphys
 
