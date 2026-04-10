@@ -126,11 +126,19 @@ class CmdLinOptionsClient : public CmdLineOptions
         {
             return false;
         }
+        if (vm.count("bgfx-debug"))
+        {
+            bgfxDebug = vm["bgfx-debug"].as<bool>();
+        }
         return true;
     }
     static void createCmdLineOptions(po::options_description& desc)
     {
         CmdLineOptions::createCmdLineOptions(desc);
+        desc.add_options()(
+            "bgfx-debug",
+            po::bool_switch()->default_value(false),
+            "Enable bgfx debug mode");
     }
     static bool handleDefaultCmdLineOptions(int argc,
                                             char* argv[],
@@ -145,6 +153,8 @@ class CmdLinOptionsClient : public CmdLineOptions
         }
         return false;
     }
+
+    bool bgfxDebug = false;
 };
 
 }  // namespace sphy

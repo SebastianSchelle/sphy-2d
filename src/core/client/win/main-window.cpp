@@ -209,8 +209,17 @@ bool MainWindow::createWindow()
 
     // Initialize bgfx using the native window handle and window resolution.
     bgfx::Init init;
+    #if BX_PLATFORM_OSX
+    init.type = bgfx::RendererType::Metal;
+    #elif BX_PLATFORM_WINDOWS
+    init.type = bgfx::RendererType::Direct3D11;
+    #elif BX_PLATFORM_LINUX || BX_PLATFORM_BSD
     init.type = bgfx::RendererType::Vulkan;
-    init.debug = true;
+    #else
+    init.type = bgfx::RendererType::Count;
+    #endif
+    init.debug = options.bgfxDebug;
+    LG_I("bgfx renderer type={}, debug={}", static_cast<int>(init.type), init.debug);
 #if BX_PLATFORM_LINUX || BX_PLATFORM_BSD
     init.platformData.ndt = glfwGetX11Display();
     init.platformData.nwh = (void*)(uintptr_t)glfwGetX11Window(window);

@@ -268,7 +268,7 @@ bool Engine::createFromConfig()
     }
     else
     {
-        LG_E("Config file not found");
+        LG_E("Config file not found at {}", configPath);
         return false;
     }
     LG_I("Creating from config: {}", configPath);
