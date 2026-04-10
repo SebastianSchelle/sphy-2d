@@ -14,10 +14,12 @@
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/process.hpp>
+#include <boost/process/v1/child.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <concurrentqueue.h>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <glm/glm.hpp>
@@ -27,12 +29,16 @@
 #include <variant>
 #include <yaml-cpp/yaml.h>
 
+#ifndef M_PIf
+#define M_PIf 3.14159265358979323846f
+#endif
+
 using moodycamel::ConcurrentQueue;
 using std::string;
 using std::unordered_map;
 using std::vector;
 namespace fs = std::filesystem;
-namespace bp = boost::process;
+namespace bp = boost::process::v1;
 
 namespace asio = boost::asio;
 using tcp = asio::ip::tcp;

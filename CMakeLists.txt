@@ -6,6 +6,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(USE_WAYLAND "Enable Wayland backend for GLFW" OFF)
 
 include(FetchContent)
+if(POLICY CMP0169)
+    cmake_policy(SET CMP0169 OLD)
+endif()
 FetchContent_Declare(
     googletest
     URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
@@ -13,7 +16,21 @@ FetchContent_Declare(
 
 FetchContent_Declare(rerun_sdk URL
     https://github.com/rerun-io/rerun/releases/latest/download/rerun_cpp_sdk.zip)
-FetchContent_MakeAvailable(rerun_sdk)
+FetchContent_GetProperties(rerun_sdk)
+if(NOT rerun_sdk_POPULATED)
+    FetchContent_Populate(rerun_sdk)
+    set(RERUN_ARROW_LINK_SHARED ON CACHE BOOL "Use shared Arrow to avoid missing bundled static deps" FORCE)
+
+    # CMake 4.x currently breaks Arrow's mimalloc sub-build in rerun's bundled
+    # Arrow build flow; disable mimalloc in the fetched script.
+    set(RERUN_ARROW_SCRIPT "${rerun_sdk_SOURCE_DIR}/download_and_build_arrow.cmake")
+    file(READ "${RERUN_ARROW_SCRIPT}" RERUN_ARROW_SCRIPT_CONTENT)
+    string(REPLACE "-DARROW_MIMALLOC=ON" "-DARROW_MIMALLOC=OFF"
+        RERUN_ARROW_SCRIPT_CONTENT "${RERUN_ARROW_SCRIPT_CONTENT}")
+    file(WRITE "${RERUN_ARROW_SCRIPT}" "${RERUN_ARROW_SCRIPT_CONTENT}")
+
+    add_subdirectory("${rerun_sdk_SOURCE_DIR}" "${rerun_sdk_BINARY_DIR}")
+endif()
 
 # GLFW backend configuration
 if(USE_WAYLAND)
@@ -29,47 +46,18 @@ project(
     VERSION 1.0
     LANGUAGES CXX)
 
-# test this
-# if(APPLE)
-#     # macOS (Homebrew workaround)
-#     find_package(Boost REQUIRED)
+if(APPLE)
+    # macOS (Homebrew workaround)
+    find_package(Boost REQUIRED)
+else()
+    # Linux / Windows (proper way)
+    find_package(Boost REQUIRED COMPONENTS regex thread system chrono program_options)
+endif()
 
-#     target_include_directories(your_target PRIVATE
-#         /opt/homebrew/opt/boost/include
-#     )
-
-#     target_link_directories(your_target PRIVATE
-#         /opt/homebrew/opt/boost/lib
-#     )
-
-#     target_link_libraries(your_target PRIVATE
-#         boost_system
-#         boost_thread
-#         boost_regex
-#         boost_program_options
-#         boost_chrono
-#     )
-
-# else()
-#     # Linux / Windows (proper way)
-#     find_package(Boost REQUIRED COMPONENTS
-#         system thread regex program_options chrono
-#     )
-
-#     target_link_libraries(your_target PRIVATE
-#         Boost::system
-#         Boost::thread
-#         Boost::regex
-#         Boost::program_options
-#         Boost::chrono
-#     )
-# endif()
-
-find_package(Boost REQUIRED COMPONENTS regex thread system chrono program_options)
 find_package(GTest REQUIRED)
 
-set(LUA_INCLUDE_DIR /usr/include/lua5.4)
-set(LUA_LIBRARY /usr/lib64/liblua-5.4.so)
+unset(LUA_INCLUDE_DIR CACHE)
+unset(LUA_LIBRARY CACHE)
 find_package(Lua 5.4 REQUIRED)
 
 # add third party libraries
@@ -99,16 +87,35 @@ enable_testing()
 set(TEST_LIBS
     GTest::gtest_main
     helper
-    Boost::system
-    Boost::chrono
-    Boost::thread
-    Boost::program_options
 )
 
 add_executable(
     test-shelf-allocator
     test/test-shelf-allocator.cpp
 )
+
+if(APPLE)
+    target_include_directories(test-shelf-allocator PRIVATE
+        /opt/homebrew/opt/boost/include
+    )
+
+    target_link_directories(test-shelf-allocator PRIVATE
+        /opt/homebrew/opt/boost/lib
+    )
+    target_link_libraries(test-shelf-allocator PRIVATE
+        boost_thread
+        boost_program_options
+        boost_chrono
+    )
+else()
+    target_link_libraries(test-shelf-allocator PRIVATE
+        Boost::system
+        Boost::chrono
+        Boost::thread
+        Boost::program_options
+    )
+endif()
+
 target_link_libraries(
     test-shelf-allocator
     PRIVATE

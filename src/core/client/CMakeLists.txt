@@ -72,8 +72,6 @@ set(LIBS_PRIV
     "${BGFX_BUILD}/bimg/libbimg_encode.a"
     "${BGFX_BUILD}/bimg/libbimg_decode.a"
     "${BGFX_BUILD}/bx/libbx.a"
-    Boost::thread
-    Boost::program_options
     glfw
     freetype
     RmlUi::RmlUi
@@ -87,7 +85,13 @@ file(GLOB SHADER_SRC CONFIGURE_DEPENDS
 
 set(SHADERC "${BGFX_BUILD}/bgfx/shaderc")
 set(SHADER_BIN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../data/modules/engine/shader)
-set(SHADER_PROFILE spirv)
+if(APPLE)
+    set(SHADER_PLATFORM osx)
+    set(SHADER_PROFILE metal)
+else()
+    set(SHADER_PLATFORM linux)
+    set(SHADER_PROFILE spirv)
+endif()
 foreach(SHADER ${SHADER_SRC})   
     message(STATUS "Add shader compile target: ${SHADER}") 
     get_filename_component(FILE_NAME ${SHADER} NAME_WE)
@@ -99,7 +103,7 @@ foreach(SHADER ${SHADER_SRC})
         COMMAND ${SHADERC}
             -f ${SHADER}
             -o ${OUTPUT_FILE}
-            --platform linux
+            --platform ${SHADER_PLATFORM}
             --type ${TYPE}
             --profile ${SHADER_PROFILE}
             -i  ${BGFX_DIR}/bgfx/src
@@ -118,6 +122,32 @@ add_custom_target(shaders ALL
 add_library(${LIB_NAME} STATIC ${CLIENT_SOURCES})
 add_dependencies(${LIB_NAME} shaders)
 target_compile_definitions(${LIB_NAME} PRIVATE BX_CONFIG_DEBUG=1 CLIENT GAME_NAME="${GAME_NAME}")
+
+if(APPLE)
+    target_include_directories(${LIB_NAME} PRIVATE
+        /opt/homebrew/opt/boost/include
+    )
+
+    target_link_directories(${LIB_NAME} PUBLIC
+        /opt/homebrew/opt/boost/lib
+    )
+    target_link_libraries(${LIB_NAME} PRIVATE
+        boost_thread
+        boost_program_options
+        boost_chrono
+        boost_process
+        "-framework Metal"
+        "-framework QuartzCore"
+    )
+else()
+    target_link_libraries(${LIB_NAME} PRIVATE
+        Boost::system
+        Boost::chrono
+        Boost::thread
+        Boost::program_options
+        boost_process
+    )
+endif()
 
 target_include_directories(${LIB_NAME} PUBLIC ${CLIENT_INC_PUBLIC})
 target_include_directories(${LIB_NAME} PRIVATE ${CLIENT_INC_PRIVATE})

@@ -10,13 +10,25 @@ set(NETWORKING_SOURCES
     protocol.cpp
 )
 
-set(LIBS_PUB
-    Boost::system
-    helper
-)
-
 add_library(networking OBJECT ${NETWORKING_SOURCES})
 
-target_include_directories(networking PUBLIC ${NETWORKING_INC_PUBLIC})
+if(APPLE)
+    target_include_directories(networking PRIVATE
+        /opt/homebrew/opt/boost/include
+    )
 
-target_link_libraries(networking PUBLIC ${LIBS_PUB})
+    target_link_directories(networking PRIVATE
+        /opt/homebrew/opt/boost/lib
+    )
+
+    target_link_libraries(networking PUBLIC
+        helper
+    )
+else()
+    target_link_libraries(networking PUBLIC
+        Boost::system
+        helper
+    )
+endif()
+
+target_include_directories(networking PUBLIC ${NETWORKING_INC_PUBLIC})

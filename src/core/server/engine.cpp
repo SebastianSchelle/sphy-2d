@@ -299,7 +299,7 @@ void Engine::registerClient(const std::string& uuid,
     clientInfo.name = name;
     clientInfo.flags = flags;
     clientInfo.portUdp = 0;
-    clientInfo.address = asio::ip::address::from_string("0.0.0.0");
+    clientInfo.address = asio::ip::make_address("0.0.0.0");
     clientLib.addItem(uuid, clientInfo);
 }
 

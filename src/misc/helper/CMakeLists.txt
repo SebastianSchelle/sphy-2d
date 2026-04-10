@@ -23,5 +23,15 @@ set(LIBS_PUB
 )
 
 add_library(helper OBJECT ${HELPER_SOURCES})
-target_include_directories(helper PUBLIC ${HELPER_INC_PUBLIC})
+target_include_directories(helper PUBLIC
+    ${HELPER_INC_PUBLIC}
+    ${Boost_INCLUDE_DIRS}
+)
+
+if(APPLE)
+    target_include_directories(helper PRIVATE
+        /opt/homebrew/opt/boost/include
+    )
+endif()
+
 target_link_libraries(helper PUBLIC ${LIBS_PUB})

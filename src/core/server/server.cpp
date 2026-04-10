@@ -64,7 +64,7 @@ void Server::startUdpTcp()
                                                    std::placeholders::_3));
     LG_D("Setup socket on port-udp={}", portUdp);
 
-    ioContext.post([this]() { scheduleSend(); });
+    asio::post(ioContext, [this]() { scheduleSend(); });
     ioThread = std::thread([this]() { ioContext.run(); });
 }
 

@@ -43,8 +43,7 @@ void Client::shutdown()
     LG_I("Shutting down client...");
 
     std::lock_guard<std::mutex> lock(lifecycleMutex);
-    boost::system::error_code ec;
-    sendTimer.cancel(ec);
+    sendTimer.cancel();
     if (udpClient)
     {
         udpClient->close();
@@ -103,7 +102,7 @@ void Client::connectToServer(const std::string& ipAddress,
     udpClient = std::make_unique<net::UdpClient>(
         ioContext,
         udpPortCli,
-        udp::endpoint(boost::asio::ip::address::from_string(ipAddress),
+        udp::endpoint(boost::asio::ip::make_address(ipAddress),
                       udpPortServ),
         std::bind(&Client::udpReceive,
                   this,
@@ -116,7 +115,7 @@ void Client::connectToServer(const std::string& ipAddress,
 
     tcpClient = std::make_unique<net::TcpClient>(
         ioContext,
-        tcp::endpoint(boost::asio::ip::address::from_string(ipAddress),
+        tcp::endpoint(boost::asio::ip::make_address(ipAddress),
                       tcpPortServ),
         std::bind(&Client::tcpReceive,
                   this,
@@ -129,7 +128,7 @@ void Client::connectToServer(const std::string& ipAddress,
 
     // Post scheduleSend onto the io_context so the timer is armed on the
     // correct executor (same thread that runs io_context.run()).
-    ioContext.post([this, token]() { scheduleSend(token); });
+    asio::post(ioContext, [this, token]() { scheduleSend(token); });
     // Start ioContext in background thread for signal handling
     ioThread = std::thread([this]() { ioContext.run(); });
 }

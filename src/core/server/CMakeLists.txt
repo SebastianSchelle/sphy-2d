@@ -41,16 +41,35 @@ set(LIBS_PUB
     rerun_sdk
 )
 
-set(LIBS_PRIV
-    Boost::thread
-    Boost::program_options
-)
-
 add_library(${LIB_NAME} STATIC ${SERVER_SOURCES})
 target_compile_definitions(${LIB_NAME} PRIVATE SERVER GAME_NAME="${GAME_NAME}")
+
+if(APPLE)
+    target_include_directories(${LIB_NAME} PRIVATE
+        /opt/homebrew/opt/boost/include
+    )
+
+    target_link_directories(${LIB_NAME} PUBLIC
+        /opt/homebrew/opt/boost/lib
+    )
+
+    target_link_libraries(${LIB_NAME} PRIVATE
+        boost_thread
+        boost_program_options
+        boost_chrono
+        boost_process
+    )
+else()
+    target_link_libraries(${LIB_NAME} PRIVATE
+        Boost::system
+        Boost::chrono
+        Boost::thread
+        Boost::program_options
+        boost_process
+    )
+endif()
 
 target_include_directories(${LIB_NAME} PUBLIC ${SERVER_INC_PUBLIC})
 target_include_directories(${LIB_NAME} PRIVATE ${SERVER_INC_PRIVATE})
 target_link_libraries(${LIB_NAME} PUBLIC ${LIBS_PUB})
-target_link_libraries(${LIB_NAME} PRIVATE ${LIBS_PRIV})
 

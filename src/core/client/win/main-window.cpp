@@ -918,7 +918,7 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
             go.spRot = phyPid->spRot;
             go.errorX = phyPid->pdFwd.prev_error;
             go.errorY = phyPid->pdSide.prev_error;
-            go.errorRot = phyPid->pdTurn.prev_error;
+            go.errorRot = 0.0f;
         }
     }
     else
