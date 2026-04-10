@@ -10,6 +10,7 @@
 #include <server.hpp>
 #include <sys-phy.hpp>
 #include <version.hpp>
+#include <random>
 
 namespace sphys
 {
@@ -17,7 +18,7 @@ namespace sphys
 Engine::Engine(const sphy::CmdLinOptionsServer& options,
                cfg::ConfigManager& config)
     : options(options), config(config), state(EngineState::Init), saveConfig(),
-      saveFolder(options.savedir), rerunStream("sphy-2d-rotpid"),
+      saveFolder(options.savedir), rerunStream("sphy-2d-move-ctrl"),
       commandManager()
 {
     ptrHandle = std::make_shared<ecs::PtrHandle>();
@@ -26,9 +27,24 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->engine = this;
     ptrHandle->systems = &ecs.getRegisteredSystems();
     ptrHandle->registry = &ecs.getRegistry();
-
+    ptrHandle->kpThrust =
+        CFG_FLOAT(config, 25.0f, "engine", "physics", "kp-thrust");
+    ptrHandle->kpTurn =
+        CFG_FLOAT(config, 25.0f, "engine", "physics", "kp-turn");
+    ptrHandle->angDrag =
+        CFG_FLOAT(config, 0.1f, "engine", "physics", "ang-drag");
+    ptrHandle->linDrag =
+        CFG_FLOAT(config, 0.1f, "engine", "physics", "lin-drag");
+    ptrHandle->minFaceForwardDist =
+        CFG_FLOAT(config, 1.0f, "engine", "physics", "min-face-forward-dist");
+    ptrHandle->minFaceTargetDist =
+        CFG_FLOAT(config, 1.0f, "engine", "physics", "min-face-target-dist");
     slowDumpUs = 1000 * CFG_UINT(config, 1000.0f, "engine", "slow-dump-ms");
-    rerunStream.spawn().exit_on_failure();
+
+    if (options.enableRerun)
+    {
+        rerunStream.spawn().exit_on_failure();
+    }
 }
 
 Engine::~Engine()
@@ -47,9 +63,9 @@ void Engine::start()
     cFac->registerComponent<ecs::PhysicsBody>();
     cFac->registerComponent<ecs::AssetId>();
     cFac->registerComponent<ecs::PhyThrust>();
-    cFac->registerComponent<ecs::PhyPid>();
+    cFac->registerComponent<ecs::MoveCtrl>();
 
-    ecs.registerSystem(ecs::sysPhyPid);
+    ecs.registerSystem(ecs::sysMoveCtrl);
     ecs.registerSystem(ecs::sysPhyThrust);
     ecs.registerSystem(ecs::sysPhysics);
 
@@ -99,8 +115,7 @@ void Engine::engineLoop()
             case EngineState::LoadWorld:
                 if (loadFromFolder())
                 {
-                    spawnEntityFromAsset(
-                        "test", 0, ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
+                    testSpawn();
                     state = EngineState::Running;
                 }
                 else
@@ -111,6 +126,7 @@ void Engine::engineLoop()
             case EngineState::CreateWorld:
                 if (createFromConfig())
                 {
+                    testSpawn();
                     state = EngineState::Running;
                 }
                 else
@@ -165,12 +181,15 @@ void Engine::update(float dt)
         }
     }
     world.update(dt, ptrHandle);
-    //rerunDebugMovePhy();
+    rerunDebugMovePhy();
 }
 
-#ifdef DEBUG
 void Engine::rerunDebugMovePhy()
 {
+    if (!options.enableRerun)
+    {
+        return;
+    }
     const ecs::EntityId entityId0 = ecs.getEntityIdFromIdx(0);
     if (!ecs.validId(entityId0))
     {
@@ -186,34 +205,30 @@ void Engine::rerunDebugMovePhy()
     auto* tr = reg.try_get<ecs::Transform>(ent0);
     auto* pb = reg.try_get<ecs::PhysicsBody>(ent0);
     auto* th = reg.try_get<ecs::PhyThrust>(ent0);
-    auto* pid = reg.try_get<ecs::PhyPid>(ent0);
+    auto* moveCtrl = reg.try_get<ecs::MoveCtrl>(ent0);
     if (!tr || !pb)
     {
         return;
     }
 
-    const std::string base = "";
-    // rerunStream.log((base + "/pos/x").c_str(), rerun::Scalars({tr->pos.x}));
-    // rerunStream.log((base + "/pos/y").c_str(), rerun::Scalars({tr->pos.y}));
-    // rerunStream.log((base + "/sp_pos/x").c_str(),
-    // rerun::Scalars({pid->spPos.x})); rerunStream.log((base +
-    // "/sp_pos/y").c_str(), rerun::Scalars({pid->spPos.y}));
-    // rerunStream.log((base + "/sp_rot").c_str(),
-    // rerun::Scalars({pid->spRot})); rerunStream.log((base + "/vel/x").c_str(),
-    // rerun::Scalars({pb->vel.x})); rerunStream.log((base + "/vel/y").c_str(),
-    // rerun::Scalars({pb->vel.y})); rerunStream.log((base + "/rot").c_str(),
-    // rerun::Scalars({tr->rot}));
-    rerunStream.log((base + "/rot_vel").c_str(), rerun::Scalars({pb->rotVel}));
-
-    // rerunStream.log((base + "/desired_vel/x").c_str(),
-    // rerun::Scalars({pid->spVelX})); rerunStream.log((base +
-    // "/desired_vel/y").c_str(), rerun::Scalars({pid->spVelY}));
-    rerunStream.log((base + "/desired_rot_vel").c_str(),
-                    rerun::Scalars({pid->spRotVel}));
-    rerunStream.log((base + "/rot_vel_err").c_str(), rerun::Scalars({pb->rotVel - pid->spRotVel}));
-    rerunStream.log((base + "/rot_trq").c_str(), rerun::Scalars({th->torque}));
+    if (moveCtrl && tr && pb && th)
+    {
+        rerunStream.log("rot/vel", rerun::Scalars({pb->rotVel}));
+        rerunStream.log("rot/trq", rerun::Scalars({th ? th->torque : 0.f}));
+        rerunStream.log("pos/x", rerun::Scalars({tr->pos.x}));
+        rerunStream.log("pos/y", rerun::Scalars({tr->pos.y}));
+        rerunStream.log("pos/des/x",
+                        rerun::Scalars({moveCtrl->spPos.sectorPos.x}));
+        rerunStream.log("pos/des/y",
+                        rerun::Scalars({moveCtrl->spPos.sectorPos.y}));
+        rerunStream.log("pos/vel/x", rerun::Scalars({pb->vel.x}));
+        rerunStream.log("pos/vel/y", rerun::Scalars({pb->vel.y}));
+        rerunStream.log("pos/thrust/x",
+                        rerun::Scalars({th ? th->thrustGlobal.x : 0.f}));
+        rerunStream.log("pos/thrust/y",
+                        rerun::Scalars({th ? th->thrustGlobal.y : 0.f}));
+    }
 }
-#endif
 
 void Engine::startFromFolder()
 {
@@ -375,7 +390,15 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
                          cmd,
                          flags,
                          len);
-            cmddes.adapter().currentReadPos(dataStartPos + len);
+            size_t readPos = cmddes.adapter().currentReadPos();
+            if (readPos - dataStartPos != len)
+            {
+                LG_W("Command data length mismatch. Expected: {}, Read: {}",
+                     len,
+                     cmddes.adapter().currentReadPos() - dataStartPos);
+                return;
+            }
+            //cmddes.adapter().currentReadPos(dataStartPos + len);
         }
     }
     catch (const std::exception& e)
@@ -438,6 +461,12 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         {
             if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
             {
+                uint16_t major;
+                uint16_t minor;
+                uint16_t patch;
+                cmddes.value2b(major);
+                cmddes.value2b(minor);
+                cmddes.value2b(patch);
                 prot::writeMessageTcp(
                     sendQueue,
                     tcpConnection,
@@ -609,6 +638,33 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 cmddes.value2b(entityId.generation);
                 sendAllComponents(entityId, tcpConnection);
             }
+            break;
+        }
+        case prot::cmd::ENT_CMD_MOVETO_POS:
+        {
+            if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
+            {
+                ecs::EntityId entityId;
+                def::SectorCoords sectorCoords;
+                cmddes.object(entityId);
+                cmddes.object(sectorCoords);
+                entt::entity ent = ecs.getEntity(entityId);
+                if (ent == entt::null)
+                {
+                    // todo: error handling?
+                    return;
+                }
+                // todo: check if allowed
+                auto* moveCtrl =
+                    ptrHandle->registry->try_get<ecs::MoveCtrl>(ent);
+                if (moveCtrl)
+                {
+                    moveCtrl->active = true;
+                    moveCtrl->spPos = sectorCoords;
+                    moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
+                }
+            }
+            break;
         }
         default:
             break;
@@ -634,7 +690,7 @@ ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId,
     ecs::EntityId ent = spawnEntityFromAsset(assetId);
     if (!ecs.validId(ent))
     {
-        LG_E("Failed to spawn entity");
+        LG_E("Failed to spawn entity. Asset with id {} does not exist", assetId);
         return ent;
     }
     world.moveEntityTo(ptrHandle, ent, sectorId, transform.pos, transform.rot);
@@ -713,7 +769,7 @@ void Engine::registerConsoleCommands()
         {{"-a", "Asset id", true}});
 
     commandManager.registerCommand(
-        {"phy-pid", "set"},
+        {"move-ctrl", "set"},
         [this](const cmd::CommandArgs& a) -> std::string
         {
             try
@@ -728,31 +784,97 @@ void Engine::registerConsoleCommands()
                     return "Failed: Entity not found";
                 }
 
-                if (ecs.getRegistry().all_of<ecs::PhyPid>(ent))
+                if (ecs.getRegistry().all_of<ecs::MoveCtrl>(ent))
                 {
-                    auto& pidHold = ecs.getRegistry().get<ecs::PhyPid>(ent);
+                    auto& mc = ecs.getRegistry().get<ecs::MoveCtrl>(ent);
+                    auto* sectorId =
+                        ecs.getRegistry().try_get<ecs::SectorId>(ent);
+
+                    const auto sxIt = a.flags.find("-sx");
+                    const auto syIt = a.flags.find("-sy");
+                    const bool hasSx =
+                        sxIt != a.flags.end() && !sxIt->second.empty();
+                    const bool hasSy =
+                        syIt != a.flags.end() && !syIt->second.empty();
+                    if (hasSx != hasSy)
+                    {
+                        return "Failed: provide both -sx and -sy";
+                    }
+                    if (hasSx)
+                    {
+                        mc.spPos.pos.x = std::stoul(sxIt->second);
+                        mc.spPos.pos.y = std::stoul(syIt->second);
+                    }
+                    else if (!mc.active && sectorId)
+                    {
+                        // On first activation, default target sector to
+                        // current.
+                        auto [sx, sy] =
+                            ptrHandle->world->idToSectorCoords(sectorId->id);
+                        mc.spPos.pos.x = sx;
+                        mc.spPos.pos.y = sy;
+                    }
 
                     if (const auto it = a.flags.find("-x");
                         it != a.flags.end() && !it->second.empty())
                     {
-                        pidHold.spPos.x = std::stof(it->second);
+                        mc.spPos.sectorPos.x = std::stof(it->second);
                     }
                     if (const auto it = a.flags.find("-y");
                         it != a.flags.end() && !it->second.empty())
                     {
-                        pidHold.spPos.y = std::stof(it->second);
+                        mc.spPos.sectorPos.y = std::stof(it->second);
                     }
                     if (const auto it = a.flags.find("-r");
                         it != a.flags.end() && !it->second.empty())
                     {
-                        pidHold.spRot = std::stof(it->second);
+                        mc.spRot = std::stof(it->second);
+                    }
+                    if (const auto it = a.flags.find("-fd");
+                        it != a.flags.end() && !it->second.empty())
+                    {
+                        string mode = it->second;
+                        std::transform(mode.begin(),
+                                       mode.end(),
+                                       mode.begin(),
+                                       [](unsigned char c)
+                                       { return std::tolower(c); });
+                        if (mode == "none")
+                        {
+                            mc.faceDirMode = ecs::MoveCtrl::FaceDirMode::None;
+                        }
+                        else if (mode == "forward")
+                        {
+                            mc.faceDirMode =
+                                ecs::MoveCtrl::FaceDirMode::Forward;
+                        }
+                        else if (mode == "targetpoint")
+                        {
+                            mc.faceDirMode =
+                                ecs::MoveCtrl::FaceDirMode::TargetPoint;
+                        }
+                        else
+                        {
+                            return "Failed: -fd must be "
+                                   "none|forward|targetpoint";
+                        }
+                    }
+                    if (const auto it = a.flags.find("-tx");
+                        it != a.flags.end() && !it->second.empty())
+                    {
+                        mc.lookAt.x = std::stof(it->second);
+                    }
+                    if (const auto it = a.flags.find("-ty");
+                        it != a.flags.end() && !it->second.empty())
+                    {
+                        mc.lookAt.y = std::stof(it->second);
                     }
 
-                    pidHold.active = true;
+                    mc.active = true;
                 }
                 else
                 {
-                    return "Failed: PhyPidHold component not found";
+                    return "Failed: MoveCtrl component not found";
                 }
 
                 return "Ok";
@@ -762,75 +884,16 @@ void Engine::registerConsoleCommands()
                 return std::string("Failed: ") + e.what();
             }
         },
-        "Update phy-pid-hold for an entity",
+        "Update move-ctrl setpoints for an entity",
         {{"-e", "Entity id", true},
-         {"-x", "X position", false},
-         {"-y", "Y position", false},
-         {"-r", "Rotation", false}});
-
-    commandManager.registerCommand(
-        {"phypid", "setk"},
-        [this](const cmd::CommandArgs& a) -> std::string
-        {
-            try
-            {
-                std::string idxStr = a.flags.at("-e");
-                uint32_t idx = std::stoul(idxStr);
-                ecs::EntityId entityId = ecs.getEntityIdFromIdx(idx);
-
-                entt::entity ent = ecs.getEntity(entityId);
-                if (ent == entt::null)
-                {
-                    return "Failed: Entity not found";
-                }
-                if (!ecs.getRegistry().all_of<ecs::PhyPid>(ent))
-                {
-                    return "Failed: PhyPid component not found";
-                }
-
-                auto& pid = ecs.getRegistry().get<ecs::PhyPid>(ent);
-
-                auto set_pd =
-                    [&a](ctrl::PD& pd, const char* kpFlag, const char* kdFlag)
-                {
-                    if (const auto it = a.flags.find(kpFlag);
-                        it != a.flags.end() && !it->second.empty())
-                    {
-                        pd.kp = std::stof(it->second);
-                    }
-                    if (const auto it = a.flags.find(kdFlag);
-                        it != a.flags.end() && !it->second.empty())
-                    {
-                        pd.kd = std::stof(it->second);
-                    }
-                };
-
-                // Optional global override for all loops first.
-                set_pd(pid.pdFwd, "-kp", "-kd");
-                set_pd(pid.pdSide, "-kp", "-kd");
-
-                // Optional per-loop overrides.
-                set_pd(pid.pdFwd, "-kpf", "-kdf");
-                set_pd(pid.pdSide, "-kps", "-kds");
-
-                ctrl::pdInit(&pid.pdFwd, pid.pdFwd.kp, pid.pdFwd.kd);
-                ctrl::pdInit(&pid.pdSide, pid.pdSide.kp, pid.pdSide.kd);
-
-                return "Ok";
-            }
-            catch (const std::exception& e)
-            {
-                return std::string("Failed: ") + e.what();
-            }
-        },
-        "Set phy-pid PD constants for one entity",
-        {{"-e", "Entity id", true},
-         {"-kp", "Global kp (all loops)", false},
-         {"-kd", "Global kd (all loops)", false},
-         {"-kpf", "Forward-loop kp", false},
-         {"-kdf", "Forward-loop kd", false},
-         {"-kps", "Side-loop kp", false},
-         {"-kds", "Side-loop kd", false}});
+         {"-sx", "Target sector X (must be used with -sy)", false},
+         {"-sy", "Target sector Y (must be used with -sx)", false},
+         {"-x", "Target in-sector X position", false},
+         {"-y", "Target in-sector Y position", false},
+         {"-r", "Target rotation (rad)", false},
+         {"-fd", "Face direction mode: none|forward|targetpoint", false},
+         {"-tx", "Target-point X (for -fd targetpoint)", false},
+         {"-ty", "Target-point Y (for -fd targetpoint)", false}});
 
     commandManager.registerCommand(
         {"phy", "set"},
@@ -852,7 +915,8 @@ void Engine::registerConsoleCommands()
                 }
                 const auto mIt = a.flags.find("-m");
                 const auto iIt = a.flags.find("-i");
-                const bool hasMass = mIt != a.flags.end() && !mIt->second.empty();
+                const bool hasMass =
+                    mIt != a.flags.end() && !mIt->second.empty();
                 const bool hasInertia =
                     iIt != a.flags.end() && !iIt->second.empty();
                 if (!hasMass && !hasInertia)
@@ -888,6 +952,51 @@ void Engine::registerConsoleCommands()
         {{"-e", "Entity id", true},
          {"-m", "Mass (>0)", false},
          {"-i", "Inertia (>0)", false}});
+
+    commandManager.registerCommand(
+        {"phy", "setk"},
+        [this](const cmd::CommandArgs& a) -> std::string
+        {
+            try
+            {
+                const auto ktIt = a.flags.find("-kt");
+                const auto krIt = a.flags.find("-kr");
+                const bool hasKt =
+                    ktIt != a.flags.end() && !ktIt->second.empty();
+                const bool hasKr =
+                    krIt != a.flags.end() && !krIt->second.empty();
+                if (!hasKt && !hasKr)
+                {
+                    return "Failed: Provide -kt and/or -kr";
+                }
+                if (hasKt)
+                {
+                    const float kpThrust = std::stof(ktIt->second);
+                    if (!(kpThrust >= 0.0f))
+                    {
+                        return "Failed: kp-thrust must be >= 0";
+                    }
+                    ptrHandle->kpThrust = kpThrust;
+                }
+                if (hasKr)
+                {
+                    const float kpTurn = std::stof(krIt->second);
+                    if (!(kpTurn >= 0.0f))
+                    {
+                        return "Failed: kp-turn must be >= 0";
+                    }
+                    ptrHandle->kpTurn = kpTurn;
+                }
+                return "Ok";
+            }
+            catch (const std::exception& e)
+            {
+                return std::string("Failed: ") + e.what();
+            }
+        },
+        "Set global physics controller gains (thrust/turn)",
+        {{"-kt", "Thrust velocity P gain (>=0)", false},
+         {"-kr", "Turn velocity P gain (>=0)", false}});
 }
 
 void Engine::runSlowClientDump(long frameTime)
@@ -966,6 +1075,24 @@ void Engine::sendAllComponents(ecs::EntityId entityId,
         });
 }
 
+void Engine::testSpawn()
+{
+    static constexpr const char* kAssets[] = {"test1", "test2", "test3", "test4"};
+    static constexpr float kTwoPi = 6.2831855f;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> posDist(-200.0f, 200.0f);
+    std::uniform_real_distribution<float> rotDist(0.0f, kTwoPi);
+    std::uniform_int_distribution<int> assetPick(0, 3);
+
+    for (int i = 0; i < 20; ++i)
+    {
+        spawnEntityFromAsset(
+            kAssets[assetPick(gen)],
+            0,
+            ecs::Transform{glm::vec2{posDist(gen), posDist(gen)}, rotDist(gen)});
+    }
+}
 
 }  // namespace sphys
 

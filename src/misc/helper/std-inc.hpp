@@ -152,11 +152,11 @@ constexpr uint32_t hashConst(const char* s, size_t i = 0)
     file_.close();
 
 #define TRY_YAML_DICT(value_, node_, default_value_)                           \
-    if (node_)                                                                 \
+    try                                                                        \
     {                                                                          \
         value_ = node_.as<decltype(value_)>();                                 \
     }                                                                          \
-    else                                                                       \
+    catch (YAML::Exception e)                                                  \
     {                                                                          \
         value_ = default_value_;                                               \
     }
@@ -356,7 +356,8 @@ typedef struct
 
 void pdInit(PD* pd, float kp, float kd);
 float pdCompute(PD* pd, float dt, float error);
-/// Same as pdCompute but does not clamp to [-1,1] (for torque limits elsewhere).
+/// Same as pdCompute but does not clamp to [-1,1] (for torque limits
+/// elsewhere).
 float pdComputeUnclamped(PD* pd, float dt, float error);
 
 typedef struct

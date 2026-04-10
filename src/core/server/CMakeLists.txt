@@ -11,6 +11,7 @@ set(SERVER_INC_PUBLIC
     ${MISC_DIR}
     ${THIRPARTY_DIR}/sol2/include
     ${THIRPARTY_DIR}/entt/src
+    ${THIRPARTY_DIR}/magic_enum/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../world
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/systems

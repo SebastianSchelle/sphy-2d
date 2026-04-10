@@ -54,6 +54,8 @@ else()
     find_package(Boost REQUIRED COMPONENTS regex thread system chrono program_options)
 endif()
 
+# Define DEBUG only for Debug configuration.
+add_compile_definitions($<$<CONFIG:Debug>:DEBUG>)
 find_package(GTest REQUIRED)
 
 unset(LUA_INCLUDE_DIR CACHE)
@@ -77,6 +79,7 @@ add_subdirectory(thirdparty/rmlui)
 add_subdirectory(thirdparty/rectpack2D)
 add_subdirectory(thirdparty/sol2)
 add_subdirectory(thirdparty/entt)
+add_subdirectory(thirdparty/magic_enum)
 add_subdirectory(src/misc/helper helper)
 add_subdirectory(src/misc/networking networking)
 add_subdirectory(src/core/server)

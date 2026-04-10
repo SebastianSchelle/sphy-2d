@@ -4,6 +4,8 @@
 #include <entt/entt.hpp>
 #include <std-inc.hpp>
 #include <yaml-cpp/yaml.h>
+#include <magic_enum/magic_enum.hpp>
+#include <world-def.hpp>
 
 namespace ecs
 {
@@ -91,6 +93,14 @@ struct PhysicsBody
         TRY_YAML_DICT(physicsBody.rotVel, node["rotVel"], 0.0f);
         TRY_YAML_DICT(physicsBody.rotAcc, node["rotAcc"], 0.0f);
         TRY_YAML_DICT(physicsBody.acc, node["acc"], vec2(0.0f, 0.0f));
+        if (physicsBody.inertia <= 1e-8f)
+        {
+            physicsBody.inertia = 1.0f;
+        }
+        if (physicsBody.mass <= 1e-8f)
+        {
+            physicsBody.mass = 1.0f;
+        }
         registry.emplace<PhysicsBody>(entity, physicsBody);
     }
 };
@@ -105,6 +115,37 @@ struct PhysicsBody
 EXT_SER(PhysicsBody, SER_PHYSICS_BODY)
 EXT_DES(PhysicsBody, SER_PHYSICS_BODY)
 
+/// Scale local thrust uniformly so |x|<=maneuverMax, |y|<=mainMax; preserves
+/// direction (per-axis clamp does not). Hot path: already inside box (no div).
+inline void
+clampThrustLocalToActuatorBox(vec2& local, float maneuverMax, float mainMax)
+{
+    constexpr float eps = 1e-12f;
+    const float tx = local.x;
+    const float ty = local.y;
+    const float ax = std::fabsf(tx);
+    const float ay = std::fabsf(ty);
+    if (ax < eps && ay < eps)
+    {
+        local = vec2(0.0f);
+        return;
+    }
+    if (ax <= maneuverMax && ay <= mainMax)
+    {
+        return;
+    }
+    float s = 1.0f;
+    if (ax > eps)
+    {
+        s = std::fminf(s, maneuverMax / ax);
+    }
+    if (ay > eps)
+    {
+        s = std::fminf(s, mainMax / ay);
+    }
+    local.x = tx * s;
+    local.y = ty * s;
+}
 
 struct PhyThrust
 {
@@ -123,20 +164,16 @@ struct PhyThrust
     void setThrustGlobal(glm::vec2 th, Transform& tr)
     {
         thrustLocal = hmath::rotateVec2(th, tr.rot);
-        thrustLocal[0] =
-            std::clamp(thrustLocal[0], -thrustManeuverMax, thrustManeuverMax);
-        thrustLocal[1] =
-            std::clamp(thrustLocal[1], -thrustMainMax, thrustMainMax);
+        clampThrustLocalToActuatorBox(
+            thrustLocal, thrustManeuverMax, thrustMainMax);
         thrustGlobal = hmath::rotateVec2(thrustLocal, -tr.rot);
     }
 
     void setThrustLocal(glm::vec2 th, Transform& tr)
     {
         thrustLocal = th;
-        thrustLocal[0] =
-            std::clamp(thrustLocal[0], -thrustManeuverMax, thrustManeuverMax);
-        thrustLocal[1] =
-            std::clamp(thrustLocal[1], -thrustMainMax, thrustMainMax);
+        clampThrustLocalToActuatorBox(
+            thrustLocal, thrustManeuverMax, thrustMainMax);
         thrustGlobal = hmath::rotateVec2(thrustLocal, -tr.rot);
     }
 
@@ -184,61 +221,61 @@ struct PhyThrust
 EXT_SER(PhyThrust, SER_PHY_THRUST)
 EXT_DES(PhyThrust, SER_PHY_THRUST)
 
-struct PhyPid
+struct MoveCtrl
 {
+    enum class FaceDirMode : uint8_t
+    {
+        None,
+        Forward,
+        TargetPoint,
+    };
+
     static const uint16_t VERSION = 1;
-    static constexpr string NAME = "phy-pid";
+    static constexpr string NAME = "move-ctrl";
 
     bool active = false;
-    vec2 spPos;
+    FaceDirMode faceDirMode;
+    def::SectorCoords spPos;
+    // lookAt only works in sector
+    vec2 lookAt;
     float spRot;
-
-    ctrl::PD pdFwd;
-    ctrl::PD pdSide;
-
-#ifdef DEBUG
-    float spVelX;
-    float spVelY;
-    float spRotVel;
-#endif
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
                          const YAML::Node& node)
     {
-        PhyPid c;
+        MoveCtrl c;
+        string dirMode;
         TRY_YAML_DICT(c.active, node["active"], false);
-        TRY_YAML_DICT(c.spPos.x, node["spPos"][0], 0.0f);
-        TRY_YAML_DICT(c.spPos.y, node["spPos"][1], 0.0f);
+        TRY_YAML_DICT(c.spPos.sectorPos.x, node["spPos"][0], 0.0f);
+        TRY_YAML_DICT(c.spPos.sectorPos.y, node["spPos"][1], 0.0f);
+        TRY_YAML_DICT(c.spPos.pos.x, node["spPosSec"][0], 0u);
+        TRY_YAML_DICT(c.spPos.pos.y, node["spPosSec"][1], 0u);
         TRY_YAML_DICT(c.spRot, node["spRot"], 0.0f);
-        // Tuned for smoother approach: less derivative kick and stronger
-        // rotational damping.
-        float kpFwd; TRY_YAML_DICT(kpFwd, node["kpFwd"], 0.05f);
-        float kdFwd; TRY_YAML_DICT(kdFwd, node["kdFwd"], 0.01f);
-        float kpSide; TRY_YAML_DICT(kpSide, node["kpSide"], 0.05f);
-        float kdSide; TRY_YAML_DICT(kpSide, node["kdSide"], 0.01f);
-        ctrl::pdInit(&c.pdFwd, kpFwd, kdFwd);
-        ctrl::pdInit(&c.pdSide, kpSide, kdSide);
-        registry.emplace<PhyPid>(entity, c);
+        TRY_YAML_DICT(dirMode, node["faceDirMode"], "None");
+        auto faceDirMode = magic_enum::enum_cast<FaceDirMode>(dirMode);
+        if(faceDirMode.has_value())
+        {
+            c.faceDirMode = faceDirMode.value();
+        }
+        else
+        {
+            c.faceDirMode = FaceDirMode::None;
+        }
+        TRY_YAML_DICT(c.lookAt.x, node["lookAt"][0], 0.0f);
+        TRY_YAML_DICT(c.lookAt.y, node["lookAt"][1], 0.0f);
+        registry.emplace<MoveCtrl>(entity, c);
     }
 };
 
-#define SER_PHY_PID_HOLD                                                       \
+#define SER_MOVE_CTRL_HOLD                                                     \
     S1b(o.active);                                                             \
     SOBJ(o.spPos);                                                             \
     S4b(o.spRot);                                                              \
-    S4b(o.pdFwd.prev_error);                                                   \
-    S4b(o.pdSide.prev_error);
-
-#define DES_PHY_PID_HOLD                                                       \
-    S1b(o.active);                                                             \
-    SOBJ(o.spPos);                                                             \
-    S4b(o.spRot);                                                              \
-    S4b(o.pdFwd.prev_error);                                                   \
-    S4b(o.pdSide.prev_error);
-
-EXT_SER(PhyPid, SER_PHY_PID_HOLD)
-EXT_DES(PhyPid, DES_PHY_PID_HOLD)
+    S1b(o.faceDirMode);                                                        \
+    SOBJ(o.lookAt);
+EXT_SER(MoveCtrl, SER_MOVE_CTRL_HOLD)
+EXT_DES(MoveCtrl, SER_MOVE_CTRL_HOLD)
 
 }  // namespace ecs
 
@@ -265,10 +302,12 @@ EXT_FMT(ecs::PhyThrust,
         o.thrustMainMax,
         o.thrustManeuverMax,
         o.maxSpd);
-EXT_FMT(ecs::PhyPid,
-        "(active: {}, spPos: {}, spRot: {})",
+EXT_FMT(ecs::MoveCtrl,
+        "(active: {}, spPos: {}, spRot: {}, faceDirMode: {}, lookAt: {})",
         o.active,
         o.spPos,
-        o.spRot);
+        o.spRot,
+        magic_enum::enum_name(o.faceDirMode),
+        o.lookAt);
 
 #endif

@@ -5,22 +5,10 @@
 #include <entt/entt.hpp>
 #include <ptr-handle.hpp>
 #include <std-inc.hpp>
+#include <comp-ident.hpp>
 
 namespace ecs
 {
-struct EntityId
-{
-    uint32_t index;
-    uint16_t generation;
-    bool operator==(const EntityId& other) const
-    {
-        return index == other.index && generation == other.generation;
-    }
-    bool operator!=(const EntityId& other) const
-    {
-        return !(*this == other);
-    }
-};
 
 typedef std::function<
     void(entt::entity, const ecs::EntityId&, float, std::shared_ptr<PtrHandle>)>
@@ -86,33 +74,6 @@ class EcsClient
 
 }  // namespace ecs
 
-template <> struct fmt::formatter<entt::entity>
-{
-    constexpr auto parse(fmt::format_parse_context& ctx)
-    {
-        return ctx.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const entt::entity& e, FormatContext& ctx) const
-    {
-        // entt::entity is an enum class; format its underlying numeric id.
-        return fmt::format_to(ctx.out(), "{}", static_cast<std::uint32_t>(e));
-    }
-};
-
-template <> struct fmt::formatter<ecs::EntityId>
-{
-    constexpr auto parse(fmt::format_parse_context& ctx)
-    {
-        return ctx.begin();
-    }
-    template <typename FormatContext>
-    auto format(const ecs::EntityId& e, FormatContext& ctx) const
-    {
-        return fmt::format_to(ctx.out(), "{}:{}", e.index, e.generation);
-    }
-};
-
+EXT_FMT(entt::entity, "{}", static_cast<std::uint32_t>(o));
 
 #endif

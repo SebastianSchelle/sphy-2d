@@ -38,7 +38,8 @@ void writeMessage(net::CmdQueueData& cmdData,
         cmdser.adapter().currentWritePos(17);
     }
     contentWriter(cmdser);
-    cmdData.data.resize(cmdser.adapter().writtenBytesCount() - removeTrailingBytes);
+    size_t sizeWritten = cmdser.adapter().writtenBytesCount();
+    cmdData.data.resize(sizeWritten - removeTrailingBytes);
 }
 
 void writeCommand(bitsery::Serializer<OutputAdapter>& cmdser,

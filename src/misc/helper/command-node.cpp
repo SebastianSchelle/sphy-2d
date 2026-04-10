@@ -1,4 +1,5 @@
 #include "command-node.hpp"
+#include <cstdlib>
 #include <iterator>
 #include <sstream>
 
@@ -7,6 +8,17 @@ namespace cmd
 
 CommandArgs CommandManager::parseArgumentTokens(const std::vector<string>& tokens)
 {
+    auto isNumericToken = [](const string& s) -> bool
+    {
+        if (s.empty())
+        {
+            return false;
+        }
+        char* end = nullptr;
+        std::strtof(s.c_str(), &end);
+        return end != s.c_str() && *end == '\0';
+    };
+
     CommandArgs r;
     for (size_t i = 0; i < tokens.size();)
     {
@@ -21,11 +33,20 @@ CommandArgs CommandManager::parseArgumentTokens(const std::vector<string>& token
                 continue;
             }
             const string flag = t;
-            if (i + 1 < tokens.size() && !tokens[i + 1].empty()
-                && tokens[i + 1][0] != '-')
+            if (i + 1 < tokens.size())
             {
-                r.flags[flag] = tokens[i + 1];
-                i += 2;
+                const string& next = tokens[i + 1];
+                if (!next.empty()
+                    && (next[0] != '-' || isNumericToken(next)))
+                {
+                    r.flags[flag] = next;
+                    i += 2;
+                }
+                else
+                {
+                    r.flags[flag] = "";
+                    ++i;
+                }
             }
             else
             {

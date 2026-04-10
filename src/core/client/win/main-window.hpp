@@ -89,9 +89,6 @@ struct UiDebugGameObject
     float velX = 0.0f;
     float velY = 0.0f;
     float rotVel = 0.0f;
-    float rotAcc = 0.0f;
-    float accX = 0.0f;
-    float accY = 0.0f;
     bool hasPhyThrust = false;
     float thrustGlobalX = 0.0f;
     float thrustGlobalY = 0.0f;
@@ -103,14 +100,16 @@ struct UiDebugGameObject
     float thrustMainMax = 0.0f;
     float thrustManeuverMax = 0.0f;
     float maxSpd = 0.0f;
-    bool hasPhyPid = false;
-    bool phyPidActive = false;
+    bool hasMoveCtrl = false;
+    bool moveCtrlActive = false;
     float spPosX = 0.0f;
     float spPosY = 0.0f;
+    uint32_t spPosSecX = 0;
+    uint32_t spPosSecY = 0;
     float spRot = 0.0f;
-    float errorX = 0.0f;
-    float errorY = 0.0f;
-    float errorRot = 0.0f;
+    std::string moveCtrlFaceDirMode = "None";
+    float lookAtX = 0.0f;
+    float lookAtY = 0.0f;
 };
 
 struct UiDbgInputData

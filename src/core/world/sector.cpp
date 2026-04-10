@@ -69,7 +69,7 @@ bool Sector::addEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
     entityIds.push_back(entityId);
     entities.push_back(ptrHandle->ecs->getEntity(entityId));
     reg->emplace_or_replace<ecs::SectorId>(ptrHandle->ecs->getEntity(entityId),
-                                           ecs::SectorId{id});
+                                           ecs::SectorId{id, (uint32_t)coordX, (uint32_t)coordY});
     LG_D("Added entity: {} to sector: {}", entityId, id);
     return true;
 }
