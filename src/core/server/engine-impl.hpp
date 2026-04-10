@@ -18,48 +18,81 @@ template <typename Component> void Engine::registerSlowDumpComponent()
         }
     }
 
-    // todo: start new message if over max udp size
-
     slowDumpComponents.push_back(SlowDumpEntry(
         name,
         [this, name](const net::ClientInfo* clientInfo,
                      std::shared_ptr<ecs::PtrHandle> ptrHandle)
         {
-            bool lastSectorEmpty = false;
             int sectorIdx = 0;
             const vector<ecs::EntityId>* entityIds = nullptr;
             int entIdx = 0;
-            do
+
+            auto moreSlowDumpWork = [&]() -> bool
+            {
+                const int sectorCount = ptrHandle->world->getSectorCount();
+                if (sectorIdx >= sectorCount)
+                {
+                    return false;
+                }
+                if (entityIds != nullptr
+                    && static_cast<size_t>(entIdx) < entityIds->size())
+                {
+                    return true;
+                }
+                return sectorIdx < sectorCount;
+            };
+
+            while (moreSlowDumpWork())
             {
                 auto writer =
                     [this,
                      name,
                      ptrHandle,
-                     &lastSectorEmpty,
                      &sectorIdx,
                      &entityIds,
-                     &entIdx](bitsery::Serializer<OutputAdapter>& cmdser)
+                     &entIdx](bitsery::Serializer<OutputAdapter>& cmdser) -> bool
                 {
-                    bool msgFull = false;
-                    uint16_t numEntities = 0;
-
+                    uint16_t writtenEntities = 0;
+                    size_t initialWritePos = cmdser.adapter().currentWritePos();
                     cmdser.value4b(hashConst(name.c_str()));
 
-                    // todo: prevent exceeding udp packet size
-                    while (sectorIdx < ptrHandle->world->getSectorCount())
+                    const int sectorCount = ptrHandle->world->getSectorCount();
+                    while (sectorIdx < sectorCount)
                     {
-                        entIdx = 0;
-                        // Write sector index and dummy entity cnt
                         world::Sector* sector =
                             ptrHandle->world->getSector(sectorIdx);
-                        cmdser.value4b(sector->getId());
-                        size_t cntPos = cmdser.adapter().writtenBytesCount()
-                                        - (lastSectorEmpty ? 2 : 0);
-                        cmdser.value2b(numEntities);
                         entityIds = &sector->getEntityIds();
-                        auto entities = &sector->getEntities();
-                        while (entIdx < entityIds->size())
+
+                        if (static_cast<size_t>(entIdx) >= entityIds->size())
                         {
+                            sectorIdx++;
+                            entIdx = 0;
+                            entityIds = nullptr;
+                            continue;
+                        }
+
+                        if (cmdser.adapter().currentWritePos() + 6
+                            > prot::kMaxSerializedChunkBytes)
+                        {
+                            break;
+                        }
+
+                        size_t beforeSectorBlock =
+                            cmdser.adapter().currentWritePos();
+                        cmdser.value4b(sector->getId());
+                        size_t cntPos = cmdser.adapter().currentWritePos();
+                        uint16_t numEntities = 0;
+                        cmdser.value2b(numEntities);
+
+                        while (static_cast<size_t>(entIdx) < entityIds->size())
+                        {
+                            if (numEntities > 0
+                                && cmdser.adapter().currentWritePos()
+                                        + prot::kSerializedRecordReserveBytes
+                                    > prot::kMaxSerializedChunkBytes)
+                            {
+                                break;
+                            }
                             auto entityId = (*entityIds)[entIdx];
                             entt::entity entity =
                                 ptrHandle->ecs->getEntity(entityId);
@@ -73,46 +106,53 @@ template <typename Component> void Engine::registerSlowDumpComponent()
                                     cmdser.object(entityId);
                                     cmdser.object(*component);
                                     numEntities++;
+                                    writtenEntities++;
                                 }
                             }
                             entIdx++;
                         }
-                        cmdser.adapter().currentWritePos(cntPos);
-                        lastSectorEmpty = (numEntities == 0);
-                        if (!lastSectorEmpty)
+
+                        if (numEntities == 0)
                         {
+                            cmdser.adapter().currentWritePos(beforeSectorBlock);
+                        }
+                        else
+                        {
+                            cmdser.adapter().currentWritePos(cntPos);
                             cmdser.value2b(numEntities);
                             cmdser.adapter().currentWritePos(
                                 cmdser.adapter().writtenBytesCount());
                         }
-                        else
+
+                        if (static_cast<size_t>(entIdx) < entityIds->size())
                         {
-                            cmdser.adapter().currentWritePos(cntPos - 4);
+                            break;
                         }
-                        numEntities = 0;
+
                         sectorIdx++;
+                        entIdx = 0;
+                        entityIds = nullptr;
                     }
+
+                    if (writtenEntities == 0)
+                    {
+                        cmdser.adapter().currentWritePos(initialWritePos);
+                        return false;
+                    }
+                    return true;
                 };
 
                 prot::writeMessageUdp(
                     sendQueue,
                     &clientInfo->udpEndpoint,
-                    [this,
-                     name,
-                     ptrHandle,
-                     &lastSectorEmpty,
-                     &sectorIdx,
-                     &entityIds,
-                     &entIdx,
-                     writer](bitsery::Serializer<OutputAdapter>& cmdser)
+                    [writer](bitsery::Serializer<OutputAdapter>& cmdser) -> bool
                     {
-                        prot::writeCommand(
+                        return prot::writeCommand(
                             cmdser, prot::cmd::SLOW_DUMP, 0, writer);
                     },
                     false,
-                    lastSectorEmpty ? 6 : 0);
-            } while (sectorIdx < ptrHandle->world->getSectorCount()
-                     || entIdx < entityIds->size());
+                    0);
+            }
         }));
 }
 

@@ -102,11 +102,12 @@ void Model::timeSync()
         nullptr,
         [this](bitsery::Serializer<OutputAdapter>& cmdser)
         {
-            prot::writeCommand(
+            return prot::writeCommand(
                 cmdser,
                 prot::cmd::TIME_SYNC,
                 0,
-                [this](bitsery::Serializer<OutputAdapter>& cmdser) {});
+                [this](bitsery::Serializer<OutputAdapter>& cmdser)
+                { return true; });
         },
         true);
 }
@@ -180,13 +181,15 @@ void Model::parseCommandData(const net::CmdQueueData& cmdData)
             cmddes.value2b(len);
             size_t dataStartPos = cmddes.adapter().currentReadPos();
 
-            if (cmddes.adapter().currentReadPos() + len > data.size())
-            {
-                LG_E("Command data too short");
-                break;
-            }
             parseCommand(cmddes, cmd, flags, dataStartPos + len);
-            cmddes.adapter().currentReadPos(dataStartPos + len);
+            size_t readPos = cmddes.adapter().currentReadPos();
+            if (readPos - dataStartPos != len)
+            {
+                LG_W("Command data length mismatch. Expected: {}, Read: {}",
+                     len,
+                     cmddes.adapter().currentReadPos() - dataStartPos);
+                return;
+            }
         }
     }
     catch (const std::exception& e)
@@ -379,12 +382,15 @@ void Model::sendCmdToServer(const std::string& command)
         nullptr,
         [this, command](bitsery::Serializer<OutputAdapter>& cmdser)
         {
-            prot::writeCommand(
+            return prot::writeCommand(
                 cmdser,
                 prot::cmd::CONSOLE_CMD,
                 0,
                 [this, command](bitsery::Serializer<OutputAdapter>& cmdser)
-                { cmdser.text1b(command, command.size()); });
+                {
+                    cmdser.text1b(command, command.size());
+                    return true;
+                });
         });
 }
 
@@ -396,7 +402,7 @@ void Model::checkVersion(const net::ModelClientInfo& clientInfo)
         nullptr,
         [this](bitsery::Serializer<OutputAdapter>& cmdser)
         {
-            prot::writeCommand(
+            return prot::writeCommand(
                 cmdser,
                 prot::cmd::VERSION_CHECK,
                 0,
@@ -405,6 +411,7 @@ void Model::checkVersion(const net::ModelClientInfo& clientInfo)
                     cmdser.value2b(version::MAJOR);
                     cmdser.value2b(version::MINOR);
                     cmdser.value2b(version::PATCH);
+                    return true;
                 });
         });
 
@@ -419,7 +426,7 @@ void Model::authenticate()
         nullptr,
         [this](bitsery::Serializer<OutputAdapter>& cmdser)
         {
-            prot::writeCommand(
+            return prot::writeCommand(
                 cmdser,
                 prot::cmd::AUTHENTICATE,
                 0,
@@ -430,6 +437,7 @@ void Model::authenticate()
                     cmdser.value2b(version::PATCH);
                     cmdser.text1b(clientInfo.token, 16);
                     cmdser.value2b((uint16_t)clientInfo.udpPortCli);
+                    return true;
                 });
         });
     gameState = ClientGameState::Authenticating;
@@ -476,7 +484,8 @@ void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
 
                     auto& reg = ecs.getRegistry();
                     auto [x, y] = world.idToSectorCoords(sectorId);
-                    reg.emplace_or_replace<ecs::SectorId>(entity, sectorId, x, y);
+                    reg.emplace_or_replace<ecs::SectorId>(
+                        entity, sectorId, x, y);
                     reg.emplace_or_replace<ecs::EntityId>(entity, entityId);
                     helper.deserializeIntoRegistry(reg, entity, cmddes);
                 }
@@ -514,7 +523,7 @@ void Model::reqAllComponents(ecs::EntityId entityId)
         nullptr,
         [this, entityId](bitsery::Serializer<OutputAdapter>& cmdser)
         {
-            prot::writeCommand(
+            return prot::writeCommand(
                 cmdser,
                 prot::cmd::REQ_ALL_COMPONENTS,
                 0,
@@ -522,6 +531,7 @@ void Model::reqAllComponents(ecs::EntityId entityId)
                 {
                     cmdser.value4b(entityId.index);
                     cmdser.value2b(entityId.generation);
+                    return true;
                 });
         });
 }
@@ -529,6 +539,7 @@ void Model::reqAllComponents(ecs::EntityId entityId)
 void Model::selectEntitiesInsideRect(const def::SectorCoords& start,
                                      const def::SectorCoords& end)
 {
+    selectedEntities.clear();
     auto& reg = ecs.getRegistry();
     auto& xMin = def::SectorCoords::minX(start, end);
     auto& xMax = def::SectorCoords::maxX(start, end);
@@ -564,25 +575,47 @@ void Model::clearSelectedEntities()
 
 void Model::selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords)
 {
-    prot::writeMessageTcp(
-        sendQueue,
-        nullptr,
-        [this, sectorCoords](bitsery::Serializer<OutputAdapter>& cmdser)
-        {
-            for (auto& entityId : selectedEntities)
+    std::size_t idx = 0;
+    const auto& list = selectedEntities;
+    while (idx < list.size())
+    {
+        prot::writeMessageTcp(
+            sendQueue,
+            nullptr,
+            [&sectorCoords, &list, &idx](
+                bitsery::Serializer<OutputAdapter>& cmdser) -> bool
             {
-                prot::writeCommand(
-                    cmdser,
-                    prot::cmd::ENT_CMD_MOVETO_POS,
-                    0,
-                    [this, entityId, sectorCoords](
-                        bitsery::Serializer<OutputAdapter>& cmdser)
+                bool content = false;
+                while (idx < list.size())
+                {
+                    if (content
+                        && cmdser.adapter().currentWritePos()
+                                + prot::kSerializedRecordReserveBytes
+                            > prot::kMaxSerializedChunkBytes)
                     {
-                        cmdser.object(entityId);
-                        cmdser.object(sectorCoords);
-                    });
-            }
-        });
+                        break;
+                    }
+                    ecs::EntityId entityId = list[idx];
+                    if (!prot::writeCommand(
+                            cmdser,
+                            prot::cmd::ENT_CMD_MOVETO_POS,
+                            0,
+                            [entityId, sectorCoords](
+                                bitsery::Serializer<OutputAdapter>& inner) -> bool
+                            {
+                                inner.object(entityId);
+                                inner.object(sectorCoords);
+                                return true;
+                            }))
+                    {
+                        break;
+                    }
+                    content = true;
+                    ++idx;
+                }
+                return content;
+            });
+    }
 }
 
 }  // namespace sphyc

@@ -7,10 +7,10 @@
 #include <components/comp-phy.hpp>
 #include <engine-impl.hpp>
 #include <protocol.hpp>
+#include <random>
 #include <server.hpp>
 #include <sys-phy.hpp>
 #include <version.hpp>
-#include <random>
 
 namespace sphys
 {
@@ -398,7 +398,7 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
                      cmddes.adapter().currentReadPos() - dataStartPos);
                 return;
             }
-            //cmddes.adapter().currentReadPos(dataStartPos + len);
+            // cmddes.adapter().currentReadPos(dataStartPos + len);
         }
     }
     catch (const std::exception& e)
@@ -446,13 +446,16 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                     udpEndpoint,
                     [this, d](bitsery::Serializer<OutputAdapter>& cmdser)
                     {
-                        prot::writeCommand(
+                        return prot::writeCommand(
                             cmdser,
                             prot::cmd::TIME_SYNC,
                             CMD_FLAG_RESP,
                             [this,
                              d](bitsery::Serializer<OutputAdapter>& cmdser)
-                            { cmdser.value8b(d); });
+                            {
+                                cmdser.value8b(d);
+                                return true;
+                            });
                     });
             }
             break;
@@ -472,7 +475,7 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                     tcpConnection,
                     [this](bitsery::Serializer<OutputAdapter>& cmdser)
                     {
-                        prot::writeCommand(
+                        return prot::writeCommand(
                             cmdser,
                             prot::cmd::VERSION_CHECK,
                             CMD_FLAG_RESP,
@@ -481,6 +484,7 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                                 cmdser.value2b(version::MAJOR);
                                 cmdser.value2b(version::MINOR);
                                 cmdser.value2b(version::PATCH);
+                                return true;
                             });
                     });
             }
@@ -529,13 +533,13 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                                 [this](
                                     bitsery::Serializer<OutputAdapter>& cmdser)
                                 {
-                                    prot::writeCommand(
+                                    return prot::writeCommand(
                                         cmdser,
                                         prot::cmd::AUTHENTICATE,
                                         CMD_FLAG_RESP,
                                         [this](
                                             bitsery::Serializer<OutputAdapter>&
-                                                cmdser) {});
+                                                cmdser) { return true; });
                                 });
                         }
                         return;
@@ -556,7 +560,7 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                     tcpConnection,
                     [this](bitsery::Serializer<OutputAdapter>& cmdser)
                     {
-                        prot::writeCommand(
+                        return prot::writeCommand(
                             cmdser,
                             prot::cmd::WORLD_INFO,
                             CMD_FLAG_RESP,
@@ -566,6 +570,7 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                                 cmdser.value4b(worldShape.numSectorX);
                                 cmdser.value4b(worldShape.numSectorY);
                                 cmdser.value4b(worldShape.sectorSize);
+                                return true;
                             });
                     });
             }
@@ -618,13 +623,16 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                     tcpConnection,
                     [this, response](bitsery::Serializer<OutputAdapter>& cmdser)
                     {
-                        prot::writeCommand(
+                        return prot::writeCommand(
                             cmdser,
                             prot::cmd::CONSOLE_CMD,
                             CMD_FLAG_RESP,
                             [this, response](
                                 bitsery::Serializer<OutputAdapter>& cmdser)
-                            { cmdser.text1b(response, response.size()); });
+                            {
+                                cmdser.text1b(response, response.size());
+                                return true;
+                            });
                     });
             }
             break;
@@ -690,7 +698,8 @@ ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId,
     ecs::EntityId ent = spawnEntityFromAsset(assetId);
     if (!ecs.validId(ent))
     {
-        LG_E("Failed to spawn entity. Asset with id {} does not exist", assetId);
+        LG_E("Failed to spawn entity. Asset with id {} does not exist",
+             assetId);
         return ent;
     }
     world.moveEntityTo(ptrHandle, ent, sectorId, transform.pos, transform.rot);
@@ -1056,7 +1065,7 @@ void Engine::sendAllComponents(ecs::EntityId entityId,
         conn,
         [this, entityId, ent](bitsery::Serializer<OutputAdapter>& cmdser)
         {
-            prot::writeCommand(
+            return prot::writeCommand(
                 cmdser,
                 prot::cmd::REQ_ALL_COMPONENTS,
                 CMD_FLAG_RESP,
@@ -1071,13 +1080,15 @@ void Engine::sendAllComponents(ecs::EntityId entityId,
                     {
                         helper.serializeFromRegistry(reg, ent, cmdser);
                     }
+                    return true;
                 });
         });
 }
 
 void Engine::testSpawn()
 {
-    static constexpr const char* kAssets[] = {"test1", "test2", "test3", "test4"};
+    static constexpr const char* kAssets[] = {
+        "test1", "test2", "test3", "test4"};
     static constexpr float kTwoPi = 6.2831855f;
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -1085,12 +1096,13 @@ void Engine::testSpawn()
     std::uniform_real_distribution<float> rotDist(0.0f, kTwoPi);
     std::uniform_int_distribution<int> assetPick(0, 3);
 
-    for (int i = 0; i < 20; ++i)
+    for (int i = 0; i < 400; ++i)
     {
         spawnEntityFromAsset(
             kAssets[assetPick(gen)],
             0,
-            ecs::Transform{glm::vec2{posDist(gen), posDist(gen)}, rotDist(gen)});
+            ecs::Transform{glm::vec2{posDist(gen), posDist(gen)},
+                           rotDist(gen)});
     }
 }
 

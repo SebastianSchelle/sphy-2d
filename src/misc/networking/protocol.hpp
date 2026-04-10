@@ -41,7 +41,12 @@
 namespace prot
 {
 
-typedef std::function<void(bitsery::Serializer<OutputAdapter>&)>
+// One UDP datagram or one TCP chunk when splitting serialized commands.
+inline constexpr std::size_t kMaxSerializedChunkBytes = 1100;
+// Headroom before appending another variable-sized record (avoids splitting mid-object).
+inline constexpr std::size_t kSerializedRecordReserveBytes = 256;
+
+typedef std::function<bool(bitsery::Serializer<OutputAdapter>&)>
     CmdContentWriter;
 
 void writeMessageUdp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
@@ -50,9 +55,9 @@ void writeMessageUdp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
 void writeMessageTcp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
                      std::shared_ptr<net::TcpConnection> tcpConnection,
                      CmdContentWriter contentWriter);
-void writeMessage(net::CmdQueueData& cmdData,
+bool writeMessage(net::CmdQueueData& cmdData,
                   CmdContentWriter contentWriter, bool useToken = false, uint16_t removeTrailingBytes = 0);
-void writeCommand(bitsery::Serializer<OutputAdapter>& cmdser,
+bool writeCommand(bitsery::Serializer<OutputAdapter>& cmdser,
                   uint16_t cmd,
                   uint8_t flags,
                   CmdContentWriter contentWriter);
