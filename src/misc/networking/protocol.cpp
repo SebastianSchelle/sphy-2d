@@ -6,15 +6,17 @@ namespace prot
 
 void writeMessageUdp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
                      const udp::endpoint* endpoint,
-                     CmdContentWriter contentWriter, bool useToken, uint16_t removeTrailingBytes)
+                     CmdContentWriter contentWriter,
+                     bool useToken,
+                     uint16_t removeTrailingBytes)
 {
     net::CmdQueueData cmdData;
     cmdData.sendType = net::SendType::UDP;
-    if(endpoint)
+    if (endpoint)
     {
         cmdData.udpEndpoint = *endpoint;
     }
-    if(writeMessage(cmdData, contentWriter, useToken, removeTrailingBytes))
+    if (writeMessage(cmdData, contentWriter, useToken, removeTrailingBytes))
     {
         sendQueue.enqueue(cmdData);
     }
@@ -27,22 +29,24 @@ void writeMessageTcp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
     net::CmdQueueData cmdData;
     cmdData.sendType = net::SendType::TCP;
     cmdData.tcpConnection = tcpConnection;
-    if(writeMessage(cmdData, contentWriter))
+    if (writeMessage(cmdData, contentWriter))
     {
         sendQueue.enqueue(cmdData);
     }
 }
 
 bool writeMessage(net::CmdQueueData& cmdData,
-                  CmdContentWriter contentWriter, bool useToken, uint16_t removeTrailingBytes)
+                  CmdContentWriter contentWriter,
+                  bool useToken,
+                  uint16_t removeTrailingBytes)
 {
     bitsery::Serializer<OutputAdapter> cmdser(OutputAdapter(cmdData.data));
-    if(cmdData.sendType == net::SendType::UDP && useToken)
+    if (cmdData.sendType == net::SendType::UDP && useToken)
     {
         cmdser.adapter().currentWritePos(17);
     }
     size_t ptrBefore = cmdser.adapter().currentWritePos();
-    if(!contentWriter(cmdser))
+    if (!contentWriter(cmdser))
     {
         return false;
     }
@@ -61,7 +65,7 @@ bool writeCommand(bitsery::Serializer<OutputAdapter>& cmdser,
     cmdser.value1b(flags);
     size_t lenPos = cmdser.adapter().currentWritePos();
     cmdser.value2b((uint16_t)0);
-    if(!contentWriter(cmdser))
+    if (!contentWriter(cmdser))
     {
         return false;
     }
@@ -71,5 +75,85 @@ bool writeCommand(bitsery::Serializer<OutputAdapter>& cmdser,
     cmdser.adapter().currentWritePos(currPos);
     return true;
 }
+
+MsgComposer::MsgComposer(net::SendType type,
+                         const udp::endpoint& endpoint,
+                         bool useToken)
+    : cmdData()
+{
+    cmdData.sendType = type;
+    cmdData.udpEndpoint = endpoint;
+    resetData();
+}
+
+MsgComposer::MsgComposer(net::SendType type,
+                         std::shared_ptr<net::TcpConnection> tcpConnection)
+    : cmdData()
+{
+    cmdData.sendType = type;
+    cmdData.tcpConnection = tcpConnection;
+    resetData();
+}
+
+MsgComposer::~MsgComposer()
+{
+    if (ser)
+    {
+        delete ser;
+        ser = nullptr;
+    }
+}
+
+void MsgComposer::startCommand(uint16_t cmd, uint8_t flags)
+{
+    if(!cmdFinished)
+    {
+        finishCommand();
+    }
+    ser->value2b(cmd);
+    currCmdPos = ser->adapter().currentWritePos();
+    ser->value1b(flags);
+    currLenPos = ser->adapter().currentWritePos();
+    ser->value2b((uint16_t)0);
+    hasContent = true;
+    cmdFinished = false;
+}
+
+void MsgComposer::execute(ConcurrentQueue<net::CmdQueueData>& sendQueue)
+{
+    if (hasData())
+    {
+        if (!cmdFinished)
+        {
+            finishCommand();
+        }
+        cmdData.data.resize(ser->adapter().currentWritePos());
+        sendQueue.enqueue(cmdData);
+    }
+}
+
+void MsgComposer::finishCommand()
+{
+    size_t currPos = ser->adapter().currentWritePos();
+    size_t cmdLen = currPos - currLenPos - 2;
+    ser->adapter().currentWritePos(currLenPos);
+    ser->value2b((uint16_t)cmdLen);
+    ser->adapter().currentWritePos(currPos);
+    cmdFinished = true;
+}
+
+void MsgComposer::resetData()
+{
+    if (ser)
+    {
+        delete ser;
+        ser = nullptr;
+        cmdData.data.clear();
+    }
+    ser = new bitsery::Serializer<OutputAdapter>(OutputAdapter(cmdData.data));
+    hasContent = false;
+    cmdFinished = true;
+}
+
 
 }  // namespace prot

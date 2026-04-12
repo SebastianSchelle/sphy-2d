@@ -71,10 +71,10 @@ Exchange::~Exchange()
 void Exchange::execute(ConcurrentQueue<net::CmdQueueData>& sendQueue)
 {
     LG_I("Executing exchange: {}", command);
-    CMDAT_PREP(net::SendType::TCP, command, 0)
-    serializeCallback(cmdser);
-    CMDAT_FIN_TOKEN()
-    sendQueue.enqueue(cmdData);
+    prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
+    mcomp.startCommand(command, 0);
+    serializeCallback(*mcomp.ser);
+    mcomp.execute(sendQueue);
 }
 
 

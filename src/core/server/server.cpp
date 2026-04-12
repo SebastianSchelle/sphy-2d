@@ -46,9 +46,7 @@ void Server::startUdpTcp()
         portTcp,
         std::bind(&Server::tcpReceive,
                   this,
-                  std::placeholders::_1,
-                  std::placeholders::_2,
-                  std::placeholders::_3),
+                  std::placeholders::_1),
         std::bind(&Server::tcpDisconnected,
                   this,
                   std::placeholders::_1));
@@ -139,18 +137,23 @@ void Server::udpReceive(udp::endpoint endpoint, const char* data, size_t length)
     }
 }
 
-void Server::tcpReceive(const char* data,
-                        size_t length,
-                        std::shared_ptr<net::TcpConnection> connection)
+// void Server::tcpReceive(const char* data,
+//                         size_t length,
+//                         std::shared_ptr<net::TcpConnection> connection)
+// {
+//     if (length >= 5)
+//     {
+//         net::CmdQueueData cmdData;
+//         cmdData.sendType = net::SendType::TCP;
+//         cmdData.tcpConnection = connection;
+//         cmdData.data.insert(cmdData.data.end(), data, data + length);
+//         engine.receiveQueue.enqueue(cmdData);
+//     }
+// }
+
+void Server::tcpReceive(const net::CmdQueueData& cmdData)
 {
-    if (length >= 5)
-    {
-        net::CmdQueueData cmdData;
-        cmdData.sendType = net::SendType::TCP;
-        cmdData.tcpConnection = connection;
-        cmdData.data.insert(cmdData.data.end(), data, data + length);
-        engine.receiveQueue.enqueue(cmdData);
-    }
+    engine.receiveQueue.enqueue(cmdData);
 }
 
 void Server::tcpDisconnected(std::shared_ptr<net::TcpConnection> connection)

@@ -14,7 +14,8 @@ class TcpClient
   public:
     TcpClient(boost::asio::io_context& io_context,
               tcp::endpoint endpoint,
-              net::TcpReceiveCallback receiveCallback);
+              net::TcpReceiveClb receiveCallback,
+              ConnectionClosedCallback connectionClosedCallback);
     void close();
     void sendMessage(const std::vector<uint8_t>& data);
     void startReceive();
@@ -24,8 +25,13 @@ class TcpClient
   private:
     tcp::socket socket;
     char recvBuf[TCP_REC_BUF_LEN];
-    net::TcpReceiveCallback receiveCallback;
+    TcpReceiveClb tcpReceiveCallback;
+    ConnectionClosedCallback connectionClosedCallback;
     tcp::endpoint devServerEndpoint;
+    RcvCmdState rcvCmdState = RcvCmdState::ParseCmd0;
+    uint16_t rcvCmdLen = 0;
+    uint16_t lastDataStart = 0;
+    net::CmdQueueData rcvdCmd;
 };
 
 }  // namespace net

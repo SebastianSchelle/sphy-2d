@@ -61,9 +61,10 @@ set(LIBS_PUB
 )
 
 set(BGFX_BUILD ${BGFX_DIR}/build/cmake)
+# bgfx core only — do not link libexample-common (entry framework + _main_ + X11
+# window helpers); this client uses GLFW + bgfx::init() directly (see main-window.cpp).
 set(LIBS_PRIV
     "${BGFX_BUILD}/bgfx/libbgfx.a"
-    "${BGFX_BUILD}/bgfx/libexample-common.a"
     "${BGFX_BUILD}/bgfx/libfcpp.a"
     "${BGFX_BUILD}/bgfx/libglsl-optimizer.a"
     "${BGFX_BUILD}/bgfx/libglslang.a"

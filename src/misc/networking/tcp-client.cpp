@@ -5,8 +5,11 @@ namespace net
 
 TcpClient::TcpClient(boost::asio::io_context& io_context,
                      tcp::endpoint endpoint,
-                     net::TcpReceiveCallback receiveCallback)
-    : socket(io_context), devServerEndpoint(endpoint), receiveCallback(receiveCallback)
+                     TcpReceiveClb tcpReceiveCallback,
+                     ConnectionClosedCallback connectionClosedCallback)
+    : socket(io_context), devServerEndpoint(endpoint),
+      tcpReceiveCallback(tcpReceiveCallback),
+      connectionClosedCallback(connectionClosedCallback)
 {
     socket.connect(devServerEndpoint);
     startReceive();
@@ -23,10 +26,11 @@ void TcpClient::close()
 
 void TcpClient::sendMessage(const std::vector<uint8_t>& data)
 {
-    try{
+    try
+    {
         size_t bytesSent = socket.send(boost::asio::buffer(data));
     }
-    catch(const std::exception& e)
+    catch (const std::exception& e)
     {
         LG_W("TCP send failed: {}", e.what());
     }
@@ -34,6 +38,7 @@ void TcpClient::sendMessage(const std::vector<uint8_t>& data)
 
 void TcpClient::startReceive()
 {
+    rcvdCmd.sendType = SendType::TCP;
     socket.async_receive(
         boost::asio::buffer(recvBuf, TCP_REC_BUF_LEN),
         [this](const boost::system::error_code& ec, std::size_t bytes)
@@ -45,13 +50,48 @@ void TcpClient::handleReceive(const boost::system::error_code& error,
 {
     if (!error && bytes_received > 0)
     {
-        if(receiveCallback)
+        for (size_t i = 0; i < bytes_received; i++)
         {
-            receiveCallback(recvBuf, bytes_received);
+            rcvdCmd.data.push_back(recvBuf[i]);
+            switch (rcvCmdState)
+            {
+                case RcvCmdState::ParseCmd0:
+                    rcvCmdState = RcvCmdState::ParseCmd1;
+                    break;
+                case RcvCmdState::ParseCmd1:
+                    rcvCmdState = RcvCmdState::ParseFlags;
+                    break;
+                case RcvCmdState::ParseFlags:
+                    rcvCmdState = RcvCmdState::ParseLen0;
+                    break;
+                case RcvCmdState::ParseLen0:
+                    rcvCmdLen = recvBuf[i];
+                    rcvCmdState = RcvCmdState::ParseLen1;
+                    break;
+                case RcvCmdState::ParseLen1:
+                    rcvCmdLen = rcvCmdLen | (recvBuf[i] << 8);
+                    lastDataStart = rcvdCmd.data.size();
+                    rcvCmdState = rcvCmdLen ? RcvCmdState::ParseData
+                                            : RcvCmdState::ParseCmd0;
+                    break;
+                case RcvCmdState::ParseData:
+                    if (rcvdCmd.data.size() - lastDataStart == rcvCmdLen)
+                    {
+                        rcvCmdState = RcvCmdState::ParseCmd0;
+                        // maybe flush at great vector size?
+                    }
+                    break;
+            }
         }
-        else
+        if (rcvCmdState == RcvCmdState::ParseCmd0)
         {
-            LG_D("Received: {}", std::string(recvBuf, bytes_received));
+            LG_D("TCP packet received: {}", rcvdCmd.data.size());
+            // Packet is complete at stream boundary
+            if (tcpReceiveCallback)
+            {
+                tcpReceiveCallback(rcvdCmd);
+            }
+            rcvdCmd.data.clear();
         }
         startReceive();
     }
@@ -66,10 +106,13 @@ void TcpClient::handleReceive(const boost::system::error_code& error,
             LG_E("TCP receive failed: {}", error.message());
         }
 
-        if (receiveCallback)
+        if (connectionClosedCallback)
         {
-            // Signal connection close/drop to upper layer.
-            receiveCallback(nullptr, 0);
+            connectionClosedCallback();
+        }
+        else
+        {
+            LG_W("No connection closed callback set");
         }
     }
 }

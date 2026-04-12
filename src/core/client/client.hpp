@@ -37,7 +37,8 @@ class Client
   private:
     void scheduleSend(const std::string& token);
     void udpReceive(const char* data, size_t length);
-    void tcpReceive(const char* data, size_t length);
+    void tcpReceive(const net::CmdQueueData& cmdData);
+    void connectionClosedClb();
 
     std::unique_ptr<net::UdpClient> udpClient;
     std::unique_ptr<net::TcpClient> tcpClient;

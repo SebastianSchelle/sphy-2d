@@ -35,11 +35,6 @@ class Model
           cfg::ConfigManager& config,
           std::function<void(void)> afterLoadWorldClb);
     ~Model();
-    void parseCommandData(const net::CmdQueueData& cmdData);
-    void parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
-                      uint16_t cmd,
-                      uint8_t flags,
-                      uint16_t len);
     void modelLoop(float dt);
 
     void startLoadingMods();
@@ -55,7 +50,6 @@ class Model
                                   const def::SectorCoords& end);
     void clearSelectedEntities();
     void selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords);
-
 
     const std::vector<ecs::EntityId>& getSelectedEntities() const
     {
@@ -99,6 +93,12 @@ class Model
     }
 
   private:
+  void parseCommandData(const net::CmdQueueData& cmdData);
+  void parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
+                    net::SendType sendType,
+                    uint16_t cmd,
+                    uint8_t flags,
+                    uint16_t len);
     void modelLoopMenu(float dt);
     void modelLoopGame(float dt);
     void timeSync();
@@ -108,6 +108,7 @@ class Model
     void reqAllComponents(ecs::EntityId entity);
     void handleReqAllComponentsResp(bitsery::Deserializer<InputAdapter>& cmddes,
                                     uint16_t posNextCmdOrEof);
+    void notifyReady();
 
     cfg::ConfigManager& config;
     net::TimeSync timeSyncData;

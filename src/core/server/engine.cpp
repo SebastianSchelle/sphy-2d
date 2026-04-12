@@ -91,11 +91,23 @@ void Engine::engineLoop()
 {
     long lastSaveTime = tim::nowU();
     long lastUpdateTime = tim::nowU();
+    long lastFpsUpdate = tim::nowU();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     while (!stopRequested)
     {
         long nowU = tim::nowU();
         float dt = (nowU - lastUpdateTime) / 1000000.0f;
+        if(dt < 1e-6f)
+        {
+            dt = 1e-6f;
+        }
+        filteredFps = 0.9f * filteredFps + 0.1f * (1.0f / dt);
+
+        DO_PERIODIC_U_EXTNOW(lastFpsUpdate, 5000000, nowU, [this]() {
+            LG_I("FPS: {}", filteredFps);
+        });
 
         switch (state)
         {
@@ -158,7 +170,6 @@ void Engine::engineLoop()
             parseCommandData(recQueueData);
         }
         lastUpdateTime = nowU;
-
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
@@ -331,6 +342,7 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
         std::string token;
         const udp::endpoint* udpEndpoint;
         std::shared_ptr<net::TcpConnection> tcpConnection;
+        net::ClientInfoHandle clientInfoHandle = net::ClientInfoHandle::Invalid();
         net::ClientInfo* clientInfo = nullptr;
 
         const std::vector<uint8_t>& data = cmdData.data;
@@ -359,10 +371,10 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
         else if (cmdData.sendType == net::SendType::TCP)
         {
             tcpConnection = cmdData.tcpConnection;
-            net::ClientInfoHandle handle = tcpConnection->getClientInfoHandle();
-            if (handle.isValid())
+            clientInfoHandle = tcpConnection->getClientInfoHandle();
+            if (clientInfoHandle.isValid())
             {
-                clientInfo = clientLib.getItem(handle);
+                clientInfo = clientLib.getItem(clientInfoHandle);
             }
         }
 
@@ -376,15 +388,16 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
             cmddes.value2b(len);
             size_t dataStartPos = cmddes.adapter().currentReadPos();
 
-            if (cmddes.adapter().currentReadPos() + len > data.size())
+            if (dataStartPos + len > data.size())
             {
-                LG_E("Command data too short");
+                LG_W("Command data too short cmd={}, len={}", cmd, len);
                 break;
             }
             parseCommand(cmddes,
                          token,
                          udpEndpoint,
                          tcpConnection,
+                         clientInfoHandle,
                          clientInfo,
                          cmdData.sendType,
                          cmd,
@@ -411,6 +424,7 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                           std::string& uuid,
                           const udp::endpoint* udpEndpoint,
                           std::shared_ptr<net::TcpConnection>& tcpConnection,
+                          net::ClientInfoHandle clientInfoHandle,
                           net::ClientInfo* clientInfo,
                           net::SendType sendType,
                           uint16_t cmd,
@@ -441,22 +455,10 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             if (sendType == net::SendType::UDP && (flags & CMD_FLAG_RESP) == 0)
             {
                 long d = tim::nowU();
-                prot::writeMessageUdp(
-                    sendQueue,
-                    udpEndpoint,
-                    [this, d](bitsery::Serializer<OutputAdapter>& cmdser)
-                    {
-                        return prot::writeCommand(
-                            cmdser,
-                            prot::cmd::TIME_SYNC,
-                            CMD_FLAG_RESP,
-                            [this,
-                             d](bitsery::Serializer<OutputAdapter>& cmdser)
-                            {
-                                cmdser.value8b(d);
-                                return true;
-                            });
-                    });
+                prot::MsgComposer mcomp(net::SendType::UDP, *udpEndpoint);
+                mcomp.startCommand(prot::cmd::TIME_SYNC, CMD_FLAG_RESP);
+                mcomp.ser->value8b(d);
+                mcomp.execute(sendQueue);
             }
             break;
         }
@@ -470,23 +472,12 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 cmddes.value2b(major);
                 cmddes.value2b(minor);
                 cmddes.value2b(patch);
-                prot::writeMessageTcp(
-                    sendQueue,
-                    tcpConnection,
-                    [this](bitsery::Serializer<OutputAdapter>& cmdser)
-                    {
-                        return prot::writeCommand(
-                            cmdser,
-                            prot::cmd::VERSION_CHECK,
-                            CMD_FLAG_RESP,
-                            [this](bitsery::Serializer<OutputAdapter>& cmdser)
-                            {
-                                cmdser.value2b(version::MAJOR);
-                                cmdser.value2b(version::MINOR);
-                                cmdser.value2b(version::PATCH);
-                                return true;
-                            });
-                    });
+                prot::MsgComposer mcomp(net::SendType::TCP, tcpConnection);
+                mcomp.startCommand(prot::cmd::VERSION_CHECK, CMD_FLAG_RESP);
+                mcomp.ser->value2b(version::MAJOR);
+                mcomp.ser->value2b(version::MINOR);
+                mcomp.ser->value2b(version::PATCH);
+                mcomp.execute(sendQueue);
             }
             break;
         }
@@ -512,7 +503,6 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                     {
                         auto address =
                             tcpConnection->socket().local_endpoint().address();
-                        activeClientHandles.push_back(handle);
                         net::ClientInfo* clientInfo = clientLib.getItem(handle);
                         clientInfo->portUdp = portUdp;
                         clientInfo->address = address;
@@ -527,20 +517,9 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                             portUdp,
                             token);
                         {
-                            prot::writeMessageTcp(
-                                sendQueue,
-                                tcpConnection,
-                                [this](
-                                    bitsery::Serializer<OutputAdapter>& cmdser)
-                                {
-                                    return prot::writeCommand(
-                                        cmdser,
-                                        prot::cmd::AUTHENTICATE,
-                                        CMD_FLAG_RESP,
-                                        [this](
-                                            bitsery::Serializer<OutputAdapter>&
-                                                cmdser) { return true; });
-                                });
+                            prot::MsgComposer mcomp(net::SendType::TCP, tcpConnection);
+                            mcomp.startCommand(prot::cmd::AUTHENTICATE, CMD_FLAG_RESP);
+                            mcomp.execute(sendQueue);
                         }
                         return;
                     }
@@ -555,24 +534,23 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
             {
                 LG_I("Sending world info");
-                prot::writeMessageTcp(
-                    sendQueue,
-                    tcpConnection,
-                    [this](bitsery::Serializer<OutputAdapter>& cmdser)
-                    {
-                        return prot::writeCommand(
-                            cmdser,
-                            prot::cmd::WORLD_INFO,
-                            CMD_FLAG_RESP,
-                            [this](bitsery::Serializer<OutputAdapter>& cmdser)
-                            {
-                                auto worldShape = world.getWorldShape();
-                                cmdser.value4b(worldShape.numSectorX);
-                                cmdser.value4b(worldShape.numSectorY);
-                                cmdser.value4b(worldShape.sectorSize);
-                                return true;
-                            });
-                    });
+                prot::MsgComposer mcomp(net::SendType::TCP, tcpConnection);
+                mcomp.startCommand(prot::cmd::WORLD_INFO, CMD_FLAG_RESP);
+                auto worldShape = world.getWorldShape();
+                mcomp.ser->object(worldShape);
+                mcomp.execute(sendQueue);
+            }
+            break;
+        }
+        case prot::cmd::NOTIFY_CLIENT_READY:
+        {
+            if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
+            {
+                LG_I("Server accepted client readyness of {}", clientInfo->name);
+                activeClientHandles.push_back(clientInfoHandle);
+                prot::MsgComposer mcomp(net::SendType::TCP, tcpConnection);
+                mcomp.startCommand(prot::cmd::NOTIFY_CLIENT_READY, CMD_FLAG_RESP);
+                mcomp.execute(sendQueue);
             }
             break;
         }
@@ -617,23 +595,10 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 {
                     response = "Failed: Client info handle not valid";
                 }
-
-                prot::writeMessageTcp(
-                    sendQueue,
-                    tcpConnection,
-                    [this, response](bitsery::Serializer<OutputAdapter>& cmdser)
-                    {
-                        return prot::writeCommand(
-                            cmdser,
-                            prot::cmd::CONSOLE_CMD,
-                            CMD_FLAG_RESP,
-                            [this, response](
-                                bitsery::Serializer<OutputAdapter>& cmdser)
-                            {
-                                cmdser.text1b(response, response.size());
-                                return true;
-                            });
-                    });
+                prot::MsgComposer mcomp(net::SendType::TCP, tcpConnection);
+                mcomp.startCommand(prot::cmd::CONSOLE_CMD, CMD_FLAG_RESP);
+                mcomp.ser->text1b(response, response.size());
+                mcomp.execute(sendQueue);
             }
             break;
         }
@@ -1095,12 +1060,14 @@ void Engine::testSpawn()
     std::uniform_real_distribution<float> posDist(-200.0f, 200.0f);
     std::uniform_real_distribution<float> rotDist(0.0f, kTwoPi);
     std::uniform_int_distribution<int> assetPick(0, 3);
+    std::uniform_int_distribution<int> sectorPick(0, world.getSectorCount() - 1);
 
-    for (int i = 0; i < 400; ++i)
+
+    for (int i = 0; i < 100; ++i)
     {
         spawnEntityFromAsset(
             kAssets[assetPick(gen)],
-            0,
+            sectorPick(gen),
             ecs::Transform{glm::vec2{posDist(gen), posDist(gen)},
                            rotDist(gen)});
     }

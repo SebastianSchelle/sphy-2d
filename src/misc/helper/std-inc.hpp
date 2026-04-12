@@ -170,6 +170,7 @@ enum class ClientGameState
     Authenticating,
     Authenticated,
     LoadWorld,
+    NotifyServerReady,
     GameLoop,
 };
 

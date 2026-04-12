@@ -6,11 +6,11 @@ namespace net
 
 TcpConnection::pointer
 TcpConnection::create(boost::asio::io_context& io_context,
-                      ReceiveCallbackConn receiveCallback,
+                      TcpReceiveClb receiveCallback,
                       TcpDisconnectCallback disconnectCallback)
 {
     return pointer(new TcpConnection(
-        io_context, receiveCallback, std::move(disconnectCallback)));
+        io_context, receiveCallback, disconnectCallback));
 }
 
 tcp::socket& TcpConnection::socket()
@@ -21,39 +21,42 @@ tcp::socket& TcpConnection::socket()
 void TcpConnection::start()
 {
     running.store(true);
+    rcvdCmd.sendType = SendType::TCP;
+    rcvdCmd.tcpConnection = shared_from_this();
     doRead();
 }
 
 void TcpConnection::close()
 {
     auto self = shared_from_this();
-    boost::asio::dispatch(socket_.get_executor(), [this, self]()
-    {
-        if (!running.exchange(false))
-            return;
-        LG_D("Closing TCP connection");
-        boost::system::error_code ec;
-        if(socket_.cancel(ec))
+    boost::asio::dispatch(
+        socket_.get_executor(),
+        [this, self]()
         {
-            LG_W("Failed to cancel socket: {}", ec.message());
-        }
-        if(socket_.shutdown(tcp::socket::shutdown_both, ec))
-        {
-            LG_W("Failed to shutdown socket: {}", ec.message());
-        }
-        if(socket_.close(ec))
-        {
-            LG_W("Failed to close socket: {}", ec.message());
-        }
-        fireDisconnectOnce();
-    });
+            if (!running.exchange(false))
+                return;
+            LG_D("Closing TCP connection");
+            boost::system::error_code ec;
+            if (socket_.cancel(ec))
+            {
+                LG_W("Failed to cancel socket: {}", ec.message());
+            }
+            if (socket_.shutdown(tcp::socket::shutdown_both, ec))
+            {
+                LG_W("Failed to shutdown socket: {}", ec.message());
+            }
+            if (socket_.close(ec))
+            {
+                LG_W("Failed to close socket: {}", ec.message());
+            }
+            fireDisconnectOnce();
+        });
 }
 
 TcpConnection::TcpConnection(boost::asio::io_context& io_context,
-                             ReceiveCallbackConn receiveCallback,
+                             TcpReceiveClb tcpReceiveCallback,
                              TcpDisconnectCallback disconnectCallback)
-    : socket_(io_context),
-      receiveCallback(std::move(receiveCallback)),
+    : socket_(io_context), tcpReceiveCallback(std::move(tcpReceiveCallback)),
       disconnectCallback(std::move(disconnectCallback)),
       clientInfoHandle(ClientInfoHandle::Invalid())
 {
@@ -76,13 +79,46 @@ void TcpConnection::doRead()
         {
             if (!ec && length > 0 && running.load())
             {
-                if (receiveCallback)
+                for (size_t i = 0; i < length; i++)
                 {
-                    receiveCallback(recvBuf, length, self);
+                    rcvdCmd.data.push_back(recvBuf[i]);
+                    switch (rcvCmdState)
+                    {
+                        case RcvCmdState::ParseCmd0:
+                            rcvCmdState = RcvCmdState::ParseCmd1;
+                            break;
+                        case RcvCmdState::ParseCmd1:
+                            rcvCmdState = RcvCmdState::ParseFlags;
+                            break;
+                        case RcvCmdState::ParseFlags:
+                            rcvCmdState = RcvCmdState::ParseLen0;
+                            break;
+                        case RcvCmdState::ParseLen0:
+                            rcvCmdLen = recvBuf[i];
+                            rcvCmdState = RcvCmdState::ParseLen1;
+                            break;
+                        case RcvCmdState::ParseLen1:
+                            rcvCmdLen = rcvCmdLen | (recvBuf[i] << 8);
+                            lastDataStart = rcvdCmd.data.size();
+                            rcvCmdState = rcvCmdLen ? RcvCmdState::ParseData : RcvCmdState::ParseCmd0;
+                            break;
+                        case RcvCmdState::ParseData:
+                            if (rcvdCmd.data.size() - lastDataStart == rcvCmdLen)
+                            {
+                                rcvCmdState = RcvCmdState::ParseCmd0;
+                                // maybe flush at great vector size?
+                            }
+                            break;
+                    }
                 }
-                else
+                if (rcvCmdState == RcvCmdState::ParseCmd0)
                 {
-                    LG_D("Received: {}", std::string(recvBuf, length));
+                    // Packet is complete at stream boundary
+                    if (tcpReceiveCallback)
+                    {
+                        tcpReceiveCallback(rcvdCmd);
+                    }
+                    rcvdCmd.data.clear();
                 }
                 doRead();
             }
@@ -116,11 +152,11 @@ void TcpConnection::sendMessage(const std::vector<uint8_t>& data)
 
 TcpServer::TcpServer(boost::asio::io_context& io_context,
                      int port,
-                     ReceiveCallbackConn receiveCallback,
+                     TcpReceiveClb tcpReceiveCallback,
                      TcpDisconnectCallback disconnectCallback)
     : io_context_(io_context),
       acceptor_(io_context, tcp::endpoint(tcp::v4(), port)),
-      receiveCallback(std::move(receiveCallback)),
+      tcpReceiveCallback(std::move(tcpReceiveCallback)),
       disconnectCallback(std::move(disconnectCallback))
 {
     LG_D("Starting TCP server on port {}", port);
@@ -129,8 +165,8 @@ TcpServer::TcpServer(boost::asio::io_context& io_context,
 
 void TcpServer::StartAccept()
 {
-    TcpConnection::pointer new_connection = TcpConnection::create(
-        io_context_, receiveCallback, disconnectCallback);
+    TcpConnection::pointer new_connection =
+        TcpConnection::create(io_context_, tcpReceiveCallback, disconnectCallback);
 
     acceptor_.async_accept(
         new_connection->socket(),

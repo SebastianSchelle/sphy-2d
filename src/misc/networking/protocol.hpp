@@ -43,7 +43,8 @@ namespace prot
 
 // One UDP datagram or one TCP chunk when splitting serialized commands.
 inline constexpr std::size_t kMaxSerializedChunkBytes = 1100;
-// Headroom before appending another variable-sized record (avoids splitting mid-object).
+// Headroom before appending another variable-sized record (avoids splitting
+// mid-object).
 inline constexpr std::size_t kSerializedRecordReserveBytes = 256;
 
 typedef std::function<bool(bitsery::Serializer<OutputAdapter>&)>
@@ -51,16 +52,40 @@ typedef std::function<bool(bitsery::Serializer<OutputAdapter>&)>
 
 void writeMessageUdp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
                      const udp::endpoint* endpoint,
-                     CmdContentWriter contentWriter, bool useToken = false, uint16_t removeTrailingBytes = 0);
+                     CmdContentWriter contentWriter,
+                     bool useToken = false,
+                     uint16_t removeTrailingBytes = 0);
 void writeMessageTcp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
                      std::shared_ptr<net::TcpConnection> tcpConnection,
                      CmdContentWriter contentWriter);
 bool writeMessage(net::CmdQueueData& cmdData,
-                  CmdContentWriter contentWriter, bool useToken = false, uint16_t removeTrailingBytes = 0);
+                  CmdContentWriter contentWriter,
+                  bool useToken = false,
+                  uint16_t removeTrailingBytes = 0);
 bool writeCommand(bitsery::Serializer<OutputAdapter>& cmdser,
                   uint16_t cmd,
                   uint8_t flags,
                   CmdContentWriter contentWriter);
+
+class MsgComposer
+{
+  public:
+    MsgComposer(net::SendType type, const udp::endpoint& endpoint, bool useToken = true);
+    MsgComposer(net::SendType type, std::shared_ptr<net::TcpConnection> tcpConnection);
+    ~MsgComposer();
+    void resetData();
+    void startCommand(uint16_t cmd, uint8_t flags);
+    void execute(ConcurrentQueue<net::CmdQueueData>& sendQueue);
+    bool hasData() const { return hasContent; }
+    bitsery::Serializer<OutputAdapter>* ser = nullptr;
+  private:
+    void finishCommand();
+    net::CmdQueueData cmdData;
+    size_t currCmdPos = 0;
+    size_t currLenPos = 0;
+    bool hasContent = false;
+    bool cmdFinished = true;
+};
 
 namespace cmd
 {
@@ -80,6 +105,7 @@ const uint16_t VERSION_CHECK = 0x0006;
 const uint16_t SLOW_DUMP = 0x0007;
 const uint16_t REQ_ALL_COMPONENTS = 0x0008;
 const uint16_t ENT_CMD_MOVETO_POS = 0x0009;
+const uint16_t NOTIFY_CLIENT_READY = 0x000A;
 
 }  // namespace cmd
 

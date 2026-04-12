@@ -61,8 +61,10 @@ void Model::modelLoop(float dt)
             {
                 LG_I("Exchanging world info with server done");
                 afterLoadWorldClb();
-                gameState = ClientGameState::GameLoop;
+                notifyReady();
             }
+            break;
+        case ClientGameState::NotifyServerReady:
             break;
         case ClientGameState::GameLoop:
             modelLoopGame(dt);
@@ -181,7 +183,8 @@ void Model::parseCommandData(const net::CmdQueueData& cmdData)
             cmddes.value2b(len);
             size_t dataStartPos = cmddes.adapter().currentReadPos();
 
-            parseCommand(cmddes, cmd, flags, dataStartPos + len);
+            parseCommand(
+                cmddes, cmdData.sendType, cmd, flags, dataStartPos + len);
             size_t readPos = cmddes.adapter().currentReadPos();
             if (readPos - dataStartPos != len)
             {
@@ -199,6 +202,7 @@ void Model::parseCommandData(const net::CmdQueueData& cmdData)
 }
 
 void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
+                         net::SendType sendType,
                          uint16_t cmd,
                          uint8_t flags,
                          uint16_t posNextCmdOrEof)
@@ -216,42 +220,46 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         }
         case prot::cmd::TIME_SYNC:
         {
-            if (timeSyncData.waiting && flags & CMD_FLAG_RESP
-                && posNextCmdOrEof == 8)
+            if (flags & CMD_FLAG_RESP)
             {
-                timeSyncData.waiting = false;
-                // Server time at request arrival
-                cmddes.value8b(timeSyncData.t1);
-                // Now
-                timeSyncData.t2 = tim::nowU();
-                // Travel time from client to server and back again
-                long rtt = timeSyncData.t2 - timeSyncData.t0;
-
-                // latency = half travel time
-                timeSyncData.latency[timeSyncData.cnt] = rtt / 2;
-                // Server time = server time at request arrival + latency
-                long serverTime =
-                    timeSyncData.t1 + timeSyncData.latency[timeSyncData.cnt];
-                timeSyncData.offset[timeSyncData.cnt] =
-                    serverTime - timeSyncData.t2;
-                timeSyncData.cnt++;
-                if (timeSyncData.cnt == 10)
+                uint64_t t1;
+                cmddes.value8b(t1);
+                if (timeSyncData.waiting)
                 {
-                    long latMin = 1000000000;
-                    long offsMin;
-                    for (uint i = 0; i < 10; ++i)
+                    timeSyncData.waiting = false;
+                    // Server time at request arrival
+                    // Now
+                    timeSyncData.t1 = t1;
+                    timeSyncData.t2 = tim::nowU();
+                    // Travel time from client to server and back again
+                    long rtt = timeSyncData.t2 - timeSyncData.t0;
+
+                    // latency = half travel time
+                    timeSyncData.latency[timeSyncData.cnt] = rtt / 2;
+                    // Server time = server time at request arrival + latency
+                    long serverTime = timeSyncData.t1
+                                      + timeSyncData.latency[timeSyncData.cnt];
+                    timeSyncData.offset[timeSyncData.cnt] =
+                        serverTime - timeSyncData.t2;
+                    timeSyncData.cnt++;
+                    if (timeSyncData.cnt == 10)
                     {
-                        if (timeSyncData.latency[i] < latMin)
+                        long latMin = 1000000000;
+                        long offsMin;
+                        for (uint i = 0; i < 10; ++i)
                         {
-                            latMin = timeSyncData.latency[i];
-                            offsMin = timeSyncData.offset[i];
+                            if (timeSyncData.latency[i] < latMin)
+                            {
+                                latMin = timeSyncData.latency[i];
+                                offsMin = timeSyncData.offset[i];
+                            }
                         }
+                        timeSyncData.serverOffset = offsMin / 1.0e6f;
+                        timeSyncData.serverLatency = latMin / 1.0e6f;
+                        timeSyncData.cnt = 0;
                     }
-                    timeSyncData.serverOffset = offsMin / 1.0e6f;
-                    timeSyncData.serverLatency = latMin / 1.0e6f;
-                    timeSyncData.cnt = 0;
+                    timeSyncData.waiting = false;
                 }
-                timeSyncData.waiting = false;
             }
             break;
         }
@@ -301,7 +309,7 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         }
         case prot::cmd::AUTHENTICATE:
         {
-            if (flags & CMD_FLAG_RESP)
+            if (flags & CMD_FLAG_RESP && sendType == net::SendType::TCP)
             {
                 LG_I("Authentication successful");
                 gameState = ClientGameState::Authenticated;
@@ -310,11 +318,20 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         }
         case prot::cmd::WORLD_INFO:
         {
-            if (flags & CMD_FLAG_RESP)
+            if (flags & CMD_FLAG_RESP && sendType == net::SendType::TCP)
             {
                 def::WorldShape worldShape;
                 cmddes.object(worldShape);
                 world.createFromServer(worldShape);
+            }
+            break;
+        }
+        case prot::cmd::NOTIFY_CLIENT_READY:
+        {
+            if (flags & CMD_FLAG_RESP && sendType == net::SendType::TCP)
+            {
+                LG_I("Server accepted client readyness");
+                gameState = ClientGameState::GameLoop;
             }
             break;
         }
@@ -441,6 +458,15 @@ void Model::authenticate()
                 });
         });
     gameState = ClientGameState::Authenticating;
+}
+
+void Model::notifyReady()
+{
+    prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
+    mcomp.startCommand(prot::cmd::NOTIFY_CLIENT_READY, 0);
+    mcomp.execute(sendQueue);
+    gameState = ClientGameState::NotifyServerReady;
+    LG_I("Notifying server ready");
 }
 
 void Model::disconnectFromServer()
@@ -576,46 +602,25 @@ void Model::clearSelectedEntities()
 void Model::selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords)
 {
     std::size_t idx = 0;
-    const auto& list = selectedEntities;
-    while (idx < list.size())
+    if (selectedEntities.empty())
     {
-        prot::writeMessageTcp(
-            sendQueue,
-            nullptr,
-            [&sectorCoords, &list, &idx](
-                bitsery::Serializer<OutputAdapter>& cmdser) -> bool
-            {
-                bool content = false;
-                while (idx < list.size())
-                {
-                    if (content
-                        && cmdser.adapter().currentWritePos()
-                                + prot::kSerializedRecordReserveBytes
-                            > prot::kMaxSerializedChunkBytes)
-                    {
-                        break;
-                    }
-                    ecs::EntityId entityId = list[idx];
-                    if (!prot::writeCommand(
-                            cmdser,
-                            prot::cmd::ENT_CMD_MOVETO_POS,
-                            0,
-                            [entityId, sectorCoords](
-                                bitsery::Serializer<OutputAdapter>& inner) -> bool
-                            {
-                                inner.object(entityId);
-                                inner.object(sectorCoords);
-                                return true;
-                            }))
-                    {
-                        break;
-                    }
-                    content = true;
-                    ++idx;
-                }
-                return content;
-            });
+        return;
     }
+    prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
+    for (auto& entityId : selectedEntities)
+    {
+        mcomp.startCommand(prot::cmd::ENT_CMD_MOVETO_POS, 0);
+        mcomp.ser->object(entityId);
+        mcomp.ser->object(sectorCoords);
+        /*if (mcomp.ser->adapter().currentWritePos()
+            > prot::kMaxSerializedChunkBytes
+                  - (sizeof(ecs::EntityId) + sizeof(def::SectorCoords)))*/
+        {
+            mcomp.execute(sendQueue);
+            mcomp.resetData();
+        }
+    }
+    mcomp.execute(sendQueue);
 }
 
 }  // namespace sphyc

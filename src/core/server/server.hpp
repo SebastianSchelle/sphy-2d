@@ -30,7 +30,8 @@ class Server
   private:
     void scheduleSend();
     void udpReceive(udp::endpoint endpoint, const char* data, size_t length);
-    void tcpReceive(const char* data, size_t length, std::shared_ptr<net::TcpConnection> connection);
+    //void tcpReceive(const char* data, size_t length, std::shared_ptr<net::TcpConnection> connection);
+    void tcpReceive(const net::CmdQueueData& cmdData);
     void tcpDisconnected(std::shared_ptr<net::TcpConnection> connection);
 
     cfg::ConfigManager config;

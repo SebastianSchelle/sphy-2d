@@ -833,6 +833,8 @@ static const char* gameStateToString(ClientGameState s)
             return "Authenticated";
         case ClientGameState::LoadWorld:
             return "LoadWorld";
+        case ClientGameState::NotifyServerReady:
+            return "NotifyServerReady";
         case ClientGameState::GameLoop:
             return "GameLoop";
     }

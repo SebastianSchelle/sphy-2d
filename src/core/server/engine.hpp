@@ -81,6 +81,7 @@ class Engine
                       std::string& uuid,
                       const udp::endpoint* udpEndpoint,
                       std::shared_ptr<net::TcpConnection>& tcpConnection,
+                      net::ClientInfoHandle handle,
                       net::ClientInfo* clientInfo,
                       net::SendType sendType,
                       uint16_t cmd,
@@ -125,6 +126,7 @@ class Engine
 
     uint32_t slowDumpUs;
     vector<SlowDumpEntry> slowDumpComponents;
+    float filteredFps = 0.0f;
 
   public:
     ecs::Ecs ecs;

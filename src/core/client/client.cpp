@@ -120,8 +120,9 @@ void Client::connectToServer(const std::string& ipAddress,
                       tcpPortServ),
         std::bind(&Client::tcpReceive,
                   this,
-                  std::placeholders::_1,
-                  std::placeholders::_2));
+                  std::placeholders::_1),
+        std::bind(&Client::connectionClosedClb,
+                  this));
     LG_D("Setup tcp socket to server at {}:{} on port {}",
          ipAddress,
          tcpPortServ,
@@ -194,27 +195,20 @@ void Client::udpReceive(const char* data, size_t length)
     }
 }
 
-void Client::tcpReceive(const char* data, size_t length)
+void Client::tcpReceive(const net::CmdQueueData& cmdData)
 {
-    if (length == 0)
-    {
-        if (!shuttingDown.load())
-        {
-            LG_W(
-                "Server TCP connection lost/closed, shutting down client "
-                "networking");
-        }
-        shutdown();
-        return;
-    }
+    modelReceiveQueue.enqueue(cmdData);
+}
 
-    if (length >= 5)
+void Client::connectionClosedClb()
+{
+    if (!shuttingDown.load())
     {
-        net::CmdQueueData cmdData;
-        cmdData.sendType = net::SendType::TCP;
-        cmdData.data.insert(cmdData.data.end(), data, data + length);
-        modelReceiveQueue.enqueue(cmdData);
+        LG_W(
+            "Server TCP connection lost/closed, shutting down client "
+            "networking");
     }
+    shutdown();
 }
 
 }  // namespace sphyc
