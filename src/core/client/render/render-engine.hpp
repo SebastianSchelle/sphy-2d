@@ -162,6 +162,7 @@ class RenderEngine
     /// Window pixel position (same space as GLFW cursor) → world XY under the
     /// cursor.
     vec2 screenToWorldPixel(const vec2& screenPx) const;
+    vec2 screenToWorldRel(const vec2& screenPosRel) const;
     void updateWorldView();
     void setWorldShape(const def::WorldShape* worldShape);
     int32_t getSectorOffsetX() const
@@ -174,6 +175,8 @@ class RenderEngine
     }
     void screenToSectorCoords(const glm::vec2& screenPx,
                               def::SectorCoords& sectorCoords) const;
+    void relScreenToWorldCoords(const vec2& screenPosRel, vec2& worldPos) const;
+    void getViewportRect(Rect& rect) const;
 
   private:
     void cleanUpAll();

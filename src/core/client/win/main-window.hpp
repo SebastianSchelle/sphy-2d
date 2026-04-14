@@ -25,6 +25,12 @@
 namespace ui
 {
 
+enum class GameViewMode
+{
+    ThirdPerson,
+    TacticalMap,
+    StrategicMap,
+};
 
 struct MouseState
 {
@@ -140,7 +146,8 @@ struct UiDbgGameData
 {
     std::string clientVersion = version::VERSION_STRING;
     std::string serverVersion = "Unknown";
-    std::string gameState = "Init";
+    std::string gameState = "Unknown";
+    std::string viewMode = "Unknown";
 };
 
 struct UiDbgConnectionData
@@ -231,6 +238,9 @@ class MainWindow
                             float rotationRad = 0.0f);
 
     static Rml::Input::KeyIdentifier glfwToRmlKey(int key);
+    void renderMenu();
+    void renderGame();
+    void processMouseTactical(float zoom);
 
     GLFWwindow* window;
     WindowInfo wInfo;
@@ -271,8 +281,14 @@ class MainWindow
     float dragThreshold = 0.0f;
     uint32_t dragBoxColor = 0x20ffffff;
     float dragBoxThickness = 1.0f;
+
+    float zoomTactical = 0.0f;
+    float zoomStrategic = 0.0f;
+    GameViewMode viewMode = GameViewMode::ThirdPerson;
 };
 
 }  // namespace ui
+
+EXT_FMT(ui::GameViewMode, "{}", magic_enum::enum_name(o));
 
 #endif

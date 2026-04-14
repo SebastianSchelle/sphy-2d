@@ -41,11 +41,7 @@
 namespace prot
 {
 
-// One UDP datagram or one TCP chunk when splitting serialized commands.
-inline constexpr std::size_t kMaxSerializedChunkBytes = 1100;
-// Headroom before appending another variable-sized record (avoids splitting
-// mid-object).
-inline constexpr std::size_t kSerializedRecordReserveBytes = 256;
+inline constexpr std::size_t kMaxSerializedChunkBytes = 1000;
 
 typedef std::function<bool(bitsery::Serializer<OutputAdapter>&)>
     CmdContentWriter;

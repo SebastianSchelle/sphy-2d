@@ -98,7 +98,7 @@ const System sysMoveCtrl = {
         }
 
         const float angleErr =
-            hmath::angleError(moveCtrl->spRot, transform->rot);
+            smath::angleError(moveCtrl->spRot, transform->rot);
         const bool inRotDeadzone =
             std::abs(angleErr) < rotDeadband
             && std::abs(physicsBody->rotVel) < rotVelDeadband;

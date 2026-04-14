@@ -41,6 +41,9 @@ class World
     }
 #ifdef CLIENT
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
+    void drawTacticalMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
+    void drawStrategicMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
+    void drawThirdPerson(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
 #endif
     bool moveEntityTo(std::shared_ptr<ecs::PtrHandle> ptrHandle,
                       ecs::EntityId entityId,
@@ -72,6 +75,9 @@ class World
     void addSectorMoveRequest(std::shared_ptr<ecs::PtrHandle> ptrHandle,
                               ecs::EntityId entityId,
                               uint32_t newSectorId);
+    bool sectorIntersectsRect(uint32_t sectorId, const glm::vec4& rect) const;
+    bool sectorIntersectsRect(
+        int32_t sectorX, int32_t sectorY, const glm::vec4& rect) const;
   private:
     bool initWorld();
     bool initSectors(bool fromSave);

@@ -563,6 +563,27 @@ void World::handleSectorMoveRequests()
     }
 }
 
+bool World::sectorIntersectsRect(uint32_t sectorId, const Rect& rect) const
+{
+    auto [sectorX, sectorY] = idToSectorCoords(sectorId);
+    return sectorIntersectsRect(sectorX, sectorY, rect);
+}
+
+bool World::sectorIntersectsRect(int32_t sectorX,
+                                 int32_t sectorY,
+                                 const glm::vec4& rect) const
+{
+    Rect sectorRect = Rect((float)sectorX * worldShape.sectorSize
+                               - halfSectorSize,
+                           (float)sectorY * worldShape.sectorSize
+                               - halfSectorSize,
+                           (float)sectorX * worldShape.sectorSize
+                               + halfSectorSize,
+                           (float)sectorY * worldShape.sectorSize
+                               + halfSectorSize);
+    return smath::intersectsRect(sectorRect, rect);
+}
+
 #ifdef CLIENT
 void World::drawDebug(gfx::RenderEngine& renderer, float zoom)
 {
@@ -573,6 +594,38 @@ void World::drawDebug(gfx::RenderEngine& renderer, float zoom)
             sectors.at(i, j)->drawDebug(renderer, zoom);
         }
     }
+}
+
+void World::drawTacticalMap(gfx::RenderEngine& renderer,
+                            const Rect& viewRect,
+                            float zoom)
+{
+}
+
+void World::drawStrategicMap(gfx::RenderEngine& renderer,
+                             const Rect& viewRect,
+                             float zoom)
+{
+    // todo: Could just get min/max sector coords from viewRect and then loop
+    // through those
+    for (int i = 0; i < worldShape.numSectorX; i++)
+    {
+        for (int j = 0; j < worldShape.numSectorY; j++)
+        {
+            if (sectorIntersectsRect(i - renderer.getSectorOffsetX(),
+                                     j - renderer.getSectorOffsetY(),
+                                     viewRect))
+            {
+                sectors.at(i, j)->drawStrategicMap(renderer, viewRect, zoom);
+            }
+        }
+    }
+}
+
+void World::drawThirdPerson(gfx::RenderEngine& renderer,
+                            const Rect& viewRect,
+                            float zoom)
+{
 }
 #endif
 

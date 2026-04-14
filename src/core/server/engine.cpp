@@ -99,15 +99,16 @@ void Engine::engineLoop()
     {
         long nowU = tim::nowU();
         float dt = (nowU - lastUpdateTime) / 1000000.0f;
-        if(dt < 1e-6f)
+        if (dt < 1e-6f)
         {
             dt = 1e-6f;
         }
         filteredFps = 0.9f * filteredFps + 0.1f * (1.0f / dt);
 
-        DO_PERIODIC_U_EXTNOW(lastFpsUpdate, 5000000, nowU, [this]() {
-            LG_I("FPS: {}", filteredFps);
-        });
+        DO_PERIODIC_U_EXTNOW(lastFpsUpdate,
+                             5000000,
+                             nowU,
+                             [this]() { LG_I("FPS: {}", filteredFps); });
 
         switch (state)
         {
@@ -342,7 +343,8 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
         std::string token;
         const udp::endpoint* udpEndpoint;
         std::shared_ptr<net::TcpConnection> tcpConnection;
-        net::ClientInfoHandle clientInfoHandle = net::ClientInfoHandle::Invalid();
+        net::ClientInfoHandle clientInfoHandle =
+            net::ClientInfoHandle::Invalid();
         net::ClientInfo* clientInfo = nullptr;
 
         const std::vector<uint8_t>& data = cmdData.data;
@@ -517,8 +519,10 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                             portUdp,
                             token);
                         {
-                            prot::MsgComposer mcomp(net::SendType::TCP, tcpConnection);
-                            mcomp.startCommand(prot::cmd::AUTHENTICATE, CMD_FLAG_RESP);
+                            prot::MsgComposer mcomp(net::SendType::TCP,
+                                                    tcpConnection);
+                            mcomp.startCommand(prot::cmd::AUTHENTICATE,
+                                               CMD_FLAG_RESP);
                             mcomp.execute(sendQueue);
                         }
                         return;
@@ -546,10 +550,12 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         {
             if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
             {
-                LG_I("Server accepted client readyness of {}", clientInfo->name);
+                LG_I("Server accepted client readyness of {}",
+                     clientInfo->name);
                 activeClientHandles.push_back(clientInfoHandle);
                 prot::MsgComposer mcomp(net::SendType::TCP, tcpConnection);
-                mcomp.startCommand(prot::cmd::NOTIFY_CLIENT_READY, CMD_FLAG_RESP);
+                mcomp.startCommand(prot::cmd::NOTIFY_CLIENT_READY,
+                                   CMD_FLAG_RESP);
                 mcomp.execute(sendQueue);
             }
             break;
@@ -1057,13 +1063,16 @@ void Engine::testSpawn()
     static constexpr float kTwoPi = 6.2831855f;
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> posDist(-200.0f, 200.0f);
+    std::uniform_real_distribution<float> posDist(
+        - world.getWorldShape().sectorSize / 2,
+        world.getWorldShape().sectorSize / 2);
     std::uniform_real_distribution<float> rotDist(0.0f, kTwoPi);
     std::uniform_int_distribution<int> assetPick(0, 3);
-    std::uniform_int_distribution<int> sectorPick(0, world.getSectorCount() - 1);
+    std::uniform_int_distribution<int> sectorPick(0,
+                                                  world.getSectorCount() - 1);
 
 
-    for (int i = 0; i < 100; ++i)
+    for (int i = 0; i < 100000; ++i)
     {
         spawnEntityFromAsset(
             kAssets[assetPick(gen)],

@@ -392,6 +392,66 @@ void Model::drawDebug(gfx::RenderEngine& renderer, float zoom)
         });
 }
 
+void Model::drawTacticalMap(gfx::RenderEngine& renderer,
+                            const glm::vec4& viewRect,
+                            float zoom)
+{
+    world.drawTacticalMap(renderer, viewRect, zoom);
+    auto& reg = ecs.getRegistry();
+    reg.view<ecs::Transform, ecs::SectorId>().each(
+        [this, &renderer, &viewRect](ecs::Transform& transform, ecs::SectorId& sectorId)
+        {
+            glm::vec2 worldPos =
+                world.getWorldPosSectorOffset(sectorId.id,
+                                              renderer.getSectorOffsetX(),
+                                              renderer.getSectorOffsetY())
+                + transform.pos;
+            if (smath::pointInsideRect(worldPos, viewRect))
+            {
+                renderer.drawEllipse(worldPos,
+                                     glm::vec2(10.0f, 5.0f),
+                                     0xffffffff,
+                                     2.0f,
+                                     transform.rot,
+                                     0);
+            }
+        });
+}
+
+void Model::drawStrategicMap(gfx::RenderEngine& renderer,
+                             const glm::vec4& viewRect,
+                             float zoom)
+{
+    world.drawStrategicMap(renderer, viewRect, zoom);
+    // todo: Group entities by Pos and only show lists or fleets or groups
+    auto& reg = ecs.getRegistry();
+    reg.view<ecs::Transform, ecs::SectorId>().each(
+        [this, &renderer, &viewRect, zoom](ecs::Transform& transform, ecs::SectorId& sectorId)
+        {
+            glm::vec2 worldPos =
+                world.getWorldPosSectorOffset(sectorId.id,
+                                              renderer.getSectorOffsetX(),
+                                              renderer.getSectorOffsetY())
+                + transform.pos;
+            if (smath::pointInsideRect(worldPos, viewRect))
+            {
+                renderer.drawEllipse(worldPos,
+                                     glm::vec2(2.0f/zoom, 2.0f/zoom),
+                                     0xffffffff,
+                                     2.0f/zoom,
+                                     0.0f,
+                                     0);
+            }
+        });
+}
+
+void Model::drawThirdPerson(gfx::RenderEngine& renderer,
+                            const glm::vec4& viewRect,
+                            float zoom)
+{
+    world.drawThirdPerson(renderer, viewRect, zoom);
+}
+
 void Model::sendCmdToServer(const std::string& command)
 {
     prot::writeMessageTcp(

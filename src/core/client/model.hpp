@@ -40,6 +40,9 @@ class Model
     void startLoadingMods();
     void startModel();
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
+    void drawTacticalMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
+    void drawStrategicMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
+    void drawThirdPerson(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
     void sendCmdToServer(const std::string& command);
     void checkVersion(const net::ModelClientInfo& clientInfo);
     void disconnectFromServer();

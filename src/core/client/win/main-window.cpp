@@ -107,7 +107,8 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
         config, (float)0x2085e085, "theme", "input", "drag-box", "color");
     dragBoxThickness =
         CFG_FLOAT(config, 1.0f, "theme", "input", "drag-box", "thickness");
-
+    zoomTactical = CFG_FLOAT(config, 0.5f, "ui", "zoom", "tactical-map");
+    zoomStrategic = CFG_FLOAT(config, 0.2f, "ui", "zoom", "strategic-map");
     const unsigned chatCmdHistoryEntries =
         CFG_UINT(config, 50.0f, "chat", "cmd-history-entries");
     userInterface.setChatCmdHistoryMax(chatCmdHistoryEntries);
@@ -307,6 +308,8 @@ void MainWindow::winLoop()
 
         userInterface.update();
 
+        renderEngine.startFrame();
+
         switch (model.getGameState())
         {
             case ClientGameState::Init:
@@ -318,113 +321,87 @@ void MainWindow::winLoop()
                 break;
             case ClientGameState::MainMenu:
                 userInterface.showMenu();
+                renderMenu();
                 break;
             case ClientGameState::Authenticated:
                 break;
             case ClientGameState::LoadWorld:
                 break;
             case ClientGameState::GameLoop:
+                renderGame();
                 break;
             default:
                 break;
         }
 
-        float t =
-            tim::durationU(renderEngine.getStartTime(), tim::getCurrentTimeU())
-            / 1000000.0f;
-
-
-        renderEngine.startFrame();
-
-        // renderEngine.setWorldCameraPosition(
-        //     glm::vec2(200.0f + 50.0f * sin(t), 60.0f + 50.0f * cos(t
-        //     * 1.5f)));
-
-        renderEngine.drawFullScreenTriangles(
-            0, renderEngine.getShaderHandle("distantstars"));
-
         if (model.getGameState() == ClientGameState::GameLoop)
         {
-            if (mouseState.dragFinished[0])
-            {
-                model.selectEntitiesInsideRect(
-                    mouseState.mouseCoordsPressed[0],
-                    mouseState.mouseCoordsReleased[0]);
-            }
-            else if (mouseState.singleClick[0])
-            {
-                model.clearSelectedEntities();
-            }
-            // else if(mouseState.singleClick[1])
-            // {
-            //     model.selectedEntitiesMoveCmd(mouseState.mouseCoordsReleased[1]);
-            // }
-            // DO_PERIODIC_EXTNOW(lastSelectedEntitiesMoveCmd, 100000, now,
-            // [this]() {
-            if (mouseState.buttons[1] && model.getSelectedEntities().size() > 0)
-            {
-                model.selectedEntitiesMoveCmd(mouseState.mouseCoords);
-            }
-            // });
-
-            float zoom = renderEngine.getWorldZoom();
-
-            renderEngine.panWorld(panX, panY);
-
-
-            // renderEngine.drawRectangle(glm::vec2(0.0f, 0.0f),
-            //                            glm::vec2(1000000.0f, 1.0f/zoom),
-            //                            0x10ffffff,
-            //                            1.0f/zoom);
-            // renderEngine.drawRectangle(glm::vec2(0.0f, 0.0f),
-            //                            glm::vec2(1.0f/zoom, 1000000.0f),
-            //                            0x10ffffff,
-            //                            1.0f/zoom);
-
-            // renderEngine.drawRectangle(glm::vec2(200.0f + 50.0f * sin(t),
-            //                                      60.0f + 50.0f * cos(t
-            //                                      * 1.5f)),
-            //                            glm::vec2(10.0f, 10.0f),
-            //                            0xffffffff,
-            //                            4.0f,
-            //                            -t * 50.0f,
-            //                            0);
-            // renderEngine.drawRectangle(glm::vec2(200.0f + 50.0f * sin(t),
-            //                                      60.0f + 50.0f * cos(t
-            //                                      * 1.5f)),
-            //                            glm::vec2(200.0f, 200.0f),
-            //                            0xff00ff10,
-            //                            2.0f,
-            //                            t * 4.0f,
-            //                            0);
-            // renderEngine.drawEllipse(glm::vec2(160.0f, 260.0f),
-            //                          glm::vec2(50.0f, 100.0f),
-            //                          0xffffffff,
-            //                          1.0f,
-            //                          t,
-            //                          0);
-            // renderEngine.drawEllipse(glm::vec2(160.0f, 260.0f),
-            //                          glm::vec2(60.0f + 50.0f * sin(t),
-            //                                    60.0f + 50.0f * cos(t
-            //                                    * 1.5f)),
-            //                          0xab0112ff,
-            //                          1.0f,
-            //                          0,
-            //                          0);
-            model.drawDebug(renderEngine, zoom);
-
-            if (mouseState.dragActive[0])
-            {
-                drawWorldRectangle(mouseState.mouseCoordsPressed[0],
-                                   mouseState.mouseCoords,
-                                   dragBoxColor,
-                                   dragBoxThickness / zoom,
-                                   0.0f);
-            }
         }
 
         userInterface.render();
         renderEngine.endFrame();
+    }
+}
+
+void MainWindow::renderMenu()
+{
+    renderEngine.drawFullScreenTriangles(
+        0, renderEngine.getShaderHandle("distantstars"));
+}
+
+void MainWindow::renderGame()
+{
+    float zoom = renderEngine.getWorldZoom();
+    Rect viewportRect;
+    renderEngine.getViewportRect(viewportRect);
+    renderEngine.drawFullScreenTriangles(
+        0, renderEngine.getShaderHandle("distantstars"));
+    if (zoom < zoomTactical)
+    {
+        viewMode = GameViewMode::StrategicMap;
+        processMouseTactical(zoom);
+        model.drawStrategicMap(renderEngine, viewportRect, zoom);
+        renderEngine.panWorld(panX, panY);
+    }
+    else if (zoom < zoomStrategic)
+    {
+        viewMode = GameViewMode::TacticalMap;
+        processMouseTactical(zoom);
+        model.drawTacticalMap(renderEngine, viewportRect, zoom);
+        renderEngine.panWorld(panX, panY);
+    }
+    else
+    {
+        viewMode = GameViewMode::ThirdPerson;
+        Rect viewportRect;
+        renderEngine.getViewportRect(viewportRect);
+        model.drawThirdPerson(renderEngine, viewportRect, zoom);
+        renderEngine.panWorld(panX, panY);
+    }
+}
+
+void MainWindow::processMouseTactical(float zoom)
+{
+    if (mouseState.dragActive[0])
+    {
+        drawWorldRectangle(mouseState.mouseCoordsPressed[0],
+                           mouseState.mouseCoords,
+                           dragBoxColor,
+                           dragBoxThickness / zoom,
+                           0.0f);
+    }
+    if (mouseState.dragFinished[0])
+    {
+        model.selectEntitiesInsideRect(mouseState.mouseCoordsPressed[0],
+                                       mouseState.mouseCoordsReleased[0]);
+    }
+    else if (mouseState.singleClick[0])
+    {
+        model.clearSelectedEntities();
+    }
+    if (mouseState.buttons[1] && model.getSelectedEntities().size() > 0)
+    {
+        model.selectedEntitiesMoveCmd(mouseState.mouseCoords);
     }
 }
 
@@ -815,32 +792,6 @@ Rml::Input::KeyIdentifier MainWindow::glfwToRmlKey(int key)
     return KI_UNKNOWN;
 }
 
-static const char* gameStateToString(ClientGameState s)
-{
-    switch (s)
-    {
-        case ClientGameState::Init:
-            return "Init";
-        case ClientGameState::LoadingMods:
-            return "LoadingMods";
-        case ClientGameState::MainMenu:
-            return "MainMenu";
-        case ClientGameState::VersionCheck:
-            return "VersionCheck";
-        case ClientGameState::Authenticating:
-            return "Authenticating";
-        case ClientGameState::Authenticated:
-            return "Authenticated";
-        case ClientGameState::LoadWorld:
-            return "LoadWorld";
-        case ClientGameState::NotifyServerReady:
-            return "NotifyServerReady";
-        case ClientGameState::GameLoop:
-            return "GameLoop";
-    }
-    return "?";
-}
-
 void MainWindow::updateMenuDataModel()
 {
     menuData.inGame = model.getGameState() == ClientGameState::GameLoop;
@@ -863,7 +814,8 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
     debugData.inputData.ptrSectorY = mouseState.mouseCoords.pos.y;
     debugData.inputData.ptrSectorPosX = mouseState.mouseCoords.sectorPos.x;
     debugData.inputData.ptrSectorPosY = mouseState.mouseCoords.sectorPos.y;
-    debugData.gameData.gameState = gameStateToString(model.getGameState());
+    debugData.gameData.gameState = magic_enum::enum_name(model.getGameState());
+    debugData.gameData.viewMode = magic_enum::enum_name(viewMode);
     debugData.connectionData.serverLatency =
         model.getTimeSyncData().serverLatency;
     debugData.connectionData.serverTimeOffset =
@@ -1072,6 +1024,7 @@ void MainWindow::setupDataModelDebug()
         if (auto md_handle = debugConstructor.RegisterStruct<UiDbgGameData>())
         {
             md_handle.RegisterMember("gameState", &UiDbgGameData::gameState);
+            md_handle.RegisterMember("viewMode", &UiDbgGameData::viewMode);
         }
         debugConstructor.Bind("gameData", &debugData.gameData);
         rmlModelDebug = debugConstructor.GetModelHandle();

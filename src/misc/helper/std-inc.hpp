@@ -283,7 +283,7 @@ template <typename D> void deserialize(D& s, vec3& o)
 }  // namespace glm
 
 
-namespace hmath
+namespace smath
 {
 
 inline float between(float d, float min, float max)
@@ -324,7 +324,20 @@ inline vec2 perpVec2(vec2 vec)
     return vec2(-vec.y, vec.x);
 }
 
-}  // namespace hmath
+typedef vec4 Rect;
+
+inline bool intersectsRect(const Rect& rect1, const Rect& rect2)
+{
+    return rect1.x < rect2.z && rect1.z > rect2.x && rect1.y < rect2.w
+           && rect1.w > rect2.y;
+}
+
+inline bool pointInsideRect(const vec2& point, const Rect& rect)
+{
+    return point.x >= rect.x && point.x <= rect.z && point.y >= rect.y && point.y <= rect.w;
+}
+
+}  // namespace smath
 
 namespace ctrl
 {
@@ -369,5 +382,31 @@ typedef struct
 EXT_FMT(vec2, "[{}, {}]", o.x, o.y);
 EXT_FMT(vec3, "[{}, {}, {}]", o.x, o.y, o.z);
 EXT_FMT(vec4, "[{}, {}, {}, {}]", o.x, o.y, o.z, o.w);
+
+template <typename T>
+struct fmt::formatter<std::vector<T>> {
+    // use the formatter for T
+    // Support the default format only
+    constexpr auto parse(format_parse_context& ctx) {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const std::vector<T>& v, FormatContext& ctx) {
+        auto out = ctx.out();
+        *out++ = '[';
+        for (size_t i = 0; i < v.size(); ++i) {
+            if (i != 0) {
+                *out++ = ',';
+                *out++ = ' ';
+            }
+            out = fmt::format_to(out, "{}", v[i]);
+        }
+        *out++ = ']';
+        return out;
+    }
+};
+
+using smath::Rect;
 
 #endif

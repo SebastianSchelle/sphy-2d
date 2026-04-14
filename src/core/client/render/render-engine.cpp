@@ -99,13 +99,13 @@ bool RenderEngine::initPre()
     const float texExcessHeightThreshold =
         CFG_FLOAT(config, 0.8f, "gfx", "tex-excess-height-threshold");
     zoomPanCfgWorld.zoomStep =
-        CFG_FLOAT(config, 0.1f, "gfx", "zoom-step", "world");
+        CFG_FLOAT(config, 0.1f, "ui", "zoom", "step");
     zoomPanCfgWorld.maxZoom =
-        CFG_FLOAT(config, 10.0f, "gfx", "max-zoom", "world");
+        CFG_FLOAT(config, 10.0f, "ui", "zoom", "max");
     zoomPanCfgWorld.minZoom =
-        CFG_FLOAT(config, 0.01f, "gfx", "min-zoom", "world");
+        CFG_FLOAT(config, 0.01f, "ui", "zoom", "min");
     zoomPanCfgWorld.panSpeed =
-        CFG_FLOAT(config, 10.0f, "gfx", "pan-speed", "world");
+        CFG_FLOAT(config, 10.0f, "ui", "pan", "speed");
 
     textureLoader.init(texWidth,
                        texHeight,
@@ -304,6 +304,21 @@ vec2 RenderEngine::screenToWorldPixel(const vec2& screenPx) const
     const float ndcY = 1.f - 2.f * screenPx.y / hf;
 
     float clip[4] = {ndcX, ndcY, 0.0f, 1.0f};
+
+    float worldH[4];
+    bx::vec4MulMtx(worldH, clip, invWvp);
+
+    const float outW = worldH[3];
+    if (bx::abs(outW) > 1e-6f)
+    {
+        return {worldH[0] / outW, worldH[1] / outW};
+    }
+    return {worldH[0], worldH[1]};
+}
+
+vec2 RenderEngine::screenToWorldRel(const vec2& screenPosRel) const
+{
+    float clip[4] = {screenPosRel.x, screenPosRel.y, 0.0f, 1.0f};
 
     float worldH[4];
     bx::vec4MulMtx(worldH, clip, invWvp);
@@ -596,13 +611,13 @@ void RenderEngine::drawBoxShape(float shapeType,
 {
     changeRenderState(RenderState::DrawShapes);
     currentViewId = viewId;
+    if (currentShapeCount >= MAX_SHAPES)
+    {
+        submitShapes();
+    }
     if (currentShapeCount == 0)
     {
         allocateForShapes();
-    }
-    else if (currentShapeCount >= MAX_SHAPES)
-    {
-        submitShapes();
     }
 
     float thicknessX = 2.0f * thickness / size.x;
@@ -842,6 +857,16 @@ void RenderEngine::screenToSectorCoords(const vec2& screenPx,
     sectorCoords.sectorPos = {
         std::clamp(worldPos.x - cx, -sectorSizeHalf, sectorSizeHalf),
         std::clamp(worldPos.y - cy, -sectorSizeHalf, sectorSizeHalf)};
+}
+
+void RenderEngine::getViewportRect(Rect& rect) const
+{
+    const vec2 tl = screenToWorldRel(vec2(-1.0f, 1.0f));
+    const vec2 br = screenToWorldRel(vec2(1.0f, -1.0f));
+    rect.x = tl.x;
+    rect.y = tl.y;
+    rect.z = br.x;
+    rect.w = br.y;
 }
 
 }  // namespace gfx

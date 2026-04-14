@@ -53,6 +53,9 @@ class Sector
     }
 #ifdef CLIENT
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
+    void drawTacticalMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
+    void drawStrategicMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
+    void drawThirdPerson(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
 #endif
 
   private:
