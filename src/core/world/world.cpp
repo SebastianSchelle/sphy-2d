@@ -164,6 +164,19 @@ bool World::saveWorld(const std::string& savedir)
 void World::update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle)
 {
     // todo: add multithreading
+    /*
+        thoughts:
+            - perf result for phyThrust shows the following:
+                    43.01 │       movss   0x18(%rdx),%xmm1                                                                                                                                                                              ▒
+                    25.14 │       movss   0x10(%rdx),%xmm0
+              looks like high memory access latency?
+            - assign sectors to the same thread each time to reduce cache misses
+            - Use worker pool and assign sector to same thread if thread is not overloaded
+            - store some lastThreadId for each sector and assign to same thread if possible
+            - per-sector SoA vel/acc/mass/... (might be overkill)
+            - Put physics/collission completely out of entt and into sector?
+            -
+    */
     for (int i = 0; i < worldShape.numSectorX; i++)
     {
         for (int j = 0; j < worldShape.numSectorY; j++)

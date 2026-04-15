@@ -171,7 +171,7 @@ void Engine::engineLoop()
             parseCommandData(recQueueData);
         }
         lastUpdateTime = nowU;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        //std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     if (state == EngineState::Running || state == EngineState::Paused)
@@ -1072,13 +1072,25 @@ void Engine::testSpawn()
                                                   world.getSectorCount() - 1);
 
 
-    for (int i = 0; i < 100000; ++i)
+    for (int i = 0; i < 1000; ++i)
     {
-        spawnEntityFromAsset(
+        auto ent = spawnEntityFromAsset(
             kAssets[assetPick(gen)],
             sectorPick(gen),
             ecs::Transform{glm::vec2{posDist(gen), posDist(gen)},
                            rotDist(gen)});
+        entt::entity entt = ecs.getEntity(ent);
+        auto &reg = ecs.getRegistry();
+        auto *moveCtrl = reg.try_get<ecs::MoveCtrl>(entt);
+        if (moveCtrl)
+        {
+            moveCtrl->active = true;
+            moveCtrl->spPos.sectorPos.x = posDist(gen);
+            moveCtrl->spPos.sectorPos.y = posDist(gen);
+            moveCtrl->spPos.pos.x = world.idToSectorCoords(sectorPick(gen)).first;
+            moveCtrl->spPos.pos.y = world.idToSectorCoords(sectorPick(gen)).second;
+            moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
+        }
     }
 }
 
