@@ -7,6 +7,7 @@
 #ifdef CLIENT
 #include <render-engine.hpp>
 #endif
+#include <aabb-tree.hpp>
 
 namespace world
 {
@@ -70,6 +71,7 @@ class Sector
 
     vector<ecs::EntityId> entityIds;
     vector<entt::entity> entities;
+    con::DynamicAABBTree<ecs::EntityId> aabbTree;
 };
 
 }  // namespace world

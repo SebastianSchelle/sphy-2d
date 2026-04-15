@@ -1,9 +1,115 @@
 #include <lua-interpreter.hpp>
 #include <mod-manager.hpp>
+#include <sphy-bindings.hpp>
 #include <yaml-cpp/yaml.h>
+
+void registerDasDefaultModules()
+{
+    NEED_ALL_DEFAULT_MODULES;
+}
 
 namespace mod
 {
+
+namespace
+{
+
+thread_local bool gDasThreadRuntimeReady = false;
+bool gDasRootConfigured = false;
+
+class DasLogWriter : public das::TextWriter
+{
+  public:
+    void output() override
+    {
+        const uint64_t newPos = tellp();
+        if (newPos == pos)
+        {
+            return;
+        }
+
+        std::string msg(data() + pos, size_t(newPos - pos));
+        pos = newPos;
+
+        if (msg.empty())
+        {
+            return;
+        }
+
+        if (msg.find("error") != std::string::npos
+            || msg.find("internal error") != std::string::npos
+            || msg.find("assertion failed") != std::string::npos)
+        {
+            LG_E("{}", msg);
+        }
+        else if (msg.find("warning") != std::string::npos)
+        {
+            LG_W("{}", msg);
+        }
+        else
+        {
+            LG_D("{}", msg);
+        }
+
+        clear();
+        pos = 0;
+    }
+
+  private:
+    uint64_t pos = 0;
+};
+
+class DasLoggingContext : public das::Context
+{
+  public:
+    explicit DasLoggingContext(uint32_t stackSize) : das::Context(stackSize) {}
+
+    void to_out(const das::LineInfo* at, int level, const char* message) override
+    {
+        (void)at;
+        const std::string msg = message ? std::string(message) : std::string();
+        if (msg.empty())
+        {
+            return;
+        }
+
+        if (level >= das::LogLevel::error)
+        {
+            LG_E("{}", msg);
+        }
+        else if (level >= das::LogLevel::warning)
+        {
+            LG_W("{}", msg);
+        }
+        else if (level >= das::LogLevel::info)
+        {
+            LG_I("{}", msg);
+        }
+        else
+        {
+            LG_D("{}", msg);
+        }
+    }
+};
+
+void ensureDasRuntimeForCurrentThread()
+{
+    if (gDasThreadRuntimeReady)
+    {
+        return;
+    }
+    das::daScriptEnvironment::ensure();
+    das::setDasRoot("daslib");
+    ::registerDasDefaultModules();
+    // Register custom modules after builtins are available because their
+    // constructors typically call ModuleLibrary::addBuiltInModule().
+    mod::touchSphyBindingsModule();
+    das::Module::Initialize();
+    LG_D("daScript runtime initialized for current thread");
+    gDasThreadRuntimeReady = true;
+}
+
+}  // namespace
 
 #ifdef CLIENT
 namespace
@@ -20,6 +126,7 @@ bool dispatchUiBool(PtrHandles& ptrHandles, std::function<bool()> fn)
 #endif
 
 ModManager::ModManager() {}
+
 ModManager::~ModManager() {}
 
 bool ModManager::parseModList(const std::string& modList,
@@ -152,8 +259,10 @@ bool ModManager::checkIfDependencyProcessed(const std::string& modId)
 bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
 {
     LG_I("Loading mod: {}", modInfo.id);
-
-    // std::this_thread::sleep_for(std::chrono::seconds(1));
+    Mod mod(modInfo.id, modInfo.name, modInfo.description);
+    ModHandle modHandle = modLib.addItem(modInfo.id, mod);
+    modHandles.push_back(modHandle);
+    ptrHandles.currentMod = modLib.getItem(modHandle);
 
     try
     {
@@ -209,9 +318,19 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
             return false;
         }
 
-        if (!runInitScript(ptrHandles, modInfo))
+        if (manifest["scripts"])
         {
-            return false;
+            if (!manifest["scripts"].IsMap())
+            {
+                LG_E(
+                    "Failed to load mod manifest: invalid node; 'scripts' "
+                    "should be a map");
+                return false;
+            }
+            if (!loadScripts(ptrHandles, modInfo, manifest["scripts"]))
+            {
+                return false;
+            }
         }
     }
     catch (const YAML::Exception& e)
@@ -286,9 +405,10 @@ bool ModManager::loadFonts(PtrHandles& ptrHandles, const ModInfo& modInfo)
             && fileEntry.path().extension() == ".ttf")
         {
             const std::string fontPath = fileEntry.path().string();
-            if (!dispatchUiBool(ptrHandles, [&]() {
-                    return ptrHandles.userInterface->loadFont(fontPath);
-                }))
+            if (!dispatchUiBool(
+                    ptrHandles,
+                    [&]()
+                    { return ptrHandles.userInterface->loadFont(fontPath); }))
             {
                 LG_E("Failed to load font: {}", fontPath);
                 return false;
@@ -352,11 +472,13 @@ bool ModManager::loadUiDocs(PtrHandles& ptrHandles,
                 const std::string uiDocPath =
                     modInfo.modDir + "/assets/ui/"
                     + it->second["path"].as<std::string>();
-                if (!dispatchUiBool(ptrHandles, [&]() {
-                        ptrHandles.userInterface->loadDocument(uiDocName,
-                                                               uiDocPath);
-                        return true;
-                    }))
+                if (!dispatchUiBool(ptrHandles,
+                                    [&]()
+                                    {
+                                        ptrHandles.userInterface->loadDocument(
+                                            uiDocName, uiDocPath);
+                                        return true;
+                                    }))
                 {
                     return false;
                 }
@@ -392,12 +514,14 @@ bool ModManager::loadModOptions(PtrHandles& ptrHandles, ModInfo& modInfo)
     if (std::filesystem::exists(modOptionsPath))
     {
         LG_I("Mod options found: {}", modOptionsPath);
-        if (!dispatchUiBool(ptrHandles, [&]() {
-                ptrHandles.userInterface->loadDocument(
-                    "options-" + modInfo.id, modOptionsPath);
-                modInfo.hasModOptions = true;
-                return true;
-            }))
+        if (!dispatchUiBool(ptrHandles,
+                            [&]()
+                            {
+                                ptrHandles.userInterface->loadDocument(
+                                    "options-" + modInfo.id, modOptionsPath);
+                                modInfo.hasModOptions = true;
+                                return true;
+                            }))
         {
             return false;
         }
@@ -421,6 +545,57 @@ void ModManager::populateMenuData(vector<MenuDataMod>& mods)
 }
 
 #endif
+
+
+bool ModManager::loadScripts(PtrHandles& ptrHandles,
+                             const ModInfo& modInfo,
+                             YAML::Node scripts)
+{
+    // Defensive: uiDocs node must be a map
+    if (!scripts.IsMap())
+    {
+        LG_E("Failed to load scripts: invalid node; expected a map");
+        return false;
+    }
+    ensureDasRuntimeForCurrentThread();
+    for (YAML::const_iterator it = scripts.begin(); it != scripts.end(); ++it)
+    {
+        if (it->first.IsScalar() && it->second.IsScalar())
+        {
+            try
+            {
+                const std::string scriptName = it->first.as<std::string>();
+                const std::string scriptPath =
+                    modInfo.modDir + "/scripts/" + it->second.as<std::string>();
+                if (!ptrHandles.currentMod->loadScript(scriptName, scriptPath))
+                {
+                    LG_E("Failed to load script: {}", scriptPath);
+                    return false;
+                }
+            }
+            catch (const YAML::Exception& e)
+            {
+                LG_E("Failed to parse script node: {}", e.what());
+                return false;
+            }
+            catch (const std::exception& e)
+            {
+                LG_E("Failed to load script '{}': {}",
+                     it->first.as<std::string>(),
+                     e.what());
+                return false;
+            }
+        }
+        else
+        {
+            LG_E(
+                "Failed to load script: invalid node; script entry should be a "
+                "map with a scalar key");
+            return false;
+        }
+    }
+    return true;
+}
 
 bool ModManager::runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo)
 {
@@ -465,5 +640,112 @@ bool ModManager::loadGameObject(PtrHandles& ptrHandles, const std::string& path)
     return ptrHandles.assetFactory->loadAsset(path) != entt::null;
 }
 
+Mod::Mod(const std::string& id,
+         const std::string& name,
+         const std::string& description)
+    : id(id), name(name), description(description)
+{
+}
+Mod::~Mod() {}
+
+bool Mod::loadScript(const string& name, const string& path)
+{
+    ModScript script(path);
+    if (!script.load())
+    {
+        LG_E("Failed to load daScript file: {}", path);
+        return false;
+    }
+    modScripts.addItem(name, script);
+    return true;
+}
+
+const std::string& Mod::getId() const
+{
+    return id;
+}
+
+const std::string& Mod::getName() const
+{
+    return name;
+}
+
+const std::string& Mod::getDescription() const
+{
+    return description;
+}
+
+ModScript::ModScript(const string& path) : path(path) {}
+
+ModScript::~ModScript() {}
+
+bool ModScript::load()
+{
+    if (!std::filesystem::exists(path))
+    {
+        LG_E("Script file not found: {}", path);
+        return false;
+    }
+
+    DasLogWriter tout;
+    das::ModuleGroup dummyLibGroup;
+    auto fAccess = das::make_smart<das::FsFileAccess>();
+    program = das::compileDaScript(path, fAccess, tout, dummyLibGroup);
+
+    if (!program)
+    {
+        LG_E("compileDaScript returned null program for '{}'", path);
+        return false;
+    }
+
+    if (program->failed())
+    {
+        LG_E("daScript compilation failed: {}", path);
+        for (auto& err : program->errors)
+        {
+            LG_E("{}",
+                 reportError(err.at, err.what, err.extra, err.fixme, err.cerr));
+        }
+        return false;
+    }
+
+    context = das::ContextPtr(
+        new DasLoggingContext(program->getContextStackSize()));
+    if (!program->simulate(*context, tout))
+    {
+        LG_E("daScript simulation failed: {}", path);
+        for (auto& err : program->errors)
+        {
+            LG_E("{}",
+                 das::reportError(
+                     err.at, err.what, err.extra, err.fixme, err.cerr));
+        }
+        return false;
+    }
+
+    return findEntryFunctions();
+}
+
+bool ModScript::findEntryFunctions()
+{
+    auto* fnAtLoad = context->findFunction("atLoad");
+    if (!fnAtLoad)
+    {
+        LG_D("No atLoad() in '{}'", path);
+        return true;
+    }
+
+    context->evalWithCatch(fnAtLoad, nullptr);
+    if (auto ex = context->getException())
+    {
+        LG_E("Exception in atLoad() for '{}': {}", path, ex);
+        return false;
+    }
+
+    LG_D("Executed atLoad() for '{}'", path);
+    return true;
+}
 
 }  // namespace mod
+
+template class con::ItemLib<mod::Mod>;

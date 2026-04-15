@@ -12,6 +12,7 @@ set(SERVER_INC_PUBLIC
     ${THIRPARTY_DIR}/sol2/include
     ${THIRPARTY_DIR}/entt/src
     ${THIRPARTY_DIR}/magic_enum/include
+    ${THIRPARTY_DIR}/dascript/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../world
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/systems
@@ -28,6 +29,7 @@ set(SERVER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../world/world.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../world/sector.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../mod/sphy-bindings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/lua-interpreter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/ecs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/asset-factory.cpp
@@ -43,6 +45,7 @@ set(LIBS_PUB
 )
 
 set(LIBS_PRIV
+    libDaScript
     Boost::thread
     Boost::program_options
 )

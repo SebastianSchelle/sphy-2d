@@ -1072,7 +1072,7 @@ void Engine::testSpawn()
                                                   world.getSectorCount() - 1);
 
 
-    for (int i = 0; i < 1000; ++i)
+    for (int i = 0; i < 2; ++i)
     {
         auto ent = spawnEntityFromAsset(
             kAssets[assetPick(gen)],

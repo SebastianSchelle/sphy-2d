@@ -566,7 +566,6 @@ void RenderEngine::startFrame()
         kWorldView, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
     bgfx::setViewRect(kWorldView, 0, 0, bgfx::BackbufferRatio::Equal);
     bgfx::setViewRect(kUiView, 0, 0, bgfx::BackbufferRatio::Equal);
-
     updateWorldView();
     bgfx::setViewTransform(kWorldView, worldView, ortho);
 

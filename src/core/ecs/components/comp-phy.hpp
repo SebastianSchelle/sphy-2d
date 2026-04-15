@@ -36,6 +36,11 @@ struct Transform
 EXT_SER(Transform, SER_TRANSFORM)
 EXT_DES(Transform, SER_TRANSFORM)
 
+struct TransformCache {
+    float c;
+    float s;
+};
+
 struct TransformNet
 {
     static const uint16_t VERSION = 1;

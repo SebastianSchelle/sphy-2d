@@ -17,6 +17,7 @@ set(CLIENT_INC_PUBLIC
     ${THIRPARTY_DIR}/sol2/include
     ${THIRPARTY_DIR}/entt/src
     ${THIRPARTY_DIR}/magic_enum/include
+    ${THIRPARTY_DIR}/dascript/include
     ${BGFX_DIR}/bgfx/include
     ${BGFX_DIR}/bgfx/examples/common
     ${BGFX_DIR}/bgfx/3rdparty
@@ -48,6 +49,7 @@ set(CLIENT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../world/sector.cpp
     ${MISC_DIR}/networking/exchange-sequence.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../mod/sphy-bindings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/lua-interpreter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/ecs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/asset-factory.cpp
@@ -64,6 +66,7 @@ set(BGFX_BUILD ${BGFX_DIR}/build/cmake)
 # bgfx core only — do not link libexample-common (entry framework + _main_ + X11
 # window helpers); this client uses GLFW + bgfx::init() directly (see main-window.cpp).
 set(LIBS_PRIV
+    libDaScript
     "${BGFX_BUILD}/bgfx/libbgfx.a"
     "${BGFX_BUILD}/bgfx/libfcpp.a"
     "${BGFX_BUILD}/bgfx/libglsl-optimizer.a"

@@ -183,8 +183,9 @@ const System sysPhysics = {
         auto reg = ptrHandle->registry;
         auto* sectorId = reg->try_get<ecs::SectorId>(entity);
         auto* transform = reg->try_get<Transform>(entity);
+        auto* transformCache = reg->try_get<TransformCache>(entity);
         auto* physicsBody = reg->try_get<PhysicsBody>(entity);
-        if (transform && physicsBody)
+        if (transform && transformCache && physicsBody)
         {
             physicsBody->acc += -ptrHandle->linDrag * physicsBody->vel;
             physicsBody->rotAcc += -ptrHandle->angDrag * physicsBody->rotVel;
@@ -192,13 +193,18 @@ const System sysPhysics = {
             physicsBody->rotVel += physicsBody->rotAcc * dt;
             transform->pos += physicsBody->vel * dt;
             transform->rot += physicsBody->rotVel * dt;
-            if (transform->rot < 0.0f)
+            if(fabsf(physicsBody->rotVel) > 1e-5f)
             {
-                transform->rot += 2.0f * M_PIf;
-            }
-            else if (transform->rot >= 2.0f * M_PIf)
-            {
-                transform->rot -= 2.0f * M_PIf;
+                if (transform->rot < 0.0f)
+                {
+                    transform->rot += 2.0f * M_PIf;
+                }
+                else if (transform->rot >= 2.0f * M_PIf)
+                {
+                    transform->rot -= 2.0f * M_PIf;
+                }
+                transformCache->c = cosf(transform->rot);
+                transformCache->s = sinf(transform->rot);
             }
 
             // Check for sector switch
@@ -208,6 +214,13 @@ const System sysPhysics = {
             // Reset acceleration after game update
             physicsBody->acc = {0, 0};
             physicsBody->rotAcc = 0;
+
+            /*
+                1.check AABB bounds and recalculate if needed
+                2. if recalculated fatAABB, moveProxy in aabbTree
+                3. broad phase query for object
+                4. SAT for broadphase results
+            */
 
             // LG_D("PhysicsBody update for entity: {} PhysicsBody: {}", entity,
             // *physicsBody); LG_D("Transform update for entity: {} Transform:

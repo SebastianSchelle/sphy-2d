@@ -5,10 +5,12 @@
 #include <render-engine.hpp>
 #include <ui/user-interface.hpp>
 #endif
-#include <functional>
-#include <std-inc.hpp>
 #include <asset-factory.hpp>
-
+#include <functional>
+#include <item-lib.hpp>
+#include <std-inc.hpp>
+#include <daScript/daScript.h>
+#include <logging.hpp>
 
 namespace mod
 {
@@ -24,19 +26,21 @@ struct MenuDataMod
 #endif
 
 class LuaInterpreter;
+class Mod;
 
 struct PtrHandles
 {
 #ifdef CLIENT
     gfx::RenderEngine* renderEngine;
     ui::UserInterface* userInterface;
-    /// When set (e.g. mod load worker thread), RmlUi calls must run through this
-    /// so they execute on the main thread. Blocks caller until the main loop runs
-    /// the task.
+    /// When set (e.g. mod load worker thread), RmlUi calls must run through
+    /// this so they execute on the main thread. Blocks caller until the main
+    /// loop runs the task.
     std::function<bool(std::function<bool()>)> runUiBool;
 #endif
     mod::LuaInterpreter* luaInterpreter;
     ecs::AssetFactory* assetFactory;
+    mod::Mod* currentMod;
 };
 
 struct ModInfo
@@ -50,6 +54,49 @@ struct ModInfo
     bool modFound = false;
     bool hasModOptions = false;
 };
+
+
+typedef std::function<void(void)> ModFnLoadMod;
+typedef ModFnLoadMod ModFnLoadModClient;
+typedef ModFnLoadMod ModFnLoadModServer;
+typedef std::function<void(void)> ModFnInitGame;
+typedef ModFnInitGame ModFnInitGameClient;
+typedef ModFnInitGame ModFnInitGameServer;
+
+class ModScript
+{
+  public:
+    ModScript(const string& path);
+    ~ModScript();
+    bool load();
+
+  private:
+    bool findEntryFunctions();
+    string path;
+    das::ProgramPtr program;
+    das::ContextPtr context;
+};
+
+using ModScriptHandle = typename con::ItemLib<ModScript>::Handle;
+
+class Mod
+{
+  public:
+    Mod(const string& id, const string& name, const string& description);
+    ~Mod();
+    bool loadScript(const string& name, const string& path);
+    const string& getId() const;
+    const string& getName() const;
+    const string& getDescription() const;
+
+  private:
+    string id;
+    string name;
+    string description;
+    con::ItemLib<ModScript> modScripts;
+};
+
+using ModHandle = typename con::ItemLib<Mod>::Handle;
 
 class ModManager
 {
@@ -85,9 +132,13 @@ class ModManager
     bool runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo);
     bool loadGameObjects(PtrHandles& ptrHandles, const ModInfo& modInfo);
     bool loadGameObject(PtrHandles& ptrHandles, const std::string& path);
+    bool loadScripts(PtrHandles& ptrHandles,
+                     const ModInfo& modInfo,
+                     YAML::Node scripts);
     std::vector<ModInfo> processedDependencies;
+    con::ItemLib<Mod> modLib;
+    std::vector<ModHandle> modHandles;
 };
-
 
 }  // namespace mod
 

@@ -42,7 +42,7 @@ bool Sector::saveSector(const std::string& savedir)
 
 void Sector::update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle)
 {
-    for(int i = 0; i < entityIds.size(); i++)
+    for (int i = 0; i < entityIds.size(); i++)
     {
         for (auto system : *ptrHandle->systems)
         {
@@ -68,8 +68,14 @@ bool Sector::addEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
     }
     entityIds.push_back(entityId);
     entities.push_back(ptrHandle->ecs->getEntity(entityId));
-    reg->emplace_or_replace<ecs::SectorId>(ptrHandle->ecs->getEntity(entityId),
-                                           ecs::SectorId{id, (uint32_t)coordX, (uint32_t)coordY});
+    reg->emplace_or_replace<ecs::SectorId>(
+        ptrHandle->ecs->getEntity(entityId),
+        ecs::SectorId{id, (uint32_t)coordX, (uint32_t)coordY});
+    
+    // add AABB calculation from polygon
+    con::AABB aabb{vec2{0.0f, 0.0f},
+        vec2(1.0f, 1.0f)};
+    aabbTree.createProxy(aabb, entityId);
     return true;
 }
 
@@ -89,11 +95,16 @@ bool Sector::removeEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
         return false;
     }
     entityIds.erase(it);
-    entities.erase(std::find(entities.begin(),
-                             entities.end(),
-                             ptrHandle->ecs->getEntity(entityId)));
+    entities.erase(std::find(
+        entities.begin(), entities.end(), ptrHandle->ecs->getEntity(entityId)));
     reg->emplace_or_replace<ecs::SectorId>(ptrHandle->ecs->getEntity(entityId),
                                            ecs::SectorId{0xFFFFFFFF});
+    auto broadphaseComponent = reg->try_get<con::BroadphaseComponent>(
+        ptrHandle->ecs->getEntity(entityId));
+    if (broadphaseComponent)
+    {
+        aabbTree.destroyProxy(broadphaseComponent->proxyId);
+    }
     return true;
 }
 
@@ -110,28 +121,30 @@ void Sector::drawDebug(gfx::RenderEngine& renderer, float zoom)
     int32_t sectorOffsetX = renderer.getSectorOffsetX();
     int32_t sectorOffsetY = renderer.getSectorOffsetY();
     glm::vec2 pos = getWorldPosSectorOffset(sectorOffsetX, sectorOffsetY);
-    renderer.drawRectangle(pos,
-                           glm::vec2(sectorSize, sectorSize),
-                           0x10aaaa00,
-                           1.0f / zoom);
+    renderer.drawRectangle(
+        pos, glm::vec2(sectorSize, sectorSize), 0x10aaaa00, 1.0f / zoom);
 }
 
-void Sector::drawTacticalMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom)
+void Sector::drawTacticalMap(gfx::RenderEngine& renderer,
+                             const glm::vec4& viewRect,
+                             float zoom)
 {
 }
 
-void Sector::drawStrategicMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom)
+void Sector::drawStrategicMap(gfx::RenderEngine& renderer,
+                              const glm::vec4& viewRect,
+                              float zoom)
 {
     int32_t sectorOffsetX = renderer.getSectorOffsetX();
     int32_t sectorOffsetY = renderer.getSectorOffsetY();
     glm::vec2 pos = getWorldPosSectorOffset(sectorOffsetX, sectorOffsetY);
-    renderer.drawRectangle(pos,
-                           glm::vec2(sectorSize, sectorSize),
-                           0x10aaaa00,
-                           1.0f / zoom);
+    renderer.drawRectangle(
+        pos, glm::vec2(sectorSize, sectorSize), 0x10aaaa00, 1.0f / zoom);
 }
 
-void Sector::drawThirdPerson(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom)
+void Sector::drawThirdPerson(gfx::RenderEngine& renderer,
+                             const glm::vec4& viewRect,
+                             float zoom)
 {
 }
 
