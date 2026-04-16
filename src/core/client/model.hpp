@@ -43,6 +43,8 @@ class Model
     void drawTacticalMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
     void drawStrategicMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
     void drawThirdPerson(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
+    void setOverlayEnabled(const std::string& overlay, bool enabled);
+    bool isAabbTreeOverlayEnabled() const;
     void sendCmdToServer(const std::string& command);
     void checkVersion(const net::ModelClientInfo& clientInfo);
     void disconnectFromServer();
@@ -112,6 +114,9 @@ class Model
     void handleReqAllComponentsResp(bitsery::Deserializer<InputAdapter>& cmddes,
                                     uint16_t posNextCmdOrEof);
     void notifyReady();
+    void handleGetAabbTreeResp(bitsery::Deserializer<InputAdapter>& cmddes,
+                               uint16_t posNextCmdOrEof);
+    void drawOverlayAABBs(gfx::RenderEngine& renderer, float zoom);
 
     cfg::ConfigManager& config;
     net::TimeSync timeSyncData;
@@ -127,6 +132,12 @@ class Model
 
     std::function<void(void)> afterLoadWorldClb;
     std::vector<ecs::EntityId> selectedEntities;
+
+    uint32_t aabbSector;
+    std::vector<con::AABB> aabbs;
+    bool overlayAabbTreeEnabled = false;
+
+    long lastGetAabbTree;
 };
 
 }  // namespace sphyc

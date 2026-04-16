@@ -2,6 +2,7 @@
 #include <comp-ident.hpp>
 #include <ptr-handle.hpp>
 #include <sector.hpp>
+#include <comp-phy.hpp>
 
 namespace world
 {
@@ -66,16 +67,26 @@ bool Sector::addEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
         LG_W("Entity already in sector: {}", entityId);
         return false;
     }
+    entt::entity entity = ptrHandle->ecs->getEntity(entityId);
     entityIds.push_back(entityId);
-    entities.push_back(ptrHandle->ecs->getEntity(entityId));
-    reg->emplace_or_replace<ecs::SectorId>(
-        ptrHandle->ecs->getEntity(entityId),
-        ecs::SectorId{id, (uint32_t)coordX, (uint32_t)coordY});
-    
+    entities.push_back(entity);
+    auto &sector = reg->get<ecs::SectorId>(entity);
+    sector.id = id;
+    sector.x = (uint32_t)coordX;
+    sector.y = (uint32_t)coordY;
     // add AABB calculation from polygon
-    con::AABB aabb{vec2{0.0f, 0.0f},
-        vec2(1.0f, 1.0f)};
-    aabbTree.createProxy(aabb, entityId);
+    auto &transform = reg->get<ecs::Transform>(entity);
+    auto *transformCache = reg->try_get<ecs::TransformCache>(entity);
+    auto *collider = reg->try_get<ecs::Colllider>(entity);
+    auto *broadphase = reg->try_get<ecs::Broadphase>(entity);
+    if (transformCache && collider && broadphase)
+    {
+        transformCache->c = cosf(transform.rot);
+        transformCache->s = sinf(transform.rot);
+        con::AABB aabb = ecs::calculateAABB(transform, *transformCache, *collider);
+        broadphase->proxyId = aabbTree.createProxy(aabb, entityId);
+        broadphase->fatAABB = aabb;
+    }
     return true;
 }
 
@@ -97,13 +108,15 @@ bool Sector::removeEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
     entityIds.erase(it);
     entities.erase(std::find(
         entities.begin(), entities.end(), ptrHandle->ecs->getEntity(entityId)));
-    reg->emplace_or_replace<ecs::SectorId>(ptrHandle->ecs->getEntity(entityId),
-                                           ecs::SectorId{0xFFFFFFFF});
-    auto broadphaseComponent = reg->try_get<con::BroadphaseComponent>(
+    auto &sector = reg->get<ecs::SectorId>(ptrHandle->ecs->getEntity(entityId));
+    sector.id = INVALID_SECTOR_ID;
+    sector.x = 0;
+    sector.y = 0;
+    auto broadphase = reg->try_get<ecs::Broadphase>(
         ptrHandle->ecs->getEntity(entityId));
-    if (broadphaseComponent)
+    if (broadphase)
     {
-        aabbTree.destroyProxy(broadphaseComponent->proxyId);
+        aabbTree.destroyProxy(broadphase->proxyId);
     }
     return true;
 }
@@ -113,6 +126,16 @@ vec2 Sector::getWorldPosSectorOffset(int32_t sectorOffsetX,
 {
     return vec2((float)(coordX - sectorOffsetX) * sectorSize,
                 (float)(coordY - sectorOffsetY) * sectorSize);
+}
+
+void Sector::moveAabbProxy(int32_t proxyId, con::AABB& newAabb)
+{
+    aabbTree.moveProxy(proxyId, newAabb);
+}
+
+void Sector::getAllAABBs(std::vector<con::AABB>& aabbs) const
+{
+    aabbTree.getAllAABBs(aabbs);
 }
 
 #ifdef CLIENT

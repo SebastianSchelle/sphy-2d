@@ -1,3 +1,4 @@
+#include "comp-phy.hpp"
 #include <comp-ident.hpp>
 #include <config-manager.hpp>
 #include <ptr-handle.hpp>
@@ -289,13 +290,15 @@ bool World::moveEntityTo(std::shared_ptr<ecs::PtrHandle> ptrHandle,
                          glm::vec2 position,
                          float rotation)
 {
-    switchSector(ptrHandle, entityId, sectorId);
 
     auto reg = ptrHandle->registry;
     entt::entity entity = ptrHandle->ecs->getEntity(entityId);
-    ecs::Transform& transform = reg->get_or_emplace<ecs::Transform>(entity);
+
+    ecs::Transform& transform = reg->get<ecs::Transform>(entity);
     transform.pos = position;
     transform.rot = rotation;
+
+    switchSector(ptrHandle, entityId, sectorId);
     return true;
 }
 

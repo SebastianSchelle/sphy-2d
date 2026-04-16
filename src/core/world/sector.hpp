@@ -12,6 +12,8 @@
 namespace world
 {
 
+const uint32_t INVALID_SECTOR_ID = 0xFFFFFFFF;
+
 class Sector
 {
   public:
@@ -25,6 +27,8 @@ class Sector
                    ecs::EntityId entityId);
     bool removeEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
                       ecs::EntityId entityId);
+    void moveAabbProxy(int32_t proxyId, con::AABB& newAabb);
+    void getAllAABBs(std::vector<con::AABB>& aabbs) const;
 
     vec2 getWorldPosSectorOffset(int32_t sectorOffsetX,
                                  int32_t sectorOffsetY) const;

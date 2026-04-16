@@ -37,7 +37,7 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection>
 
     tcp::socket socket_;
     std::atomic<bool> running{false};
-    char recvBuf[TCP_REC_BUF_LEN];
+    uint8_t recvBuf[TCP_REC_BUF_LEN];
     ReceiveCallbackConn receiveCallback;
     TcpReceiveClb tcpReceiveCallback;
     TcpDisconnectCallback disconnectCallback;

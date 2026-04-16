@@ -42,15 +42,31 @@ set(LIBS_PUB
     concurrentqueue
     ${LUA_LIBRARIES}
     rerun_sdk
+    libDaScript
 )
 
 set(LIBS_PRIV
-    libDaScript
     Boost::thread
     Boost::program_options
 )
 
 add_library(${LIB_NAME} STATIC ${SERVER_SOURCES})
+# libDaScript is built with -fno-rtti; TUs that inherit das::* must match or
+# link fails on missing base typeinfo in Release. Apply per-target so the same
+# mod-manager.cpp can still use RTTI when compiled for sphy-2d-client (RmlUi).
+if(MSVC)
+    set(_das_mod_no_rtti /GR-)
+else()
+    set(_das_mod_no_rtti -fno-rtti)
+endif()
+set_property(
+    SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
+    TARGET ${LIB_NAME}
+    PROPERTY COMPILE_OPTIONS "${_das_mod_no_rtti}")
+set_property(
+    SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/../mod/sphy-bindings.cpp
+    TARGET ${LIB_NAME}
+    PROPERTY COMPILE_OPTIONS "${_das_mod_no_rtti}")
 target_compile_definitions(${LIB_NAME} PRIVATE SERVER GAME_NAME="${GAME_NAME}")
 
 target_include_directories(${LIB_NAME} PUBLIC ${SERVER_INC_PUBLIC})

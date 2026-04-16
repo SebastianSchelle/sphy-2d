@@ -24,7 +24,7 @@ class TcpClient
 
   private:
     tcp::socket socket;
-    char recvBuf[TCP_REC_BUF_LEN];
+    uint8_t recvBuf[TCP_REC_BUF_LEN];
     TcpReceiveClb tcpReceiveCallback;
     ConnectionClosedCallback connectionClosedCallback;
     tcp::endpoint devServerEndpoint;

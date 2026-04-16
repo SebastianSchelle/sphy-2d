@@ -156,6 +156,11 @@ struct UiDbgConnectionData
     float serverTimeOffset = 0.0f;
 };
 
+struct UiDbgOverlayData
+{
+    bool enableAabbTree = false;
+};
+
 struct UiDebugData
 {
     UiDebugGameObject selGameObject;
@@ -163,6 +168,7 @@ struct UiDebugData
     UiDbgViewData viewData;
     UiDbgGameData gameData;
     UiDbgConnectionData connectionData;
+    UiDbgOverlayData overlayData;
 };
 
 class MainWindow

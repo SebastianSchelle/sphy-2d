@@ -1,12 +1,13 @@
 #ifndef AABB_TREE_HPP
 #define AABB_TREE_HPP
 
-#include <vector>
-#include <stack>
-#include <cstdint>
-#include <limits>
 #include <cassert>
+#include <cstdint>
 #include <glm/glm.hpp>
+#include <limits>
+#include <stack>
+#include <std-inc.hpp>
+#include <vector>
 
 namespace con
 {
@@ -15,68 +16,92 @@ namespace con
 // Basic math
 // =====================
 
-inline glm::vec2 minVec(const glm::vec2& a, const glm::vec2& b) {
+inline glm::vec2 minVec(const glm::vec2& a, const glm::vec2& b)
+{
     return glm::vec2(a.x < b.x ? a.x : b.x, a.y < b.y ? a.y : b.y);
 }
-inline glm::vec2 maxVec(const glm::vec2& a, const glm::vec2& b) {
+inline glm::vec2 maxVec(const glm::vec2& a, const glm::vec2& b)
+{
     return glm::vec2(a.x > b.x ? a.x : b.x, a.y > b.y ? a.y : b.y);
 }
 
 // =====================
 // AABB
 // =====================
-struct AABB {
+struct AABB
+{
     glm::vec2 lower;
     glm::vec2 upper;
 
-    float perimeter() const {
+    float perimeter() const
+    {
         float wx = upper.x - lower.x;
         float wy = upper.y - lower.y;
         return 2.0f * (wx + wy);
     }
 
-    bool overlaps(const AABB& other) const {
-        if (upper.x < other.lower.x || lower.x > other.upper.x) return false;
-        if (upper.y < other.lower.y || lower.y > other.upper.y) return false;
+    bool overlaps(const AABB& other) const
+    {
+        if (upper.x < other.lower.x || lower.x > other.upper.x)
+            return false;
+        if (upper.y < other.lower.y || lower.y > other.upper.y)
+            return false;
         return true;
     }
 
-    static AABB combine(const AABB& a, const AABB& b) {
-        return { minVec(a.lower, b.lower), maxVec(a.upper, b.upper) };
+    static AABB combine(const AABB& a, const AABB& b)
+    {
+        return {minVec(a.lower, b.lower), maxVec(a.upper, b.upper)};
     }
 
-    void fatten(float margin) {
+    void fatten(float margin)
+    {
         lower.x -= margin;
         lower.y -= margin;
         upper.x += margin;
         upper.y += margin;
     }
+
+    bool contains(const AABB& other) const
+    {
+        if (other.lower.x < lower.x || other.upper.x > upper.x)
+            return false;
+        if (other.lower.y < lower.y || other.upper.y > upper.y)
+            return false;
+        return true;
+    }
 };
+
 
 // =====================
 // Dynamic Tree
 // =====================
-template<typename T>
-class DynamicAABBTree {
-
-    struct Node {
+template <typename T> class DynamicAABBTree
+{
+    struct Node
+    {
         AABB box;
         int parent = -1;
         int left = -1;
         int right = -1;
         int height = 0;
-        T id; // user data
+        T id;  // user data
 
-        bool isLeaf() const { return left == -1; }
+        bool isLeaf() const
+        {
+            return left == -1;
+        }
     };
 
-public:
-    DynamicAABBTree() {
+  public:
+    DynamicAABBTree()
+    {
         nodes.reserve(1024);
-        allocateNode(); // root placeholder
+        allocateNode();  // root placeholder
     }
 
-    int createProxy(AABB box, const T& id) {
+    int createProxy(AABB& box, const T& id)
+    {
         box.fatten(fatMargin);
         int node = allocateNode();
         nodes[node].box = box;
@@ -87,51 +112,85 @@ public:
         return node;
     }
 
-    void destroyProxy(int node) {
+    void destroyProxy(int node)
+    {
         removeLeaf(node);
         freeNode(node);
     }
 
-    void moveProxy(int node, AABB newBox) {
+    void moveProxy(int node, AABB newBox)
+    {
+        if (nodes[node].box.contains(newBox))
+        {
+            return;
+        }
         newBox.fatten(fatMargin);
-
-        if (nodes[node].box.overlaps(newBox)) return;
-
         removeLeaf(node);
         nodes[node].box = newBox;
         insertLeaf(node);
     }
 
-    template<typename Callback>
-    void query(const AABB& box, Callback cb) const {
-        if (root == -1) return;
+    template <typename Callback> void query(const AABB& box, Callback cb) const
+    {
+        if (root == -1)
+            return;
 
         std::stack<int> stack;
         stack.push(root);
 
-        while (!stack.empty()) {
+        while (!stack.empty())
+        {
             int node = stack.top();
             stack.pop();
 
-            if (!nodes[node].box.overlaps(box)) continue;
+            if (!nodes[node].box.overlaps(box))
+                continue;
 
-            if (nodes[node].isLeaf()) {
+            if (nodes[node].isLeaf())
+            {
                 cb(nodes[node].id);
-            } else {
+            }
+            else
+            {
                 stack.push(nodes[node].left);
                 stack.push(nodes[node].right);
             }
         }
     }
 
-private:
+    void getAllAABBs(std::vector<AABB>& aabbs) const
+    {
+        aabbs.clear();
+        if (root == -1)
+            return;
+
+        std::stack<int> stack;
+        stack.push(root);
+
+        while (!stack.empty())
+        {
+            int node = stack.top();
+            stack.pop();
+
+            aabbs.push_back(nodes[node].box);
+            if (!nodes[node].isLeaf())
+            {
+                stack.push(nodes[node].left);
+                stack.push(nodes[node].right);
+            }
+        }
+    }
+
+  private:
     std::vector<Node> nodes;
     int root = -1;
     int freeList = -1;
-    const float fatMargin = 0.1f;
+    const float fatMargin = 10.0f;
 
-    int allocateNode() {
-        if (freeList != -1) {
+    int allocateNode()
+    {
+        if (freeList != -1)
+        {
             int n = freeList;
             freeList = nodes[n].parent;
             nodes[n] = Node{};
@@ -141,13 +200,16 @@ private:
         return (int)nodes.size() - 1;
     }
 
-    void freeNode(int n) {
+    void freeNode(int n)
+    {
         nodes[n].parent = freeList;
         freeList = n;
     }
 
-    void insertLeaf(int leaf) {
-        if (root == -1) {
+    void insertLeaf(int leaf)
+    {
+        if (root == -1)
+        {
             root = leaf;
             nodes[root].parent = -1;
             return;
@@ -156,7 +218,8 @@ private:
         int index = root;
         AABB leafBox = nodes[leaf].box;
 
-        while (!nodes[index].isLeaf()) {
+        while (!nodes[index].isLeaf())
+        {
             int left = nodes[index].left;
             int right = nodes[index].right;
 
@@ -167,10 +230,13 @@ private:
             float inheritanceCost = 2.0f * (combined.perimeter() - area);
 
             float costLeft;
-            if (nodes[left].isLeaf()) {
+            if (nodes[left].isLeaf())
+            {
                 AABB a = AABB::combine(leafBox, nodes[left].box);
                 costLeft = a.perimeter() + inheritanceCost;
-            } else {
+            }
+            else
+            {
                 AABB a = AABB::combine(leafBox, nodes[left].box);
                 float oldArea = nodes[left].box.perimeter();
                 float newArea = a.perimeter();
@@ -178,17 +244,21 @@ private:
             }
 
             float costRight;
-            if (nodes[right].isLeaf()) {
+            if (nodes[right].isLeaf())
+            {
                 AABB a = AABB::combine(leafBox, nodes[right].box);
                 costRight = a.perimeter() + inheritanceCost;
-            } else {
+            }
+            else
+            {
                 AABB a = AABB::combine(leafBox, nodes[right].box);
                 float oldArea = nodes[right].box.perimeter();
                 float newArea = a.perimeter();
                 costRight = (newArea - oldArea) + inheritanceCost;
             }
 
-            if (cost < costLeft && cost < costRight) break;
+            if (cost < costLeft && cost < costRight)
+                break;
 
             index = (costLeft < costRight) ? left : right;
         }
@@ -206,9 +276,12 @@ private:
         nodes[sibling].parent = newParent;
         nodes[leaf].parent = newParent;
 
-        if (oldParent == -1) {
+        if (oldParent == -1)
+        {
             root = newParent;
-        } else {
+        }
+        else
+        {
             if (nodes[oldParent].left == sibling)
                 nodes[oldParent].left = newParent;
             else
@@ -218,19 +291,21 @@ private:
         fixUpwards(newParent);
     }
 
-    void removeLeaf(int leaf) {
-        if (leaf == root) {
+    void removeLeaf(int leaf)
+    {
+        if (leaf == root)
+        {
             root = -1;
             return;
         }
 
         int parent = nodes[leaf].parent;
         int grandParent = nodes[parent].parent;
-        int sibling = (nodes[parent].left == leaf)
-                      ? nodes[parent].right
-                      : nodes[parent].left;
+        int sibling = (nodes[parent].left == leaf) ? nodes[parent].right
+                                                   : nodes[parent].left;
 
-        if (grandParent != -1) {
+        if (grandParent != -1)
+        {
             if (nodes[grandParent].left == parent)
                 nodes[grandParent].left = sibling;
             else
@@ -240,30 +315,37 @@ private:
             freeNode(parent);
 
             fixUpwards(grandParent);
-        } else {
+        }
+        else
+        {
             root = sibling;
             nodes[sibling].parent = -1;
             freeNode(parent);
         }
     }
 
-    void fixUpwards(int index) {
-        while (index != -1) {
+    void fixUpwards(int index)
+    {
+        while (index != -1)
+        {
             index = balance(index);
 
             int left = nodes[index].left;
             int right = nodes[index].right;
 
-            nodes[index].height = 1 + std::max(nodes[left].height, nodes[right].height);
+            nodes[index].height =
+                1 + std::max(nodes[left].height, nodes[right].height);
             nodes[index].box = AABB::combine(nodes[left].box, nodes[right].box);
 
             index = nodes[index].parent;
         }
     }
 
-    int balance(int iA) {
+    int balance(int iA)
+    {
         Node& A = nodes[iA];
-        if (A.isLeaf() || A.height < 2) return iA;
+        if (A.isLeaf() || A.height < 2)
+            return iA;
 
         int iB = A.left;
         int iC = A.right;
@@ -272,7 +354,8 @@ private:
 
         int balance = C.height - B.height;
 
-        if (balance > 1) {
+        if (balance > 1)
+        {
             int iF = C.left;
             int iG = C.right;
             Node& F = nodes[iF];
@@ -282,16 +365,24 @@ private:
             C.parent = A.parent;
             A.parent = iC;
 
-            if (C.parent != -1) {
-                if (nodes[C.parent].left == iA) nodes[C.parent].left = iC;
-                else nodes[C.parent].right = iC;
-            } else root = iC;
+            if (C.parent != -1)
+            {
+                if (nodes[C.parent].left == iA)
+                    nodes[C.parent].left = iC;
+                else
+                    nodes[C.parent].right = iC;
+            }
+            else
+                root = iC;
 
-            if (F.height > G.height) {
+            if (F.height > G.height)
+            {
                 C.right = iF;
                 A.right = iG;
                 G.parent = iA;
-            } else {
+            }
+            else
+            {
                 C.right = iG;
                 A.right = iF;
                 F.parent = iA;
@@ -300,13 +391,15 @@ private:
             A.box = AABB::combine(nodes[A.left].box, nodes[A.right].box);
             C.box = AABB::combine(A.box, nodes[C.right].box);
 
-            A.height = 1 + std::max(nodes[A.left].height, nodes[A.right].height);
+            A.height =
+                1 + std::max(nodes[A.left].height, nodes[A.right].height);
             C.height = 1 + std::max(A.height, nodes[C.right].height);
 
             return iC;
         }
 
-        if (balance < -1) {
+        if (balance < -1)
+        {
             int iD = B.left;
             int iE = B.right;
             Node& D = nodes[iD];
@@ -316,16 +409,24 @@ private:
             B.parent = A.parent;
             A.parent = iB;
 
-            if (B.parent != -1) {
-                if (nodes[B.parent].left == iA) nodes[B.parent].left = iB;
-                else nodes[B.parent].right = iB;
-            } else root = iB;
+            if (B.parent != -1)
+            {
+                if (nodes[B.parent].left == iA)
+                    nodes[B.parent].left = iB;
+                else
+                    nodes[B.parent].right = iB;
+            }
+            else
+                root = iB;
 
-            if (D.height > E.height) {
+            if (D.height > E.height)
+            {
                 B.right = iD;
                 A.left = iE;
                 E.parent = iA;
-            } else {
+            }
+            else
+            {
                 B.right = iE;
                 A.left = iD;
                 D.parent = iA;
@@ -334,7 +435,8 @@ private:
             A.box = AABB::combine(nodes[A.left].box, nodes[A.right].box);
             B.box = AABB::combine(A.box, nodes[B.right].box);
 
-            A.height = 1 + std::max(nodes[A.left].height, nodes[A.right].height);
+            A.height =
+                1 + std::max(nodes[A.left].height, nodes[A.right].height);
             B.height = 1 + std::max(A.height, nodes[B.right].height);
 
             return iB;
@@ -344,10 +446,11 @@ private:
     }
 };
 
-struct BroadphaseComponent {
-    int proxyId;
-    AABB fatAABB;
-};
+#define SER_AABB                                                               \
+    SOBJ(o.lower);                                                             \
+    SOBJ(o.upper);
+EXT_SER(AABB, SER_AABB)
+EXT_DES(AABB, SER_AABB)
 
 }  // namespace con
 

@@ -2,14 +2,33 @@
 #define MOD_MANAGER_HPP
 
 #ifdef CLIENT
-#include <render-engine.hpp>
-#include <ui/user-interface.hpp>
+// Forward declarations only: including RmlUi here forces RTTI in mod-manager.cpp
+// (RmlUi uses typeid) and breaks -fno-rtti matching with libDaScript.
+namespace gfx
+{
+class RenderEngine;
+}
+namespace ui
+{
+class UserInterface;
+}
 #endif
 #include <asset-factory.hpp>
 #include <functional>
 #include <item-lib.hpp>
 #include <std-inc.hpp>
+
+#ifdef FMT_THROW
+#pragma push_macro("FMT_THROW")
+#undef FMT_THROW
+#define SPHY_RESTORE_FMT_THROW 1
+#endif
 #include <daScript/daScript.h>
+#ifdef SPHY_RESTORE_FMT_THROW
+#pragma pop_macro("FMT_THROW")
+#undef SPHY_RESTORE_FMT_THROW
+#endif
+
 #include <logging.hpp>
 
 namespace mod
@@ -18,9 +37,9 @@ namespace mod
 #ifdef CLIENT
 struct MenuDataMod
 {
-    Rml::String id;
-    Rml::String name;
-    Rml::String description;
+    std::string id;
+    std::string name;
+    std::string description;
     bool hasModOptions;
 };
 #endif

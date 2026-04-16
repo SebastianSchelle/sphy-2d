@@ -68,6 +68,9 @@ void Engine::start()
     cFac->registerComponent<ecs::AssetId>();
     cFac->registerComponent<ecs::PhyThrust>();
     cFac->registerComponent<ecs::MoveCtrl>();
+    cFac->registerComponent<ecs::Colllider>();
+    cFac->registerComponent<ecs::Broadphase>();
+    cFac->registerComponent<ecs::TransformCache>();
 
     ecs.registerSystem(ecs::sysMoveCtrl);
     ecs.registerSystem(ecs::sysPhyThrust);
@@ -649,6 +652,16 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             }
             break;
         }
+        case prot::cmd::DBG_GET_AABB_TREE:
+        {
+            if ((flags & CMD_FLAG_RESP) == 0)
+            {
+                uint32_t sectorId;
+                cmddes.value4b(sectorId);
+                handleGetAabbTree(sectorId, tcpConnection);
+            }
+            break;
+        }
         default:
             break;
     }
@@ -677,6 +690,12 @@ ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId,
              assetId);
         return ent;
     }
+    entt::entity entity = ecs.getEntity(ent);
+    auto &reg = ecs.getRegistry();
+    ecs::Transform& tr = reg.get_or_emplace<ecs::Transform>(entity);
+    ecs::Broadphase& br = reg.get_or_emplace<ecs::Broadphase>(entity);
+    ecs::TransformCache& trC = reg.get_or_emplace<ecs::TransformCache>(entity);
+    ecs::SectorId& sec = reg.get_or_emplace<ecs::SectorId>(entity);
     world.moveEntityTo(ptrHandle, ent, sectorId, transform.pos, transform.rot);
     return ent;
 }
@@ -1035,29 +1054,16 @@ void Engine::sendAllComponents(ecs::EntityId entityId,
         return;
     }
     // todo: prevent exceeding tcp packet size
-    prot::writeMessageTcp(
-        sendQueue,
-        conn,
-        [this, entityId, ent](bitsery::Serializer<OutputAdapter>& cmdser)
-        {
-            return prot::writeCommand(
-                cmdser,
-                prot::cmd::REQ_ALL_COMPONENTS,
-                CMD_FLAG_RESP,
-                [this, entityId, ent](
-                    bitsery::Serializer<OutputAdapter>& cmdser)
-                {
-                    cmdser.value4b(entityId.index);
-                    cmdser.value2b(entityId.generation);
-                    auto& reg = ecs.getRegistry();
-                    for (auto& [hash, helper] :
-                         assetFactory.componentFactory.getComponentHelpers())
-                    {
-                        helper.serializeFromRegistry(reg, ent, cmdser);
-                    }
-                    return true;
-                });
-        });
+    prot::MsgComposer mcomp(net::SendType::TCP, conn);
+    mcomp.startCommand(prot::cmd::REQ_ALL_COMPONENTS, CMD_FLAG_RESP);
+    mcomp.ser->object(entityId);
+    auto& reg = ecs.getRegistry();
+    for (auto& [hash, helper] :
+         assetFactory.componentFactory.getComponentHelpers())
+    {
+        helper.serializeFromRegistry(reg, ent, *mcomp.ser);
+    }
+    mcomp.execute(sendQueue);
 }
 
 void Engine::testSpawn()
@@ -1076,10 +1082,11 @@ void Engine::testSpawn()
                                                   world.getSectorCount() - 1);
 
 
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < 50000; ++i)
     {
         auto ent = spawnEntityFromAsset(
-            kAssets[assetPick(gen)],
+            //kAssets[assetPick(gen)],
+            kAssets[0],
             sectorPick(gen),
             ecs::Transform{glm::vec2{posDist(gen), posDist(gen)},
                            rotDist(gen)});
@@ -1096,6 +1103,30 @@ void Engine::testSpawn()
             moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
         }
     }
+
+    // auto ent = spawnEntityFromAsset(
+    //     kAssets[0],
+    //     0,
+    //     ecs::Transform{vec2{0.0f, 0.0f}, 0.0f});
+}
+
+void Engine::handleGetAabbTree(uint32_t sectorId, const std::shared_ptr<net::TcpConnection>& conn)
+{
+    prot::MsgComposer mcomp(net::SendType::TCP, conn);
+    mcomp.startCommand(prot::cmd::DBG_GET_AABB_TREE, CMD_FLAG_RESP);
+    mcomp.ser->value4b(sectorId);
+    std::vector<con::AABB> aabbs;
+    auto* sector = world.getSector(sectorId);
+    if (sector)
+    {
+        sector->getAllAABBs(aabbs);
+    }
+    else
+    {
+        LG_W("DBG_GET_AABB_TREE: sector {} not found", sectorId);
+    }
+    mcomp.ser->object(aabbs);
+    mcomp.execute(sendQueue);
 }
 
 }  // namespace sphys

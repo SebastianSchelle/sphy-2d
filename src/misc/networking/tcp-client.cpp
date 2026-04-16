@@ -85,7 +85,6 @@ void TcpClient::handleReceive(const boost::system::error_code& error,
         }
         if (rcvCmdState == RcvCmdState::ParseCmd0)
         {
-            LG_D("TCP packet received: {}", rcvdCmd.data.size());
             // Packet is complete at stream boundary
             if (tcpReceiveCallback)
             {

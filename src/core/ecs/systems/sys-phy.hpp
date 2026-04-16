@@ -51,20 +51,17 @@ const System sysMoveCtrl = {
         {
             phyThrust->setThrustGlobal(vec2(0.0f), *transform);
         }
-        else if (dist > 1e-8f)
+        else
         {
             glm::vec2 desVelV(0.0f);
             const float maxAcc = fmaxf(
-                0.0f,
+                1e-6f,
                 std::min(phyThrust->thrustManeuverMax, phyThrust->thrustMainMax)
                     / physicsBody->mass);
-            if (maxAcc > 0.0f)
-            {
-                dir = worldDir / dist;
-                const float desVelMag = velMargin * sqrtf(2.0f * maxAcc * dist);
-                const float desVel = fminf(phyThrust->maxSpd, desVelMag);
-                desVelV = dir * desVel;
-            }
+            dir = worldDir / dist;
+            const float desVelMag = velMargin * sqrtf(2.0f * maxAcc * dist);
+            const float desVel = fminf(phyThrust->maxSpd, desVelMag);
+            desVelV = dir * desVel;
 
             const glm::vec2 err = desVelV - physicsBody->vel;
             const glm::vec2 thrust =
@@ -103,7 +100,11 @@ const System sysMoveCtrl = {
             std::abs(angleErr) < rotDeadband
             && std::abs(physicsBody->rotVel) < rotVelDeadband;
         float desW = 0.0f;
-        if (!inRotDeadzone)
+        if (inRotDeadzone)
+        {
+            phyThrust->setTorque(0.0f);
+        }
+        else
         {
             const float maxAngAcc = phyThrust->maxTorque / physicsBody->inertia;
             const float desWMag =
@@ -113,13 +114,6 @@ const System sysMoveCtrl = {
             const float maxRotVel = std::max(0.0f, phyThrust->maxRotVel);
             desW = std::min(desWMag, maxRotVel);
             desW *= glm::sign(angleErr);
-        }
-        if (inRotDeadzone)
-        {
-            phyThrust->setTorque(0.0f);
-        }
-        else
-        {
             const float werr = desW - physicsBody->rotVel;
             float trq = ptrHandle->kpTurn * werr * physicsBody->inertia;
             phyThrust->setTorque(trq);
@@ -185,16 +179,20 @@ const System sysPhysics = {
         auto* transform = reg->try_get<Transform>(entity);
         auto* transformCache = reg->try_get<TransformCache>(entity);
         auto* physicsBody = reg->try_get<PhysicsBody>(entity);
-        if (transform && transformCache && physicsBody)
+        auto* collider = reg->try_get<Colllider>(entity);
+        auto* broadphase = reg->try_get<Broadphase>(entity);
+        if (transform && physicsBody && transformCache && collider)
         {
             physicsBody->acc += -ptrHandle->linDrag * physicsBody->vel;
             physicsBody->rotAcc += -ptrHandle->angDrag * physicsBody->rotVel;
             physicsBody->vel += physicsBody->acc * dt;
             physicsBody->rotVel += physicsBody->rotAcc * dt;
-            transform->pos += physicsBody->vel * dt;
-            transform->rot += physicsBody->rotVel * dt;
-            if(fabsf(physicsBody->rotVel) > 1e-5f)
+            bool hasSignificantSpd =
+                (fabsf(physicsBody->vel.x) + fabsf(physicsBody->vel.y) > 1e-6f);
+            bool hasSignificantRotSpd = (fabsf(physicsBody->rotVel) > 1e-5f);
+            if (hasSignificantRotSpd)
             {
+                transform->rot += physicsBody->rotVel * dt;
                 if (transform->rot < 0.0f)
                 {
                     transform->rot += 2.0f * M_PIf;
@@ -205,6 +203,21 @@ const System sysPhysics = {
                 }
                 transformCache->c = cosf(transform->rot);
                 transformCache->s = sinf(transform->rot);
+            }
+            if (hasSignificantSpd)
+            {
+                transform->pos += physicsBody->vel * dt;
+            }
+            if (hasSignificantSpd || hasSignificantRotSpd)
+            {
+                con::AABB newAabb =
+                    calculateAABB(*transform, *transformCache, *collider);
+                auto* sector = ptrHandle->world->getSector(sectorId->id);
+                if (sector)
+                {
+                    sector->moveAabbProxy(broadphase->proxyId, newAabb);
+                    broadphase->fatAABB = newAabb;
+                }
             }
 
             // Check for sector switch

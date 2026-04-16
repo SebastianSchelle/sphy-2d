@@ -104,6 +104,8 @@ class Engine
     void sendAllComponents(ecs::EntityId entityId,
                            const std::shared_ptr<net::TcpConnection>& conn);
     void testSpawn();
+    void handleGetAabbTree(uint32_t sectorId,
+                           const std::shared_ptr<net::TcpConnection>& conn);
 
     const sphy::CmdLinOptionsServer& options;
     std::atomic<bool> stopRequested{false};

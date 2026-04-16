@@ -22,6 +22,7 @@
 #include <fstream>
 #include <glm/glm.hpp>
 #include <logging.hpp>
+#include <limits>
 #include <memory.h>
 #include <string>
 #include <variant>
@@ -148,11 +149,11 @@ constexpr uint32_t hashConst(const char* s, size_t i = 0)
 #define TRY_YAML_DICT(value_, node_, default_value_)                           \
     try                                                                        \
     {                                                                          \
-        value_ = node_.as<decltype(value_)>();                                 \
+        value_ = (node_).as<decltype(value_)>();                                 \
     }                                                                          \
     catch (YAML::Exception e)                                                  \
     {                                                                          \
-        value_ = default_value_;                                               \
+        value_ = (default_value_);                                               \
     }
 
 bool LOAD_OBJ(
@@ -233,7 +234,7 @@ template <> struct convert<vec2>
 };
 }  // namespace YAML
 
-template <> struct fmt::formatter<vector<string>>
+/*template <> struct fmt::formatter<vector<string>>
 {
     constexpr auto parse(fmt::format_parse_context& ctx)
     {
@@ -251,7 +252,7 @@ template <> struct fmt::formatter<vector<string>>
         }
         return fmt::format_to(ctx.out(), "[{}]", joined);
     }
-};
+};*/
 
 // Bitsery finds serialize(S&, T&) via ADL on T. glm::vec2 lives in namespace
 // glm, so these overloads must be in glm — global EXT_SER(vec2) is not visible
@@ -281,6 +282,24 @@ template <typename D> void deserialize(D& s, vec3& o)
     s.value4b(o.z);
 }
 }  // namespace glm
+
+// Bitsery ADL note:
+// std::vector lives in namespace std, so generic serialize/deserialize
+// overloads for vectors must be discoverable from std during ADL.
+namespace std
+{
+template <typename S, typename T, typename Allocator>
+void serialize(S& s, vector<T, Allocator>& o)
+{
+    s.container(o, std::numeric_limits<std::size_t>::max());
+}
+
+template <typename D, typename T, typename Allocator>
+void deserialize(D& d, vector<T, Allocator>& o)
+{
+    d.container(o, std::numeric_limits<std::size_t>::max());
+}
+}  // namespace std
 
 
 namespace smath
@@ -383,20 +402,25 @@ EXT_FMT(vec2, "[{}, {}]", o.x, o.y);
 EXT_FMT(vec3, "[{}, {}, {}]", o.x, o.y, o.z);
 EXT_FMT(vec4, "[{}, {}, {}, {}]", o.x, o.y, o.z, o.w);
 
-template <typename T>
-struct fmt::formatter<std::vector<T>> {
-    // use the formatter for T
-    // Support the default format only
-    constexpr auto parse(format_parse_context& ctx) {
+namespace fmt
+{
+template <typename T, typename Allocator>
+struct formatter<std::vector<T, Allocator>>
+{
+    constexpr auto parse(format_parse_context& ctx)
+    {
         return ctx.begin();
     }
 
     template <typename FormatContext>
-    auto format(const std::vector<T>& v, FormatContext& ctx) {
+    auto format(const std::vector<T, Allocator>& v, FormatContext& ctx) const
+    {
         auto out = ctx.out();
         *out++ = '[';
-        for (size_t i = 0; i < v.size(); ++i) {
-            if (i != 0) {
+        for (std::size_t i = 0; i < v.size(); ++i)
+        {
+            if (i != 0)
+            {
                 *out++ = ',';
                 *out++ = ' ';
             }
@@ -406,6 +430,7 @@ struct fmt::formatter<std::vector<T>> {
         return out;
     }
 };
+}  // namespace fmt
 
 using smath::Rect;
 

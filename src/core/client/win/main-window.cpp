@@ -820,6 +820,15 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
         model.getTimeSyncData().serverLatency;
     debugData.connectionData.serverTimeOffset =
         model.getTimeSyncData().serverOffset;
+    const bool modelAabbOverlayEnabled = model.isAabbTreeOverlayEnabled();
+    if (debugData.overlayData.enableAabbTree != modelAabbOverlayEnabled)
+    {
+        model.setOverlayEnabled("aabb-tree", debugData.overlayData.enableAabbTree);
+    }
+    else
+    {
+        debugData.overlayData.enableAabbTree = modelAabbOverlayEnabled;
+    }
     debugData.viewData.sectorOffsetX = renderEngine.getSectorOffsetX();
     debugData.viewData.sectorOffsetY = renderEngine.getSectorOffsetY();
 
@@ -1020,6 +1029,13 @@ void MainWindow::setupDataModelDebug()
                                      &UiDbgConnectionData::serverTimeOffset);
         }
         debugConstructor.Bind("connectionData", &debugData.connectionData);
+
+        if (auto md_handle = debugConstructor.RegisterStruct<UiDbgOverlayData>())
+        {
+            md_handle.RegisterMember("enableAabbTree",
+                                     &UiDbgOverlayData::enableAabbTree);
+        }
+        debugConstructor.Bind("overlayData", &debugData.overlayData);
 
         if (auto md_handle = debugConstructor.RegisterStruct<UiDbgGameData>())
         {

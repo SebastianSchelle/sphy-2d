@@ -30,8 +30,12 @@ Model::Model(ui::UserInterface* userInterface,
     cFac->registerComponent<ecs::AssetId>();
     cFac->registerComponent<ecs::PhyThrust>();
     cFac->registerComponent<ecs::MoveCtrl>();
+    cFac->registerComponent<ecs::Colllider>();
+    cFac->registerComponent<ecs::Broadphase>();
+    cFac->registerComponent<ecs::TransformCache>();
 
     selectedEntity = {0, 1};
+    lastGetAabbTree = tim::nowU();
 }
 
 Model::~Model() {}
@@ -121,6 +125,7 @@ void Model::modelLoopGame(float dt)
     tim::Timepoint now = tim::getCurrentTimeU();
     static tim::Timepoint testTime = tim::getCurrentTimeU();
     static tim::Timepoint lastReqAllComponents = tim::getCurrentTimeU();
+    static tim::Timepoint lastGetAabbTree = tim::getCurrentTimeU();
 
     // Send some stuff to server
     /*CMDAT_PREP_TOKEN(net::SendType::UDP, prot::cmd::LOG, 0)
@@ -357,6 +362,15 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             {
                 handleReqAllComponentsResp(cmddes, posNextCmdOrEof);
             }
+            break;
+        }
+        case prot::cmd::DBG_GET_AABB_TREE:
+        {
+            if (flags & CMD_FLAG_RESP)
+            {
+                handleGetAabbTreeResp(cmddes, posNextCmdOrEof);
+            }
+            break;
         }
         default:
             break;
@@ -399,7 +413,8 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
     world.drawTacticalMap(renderer, viewRect, zoom);
     auto& reg = ecs.getRegistry();
     reg.view<ecs::Transform, ecs::SectorId>().each(
-        [this, &renderer, &viewRect](ecs::Transform& transform, ecs::SectorId& sectorId)
+        [this, &renderer, &viewRect](ecs::Transform& transform,
+                                     ecs::SectorId& sectorId)
         {
             glm::vec2 worldPos =
                 world.getWorldPosSectorOffset(sectorId.id,
@@ -416,6 +431,55 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
                                      0);
             }
         });
+
+    // reg.view<ecs::Transform, ecs::SectorId, ecs::Colllider,
+    // ecs::Broadphase>()
+    //     .each(
+    //         [this, &renderer, &viewRect, zoom](ecs::Transform& transform,
+    //                                            ecs::SectorId& sectorId,
+    //                                            ecs::Colllider& collider,
+    //                                            ecs::Broadphase& broadphase)
+    //         {
+    //             glm::vec2 worldPos =
+    //                 world.getWorldPosSectorOffset(sectorId.id,
+    //                                               renderer.getSectorOffsetX(),
+    //                                               renderer.getSectorOffsetY())
+    //                 + transform.pos;
+    //             if (smath::pointInsideRect(worldPos, viewRect))
+    //             {
+    //                 uint8_t size = 1.0;
+    //                 for (const auto& vertex : collider.vertices)
+    //                 {
+    //                     float c = cos(transform.rot);
+    //                     float s = sin(transform.rot);
+    //                     glm::vec2 rotatedVertex =
+    //                         glm::vec2(c * vertex.x - s * vertex.y,
+    //                                   s * vertex.x + c * vertex.y);
+    //                     glm::vec2 vertexWorldPos = worldPos + rotatedVertex;
+    //                     renderer.drawEllipse(
+    //                         vertexWorldPos,
+    //                         glm::vec2(size / zoom, size / zoom),
+    //                         0xffffffff,
+    //                         2.0f / zoom,
+    //                         0.0f,
+    //                         0);
+    //                     size += 1.0;
+    //                 }
+    //                 auto fatAABB = broadphase.fatAABB;
+    //                 renderer.drawRectangle(
+    //                     worldPos,
+    //                     vec2(fatAABB.upper.x - fatAABB.lower.x,
+    //                          fatAABB.upper.y - fatAABB.lower.y),
+    //                     0xffffffff,
+    //                     1.0f / zoom,
+    //                     0.0f,
+    //                     0);
+    //             }
+    //         });
+    if (overlayAabbTreeEnabled)
+    {
+        drawOverlayAABBs(renderer, zoom);
+    }
 }
 
 void Model::drawStrategicMap(gfx::RenderEngine& renderer,
@@ -426,7 +490,8 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
     // todo: Group entities by Pos and only show lists or fleets or groups
     auto& reg = ecs.getRegistry();
     reg.view<ecs::Transform, ecs::SectorId>().each(
-        [this, &renderer, &viewRect, zoom](ecs::Transform& transform, ecs::SectorId& sectorId)
+        [this, &renderer, &viewRect, zoom](ecs::Transform& transform,
+                                           ecs::SectorId& sectorId)
         {
             glm::vec2 worldPos =
                 world.getWorldPosSectorOffset(sectorId.id,
@@ -436,13 +501,17 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
             if (smath::pointInsideRect(worldPos, viewRect))
             {
                 renderer.drawEllipse(worldPos,
-                                     glm::vec2(2.0f/zoom, 2.0f/zoom),
+                                     glm::vec2(2.0f / zoom, 2.0f / zoom),
                                      0xffffffff,
-                                     2.0f/zoom,
+                                     2.0f / zoom,
                                      0.0f,
                                      0);
             }
         });
+    if (overlayAabbTreeEnabled)
+    {
+        drawOverlayAABBs(renderer, zoom);
+    }
 }
 
 void Model::drawThirdPerson(gfx::RenderEngine& renderer,
@@ -452,45 +521,40 @@ void Model::drawThirdPerson(gfx::RenderEngine& renderer,
     world.drawThirdPerson(renderer, viewRect, zoom);
 }
 
+void Model::setOverlayEnabled(const std::string& overlay, bool enabled)
+{
+    if (overlay == "aabb-tree")
+    {
+        overlayAabbTreeEnabled = enabled;
+        if (!overlayAabbTreeEnabled)
+        {
+            aabbs.clear();
+        }
+    }
+}
+
+bool Model::isAabbTreeOverlayEnabled() const
+{
+    return overlayAabbTreeEnabled;
+}
+
 void Model::sendCmdToServer(const std::string& command)
 {
-    prot::writeMessageTcp(
-        sendQueue,
-        nullptr,
-        [this, command](bitsery::Serializer<OutputAdapter>& cmdser)
-        {
-            return prot::writeCommand(
-                cmdser,
-                prot::cmd::CONSOLE_CMD,
-                0,
-                [this, command](bitsery::Serializer<OutputAdapter>& cmdser)
-                {
-                    cmdser.text1b(command, command.size());
-                    return true;
-                });
-        });
+    prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
+    mcomp.startCommand(prot::cmd::CONSOLE_CMD, 0);
+    mcomp.ser->text1b(command, command.size());
+    mcomp.execute(sendQueue);
 }
 
 void Model::checkVersion(const net::ModelClientInfo& clientInfo)
 {
     this->clientInfo = clientInfo;
-    prot::writeMessageTcp(
-        sendQueue,
-        nullptr,
-        [this](bitsery::Serializer<OutputAdapter>& cmdser)
-        {
-            return prot::writeCommand(
-                cmdser,
-                prot::cmd::VERSION_CHECK,
-                0,
-                [this](bitsery::Serializer<OutputAdapter>& cmdser)
-                {
-                    cmdser.value2b(version::MAJOR);
-                    cmdser.value2b(version::MINOR);
-                    cmdser.value2b(version::PATCH);
-                    return true;
-                });
-        });
+    prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
+    mcomp.startCommand(prot::cmd::VERSION_CHECK, 0);
+    mcomp.ser->value2b(version::MAJOR);
+    mcomp.ser->value2b(version::MINOR);
+    mcomp.ser->value2b(version::PATCH);
+    mcomp.execute(sendQueue);
 
     gameState = ClientGameState::VersionCheck;
 }
@@ -498,25 +562,14 @@ void Model::checkVersion(const net::ModelClientInfo& clientInfo)
 void Model::authenticate()
 {
     LG_I("Authenticating with server...");
-    prot::writeMessageTcp(
-        sendQueue,
-        nullptr,
-        [this](bitsery::Serializer<OutputAdapter>& cmdser)
-        {
-            return prot::writeCommand(
-                cmdser,
-                prot::cmd::AUTHENTICATE,
-                0,
-                [this](bitsery::Serializer<OutputAdapter>& cmdser)
-                {
-                    cmdser.value2b(version::MAJOR);
-                    cmdser.value2b(version::MINOR);
-                    cmdser.value2b(version::PATCH);
-                    cmdser.text1b(clientInfo.token, 16);
-                    cmdser.value2b((uint16_t)clientInfo.udpPortCli);
-                    return true;
-                });
-        });
+    prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
+    mcomp.startCommand(prot::cmd::AUTHENTICATE, 0);
+    mcomp.ser->value2b(version::MAJOR);
+    mcomp.ser->value2b(version::MINOR);
+    mcomp.ser->value2b(version::PATCH);
+    mcomp.ser->text1b(clientInfo.token, 16);
+    mcomp.ser->value2b((uint16_t)clientInfo.udpPortCli);
+    mcomp.execute(sendQueue);
     gameState = ClientGameState::Authenticating;
 }
 
@@ -585,8 +638,7 @@ void Model::handleReqAllComponentsResp(
     uint16_t posNextCmdOrEof)
 {
     ecs::EntityId entityId;
-    cmddes.value4b(entityId.index);
-    cmddes.value2b(entityId.generation);
+    cmddes.object(entityId);
     entt::entity entity = ecs.enttFromServerId(entityId);
     while (cmddes.adapter().currentReadPos() < posNextCmdOrEof - 4)
     {
@@ -599,27 +651,20 @@ void Model::handleReqAllComponentsResp(
             auto& reg = ecs.getRegistry();
             it->second.deserializeIntoRegistry(reg, entity, cmddes);
         }
+        else
+        {
+            LG_W("Unknown component hash: {}", compHash);
+            return;
+        }
     }
 }
 
 void Model::reqAllComponents(ecs::EntityId entityId)
 {
-    prot::writeMessageTcp(
-        sendQueue,
-        nullptr,
-        [this, entityId](bitsery::Serializer<OutputAdapter>& cmdser)
-        {
-            return prot::writeCommand(
-                cmdser,
-                prot::cmd::REQ_ALL_COMPONENTS,
-                0,
-                [this, entityId](bitsery::Serializer<OutputAdapter>& cmdser)
-                {
-                    cmdser.value4b(entityId.index);
-                    cmdser.value2b(entityId.generation);
-                    return true;
-                });
-        });
+    prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
+    mcomp.startCommand(prot::cmd::REQ_ALL_COMPONENTS, 0);
+    mcomp.ser->object(entityId);
+    mcomp.execute(sendQueue);
 }
 
 void Model::selectEntitiesInsideRect(const def::SectorCoords& start,
@@ -672,15 +717,52 @@ void Model::selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords)
         mcomp.startCommand(prot::cmd::ENT_CMD_MOVETO_POS, 0);
         mcomp.ser->object(entityId);
         mcomp.ser->object(sectorCoords);
-        /*if (mcomp.ser->adapter().currentWritePos()
+        if (mcomp.ser->adapter().currentWritePos()
             > prot::kMaxSerializedChunkBytes
-                  - (sizeof(ecs::EntityId) + sizeof(def::SectorCoords)))*/
+                  - (sizeof(ecs::EntityId) + sizeof(def::SectorCoords)))
         {
             mcomp.execute(sendQueue);
             mcomp.resetData();
         }
     }
     mcomp.execute(sendQueue);
+}
+
+void Model::handleGetAabbTreeResp(bitsery::Deserializer<InputAdapter>& cmddes,
+                                  uint16_t posNextCmdOrEof)
+{
+    aabbs.clear();
+    cmddes.value4b(aabbSector);
+    cmddes.object(aabbs);
+}
+
+void Model::drawOverlayAABBs(gfx::RenderEngine& renderer, float zoom)
+{
+    auto now = tim::nowU();
+    if (!aabbs.empty())
+    {
+        for (const auto& aabb : aabbs)
+        {
+            glm::vec2 worldPos =
+                world.getWorldPosSectorOffset(aabbSector,
+                                              renderer.getSectorOffsetX(),
+                                              renderer.getSectorOffsetY());
+            vec2 pos = worldPos + (aabb.lower + aabb.upper) / 2.0f;
+            vec2 size = aabb.upper - aabb.lower;
+            renderer.drawRectangle(pos, size, 0x10ffffff, 1.0f / zoom, 0.0f, 0);
+        }
+    }
+
+    auto sendGetAabbTree = [this, &renderer]()
+    {
+        prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
+        mcomp.startCommand(prot::cmd::DBG_GET_AABB_TREE, 0);
+        uint32_t sectorId = world.sectorCoordsToId(renderer.getSectorOffsetX(),
+                                                   renderer.getSectorOffsetY());
+        mcomp.ser->value4b(sectorId);
+        mcomp.execute(sendQueue);
+    };
+    DO_PERIODIC_U_EXTNOW(lastGetAabbTree, 100000, now, sendGetAabbTree);
 }
 
 }  // namespace sphyc

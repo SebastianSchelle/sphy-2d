@@ -1,11 +1,13 @@
 #ifndef COMP_PHY_HPP
 #define COMP_PHY_HPP
 
+#include <aabb-tree.hpp>
+#include <climits>
 #include <entt/entt.hpp>
-#include <std-inc.hpp>
-#include <yaml-cpp/yaml.h>
 #include <magic_enum/magic_enum.hpp>
+#include <std-inc.hpp>
 #include <world-def.hpp>
+#include <yaml-cpp/yaml.h>
 
 namespace ecs
 {
@@ -23,8 +25,8 @@ struct Transform
                          const YAML::Node& node)
     {
         Transform transform;
-        transform.pos = node["pos"].as<vec2>();
-        transform.rot = node["rot"].as<float>();
+        TRY_YAML_DICT(transform.pos, node["pos"], vec2(0.0f, 0.0f));
+        TRY_YAML_DICT(transform.rot, node["rot"], 0.0f);
         registry.emplace<Transform>(entity, transform);
     }
 };
@@ -36,10 +38,92 @@ struct Transform
 EXT_SER(Transform, SER_TRANSFORM)
 EXT_DES(Transform, SER_TRANSFORM)
 
-struct TransformCache {
+struct TransformCache
+{
+    static const uint16_t VERSION = 1;
+    static constexpr string NAME = "transform-cache";
+
     float c;
     float s;
+
+    static void fromYaml(entt::registry& registry,
+                         entt::entity entity,
+                         const YAML::Node& node)
+    {
+        TransformCache transformCache;
+        TRY_YAML_DICT(transformCache.c, node["c"], 0.0f);
+        TRY_YAML_DICT(transformCache.s, node["s"], 0.0f);
+        registry.emplace<TransformCache>(entity, transformCache);
+    }
 };
+
+#define SER_TRANSFORM_CACHE                                                    \
+    S4b(o.c);                                                                  \
+    S4b(o.s);
+EXT_SER(TransformCache, SER_TRANSFORM_CACHE)
+EXT_DES(TransformCache, SER_TRANSFORM_CACHE)
+
+struct Colllider
+{
+    static const uint16_t VERSION = 1;
+    static constexpr string NAME = "collider";
+
+    std::vector<vec2> vertices;
+
+    static void fromYaml(entt::registry& registry,
+                         entt::entity entity,
+                         const YAML::Node& node)
+    {
+        Colllider collider;
+        TRY_YAML_DICT(collider.vertices, node["vertices"], std::vector<vec2>());
+        registry.emplace<Colllider>(entity, collider);
+    }
+};
+
+#define SER_COLLIDER SOBJ(o.vertices);
+EXT_SER(Colllider, SER_COLLIDER)
+EXT_DES(Colllider, SER_COLLIDER)
+
+struct Broadphase
+{
+    static const uint16_t VERSION = 1;
+    static constexpr string NAME = "broadphase";
+
+    int32_t proxyId;
+    con::AABB fatAABB;
+
+    static void fromYaml(entt::registry& registry,
+                         entt::entity entity,
+                         const YAML::Node& node)
+    {
+        Broadphase broadphase;
+        registry.emplace<Broadphase>(entity, broadphase);
+    }
+};
+
+#define SER_BROADPHASE                                                          \
+    S4b(o.proxyId);                                                           \
+    SOBJ(o.fatAABB);
+EXT_SER(Broadphase, SER_BROADPHASE)
+EXT_DES(Broadphase, SER_BROADPHASE)
+
+inline con::AABB calculateAABB(const Transform& transform,
+                               const TransformCache& transformCache,
+                               const Colllider& collider)
+{
+    con::AABB aabb =
+        con::AABB{vec2{1.0e10f, 1.0e10f}, vec2{-1.0e10f, -1.0e10f}};
+    for (const auto& vert : collider.vertices)
+    {
+        float x = transformCache.c * vert.x - transformCache.s * vert.y
+                  + transform.pos.x;
+        float y = transformCache.s * vert.x + transformCache.c * vert.y
+                  + transform.pos.y;
+        aabb.lower = con::minVec(aabb.lower, vec2{x, y});
+        aabb.upper = con::maxVec(aabb.upper, vec2{x, y});
+    }
+    return aabb;
+}
 
 struct TransformNet
 {
@@ -259,7 +343,7 @@ struct MoveCtrl
         TRY_YAML_DICT(c.spRot, node["spRot"], 0.0f);
         TRY_YAML_DICT(dirMode, node["faceDirMode"], "None");
         auto faceDirMode = magic_enum::enum_cast<FaceDirMode>(dirMode);
-        if(faceDirMode.has_value())
+        if (faceDirMode.has_value())
         {
             c.faceDirMode = faceDirMode.value();
         }
@@ -314,5 +398,10 @@ EXT_FMT(ecs::MoveCtrl,
         o.spRot,
         magic_enum::enum_name(o.faceDirMode),
         o.lookAt);
+
+EXT_FMT(ecs::Colllider, "{}", o.vertices);
+EXT_FMT(ecs::Broadphase, "(proxyId: {}, fatAABB: {})", o.proxyId, o.fatAABB);
+EXT_FMT(ecs::TransformCache, "(c: {}, s: {})", o.c, o.s);
+EXT_FMT(con::AABB, "(lower: {}, upper: {})", o.lower, o.upper);
 
 #endif

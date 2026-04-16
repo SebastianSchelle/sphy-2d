@@ -49,6 +49,7 @@ set(CLIENT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../world/sector.cpp
     ${MISC_DIR}/networking/exchange-sequence.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager-client.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/sphy-bindings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/lua-interpreter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/ecs.cpp
@@ -60,13 +61,13 @@ set(LIBS_PUB
     networking
     concurrentqueue
     ${LUA_LIBRARIES}
+    libDaScript
 )
 
 set(BGFX_BUILD ${BGFX_DIR}/build/cmake)
 # bgfx core only — do not link libexample-common (entry framework + _main_ + X11
 # window helpers); this client uses GLFW + bgfx::init() directly (see main-window.cpp).
 set(LIBS_PRIV
-    libDaScript
     "${BGFX_BUILD}/bgfx/libbgfx.a"
     "${BGFX_BUILD}/bgfx/libfcpp.a"
     "${BGFX_BUILD}/bgfx/libglsl-optimizer.a"
@@ -122,6 +123,21 @@ add_custom_target(shaders ALL
 
 add_library(${LIB_NAME} STATIC ${CLIENT_SOURCES})
 add_dependencies(${LIB_NAME} shaders)
+# Match libDaScript (-fno-rtti) for mod sources; mod-manager.hpp no longer pulls
+# RmlUi before daScript subclasses in this TU.
+if(MSVC)
+    set(_das_mod_no_rtti /GR-)
+else()
+    set(_das_mod_no_rtti -fno-rtti)
+endif()
+set_property(
+    SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
+    TARGET ${LIB_NAME}
+    PROPERTY COMPILE_OPTIONS "${_das_mod_no_rtti}")
+set_property(
+    SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/../mod/sphy-bindings.cpp
+    TARGET ${LIB_NAME}
+    PROPERTY COMPILE_OPTIONS "${_das_mod_no_rtti}")
 target_compile_definitions(${LIB_NAME} PRIVATE BX_CONFIG_DEBUG=1 CLIENT GAME_NAME="${GAME_NAME}")
 
 target_include_directories(${LIB_NAME} PUBLIC ${CLIENT_INC_PUBLIC})
