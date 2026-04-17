@@ -68,13 +68,14 @@ void Engine::start()
     cFac->registerComponent<ecs::AssetId>();
     cFac->registerComponent<ecs::PhyThrust>();
     cFac->registerComponent<ecs::MoveCtrl>();
-    cFac->registerComponent<ecs::Colllider>();
+    cFac->registerComponent<ecs::Collider>();
     cFac->registerComponent<ecs::Broadphase>();
     cFac->registerComponent<ecs::TransformCache>();
 
     ecs.registerSystem(ecs::sysMoveCtrl);
     ecs.registerSystem(ecs::sysPhyThrust);
     ecs.registerSystem(ecs::sysPhysics);
+    ecs.registerSystem(ecs::sysCollisionDetection);
 
     registerConsoleCommands();
 
@@ -178,7 +179,7 @@ void Engine::engineLoop()
             parseCommandData(recQueueData);
         }
         lastUpdateTime = nowU;
-        //std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     if (state == EngineState::Running || state == EngineState::Paused)
@@ -196,7 +197,7 @@ void Engine::update(float dt)
         entt::entity entity = globalEntities[i];
         for (auto system : *ptrHandle->systems)
         {
-            system.function(entity, entityId, dt, ptrHandle);
+            //system.function(entity, entityId, dt, ptrHandle);
         }
     }
     world.update(dt, ptrHandle);
@@ -1082,11 +1083,11 @@ void Engine::testSpawn()
                                                   world.getSectorCount() - 1);
 
 
-    for (int i = 0; i < 50000; ++i)
+    for (int i = 0; i < 10000; ++i)
     {
         auto ent = spawnEntityFromAsset(
             //kAssets[assetPick(gen)],
-            kAssets[0],
+            "test4",
             sectorPick(gen),
             ecs::Transform{glm::vec2{posDist(gen), posDist(gen)},
                            rotDist(gen)});
@@ -1103,11 +1104,6 @@ void Engine::testSpawn()
             moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
         }
     }
-
-    // auto ent = spawnEntityFromAsset(
-    //     kAssets[0],
-    //     0,
-    //     ecs::Transform{vec2{0.0f, 0.0f}, 0.0f});
 }
 
 void Engine::handleGetAabbTree(uint32_t sectorId, const std::shared_ptr<net::TcpConnection>& conn)

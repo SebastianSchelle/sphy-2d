@@ -17,12 +17,13 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <algorithm>
 #include <concurrentqueue.h>
 #include <filesystem>
 #include <fstream>
 #include <glm/glm.hpp>
-#include <logging.hpp>
 #include <limits>
+#include <logging.hpp>
 #include <memory.h>
 #include <string>
 #include <variant>
@@ -149,11 +150,11 @@ constexpr uint32_t hashConst(const char* s, size_t i = 0)
 #define TRY_YAML_DICT(value_, node_, default_value_)                           \
     try                                                                        \
     {                                                                          \
-        value_ = (node_).as<decltype(value_)>();                                 \
+        value_ = (node_).as<decltype(value_)>();                               \
     }                                                                          \
     catch (YAML::Exception e)                                                  \
     {                                                                          \
-        value_ = (default_value_);                                               \
+        value_ = (default_value_);                                             \
     }
 
 bool LOAD_OBJ(
@@ -353,7 +354,8 @@ inline bool intersectsRect(const Rect& rect1, const Rect& rect2)
 
 inline bool pointInsideRect(const vec2& point, const Rect& rect)
 {
-    return point.x >= rect.x && point.x <= rect.z && point.y >= rect.y && point.y <= rect.w;
+    return point.x >= rect.x && point.x <= rect.z && point.y >= rect.y
+           && point.y <= rect.w;
 }
 
 }  // namespace smath
@@ -431,6 +433,159 @@ struct formatter<std::vector<T, Allocator>>
     }
 };
 }  // namespace fmt
+
+
+namespace sat2d
+{
+inline void projectOntoAxis(const std::vector<vec2>& poly,
+                            const vec2& axis,
+                            float& outMin,
+                            float& outMax)
+{
+    outMin = outMax = glm::dot(poly[0], axis);
+    for (size_t i = 1; i < poly.size(); ++i)
+    {
+        const float p = glm::dot(poly[i], axis);
+        outMin = std::min(outMin, p);
+        outMax = std::max(outMax, p);
+    }
+}
+
+inline vec2 centroid(const std::vector<vec2>& poly)
+{
+    vec2 sum(0.0f);
+    for (const vec2& v : poly)
+    {
+        sum += v;
+    }
+    return sum / static_cast<float>(poly.size());
+}
+
+inline bool intervalsOverlapOnAxis(const std::vector<vec2>& a,
+                                   const std::vector<vec2>& b,
+                                   const vec2& axis,
+                                   float eps)
+{
+    float amin;
+    float amax;
+    float bmin;
+    float bmax;
+    projectOntoAxis(a, axis, amin, amax);
+    projectOntoAxis(b, axis, bmin, bmax);
+    return !(amax < bmin - eps || bmax < amin - eps);
+}
+
+inline bool testAxesFromPolygon(const std::vector<vec2>& polyA,
+                                const std::vector<vec2>& polyB)
+{
+    constexpr float kEpsLenSq = 1e-12f;
+    constexpr float kEpsSep = 1e-6f;
+
+    const size_t n = polyA.size();
+    for (size_t i = 0; i < n; ++i)
+    {
+        const vec2& v0 = polyA[i];
+        const vec2& v1 = polyA[(i + 1) % n];
+        const vec2 edge = v1 - v0;
+        const vec2 axis(-edge.y, edge.x);
+        if (glm::dot(axis, axis) < kEpsLenSq)
+        {
+            continue;
+        }
+        if (!intervalsOverlapOnAxis(polyA, polyB, axis, kEpsSep))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Separating axis + minimum penetration (MTV length along chosen unit normal).
+// On success, outNormal points from polygon a toward polygon b; outPenetration
+// is positive overlap along that normal (world units if vertices are world).
+inline bool convexConvexMTV(const std::vector<vec2>& a,
+                            const std::vector<vec2>& b,
+                            vec2& outNormalAToB,
+                            float& outPenetration)
+{
+    if (a.size() < 3 || b.size() < 3)
+    {
+        return false;
+    }
+
+    constexpr float kEpsLenSq = 1e-12f;
+    constexpr float kEpsSep = 1e-6f;
+
+    const vec2 cA = centroid(a);
+    const vec2 cB = centroid(b);
+
+    float minOverlap = std::numeric_limits<float>::max();
+    vec2 bestN(1.0f, 0.0f);
+
+    const auto considerAxes = [&](const std::vector<vec2>& polyA,
+                                  const std::vector<vec2>& polyB) -> bool
+    {
+        const size_t n = polyA.size();
+        for (size_t i = 0; i < n; ++i)
+        {
+            const vec2& v0 = polyA[i];
+            const vec2& v1 = polyA[(i + 1) % n];
+            const vec2 edge = v1 - v0;
+            const vec2 axis(-edge.y, edge.x);
+            const float lenSq = glm::dot(axis, axis);
+            if (lenSq < kEpsLenSq)
+            {
+                continue;
+            }
+            const vec2 unitAxis = axis * glm::inversesqrt(lenSq);
+
+            float amin;
+            float amax;
+            float bmin;
+            float bmax;
+            projectOntoAxis(polyA, unitAxis, amin, amax);
+            projectOntoAxis(polyB, unitAxis, bmin, bmax);
+            const float ov = std::min(amax, bmax) - std::max(amin, bmin);
+            if (ov < kEpsSep)
+            {
+                return false;
+            }
+            if (ov < minOverlap)
+            {
+                minOverlap = ov;
+                bestN = unitAxis;
+            }
+        }
+        return true;
+    };
+
+    if (!considerAxes(a, b) || !considerAxes(b, a))
+    {
+        return false;
+    }
+
+    if (minOverlap >= std::numeric_limits<float>::max() * 0.5f)
+    {
+        return false;
+    }
+
+    if (glm::dot(bestN, cB - cA) < 0.0f)
+    {
+        bestN = -bestN;
+    }
+
+    outNormalAToB = bestN;
+    outPenetration = minOverlap;
+    return true;
+}
+
+inline bool convexConvex(const std::vector<vec2>& a, const std::vector<vec2>& b)
+{
+    vec2 n;
+    float pen;
+    return convexConvexMTV(a, b, n, pen);
+}
+}  // namespace sat2d
 
 using smath::Rect;
 

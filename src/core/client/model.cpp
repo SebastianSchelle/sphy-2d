@@ -30,7 +30,7 @@ Model::Model(ui::UserInterface* userInterface,
     cFac->registerComponent<ecs::AssetId>();
     cFac->registerComponent<ecs::PhyThrust>();
     cFac->registerComponent<ecs::MoveCtrl>();
-    cFac->registerComponent<ecs::Colllider>();
+    cFac->registerComponent<ecs::Collider>();
     cFac->registerComponent<ecs::Broadphase>();
     cFac->registerComponent<ecs::TransformCache>();
 
@@ -423,7 +423,7 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
                 + transform.pos;
             if (smath::pointInsideRect(worldPos, viewRect))
             {
-                renderer.drawEllipse(worldPos,
+                renderer.drawRectangle(worldPos,
                                      glm::vec2(10.0f, 5.0f),
                                      0xffffffff,
                                      2.0f,
@@ -500,7 +500,7 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
                 + transform.pos;
             if (smath::pointInsideRect(worldPos, viewRect))
             {
-                renderer.drawEllipse(worldPos,
+                renderer.drawRectangle(worldPos,
                                      glm::vec2(2.0f / zoom, 2.0f / zoom),
                                      0xffffffff,
                                      2.0f / zoom,

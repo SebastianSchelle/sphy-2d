@@ -2,7 +2,9 @@
 #define COMP_PHY_HPP
 
 #include <aabb-tree.hpp>
+#include <algorithm>
 #include <climits>
+#include <optional>
 #include <entt/entt.hpp>
 #include <magic_enum/magic_enum.hpp>
 #include <std-inc.hpp>
@@ -63,26 +65,112 @@ struct TransformCache
 EXT_SER(TransformCache, SER_TRANSFORM_CACHE)
 EXT_DES(TransformCache, SER_TRANSFORM_CACHE)
 
-struct Colllider
+// Uses vec2 (glm) for components; same role as a hypothetical Vec2 type.
+struct Contact
+{
+    vec2 normal{};       // unit, direction from collider A → collider B
+    float penetration{}; // positive overlap along normal (same units as verts)
+    vec2 point{};        // approximate contact (centroid midpoint); refine later
+};
+
+struct ContactInfo
+{
+    Contact contact;
+    entt::entity ent1;
+    entt::entity ent2;
+    float restitution;
+};
+
+struct Collider
 {
     static const uint16_t VERSION = 1;
     static constexpr string NAME = "collider";
 
     std::vector<vec2> vertices;
+    float restitution = 0.5f;
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
                          const YAML::Node& node)
     {
-        Colllider collider;
+        Collider collider;
         TRY_YAML_DICT(collider.vertices, node["vertices"], std::vector<vec2>());
-        registry.emplace<Colllider>(entity, collider);
+        TRY_YAML_DICT(collider.restitution, node["restitution"], 0.5f);
+        registry.emplace<Collider>(entity, collider);
+    }
+
+    bool isColliding(const Collider& other) const
+    {
+        return tryContact(other).has_value();
+    }
+
+    // Both colliders' vertices in the same coordinate space (e.g. both local).
+    std::optional<Contact> tryContact(const Collider& other) const
+    {
+        vec2 n;
+        float pen;
+        if (!sat2d::convexConvexMTV(vertices, other.vertices, n, pen))
+        {
+            return std::nullopt;
+        }
+        Contact c;
+        c.normal = n;
+        c.penetration = pen;
+        c.point =
+            0.5f * (sat2d::centroid(vertices) + sat2d::centroid(other.vertices));
+        return c;
     }
 };
 
+// World-space SAT + contact: same rotation/translation as calculateAABB.
+inline std::optional<Contact> collideCollidersWorld(const Collider& c1,
+                                                    const Transform& t1,
+                                                    const TransformCache& tc1,
+                                                    const Collider& c2,
+                                                    const Transform& t2,
+                                                    const TransformCache& tc2)
+{
+    const size_t n1 = c1.vertices.size();
+    const size_t n2 = c2.vertices.size();
+    if (n1 < 3 || n2 < 3)
+    {
+        return std::nullopt;
+    }
+
+    thread_local std::vector<vec2> w1;
+    thread_local std::vector<vec2> w2;
+    w1.resize(n1);
+    w2.resize(n2);
+
+    for (size_t i = 0; i < n1; ++i)
+    {
+        const vec2& v = c1.vertices[i];
+        w1[i].x = tc1.c * v.x - tc1.s * v.y + t1.pos.x;
+        w1[i].y = tc1.s * v.x + tc1.c * v.y + t1.pos.y;
+    }
+    for (size_t i = 0; i < n2; ++i)
+    {
+        const vec2& v = c2.vertices[i];
+        w2[i].x = tc2.c * v.x - tc2.s * v.y + t2.pos.x;
+        w2[i].y = tc2.s * v.x + tc2.c * v.y + t2.pos.y;
+    }
+
+    vec2 n;
+    float pen;
+    if (!sat2d::convexConvexMTV(w1, w2, n, pen))
+    {
+        return std::nullopt;
+    }
+    Contact c;
+    c.normal = n;
+    c.penetration = pen;
+    c.point = 0.5f * (sat2d::centroid(w1) + sat2d::centroid(w2));
+    return c;
+}
+
 #define SER_COLLIDER SOBJ(o.vertices);
-EXT_SER(Colllider, SER_COLLIDER)
-EXT_DES(Colllider, SER_COLLIDER)
+EXT_SER(Collider, SER_COLLIDER)
+EXT_DES(Collider, SER_COLLIDER)
 
 struct Broadphase
 {
@@ -101,15 +189,15 @@ struct Broadphase
     }
 };
 
-#define SER_BROADPHASE                                                          \
-    S4b(o.proxyId);                                                           \
+#define SER_BROADPHASE                                                         \
+    S4b(o.proxyId);                                                            \
     SOBJ(o.fatAABB);
 EXT_SER(Broadphase, SER_BROADPHASE)
 EXT_DES(Broadphase, SER_BROADPHASE)
 
 inline con::AABB calculateAABB(const Transform& transform,
                                const TransformCache& transformCache,
-                               const Colllider& collider)
+                               const Collider& collider)
 {
     con::AABB aabb =
         con::AABB{vec2{1.0e10f, 1.0e10f}, vec2{-1.0e10f, -1.0e10f}};
@@ -399,7 +487,7 @@ EXT_FMT(ecs::MoveCtrl,
         magic_enum::enum_name(o.faceDirMode),
         o.lookAt);
 
-EXT_FMT(ecs::Colllider, "{}", o.vertices);
+EXT_FMT(ecs::Collider, "{}", o.vertices);
 EXT_FMT(ecs::Broadphase, "(proxyId: {}, fatAABB: {})", o.proxyId, o.fatAABB);
 EXT_FMT(ecs::TransformCache, "(c: {}, s: {})", o.c, o.s);
 EXT_FMT(con::AABB, "(lower: {}, upper: {})", o.lower, o.upper);

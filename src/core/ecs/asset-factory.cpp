@@ -79,6 +79,10 @@ void AssetFactory::copyComponentsIntoEntity(entt::registry& registry,
     }
     for (const auto& [hash, helper] : componentFactory.getComponentHelpers())
     {
+        if (helper.name == "asset-id")
+        {
+            continue;
+        }
         helper.assetCopier(const_cast<entt::registry&>(this->registry),
                            srcEntity,
                            registry,

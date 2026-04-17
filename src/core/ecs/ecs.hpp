@@ -7,17 +7,35 @@
 #include <std-inc.hpp>
 #include <comp-ident.hpp>
 
+namespace world
+{
+  class Sector;
+}
+
 namespace ecs
 {
 
 typedef std::function<
-    void(entt::entity, const ecs::EntityId&, float, std::shared_ptr<PtrHandle>)>
-    SystemFunction;
+    void(world::Sector*, entt::entity, const ecs::EntityId&, float, std::shared_ptr<PtrHandle>)>
+    SFSectorForeach;
+typedef std::function<
+    void(world::Sector*, float, std::shared_ptr<PtrHandle>)>
+    SFSectorOnce;
+
+enum class SystemType : uint8_t
+{
+    SectorForeachEntitiy,
+    SectorOnce,
+};
+
+using SystemFunction = std::variant<SFSectorForeach, SFSectorOnce>;
 
 struct System
 {
     std::string name;
+    SystemType type;
     SystemFunction function;
+    bool afterEntityUpdate = false;
     bool operator==(const System& other) const
     {
         return name == other.name;

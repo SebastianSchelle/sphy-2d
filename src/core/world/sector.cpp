@@ -1,8 +1,10 @@
 #include "entt/entity/fwd.hpp"
 #include <comp-ident.hpp>
+#include <comp-phy.hpp>
 #include <ptr-handle.hpp>
 #include <sector.hpp>
-#include <comp-phy.hpp>
+#include <type_traits>
+#include <variant>
 
 namespace world
 {
@@ -43,11 +45,59 @@ bool Sector::saveSector(const std::string& savedir)
 
 void Sector::update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle)
 {
-    for (int i = 0; i < entityIds.size(); i++)
+    broadphaseQueryEntities.clear();
+
+    for (const auto& system : *ptrHandle->systems)
     {
-        for (auto system : *ptrHandle->systems)
+        if (system.type == ecs::SystemType::SectorOnce && !system.afterEntityUpdate)
         {
-            system.function(entities[i], entityIds[i], dt, ptrHandle);
+            std::visit(
+                [&](auto&& fn)
+                {
+                    using Fn = std::decay_t<decltype(fn)>;
+                    if constexpr (std::is_same_v<Fn, ecs::SFSectorOnce>)
+                    {
+                        fn(this, dt, ptrHandle);
+                    }
+                },
+                system.function);
+        }
+    }
+
+    for (size_t i = 0; i < entityIds.size(); i++)
+    {
+        for (const auto& system : *ptrHandle->systems)
+        {
+            if (system.type == ecs::SystemType::SectorForeachEntitiy)
+            {
+                std::visit(
+                    [&](auto&& fn)
+                    {
+                        using Fn = std::decay_t<decltype(fn)>;
+                        if constexpr (std::is_same_v<Fn, ecs::SFSectorForeach>)
+                        {
+                            fn(this, entities[i], entityIds[i], dt, ptrHandle);
+                        }
+                    },
+                    system.function);
+            }
+        }
+    }
+
+    for(const auto& system : *ptrHandle->systems)
+    {
+        if (system.type == ecs::SystemType::SectorOnce && system.afterEntityUpdate)
+        {
+            std::visit(
+                [&](auto&& fn)
+                {
+                    using Fn = std::decay_t<decltype(fn)>;
+                    if constexpr (std::is_same_v<Fn, ecs::SFSectorOnce>)
+                    {
+                        fn(this, dt, ptrHandle);
+                    }
+                },
+                system.function);
         }
     }
 }
@@ -70,21 +120,22 @@ bool Sector::addEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
     entt::entity entity = ptrHandle->ecs->getEntity(entityId);
     entityIds.push_back(entityId);
     entities.push_back(entity);
-    auto &sector = reg->get<ecs::SectorId>(entity);
+    auto& sector = reg->get<ecs::SectorId>(entity);
     sector.id = id;
     sector.x = (uint32_t)coordX;
     sector.y = (uint32_t)coordY;
     // add AABB calculation from polygon
-    auto &transform = reg->get<ecs::Transform>(entity);
-    auto *transformCache = reg->try_get<ecs::TransformCache>(entity);
-    auto *collider = reg->try_get<ecs::Colllider>(entity);
-    auto *broadphase = reg->try_get<ecs::Broadphase>(entity);
+    auto& transform = reg->get<ecs::Transform>(entity);
+    auto* transformCache = reg->try_get<ecs::TransformCache>(entity);
+    auto* collider = reg->try_get<ecs::Collider>(entity);
+    auto* broadphase = reg->try_get<ecs::Broadphase>(entity);
     if (transformCache && collider && broadphase)
     {
         transformCache->c = cosf(transform.rot);
         transformCache->s = sinf(transform.rot);
-        con::AABB aabb = ecs::calculateAABB(transform, *transformCache, *collider);
-        broadphase->proxyId = aabbTree.createProxy(aabb, entityId);
+        con::AABB aabb =
+            ecs::calculateAABB(transform, *transformCache, *collider);
+        broadphase->proxyId = aabbTree.createProxy(aabb, entity);
         broadphase->fatAABB = aabb;
     }
     return true;
@@ -108,12 +159,12 @@ bool Sector::removeEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
     entityIds.erase(it);
     entities.erase(std::find(
         entities.begin(), entities.end(), ptrHandle->ecs->getEntity(entityId)));
-    auto &sector = reg->get<ecs::SectorId>(ptrHandle->ecs->getEntity(entityId));
+    auto& sector = reg->get<ecs::SectorId>(ptrHandle->ecs->getEntity(entityId));
     sector.id = INVALID_SECTOR_ID;
     sector.x = 0;
     sector.y = 0;
-    auto broadphase = reg->try_get<ecs::Broadphase>(
-        ptrHandle->ecs->getEntity(entityId));
+    auto broadphase =
+        reg->try_get<ecs::Broadphase>(ptrHandle->ecs->getEntity(entityId));
     if (broadphase)
     {
         aabbTree.destroyProxy(broadphase->proxyId);
@@ -136,6 +187,11 @@ void Sector::moveAabbProxy(int32_t proxyId, con::AABB& newAabb)
 void Sector::getAllAABBs(std::vector<con::AABB>& aabbs) const
 {
     aabbTree.getAllAABBs(aabbs);
+}
+
+void Sector::queryBroadphase(const con::AABB& aabb, std::function<void(entt::entity)> callback)
+{
+    aabbTree.query(aabb, callback);
 }
 
 #ifdef CLIENT

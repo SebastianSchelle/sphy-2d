@@ -29,7 +29,8 @@ class Sector
                       ecs::EntityId entityId);
     void moveAabbProxy(int32_t proxyId, con::AABB& newAabb);
     void getAllAABBs(std::vector<con::AABB>& aabbs) const;
-
+    void queryBroadphase(const con::AABB& aabb,
+                         std::function<void(entt::entity)> callback);
     vec2 getWorldPosSectorOffset(int32_t sectorOffsetX,
                                  int32_t sectorOffsetY) const;
     const float getWorldPosX() const
@@ -56,12 +57,26 @@ class Sector
     {
         return entityIds;
     }
+    inline void addBroadphaseQueryEntity(entt::entity entity)
+    {
+        broadphaseQueryEntities.push_back(entity);
+    }
 #ifdef CLIENT
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
-    void drawTacticalMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
-    void drawStrategicMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
-    void drawThirdPerson(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
+    void drawTacticalMap(gfx::RenderEngine& renderer,
+                         const glm::vec4& viewRect,
+                         float zoom);
+    void drawStrategicMap(gfx::RenderEngine& renderer,
+                          const glm::vec4& viewRect,
+                          float zoom);
+    void drawThirdPerson(gfx::RenderEngine& renderer,
+                         const glm::vec4& viewRect,
+                         float zoom);
 #endif
+
+    std::vector<std::pair<entt::entity, entt::entity>> broadphaseCollisions;
+    std::vector<entt::entity> broadphaseQueryEntities;
+    vector<ecs::ContactInfo> contactInfos;
 
   private:
     int32_t coordX;        // Sector coord X
@@ -75,7 +90,7 @@ class Sector
 
     vector<ecs::EntityId> entityIds;
     vector<entt::entity> entities;
-    con::DynamicAABBTree<ecs::EntityId> aabbTree;
+    con::DynamicAABBTree<entt::entity> aabbTree;
 };
 
 }  // namespace world
