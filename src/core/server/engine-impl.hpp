@@ -20,8 +20,7 @@ template <typename Component> void Engine::registerSlowDumpComponent()
 
     slowDumpComponents.push_back(SlowDumpEntry(
         name,
-        [this, name](const net::ClientInfo* clientInfo,
-                     std::shared_ptr<ecs::PtrHandle> ptrHandle)
+        [this, name](const net::ClientInfo* clientInfo, ecs::PtrHandle* ptrHandle)
         {
             prot::MsgComposer mcomp(net::SendType::UDP,
                                     clientInfo->udpEndpoint);

@@ -16,11 +16,9 @@ namespace ecs
 {
 
 typedef std::function<
-    void(world::Sector*, entt::entity, const ecs::EntityId&, float, std::shared_ptr<PtrHandle>)>
+    void(world::Sector*, entt::entity, const ecs::EntityId&, float, PtrHandle*)>
     SFSectorForeach;
-typedef std::function<
-    void(world::Sector*, float, std::shared_ptr<PtrHandle>)>
-    SFSectorOnce;
+typedef std::function<void(world::Sector*, float, PtrHandle*)> SFSectorOnce;
 
 enum class SystemType : uint8_t
 {

@@ -33,6 +33,7 @@ set(SERVER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/lua-interpreter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/ecs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/asset-factory.cpp
+    ${MISC_DIR}/work-distributor.cpp
     ${MISC_DIR}/helper/sphy-2d.cpp
 )
 

@@ -1,11 +1,9 @@
 #include "work-distributor.hpp"
 
-namespace misc
+namespace sthread
 {
 
-WorkDistributor::WorkDistributor(int numThreads)
-{
-}
+WorkDistributor::WorkDistributor() {};
 
 WorkDistributor::~WorkDistributor()
 {
@@ -74,19 +72,26 @@ void WorkDistributor::run(int threadId)
         WorkFunction work;
         if (workQueues[threadId].try_dequeue(work))
         {
-            pendingTasks.fetch_sub(1, std::memory_order_acq_rel);
             work();
+            const size_t before =
+                pendingTasks.fetch_sub(1, std::memory_order_acq_rel);
+            if (before == 1)
+            {
+                std::lock_guard<std::mutex> g(stateMutex);
+                stateCv.notify_all();
+            }
             continue;
         }
 
         std::unique_lock<std::mutex> lock(stateMutex);
-        stateCv.wait(lock,
-                     [this]()
-                     {
-                         return stopRequested
-                                || (awake
-                                    && pendingTasks.load(std::memory_order_acquire) > 0);
-                     });
+        stateCv.wait(
+            lock,
+            [this]()
+            {
+                return stopRequested
+                       || (awake
+                           && pendingTasks.load(std::memory_order_acquire) > 0);
+            });
         if (stopRequested)
         {
             return;
@@ -94,4 +99,17 @@ void WorkDistributor::run(int threadId)
     }
 }
 
-}  // namespace misc
+void WorkDistributor::waitForEmptyQueues()
+{
+    std::unique_lock<std::mutex> lock(stateMutex);
+    stateCv.wait(lock,
+                 [this]()
+                 { return pendingTasks.load(std::memory_order_acquire) == 0; });
+}
+
+size_t WorkDistributor::getThreadCount() const
+{
+    return threads.size();
+}
+
+}  // namespace sthread

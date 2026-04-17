@@ -15,6 +15,11 @@ class Client;
 }
 #endif
 
+namespace sthread
+{
+class WorkDistributor;
+}
+
 namespace world
 {
 class World;
@@ -42,6 +47,7 @@ struct PtrHandle
 #endif
     const vector<System>* systems;
     ecs::Ecs* ecs;
+    sthread::WorkDistributor* workDistributor;
 };
 
 }  // namespace ecs

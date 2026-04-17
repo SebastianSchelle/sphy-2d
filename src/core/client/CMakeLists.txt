@@ -47,13 +47,14 @@ set(CLIENT_SOURCES
     ui/user-interface.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../world/world.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../world/sector.cpp
-    ${MISC_DIR}/networking/exchange-sequence.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager-client.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/sphy-bindings.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/lua-interpreter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/ecs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/asset-factory.cpp
+    ${MISC_DIR}/networking/exchange-sequence.cpp
+    ${MISC_DIR}/work-distributor.cpp
 )
 
 set(LIBS_PUB

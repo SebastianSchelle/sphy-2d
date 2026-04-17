@@ -72,10 +72,10 @@ void Server::startServer()
     startEngine();
 
     // Wait until engine has stopped (e.g. signal handler called engine.stop())
-    while (!engine.stopped())
+    /*while (!engine.stopped())
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    }
+    }*/
 
     ioContext.stop();
     if (ioThread.joinable())

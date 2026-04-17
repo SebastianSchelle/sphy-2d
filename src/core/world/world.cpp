@@ -162,29 +162,35 @@ bool World::saveWorld(const std::string& savedir)
     return true;
 }
 
-void World::update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle)
+void World::update(float dt, ecs::PtrHandle* ptrHandle)
 {
     // todo: add multithreading
     /*
         thoughts:
             - perf result for phyThrust shows the following:
-                    43.01 │       movss   0x18(%rdx),%xmm1                                                                                                                                                                              ▒
-                    25.14 │       movss   0x10(%rdx),%xmm0
-              looks like high memory access latency?
+                    43.01 │       movss   0x18(%rdx),%xmm1 ▒ 25.14 │       movss
+       0x10(%rdx),%xmm0 looks like high memory access latency?
             - assign sectors to the same thread each time to reduce cache misses
-            - Use worker pool and assign sector to same thread if thread is not overloaded
-            - store some lastThreadId for each sector and assign to same thread if possible
+            - Use worker pool and assign sector to same thread if thread is not
+       overloaded
+            - store some lastThreadId for each sector and assign to same thread
+       if possible
             - per-sector SoA vel/acc/mass/... (might be overkill)
             - Put physics/collission completely out of entt and into sector?
             -
     */
-    for (int i = 0; i < worldShape.numSectorX; i++)
+    for (uint32_t sectorId = 0; sectorId < sectors.getSize(); sectorId++)
     {
-        for (int j = 0; j < worldShape.numSectorY; j++)
-        {
-            sectors.at(i, j)->update(dt, ptrHandle);
-        }
+        ptrHandle->workDistributor->addWork(
+            [this, sectorId, dt, ph = ptrHandle]()
+            {
+                sectors.at(sectorId)->update(dt, ph);
+            },
+            sectorId % ptrHandle->workDistributor->getThreadCount());
     }
+    ptrHandle->workDistributor->awaken();
+    ptrHandle->workDistributor->waitForEmptyQueues();
+    ptrHandle->workDistributor->suspend();
     handleSectorMoveRequests();
 }
 
@@ -284,13 +290,12 @@ Sector* World::getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir)
     return sectors.at(newPos.x, newPos.y);
 }
 
-bool World::moveEntityTo(std::shared_ptr<ecs::PtrHandle> ptrHandle,
+bool World::moveEntityTo(ecs::PtrHandle* ptrHandle,
                          ecs::EntityId entityId,
                          uint32_t sectorId,
                          glm::vec2 position,
                          float rotation)
 {
-
     auto reg = ptrHandle->registry;
     entt::entity entity = ptrHandle->ecs->getEntity(entityId);
 
@@ -302,7 +307,7 @@ bool World::moveEntityTo(std::shared_ptr<ecs::PtrHandle> ptrHandle,
     return true;
 }
 
-bool World::switchSector(std::shared_ptr<ecs::PtrHandle> ptrHandle,
+bool World::switchSector(ecs::PtrHandle* ptrHandle,
                          ecs::EntityId entityId,
                          uint32_t newSectorId)
 {
@@ -373,7 +378,7 @@ void World::checkSectorSwitchAfterMove(
     entt::entity entity,
     ecs::SectorId* sectorId,
     ecs::Transform* transform,
-    std::shared_ptr<ecs::PtrHandle> ptrHandle)
+    ecs::PtrHandle* ptrHandle)
 {
     vec2& pos = transform->pos;
     def::Direction dir = def::Direction::NONE;
@@ -555,7 +560,7 @@ void World::checkSectorSwitchAfterMove(
     }
 }
 
-void World::addSectorMoveRequest(std::shared_ptr<ecs::PtrHandle> ptrHandle,
+void World::addSectorMoveRequest(ecs::PtrHandle* ptrHandle,
                                  ecs::EntityId entityId,
                                  uint32_t newSectorId)
 {
@@ -589,14 +594,11 @@ bool World::sectorIntersectsRect(int32_t sectorX,
                                  int32_t sectorY,
                                  const glm::vec4& rect) const
 {
-    Rect sectorRect = Rect((float)sectorX * worldShape.sectorSize
-                               - halfSectorSize,
-                           (float)sectorY * worldShape.sectorSize
-                               - halfSectorSize,
-                           (float)sectorX * worldShape.sectorSize
-                               + halfSectorSize,
-                           (float)sectorY * worldShape.sectorSize
-                               + halfSectorSize);
+    Rect sectorRect =
+        Rect((float)sectorX * worldShape.sectorSize - halfSectorSize,
+             (float)sectorY * worldShape.sectorSize - halfSectorSize,
+             (float)sectorX * worldShape.sectorSize + halfSectorSize,
+             (float)sectorY * worldShape.sectorSize + halfSectorSize);
     return smath::intersectsRect(sectorRect, rect);
 }
 

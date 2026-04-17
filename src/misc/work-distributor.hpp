@@ -11,7 +11,7 @@
 
 using moodycamel::ConcurrentQueue;
 
-namespace misc
+namespace sthread
 {
 
 typedef std::function<void()> WorkFunction;
@@ -25,6 +25,8 @@ class WorkDistributor
     void awaken();
     void suspend();
     void addWork(WorkFunction work, int preferredThreadId = -1);
+    void waitForEmptyQueues();
+    size_t getThreadCount() const;
   private:
     void run(int threadId);
 
@@ -37,6 +39,7 @@ class WorkDistributor
     size_t nextQueueIdx = 0;
     std::atomic<size_t> pendingTasks{0};
 };
-}  // namespace misc
+
+}  // namespace sthread
 
 #endif

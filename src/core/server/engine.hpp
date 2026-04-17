@@ -30,7 +30,7 @@ namespace sphys
 {
 
 typedef std::function<void(const net::ClientInfo* clientInfo,
-                           std::shared_ptr<ecs::PtrHandle> ptrHandle)>
+                           ecs::PtrHandle* ptrHandle)>
     SlowDumpFunction;
 struct SlowDumpEntry
 {
@@ -114,7 +114,7 @@ class Engine
     std::vector<net::ClientInfoHandle> activeClientHandles;
     mod::ModManager modManager;
     mod::LuaInterpreter luaInterpreter;
-    misc::WorkDistributor workDistributor;
+    sthread::WorkDistributor workDistributor;
 
     EngineState state;
     world::World world;

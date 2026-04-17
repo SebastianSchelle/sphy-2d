@@ -11,6 +11,7 @@
 #include <server.hpp>
 #include <sys-phy.hpp>
 #include <version.hpp>
+#include <work-distributor.hpp>
 
 namespace sphys
 {
@@ -27,6 +28,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->engine = this;
     ptrHandle->systems = &ecs.getRegisteredSystems();
     ptrHandle->registry = &ecs.getRegistry();
+    ptrHandle->workDistributor = &workDistributor;
     ptrHandle->kpThrust =
         CFG_FLOAT(config, 25.0f, "engine", "physics", "kp-thrust");
     ptrHandle->kpTurn =
@@ -54,10 +56,10 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
 Engine::~Engine()
 {
     stopRequested = true;
-    if (engineThread.joinable())
+    /*if (engineThread.joinable())
     {
         engineThread.join();
-    }
+    }*/
 }
 
 void Engine::start()
@@ -83,16 +85,17 @@ void Engine::start()
 
     registerClient(
         "1234abcd1234abcd", "Test Client", net::ClientFlags{.enConsole = 1});
-    engineThread = std::thread([this]() { engineLoop(); });
+    //engineThread = std::thread([this]() { engineLoop(); });
+    engineLoop();
 }
 
 void Engine::stop()
 {
     stopRequested = true;
-    if (engineThread.joinable())
+    /*if (engineThread.joinable())
     {
         engineThread.join();
-    }
+    }*/
 }
 
 void Engine::engineLoop()
@@ -179,7 +182,7 @@ void Engine::engineLoop()
             parseCommandData(recQueueData);
         }
         lastUpdateTime = nowU;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        //std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     if (state == EngineState::Running || state == EngineState::Paused)
@@ -200,7 +203,7 @@ void Engine::update(float dt)
             //system.function(entity, entityId, dt, ptrHandle);
         }
     }
-    world.update(dt, ptrHandle);
+    world.update(dt, ptrHandle.get());
     rerunDebugMovePhy();
 }
 
@@ -697,7 +700,7 @@ ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId,
     ecs::Broadphase& br = reg.get_or_emplace<ecs::Broadphase>(entity);
     ecs::TransformCache& trC = reg.get_or_emplace<ecs::TransformCache>(entity);
     ecs::SectorId& sec = reg.get_or_emplace<ecs::SectorId>(entity);
-    world.moveEntityTo(ptrHandle, ent, sectorId, transform.pos, transform.rot);
+    world.moveEntityTo(ptrHandle.get(), ent, sectorId, transform.pos, transform.rot);
     return ent;
 }
 
@@ -1016,7 +1019,7 @@ void Engine::runSlowClientDump(long frameTime)
                              {
                                  for (auto& component : slowDumpComponents)
                                  {
-                                     component.function(clientInfo, ptrHandle);
+                                     component.function(clientInfo, ptrHandle.get());
                                  }
                              });
     }
@@ -1083,7 +1086,7 @@ void Engine::testSpawn()
                                                   world.getSectorCount() - 1);
 
 
-    for (int i = 0; i < 10000; ++i)
+    for (int i = 0; i < 50000; ++i)
     {
         auto ent = spawnEntityFromAsset(
             //kAssets[assetPick(gen)],

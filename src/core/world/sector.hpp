@@ -22,10 +22,9 @@ class Sector
     void
     init(int x, int y, float sectorSize, uint32_t id, Sector* neighbors[8]);
     bool saveSector(const std::string& savedir);
-    void update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle);
-    bool addEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
-                   ecs::EntityId entityId);
-    bool removeEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
+    void update(float dt, ecs::PtrHandle* ptrHandle);
+    bool addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
+    bool removeEntity(ecs::PtrHandle* ptrHandle,
                       ecs::EntityId entityId);
     void moveAabbProxy(int32_t proxyId, con::AABB& newAabb);
     void getAllAABBs(std::vector<con::AABB>& aabbs) const;

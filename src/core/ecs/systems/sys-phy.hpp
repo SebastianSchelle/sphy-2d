@@ -36,7 +36,7 @@ const System sysMoveCtrl = {
            entt::entity entity,
            const ecs::EntityId& entityId,
            float dt,
-           std::shared_ptr<PtrHandle> ptrHandle)
+           PtrHandle* ptrHandle)
         {
             auto reg = ptrHandle->registry;
             auto* sectorId = reg->try_get<ecs::SectorId>(entity);
@@ -145,7 +145,7 @@ const System sysPhyThrust = {
            entt::entity entity,
            const ecs::EntityId& entityId,
            float dt,
-           std::shared_ptr<PtrHandle> ptrHandle)
+           PtrHandle* ptrHandle)
         {
             auto reg = ptrHandle->registry;
             auto* physicsBody = reg->try_get<PhysicsBody>(entity);
@@ -195,7 +195,7 @@ const System sysPhysics = {
            entt::entity entity,
            const ecs::EntityId& entityId,
            float dt,
-           std::shared_ptr<PtrHandle> ptrHandle)
+           PtrHandle* ptrHandle)
         {
             auto reg = ptrHandle->registry;
             auto* sectorId = reg->try_get<ecs::SectorId>(entity);
@@ -276,7 +276,7 @@ const System sysCollisionDetection = {
         SFSectorOnce{
             [](world::Sector* sector,
                float dt,
-               std::shared_ptr<PtrHandle> ptrHandle)
+               PtrHandle* ptrHandle)
             {
                 // Query broadphase collisions from aabb tree
                 auto* reg = ptrHandle->registry;

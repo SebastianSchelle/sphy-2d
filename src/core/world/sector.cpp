@@ -43,7 +43,7 @@ bool Sector::saveSector(const std::string& savedir)
     return true;
 }
 
-void Sector::update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle)
+void Sector::update(float dt, ecs::PtrHandle* ptrHandle)
 {
     broadphaseQueryEntities.clear();
 
@@ -102,7 +102,7 @@ void Sector::update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle)
     }
 }
 
-bool Sector::addEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
+bool Sector::addEntity(ecs::PtrHandle* ptrHandle,
                        ecs::EntityId entityId)
 {
     if (!ptrHandle->ecs->validId(entityId))
@@ -141,7 +141,7 @@ bool Sector::addEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
     return true;
 }
 
-bool Sector::removeEntity(std::shared_ptr<ecs::PtrHandle> ptrHandle,
+bool Sector::removeEntity(ecs::PtrHandle* ptrHandle,
                           ecs::EntityId entityId)
 {
     if (!ptrHandle->ecs->validId(entityId))

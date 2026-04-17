@@ -18,9 +18,9 @@ namespace world
 
 struct SectorMoveRequest
 {
-  std::shared_ptr<ecs::PtrHandle> ptrHandle;
-  ecs::EntityId entityId;
-  uint32_t newSectorId;
+    ecs::PtrHandle* ptrHandle;
+    ecs::EntityId entityId;
+    uint32_t newSectorId;
 };
 
 class World
@@ -35,7 +35,7 @@ class World
     bool getNeighboringSectorId(uint32_t sectorX, uint32_t sectorY, def::Direction dir, def::SectorPos& newPos);
     Sector* getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir);
     bool saveWorld(const std::string& savedir);
-    void update(float dt, std::shared_ptr<ecs::PtrHandle> ptrHandle);
+    void update(float dt, ecs::PtrHandle* ptrHandle);
     const def::WorldShape& getWorldShape() const
     {
       return worldShape;
@@ -46,12 +46,12 @@ class World
     void drawStrategicMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
     void drawThirdPerson(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
 #endif
-    bool moveEntityTo(std::shared_ptr<ecs::PtrHandle> ptrHandle,
+    bool moveEntityTo(ecs::PtrHandle* ptrHandle,
                       ecs::EntityId entityId,
                       uint32_t sectorId,
                       glm::vec2 position,
                       float rotation);
-    bool switchSector(std::shared_ptr<ecs::PtrHandle> ptrHandle,
+    bool switchSector(ecs::PtrHandle* ptrHandle,
                       ecs::EntityId entityId,
                       uint32_t newSectorId);
     Sector* getSector(uint32_t sectorId);
@@ -72,8 +72,8 @@ class World
                                     entt::entity entity,
                                     ecs::SectorId* sectorId,
                                     ecs::Transform* transform,
-                                    std::shared_ptr<ecs::PtrHandle> ptrHandle);
-    void addSectorMoveRequest(std::shared_ptr<ecs::PtrHandle> ptrHandle,
+                                    ecs::PtrHandle* ptrHandle);
+    void addSectorMoveRequest(ecs::PtrHandle* ptrHandle,
                               ecs::EntityId entityId,
                               uint32_t newSectorId);
     bool sectorIntersectsRect(uint32_t sectorId, const glm::vec4& rect) const;
