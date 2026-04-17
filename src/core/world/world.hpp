@@ -8,6 +8,7 @@
 #include <std-inc.hpp>
 #include <components/comp-ident.hpp>
 #include <world-def.hpp>
+#include <work-distributor.hpp>
 #ifdef CLIENT
 #include <render-engine.hpp>
 #endif

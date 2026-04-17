@@ -41,6 +41,10 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
         CFG_FLOAT(config, 1.0f, "engine", "physics", "min-face-target-dist");
     slowDumpUs = 1000 * CFG_UINT(config, 1000.0f, "engine", "slow-dump-ms");
 
+    int updThreads = CFG_UINT(config, 2.0f, "engine", "upd-threads");
+    updThreads = std::clamp(updThreads, 1, 16);
+    workDistributor.init(updThreads);
+
     if (options.enableRerun)
     {
         rerunStream.spawn().exit_on_failure();

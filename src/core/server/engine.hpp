@@ -19,6 +19,7 @@
 #include <rerun.hpp>
 #include <string>
 #include <world.hpp>
+#include <work-distributor.hpp>
 
 namespace ecs
 {
@@ -111,6 +112,7 @@ class Engine
     std::vector<net::ClientInfoHandle> activeClientHandles;
     mod::ModManager modManager;
     mod::LuaInterpreter luaInterpreter;
+    misc::WorkDistributor workDistributor;
 
     EngineState state;
     world::World world;
