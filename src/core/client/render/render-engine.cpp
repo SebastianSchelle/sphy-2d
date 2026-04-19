@@ -9,6 +9,10 @@
 namespace gfx
 {
 
+static_assert(
+    sizeof(TexRectData) % 16 == 0,
+    "TexRectData stride must be a multiple of 16 for bgfx instancing");
+
 bgfx::VertexLayout VertexPosColTex::ms_decl;
 bgfx::VertexLayout PosVertex::ms_decl;
 bgfx::VertexLayout PosColorVertex::ms_decl;
@@ -98,14 +102,12 @@ bool RenderEngine::initPre()
         CFG_INT(config, 1000.0f, "gfx", "tex-bucket-size");
     const float texExcessHeightThreshold =
         CFG_FLOAT(config, 0.8f, "gfx", "tex-excess-height-threshold");
-    zoomPanCfgWorld.zoomStep =
-        CFG_FLOAT(config, 0.1f, "ui", "zoom", "step");
-    zoomPanCfgWorld.maxZoom =
-        CFG_FLOAT(config, 10.0f, "ui", "zoom", "max");
-    zoomPanCfgWorld.minZoom =
-        CFG_FLOAT(config, 0.01f, "ui", "zoom", "min");
-    zoomPanCfgWorld.panSpeed =
-        CFG_FLOAT(config, 10.0f, "ui", "pan", "speed");
+    zoomPanCfgWorld.zoomStep = CFG_FLOAT(config, 0.1f, "ui", "zoom", "step");
+    zoomPanCfgWorld.maxZoom = CFG_FLOAT(config, 10.0f, "ui", "zoom", "max");
+    zoomPanCfgWorld.minZoom = CFG_FLOAT(config, 0.01f, "ui", "zoom", "min");
+    zoomPanCfgWorld.panSpeed = CFG_FLOAT(config, 10.0f, "ui", "pan", "speed");
+    maxTexPerDrawCall =
+        CFG_INT(config, 1024.0f, "gfx", "max-tex-per-draw-call");
 
     textureLoader.init(texWidth,
                        texHeight,
@@ -118,8 +120,7 @@ bool RenderEngine::initPre()
     PosColorShapeVertex::init();
 
     vbhRectangle = bgfx::createVertexBuffer(
-        bgfx::copy(vertRectangle, sizeof(vertRectangle)),
-        PosColorVertex::ms_decl);
+        bgfx::copy(vertRectangle, sizeof(vertRectangle)), PosVertex::ms_decl);
     ibhRectangle = bgfx::createIndexBuffer(
         bgfx::copy(indRectangle, sizeof(indRectangle)), 0);
 
@@ -538,6 +539,7 @@ void RenderEngine::changeRenderState(RenderState newState)
             case (int)RenderState::Idle:
                 break;
             case (int)RenderState::DrawTexRects:
+                submitTexRects();
                 break;
             case (int)RenderState::DrawFullScreenTriangles:
                 break;
@@ -758,6 +760,117 @@ void RenderEngine::submitShapes()
     }
 }
 
+void RenderEngine::drawTexRect(const glm::vec2& pos,
+                               const glm::vec2& size,
+                               TextureHandle textureHandle,
+                               float rotationRad,
+                               bgfx::ViewId viewId)
+{
+    changeRenderState(RenderState::DrawTexRects);
+    currentViewId = viewId;
+
+    auto& texLib = textureLoader.getTextureLib();
+    Texture* texture = texLib.getItem(textureHandle);
+    if (!texture)
+    {
+        texture = texLib.getItem(textureHandleFallback);
+        if (!texture)
+        {
+            return;
+        }
+    }
+
+    const bgfx::TextureHandle arrayHandle = texture->getTexIdent().texHandle;
+    if (currentTexRectCount > 0 && bgfx::isValid(texRectBatchArray)
+        && texRectBatchArray.idx != arrayHandle.idx)
+    {
+        submitTexRects();
+    }
+
+    if (currentTexRectCount >= maxTexPerDrawCall)
+    {
+        submitTexRects();
+    }
+
+    if (currentTexRectCount == 0)
+    {
+        allocateForTexRects();
+        if (idbTex.data == nullptr)
+        {
+            return;
+        }
+        texRectBatchArray = arrayHandle;
+    }
+
+    TexRectData* inst =
+        reinterpret_cast<TexRectData*>(idbTex.data) + currentTexRectCount;
+    inst->rect = vec4(pos.x, pos.y, size.x, size.y);
+    inst->atlasUv = glm::vec4(texture->getRelBounds());
+    inst->rotLayer = vec4(rotationRad,
+                          static_cast<float>(texture->getTexIdent().layerIdx),
+                          0.0f,
+                          0.0f);
+    inst->colorAbgr = vec4(1.0f, 0.0f, 1.0f, 1.0f);
+    currentTexRectCount++;
+}
+
+void RenderEngine::submitTexRects()
+{
+    if (currentTexRectCount == 0 || !bgfx::isValid(texRectBatchArray)
+        || idbTex.data == nullptr)
+    {
+        currentTexRectCount = 0;
+        texRectBatchArray = BGFX_INVALID_HANDLE;
+        LG_W("Failed to submit texrects");
+        return;
+    }
+
+    if (!shaderHandleTexRect.isValid())
+    {
+        shaderHandleTexRect = getShaderHandle("texrect");
+        LG_W("Failed to get shader handle for texrect");
+        return;
+    }
+
+    bgfx::setTexture(0,
+                     u_texArray,
+                     texRectBatchArray,
+                     BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
+                         | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT
+                         | BGFX_SAMPLER_MIP_POINT);
+
+    uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
+                     | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
+                                             BGFX_STATE_BLEND_INV_SRC_ALPHA);
+
+    const float* projForView =
+        (currentViewId == kWorldView) ? worldViewProj : ortho;
+    bgfx::setUniform(u_proj, projForView);
+    bgfx::setState(state);
+    bgfx::setVertexBuffer(0, vbhRectangle);
+    bgfx::setIndexBuffer(ibhRectangle);
+    bgfx::setInstanceDataBuffer(&idbTex, 0, (uint32_t)currentTexRectCount);
+
+    bgfx::submit(currentViewId,
+                 compiledShaderLib.getItem(shaderHandleTexRect)->getHandle());
+
+    currentTexRectCount = 0;
+    texRectBatchArray = BGFX_INVALID_HANDLE;
+}
+
+void RenderEngine::allocateForTexRects()
+{
+    const uint16_t stride = static_cast<uint16_t>(sizeof(TexRectData));
+    const uint32_t want = static_cast<uint32_t>(maxTexPerDrawCall);
+    const uint32_t avail = bgfx::getAvailInstanceDataBuffer(want, stride);
+    if (avail == 0)
+    {
+        return;
+    }
+    const uint32_t n = std::min(want, avail);
+    bgfx::allocInstanceDataBuffer(&idbTex, n, stride);
+}
+
 void RenderEngine::zoomWorld(float amount)
 {
     // todo: save in local variable
@@ -866,6 +979,11 @@ void RenderEngine::getViewportRect(Rect& rect) const
     rect.y = tl.y;
     rect.z = br.x;
     rect.w = br.y;
+}
+
+TextureHandle RenderEngine::getTextureHandle(const std::string& name)
+{
+    return textureLoader.getTextureHandle(name);
 }
 
 }  // namespace gfx

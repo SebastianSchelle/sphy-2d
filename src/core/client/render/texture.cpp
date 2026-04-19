@@ -338,6 +338,11 @@ con::ItemLib<Texture>& TextureLoader::getTextureLib()
     return textureLib;
 }
 
+TextureHandle TextureLoader::getTextureHandle(const std::string& name)
+{
+    return textureLib.getHandle(name);
+}
+
 }  // namespace gfx
 
 // Explicitly instantiate ItemLib<T> to ensure Handle is fully defined

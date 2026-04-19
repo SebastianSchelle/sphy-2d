@@ -48,6 +48,18 @@ struct Geometry
 using GeometryHandle = typename con::ItemLib<Geometry>::Handle;
 using GeometryHandleUuid = typename con::ItemLib<Geometry>::HandleUuid;
 
+// Per-instance payload for bgfx::InstanceDataBuffer (stride multiple of 16).
+// Shader: i_data0..i_data4. Matches Texture::getRelBounds() and
+// TextureIdentifier::layerIdx (see texture.hpp); same atlas UV math as fs_geom
+// (origin.xy + local.xy * span.zw).
+struct TexRectData
+{
+    vec4 rect;     // .xy = world-space center, .zw = width and height
+    vec4 atlasUv;  // packed atlas rect: .xy origin, .zw size in UV space
+    vec4 rotLayer; // .x = rotation (rad), .y = layer index as float
+    vec4 colorAbgr;
+};
+
 struct ZoomPanCfg
 {
     float zoomStep;
@@ -150,6 +162,11 @@ class RenderEngine
                      float thickness,
                      float rotationRad = 0.0f,
                      bgfx::ViewId viewId = 0);
+    void drawTexRect(const glm::vec2& pos,
+                     const glm::vec2& size,
+                     TextureHandle textureHandle,
+                     float rotationRad = 0.0f,
+                     bgfx::ViewId viewId = 0);
     tim::Timepoint getStartTime() const;
     float getWorldZoom() const
     {
@@ -177,6 +194,7 @@ class RenderEngine
                               def::SectorCoords& sectorCoords) const;
     void relScreenToWorldCoords(const vec2& screenPosRel, vec2& worldPos) const;
     void getViewportRect(Rect& rect) const;
+    TextureHandle getTextureHandle(const std::string& name);
 
   private:
     void cleanUpAll();
@@ -187,6 +205,8 @@ class RenderEngine
     void changeRenderState(RenderState newState);
     void submitShapes();
     void allocateForShapes();
+    void submitTexRects();
+    void allocateForTexRects();
     void drawBoxShape(float shapeType,
                       const glm::vec2& pos,
                       const glm::vec2& size,
@@ -218,6 +238,7 @@ class RenderEngine
 
     ShaderHandle shaderHandleRml = ShaderHandle::Invalid();
     ShaderHandle shaderHandleShapes = ShaderHandle::Invalid();
+    ShaderHandle shaderHandleTexRect = ShaderHandle::Invalid();
     TextureHandle textureHandleFallback = TextureHandle::Invalid();
 
     tim::Timepoint startTime;
@@ -255,6 +276,11 @@ class RenderEngine
     const def::WorldShape* worldShape = nullptr;
     int32_t sectorOffsetX = 0;
     int32_t sectorOffsetY = 0;
+
+    bgfx::InstanceDataBuffer idbTex;
+    size_t maxTexPerDrawCall = 1024;
+    size_t currentTexRectCount = 0;
+    bgfx::TextureHandle texRectBatchArray = BGFX_INVALID_HANDLE;
 };
 
 }  // namespace gfx

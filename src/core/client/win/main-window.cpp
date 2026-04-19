@@ -1,6 +1,7 @@
 #include "GLFW/glfw3.h"
 #include "RmlUi/Core/Core.h"
 #include "bgfx/defines.h"
+#include "std-inc.hpp"
 #include "vertex-defines.hpp"
 #include <bgfx/platform.h>
 #include <bx/bx.h>
@@ -347,6 +348,14 @@ void MainWindow::renderMenu()
 {
     renderEngine.drawFullScreenTriangles(
         0, renderEngine.getShaderHandle("distantstars"));
+
+    static float rot = 0.0f;
+    renderEngine.drawTexRect(glm::vec2(0.0f, 0.0f),
+                             glm::vec2(100.0f, 100.0f),
+                             renderEngine.getTextureHandle("test"),
+                             rot,
+                             0);
+    rot += 0.01f;
 }
 
 void MainWindow::renderGame()
@@ -823,7 +832,8 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
     const bool modelAabbOverlayEnabled = model.isAabbTreeOverlayEnabled();
     if (debugData.overlayData.enableAabbTree != modelAabbOverlayEnabled)
     {
-        model.setOverlayEnabled("aabb-tree", debugData.overlayData.enableAabbTree);
+        model.setOverlayEnabled("aabb-tree",
+                                debugData.overlayData.enableAabbTree);
     }
     else
     {
@@ -1030,7 +1040,8 @@ void MainWindow::setupDataModelDebug()
         }
         debugConstructor.Bind("connectionData", &debugData.connectionData);
 
-        if (auto md_handle = debugConstructor.RegisterStruct<UiDbgOverlayData>())
+        if (auto md_handle =
+                debugConstructor.RegisterStruct<UiDbgOverlayData>())
         {
             md_handle.RegisterMember("enableAabbTree",
                                      &UiDbgOverlayData::enableAabbTree);
