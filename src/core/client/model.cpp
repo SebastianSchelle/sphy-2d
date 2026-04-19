@@ -1,6 +1,7 @@
 #include "logging.hpp"
 #include "std-inc.hpp"
-#include <components/comp-ident.hpp>
+#include <comp-gfx.hpp>
+#include <comp-ident.hpp>
 #include <exchange-sequence.hpp>
 #include <model.hpp>
 #include <protocol.hpp>
@@ -13,8 +14,9 @@ namespace sphyc
 
 Model::Model(ui::UserInterface* userInterface,
              cfg::ConfigManager& config,
+             mod::ModManager* modManager,
              std::function<void(void)> afterLoadWorldClb)
-    : userInterface(userInterface), config(config),
+    : userInterface(userInterface), config(config), modManager(modManager),
       afterLoadWorldClb(afterLoadWorldClb)
 {
     loadWorldSequence.registerExchange(net::Exchange(
@@ -33,6 +35,7 @@ Model::Model(ui::UserInterface* userInterface,
     cFac->registerComponent<ecs::Collider>();
     cFac->registerComponent<ecs::Broadphase>();
     cFac->registerComponent<ecs::TransformCache>();
+    cFac->registerComponent<ecs::MapIcon>();
 
     selectedEntity = {0, 1};
     lastGetAabbTree = tim::nowU();
@@ -412,9 +415,10 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
 {
     world.drawTacticalMap(renderer, viewRect, zoom);
     auto& reg = ecs.getRegistry();
-    reg.view<ecs::Transform, ecs::SectorId>().each(
+    reg.view<ecs::Transform, ecs::SectorId, ecs::MapIcon>().each(
         [this, &renderer, &viewRect](ecs::Transform& transform,
-                                     ecs::SectorId& sectorId)
+                                     ecs::SectorId& sectorId,
+                                     ecs::MapIcon& mapIcon)
         {
             glm::vec2 worldPos =
                 world.getWorldPosSectorOffset(sectorId.id,
@@ -423,10 +427,18 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
                 + transform.pos;
             if (smath::pointInsideRect(worldPos, viewRect))
             {
-                renderer.drawRectangle(worldPos,
-                                     glm::vec2(10.0f, 5.0f),
-                                     0xffffffff,
-                                     2.0f,
+                mod::MappedTextureHandle mTexHandle = {mapIcon.texIdx,
+                                                       mapIcon.texGen};
+                const mod::MappedTexture* mappedTexture =
+                    modManager->getResourceMap().getMappedTexture(mTexHandle);
+                gfx::TextureHandle texHandle = gfx::TextureHandle::Invalid();
+                if (mappedTexture)
+                {
+                    texHandle = mappedTexture->texHandle;
+                }
+                renderer.drawTexRect(worldPos,
+                                     glm::vec2(mapIcon.size.x, mapIcon.size.y),
+                                     texHandle,
                                      transform.rot,
                                      0);
             }
@@ -489,9 +501,10 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
     world.drawStrategicMap(renderer, viewRect, zoom);
     // todo: Group entities by Pos and only show lists or fleets or groups
     auto& reg = ecs.getRegistry();
-    reg.view<ecs::Transform, ecs::SectorId>().each(
-        [this, &renderer, &viewRect, zoom](ecs::Transform& transform,
-                                           ecs::SectorId& sectorId)
+    reg.view<ecs::Transform, ecs::SectorId, ecs::MapIcon>().each(
+        [this, &renderer, &viewRect](ecs::Transform& transform,
+                                     ecs::SectorId& sectorId,
+                                     ecs::MapIcon& mapIcon)
         {
             glm::vec2 worldPos =
                 world.getWorldPosSectorOffset(sectorId.id,
@@ -500,11 +513,19 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
                 + transform.pos;
             if (smath::pointInsideRect(worldPos, viewRect))
             {
-                renderer.drawRectangle(worldPos,
-                                     glm::vec2(2.0f / zoom, 2.0f / zoom),
-                                     0xffffffff,
-                                     2.0f / zoom,
-                                     0.0f,
+                mod::MappedTextureHandle mTexHandle = {mapIcon.texIdx,
+                                                       mapIcon.texGen};
+                const mod::MappedTexture* mappedTexture =
+                    modManager->getResourceMap().getMappedTexture(mTexHandle);
+                gfx::TextureHandle texHandle = gfx::TextureHandle::Invalid();
+                if (mappedTexture)
+                {
+                    texHandle = mappedTexture->texHandle;
+                }
+                renderer.drawTexRect(worldPos,
+                                     glm::vec2(mapIcon.size.x, mapIcon.size.y),
+                                     texHandle,
+                                     transform.rot,
                                      0);
             }
         });

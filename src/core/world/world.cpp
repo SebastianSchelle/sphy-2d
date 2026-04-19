@@ -326,7 +326,7 @@ bool World::switchSector(ecs::PtrHandle* ptrHandle,
     auto reg = ptrHandle->registry;
     entt::entity entity = ptrHandle->ecs->getEntity(entityId);
     auto sector = reg->try_get<ecs::SectorId>(entity);
-    if (sector && sector->id != newSectorId)
+    if (sector && sector->id != INVALID_SECTOR_ID && sector->id != newSectorId)
     {
         Sector* oldSector = sectors.at(sector->id);
         if (oldSector)

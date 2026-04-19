@@ -54,9 +54,9 @@ using GeometryHandleUuid = typename con::ItemLib<Geometry>::HandleUuid;
 // (origin.xy + local.xy * span.zw).
 struct TexRectData
 {
-    vec4 rect;     // .xy = world-space center, .zw = width and height
-    vec4 atlasUv;  // packed atlas rect: .xy origin, .zw size in UV space
-    vec4 rotLayer; // .x = rotation (rad), .y = layer index as float
+    vec4 rect;      // .xy = world-space center, .zw = width and height
+    vec4 atlasUv;   // packed atlas rect: .xy origin, .zw size in UV space
+    vec4 rotLayer;  // .x = rotation (rad), .y = layer index as float
     vec4 colorAbgr;
 };
 
@@ -195,6 +195,11 @@ class RenderEngine
     void relScreenToWorldCoords(const vec2& screenPosRel, vec2& worldPos) const;
     void getViewportRect(Rect& rect) const;
     TextureHandle getTextureHandle(const std::string& name);
+
+    TextureHandle getFallbackTextureHandle() const
+    {
+        return textureHandleFallback;
+    }
 
   private:
     void cleanUpAll();

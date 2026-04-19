@@ -2,8 +2,9 @@
 #define MOD_MANAGER_HPP
 
 #ifdef CLIENT
-// Forward declarations only: including RmlUi here forces RTTI in mod-manager.cpp
-// (RmlUi uses typeid) and breaks -fno-rtti matching with libDaScript.
+// Forward declarations only: including RmlUi here forces RTTI in
+// mod-manager.cpp (RmlUi uses typeid) and breaks -fno-rtti matching with
+// libDaScript.
 namespace gfx
 {
 class RenderEngine;
@@ -12,6 +13,7 @@ namespace ui
 {
 class UserInterface;
 }
+#include <texture.hpp>
 #endif
 #include <asset-factory.hpp>
 #include <functional>
@@ -117,6 +119,29 @@ class Mod
 
 using ModHandle = typename con::ItemLib<Mod>::Handle;
 
+struct MappedTexture
+{
+#ifdef CLIENT
+    gfx::TextureHandle texHandle;
+#endif
+};
+
+using MappedTextureHandle = typename con::ItemLib<MappedTexture>::Handle;
+
+class ResourceMap
+{
+  public:
+    ResourceMap();
+    ~ResourceMap();
+    void addTexture(const string& texName, const MappedTexture& mappedTexture);
+    MappedTextureHandle getTextureHandle(const string& texName) const;
+    const MappedTexture*
+    getMappedTexture(const MappedTextureHandle& mappedTextureHandle);
+
+  private:
+    con::ItemLib<MappedTexture> textureId;
+};
+
 class ModManager
 {
   public:
@@ -127,6 +152,10 @@ class ModManager
     bool loadMods(PtrHandles& ptrHandles);
     bool checkDependencies(std::vector<std::string>& modList,
                            const std::string& modDir);
+    ResourceMap& getResourceMap()
+    {
+        return resourceMap;
+    }
 #ifdef CLIENT
     void populateMenuData(vector<MenuDataMod>& mods);
 #endif
@@ -137,12 +166,16 @@ class ModManager
                          const std::string& modDir);
     bool checkIfDependencyProcessed(const std::string& modId);
     bool loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo);
+    bool loadTextures(PtrHandles& ptrHandles, const ModInfo& modInfo);
 #ifdef CLIENT
     bool loadShaders(PtrHandles& ptrHandles,
                      const ModInfo& modInfo,
                      YAML::Node shaders);
     bool loadFonts(PtrHandles& ptrHandles, const ModInfo& modInfo);
-    bool loadTextures(PtrHandles& ptrHandles, const ModInfo& modInfo);
+    gfx::TextureHandle loadTextureClient(PtrHandles& ptrHandles,
+                                         const string& texName,
+                                         const string& texType,
+                                         const string& texPath);
     bool loadUiDocs(PtrHandles& ptrHandles,
                     const ModInfo& modInfo,
                     YAML::Node uiDocs);
@@ -157,6 +190,7 @@ class ModManager
     std::vector<ModInfo> processedDependencies;
     con::ItemLib<Mod> modLib;
     std::vector<ModHandle> modHandles;
+    ResourceMap resourceMap;
 };
 
 }  // namespace mod

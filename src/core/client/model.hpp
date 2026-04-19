@@ -8,6 +8,11 @@
 #include <std-inc.hpp>
 #include <world.hpp>
 
+namespace mod
+{
+class ModManager;
+}
+
 namespace ui
 {
 class UserInterface;
@@ -33,6 +38,7 @@ class Model
   public:
     Model(ui::UserInterface* userInterface,
           cfg::ConfigManager& config,
+          mod::ModManager* modManager,
           std::function<void(void)> afterLoadWorldClb);
     ~Model();
     void modelLoop(float dt);
@@ -124,6 +130,7 @@ class Model
     net::ExchangeSequence loadWorldSequence;
     world::World world;
     ui::UserInterface* userInterface;
+    mod::ModManager* modManager;
     ecs::AssetFactory assetFactory;
     tim::Timepoint lastTSync;
     net::ModelClientInfo clientInfo;

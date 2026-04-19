@@ -4,14 +4,21 @@
 #include <components/comp-phy.hpp>
 #include <std-inc.hpp>
 
+namespace mod
+{
+class ResourceMap;
+}
+
 namespace ecs
 {
 
 class ComponentFactory
 {
   public:
-    using AssetLoaderFunc =
-        std::function<void(entt::registry&, entt::entity, const YAML::Node&)>;
+    using AssetLoaderFunc = std::function<void(entt::registry&,
+                                               entt::entity,
+                                               const YAML::Node&,
+                                               mod::ResourceMap&)>;
     using AssetCopierFunc = std::function<void(const entt::registry&,
                                                entt::entity,
                                                entt::registry&,
@@ -38,7 +45,8 @@ class ComponentFactory
     void loadComponent(const std::string& name,
                        entt::registry& registry,
                        entt::entity e,
-                       const YAML::Node& node);
+                       const YAML::Node& node,
+                       mod::ResourceMap& resourceMap);
 
     template <typename Component> void registerComponent()
     {
@@ -57,13 +65,13 @@ class ComponentFactory
                     auto component = srcRegistry.try_get<Component>(srcEntity);
                     if (component)
                     {
-                        LG_D(
-                            "Copying component: {} from asset entity: {} "
-                            "to entity: {} value: {}",
-                            name,
-                            srcEntity,
-                            dstEntity,
-                            *component);
+                        // LG_D(
+                        //     "Copying component: {} from asset entity: {} "
+                        //     "to entity: {} value: {}",
+                        //     name,
+                        //     srcEntity,
+                        //     dstEntity,
+                        //     *component);
                         dstRegistry.emplace_or_replace<Component>(dstEntity,
                                                                   *component);
                     }
@@ -77,8 +85,8 @@ class ComponentFactory
                     registry.emplace_or_replace<Component>(entity, component);
                 },
                 [name, hash](entt::registry& registry,
-                       entt::entity entity,
-                       bitsery::Serializer<OutputAdapter>& s)
+                             entt::entity entity,
+                             bitsery::Serializer<OutputAdapter>& s)
                 {
                     auto component = registry.try_get<Component>(entity);
                     if (component)
@@ -111,7 +119,8 @@ class AssetFactory
     AssetFactory();
     ~AssetFactory();
     ComponentFactory componentFactory;
-    entt::entity loadAsset(const std::string& path);
+    entt::entity loadAsset(const std::string& path,
+                           mod::ResourceMap& resourceMap);
     void copyComponentsIntoEntity(entt::registry& registry,
                                   entt::entity entity,
                                   const std::string& assetId) const;

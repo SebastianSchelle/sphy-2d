@@ -810,7 +810,7 @@ void RenderEngine::drawTexRect(const glm::vec2& pos,
                           static_cast<float>(texture->getTexIdent().layerIdx),
                           0.0f,
                           0.0f);
-    inst->colorAbgr = vec4(1.0f, 0.0f, 1.0f, 1.0f);
+    inst->colorAbgr = vec4(1.0f, 1.0f, 1.0f, 1.0f);
     currentTexRectCount++;
 }
 

@@ -97,37 +97,14 @@ bool ModManager::loadFonts(PtrHandles& ptrHandles, const ModInfo& modInfo)
     return true;
 }
 
-bool ModManager::loadTextures(PtrHandles& ptrHandles, const ModInfo& modInfo)
+gfx::TextureHandle ModManager::loadTextureClient(PtrHandles& ptrHandles,
+                                   const string& texName,
+                                   const string& texType,
+                                   const string& texPath)
 {
-    const std::string texturesDir = modInfo.modDir + "/assets/textures";
-    if (!std::filesystem::exists(texturesDir))
-    {
-        LG_I("Textures directory not found: {}", texturesDir);
-        return true;
-    }
-    for (const auto& dirEntry :
-         std::filesystem::directory_iterator(texturesDir))
-    {
-        if (dirEntry.is_directory())
-        {
-            const std::string texType = dirEntry.path().filename().string();
-            const std::string path = dirEntry.path().string();
-            for (const auto& fileEntry :
-                 std::filesystem::directory_iterator(path))
-            {
-                if (fileEntry.is_regular_file()
-                    && fileEntry.path().extension() == ".dds")
-                {
-                    const std::string texName =
-                        fileEntry.path().stem().string();
-                    const std::string texPath = fileEntry.path().string();
-                    ptrHandles.renderEngine->loadTexture(
-                        texName, texType, texPath);
-                }
-            }
-        }
-    }
-    return true;
+    auto texHandle = ptrHandles.renderEngine->loadTexture(
+        texName, texType, texPath);
+    return texHandle;
 }
 
 bool ModManager::loadUiDocs(PtrHandles& ptrHandles,

@@ -64,7 +64,8 @@ class DasLoggingContext : public das::Context
   public:
     explicit DasLoggingContext(uint32_t stackSize) : das::Context(stackSize) {}
 
-    void to_out(const das::LineInfo* at, int level, const char* message) override
+    void
+    to_out(const das::LineInfo* at, int level, const char* message) override
     {
         (void)at;
         const std::string msg = message ? std::string(message) : std::string();
@@ -254,12 +255,12 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
     {
         YAML::Node manifest = YAML::LoadFile(modInfo.manifestPath);
 
-#ifdef CLIENT
-        if (!loadFonts(ptrHandles, modInfo))
+        if (!loadTextures(ptrHandles, modInfo))
         {
             return false;
         }
-        if (!loadTextures(ptrHandles, modInfo))
+#ifdef CLIENT
+        if (!loadFonts(ptrHandles, modInfo))
         {
             return false;
         }
@@ -419,7 +420,7 @@ bool ModManager::loadGameObjects(PtrHandles& ptrHandles, const ModInfo& modInfo)
 bool ModManager::loadGameObject(PtrHandles& ptrHandles, const std::string& path)
 {
     YAML::Node gameObject = YAML::LoadFile(path);
-    return ptrHandles.assetFactory->loadAsset(path) != entt::null;
+    return ptrHandles.assetFactory->loadAsset(path, resourceMap) != entt::null;
 }
 
 Mod::Mod(const std::string& id,
@@ -491,8 +492,8 @@ bool ModScript::load()
         return false;
     }
 
-    context = das::ContextPtr(
-        new DasLoggingContext(program->getContextStackSize()));
+    context =
+        das::ContextPtr(new DasLoggingContext(program->getContextStackSize()));
     if (!program->simulate(*context, tout))
     {
         LG_E("daScript simulation failed: {}", path);
@@ -526,6 +527,69 @@ bool ModScript::findEntryFunctions()
 
     LG_D("Executed atLoad() for '{}'", path);
     return true;
+}
+
+bool ModManager::loadTextures(PtrHandles& ptrHandles, const ModInfo& modInfo)
+{
+    const std::string texturesDir = modInfo.modDir + "/assets/textures";
+    if (!std::filesystem::exists(texturesDir))
+    {
+        LG_I("Textures directory not found: {}", texturesDir);
+        return true;
+    }
+    for (const auto& dirEntry :
+         std::filesystem::directory_iterator(texturesDir))
+    {
+        if (dirEntry.is_directory())
+        {
+            const std::string texType = dirEntry.path().filename().string();
+            const std::string path = dirEntry.path().string();
+            for (const auto& fileEntry :
+                 std::filesystem::directory_iterator(path))
+            {
+                if (fileEntry.is_regular_file()
+                    && fileEntry.path().extension() == ".dds")
+                {
+                    const std::string texName =
+                        fileEntry.path().stem().string();
+                    const std::string texPath = fileEntry.path().string();
+#ifdef CLIENT
+                    gfx::TextureHandle texHandle = loadTextureClient(
+                        ptrHandles, texName, texType, texPath);
+                    resourceMap.addTexture(texName, MappedTexture(texHandle));
+#endif
+#ifdef SERVER
+                    resourceMap.addTexture(texName, MappedTexture());
+#endif
+                }
+            }
+        }
+    }
+    return true;
+}
+
+ResourceMap::ResourceMap() {}
+ResourceMap::~ResourceMap() {}
+
+void ResourceMap::addTexture(const string& texName,
+                             const MappedTexture& mappedTexture)
+{
+    MappedTextureHandle mappedTextureHandle =
+        textureId.addItem(texName, mappedTexture);
+    LG_I("Added mapped texture: {} with handle: {}-{}",
+         texName,
+         mappedTextureHandle.getIdx(),
+         mappedTextureHandle.getGeneration());
+}
+
+MappedTextureHandle ResourceMap::getTextureHandle(const string& texName) const
+{
+    return textureId.getHandle(texName);
+}
+
+const MappedTexture* ResourceMap::getMappedTexture(const MappedTextureHandle& mappedTextureHandle)
+{
+    return textureId.getItem(mappedTextureHandle);
 }
 
 }  // namespace mod

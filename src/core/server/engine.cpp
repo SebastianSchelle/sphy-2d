@@ -1,9 +1,11 @@
 #include "bitsery/serializer.h"
 #include "ecs.hpp"
 #include "rerun.hpp"
+#include "sector.hpp"
 #include "std-inc.hpp"
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
+#include <comp-gfx.hpp>
 #include <components/comp-phy.hpp>
 #include <engine-impl.hpp>
 #include <protocol.hpp>
@@ -73,6 +75,7 @@ void Engine::start()
     cFac->registerComponent<ecs::Collider>();
     cFac->registerComponent<ecs::Broadphase>();
     cFac->registerComponent<ecs::TransformCache>();
+    cFac->registerComponent<ecs::MapIcon>();
 
     ecs.registerSystem(ecs::sysMoveCtrl);
     ecs.registerSystem(ecs::sysPhyThrust);
@@ -82,10 +85,11 @@ void Engine::start()
     registerConsoleCommands();
 
     registerSlowDumpComponent<ecs::Transform>();
+    registerSlowDumpComponent<ecs::MapIcon>();
 
     registerClient(
         "1234abcd1234abcd", "Test Client", net::ClientFlags{.enConsole = 1});
-    //engineThread = std::thread([this]() { engineLoop(); });
+    // engineThread = std::thread([this]() { engineLoop(); });
     engineLoop();
 }
 
@@ -182,7 +186,7 @@ void Engine::engineLoop()
             parseCommandData(recQueueData);
         }
         lastUpdateTime = nowU;
-        //std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     if (state == EngineState::Running || state == EngineState::Paused)
@@ -200,7 +204,7 @@ void Engine::update(float dt)
         entt::entity entity = globalEntities[i];
         for (auto system : *ptrHandle->systems)
         {
-            //system.function(entity, entityId, dt, ptrHandle);
+            // system.function(entity, entityId, dt, ptrHandle);
         }
     }
     world.update(dt, ptrHandle.get());
@@ -695,12 +699,14 @@ ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId,
         return ent;
     }
     entt::entity entity = ecs.getEntity(ent);
-    auto &reg = ecs.getRegistry();
+    auto& reg = ecs.getRegistry();
     ecs::Transform& tr = reg.get_or_emplace<ecs::Transform>(entity);
     ecs::Broadphase& br = reg.get_or_emplace<ecs::Broadphase>(entity);
     ecs::TransformCache& trC = reg.get_or_emplace<ecs::TransformCache>(entity);
-    ecs::SectorId& sec = reg.get_or_emplace<ecs::SectorId>(entity);
-    world.moveEntityTo(ptrHandle.get(), ent, sectorId, transform.pos, transform.rot);
+    ecs::SectorId& sec = reg.get_or_emplace<ecs::SectorId>(
+        entity, ecs::SectorId{world::INVALID_SECTOR_ID, 0, 0});
+    world.moveEntityTo(
+        ptrHandle.get(), ent, sectorId, transform.pos, transform.rot);
     return ent;
 }
 
@@ -1019,7 +1025,8 @@ void Engine::runSlowClientDump(long frameTime)
                              {
                                  for (auto& component : slowDumpComponents)
                                  {
-                                     component.function(clientInfo, ptrHandle.get());
+                                     component.function(clientInfo,
+                                                        ptrHandle.get());
                                  }
                              });
     }
@@ -1078,7 +1085,7 @@ void Engine::testSpawn()
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> posDist(
-        - world.getWorldShape().sectorSize / 2,
+        -world.getWorldShape().sectorSize / 2,
         world.getWorldShape().sectorSize / 2);
     std::uniform_real_distribution<float> rotDist(0.0f, kTwoPi);
     std::uniform_int_distribution<int> assetPick(0, 3);
@@ -1088,27 +1095,29 @@ void Engine::testSpawn()
     for (int i = 0; i < 50000; ++i)
     {
         auto ent = spawnEntityFromAsset(
-            //kAssets[assetPick(gen)],
-            "test4",
+            kAssets[assetPick(gen)],
             sectorPick(gen),
             ecs::Transform{glm::vec2{posDist(gen), posDist(gen)},
                            rotDist(gen)});
         entt::entity entt = ecs.getEntity(ent);
-        auto &reg = ecs.getRegistry();
-        auto *moveCtrl = reg.try_get<ecs::MoveCtrl>(entt);
+        auto& reg = ecs.getRegistry();
+        auto* moveCtrl = reg.try_get<ecs::MoveCtrl>(entt);
         if (moveCtrl)
         {
             moveCtrl->active = true;
             moveCtrl->spPos.sectorPos.x = posDist(gen);
             moveCtrl->spPos.sectorPos.y = posDist(gen);
-            moveCtrl->spPos.pos.x = world.idToSectorCoords(sectorPick(gen)).first;
-            moveCtrl->spPos.pos.y = world.idToSectorCoords(sectorPick(gen)).second;
+            moveCtrl->spPos.pos.x =
+                world.idToSectorCoords(sectorPick(gen)).first;
+            moveCtrl->spPos.pos.y =
+                world.idToSectorCoords(sectorPick(gen)).second;
             moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
         }
     }
 }
 
-void Engine::handleGetAabbTree(uint32_t sectorId, const std::shared_ptr<net::TcpConnection>& conn)
+void Engine::handleGetAabbTree(uint32_t sectorId,
+                               const std::shared_ptr<net::TcpConnection>& conn)
 {
     prot::MsgComposer mcomp(net::SendType::TCP, conn);
     mcomp.startCommand(prot::cmd::DBG_GET_AABB_TREE, CMD_FLAG_RESP);

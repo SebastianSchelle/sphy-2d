@@ -13,12 +13,13 @@ void ComponentFactory::registerHelper(const std::string& name,
 void ComponentFactory::loadComponent(const std::string& name,
                                      entt::registry& registry,
                                      entt::entity e,
-                                     const YAML::Node& node)
+                                     const YAML::Node& node,
+                                     mod::ResourceMap& resourceMap)
 {
     auto it = componentHelpers.find(hashConst(name.c_str()));
     if (it != componentHelpers.end())
     {
-        it->second.assetLoader(registry, e, node);
+        it->second.assetLoader(registry, e, node, resourceMap);
     }
     else
     {
@@ -30,7 +31,8 @@ AssetFactory::AssetFactory() {}
 
 AssetFactory::~AssetFactory() {}
 
-entt::entity AssetFactory::loadAsset(const std::string& path)
+entt::entity AssetFactory::loadAsset(const std::string& path,
+                                     mod::ResourceMap& resourceMap)
 {
     YAML::Node node = YAML::LoadFile(path);
     entt::entity asset = entt::null;
@@ -52,7 +54,8 @@ entt::entity AssetFactory::loadAsset(const std::string& path)
                     component["type"].as<std::string>(),
                     registry,
                     asset,
-                    component);
+                    component,
+                    resourceMap);
             }
             catch (const std::runtime_error& e)
             {

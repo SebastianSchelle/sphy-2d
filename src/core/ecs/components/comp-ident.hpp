@@ -5,6 +5,11 @@
 #include <yaml-cpp/yaml.h>
 #include <entt/entt.hpp>
 
+namespace mod
+{
+class ResourceMap;
+}
+
 namespace ecs
 {
 
@@ -35,7 +40,8 @@ struct AssetId
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
-                         const YAML::Node& node)
+                         const YAML::Node& node,
+                         mod::ResourceMap& resourceMap)
     {
         AssetId assetId;
         assetId.name = node["name"].as<std::string>();
@@ -60,7 +66,8 @@ struct SectorId
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
-                         const YAML::Node& node)
+                         const YAML::Node& node,
+                         mod::ResourceMap& resourceMap)
     {
         SectorId sectorId;
         TRY_YAML_DICT(sectorId.id, node["id"], 0u);

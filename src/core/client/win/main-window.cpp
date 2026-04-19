@@ -95,6 +95,7 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
       userInterface(std::bind(&MainWindow::onCmd, this, std::placeholders::_1)),
       model(&userInterface,
             config,
+            &modManager,
             std::bind(&MainWindow::onAfterLoadWorld, this))
 {
     auto path(options.workingdir);
@@ -351,7 +352,7 @@ void MainWindow::renderMenu()
 
     static float rot = 0.0f;
     renderEngine.drawTexRect(glm::vec2(0.0f, 0.0f),
-                             glm::vec2(100.0f, 100.0f),
+                             glm::vec2(100.0f, 10.0f),
                              renderEngine.getTextureHandle("test"),
                              rot,
                              0);

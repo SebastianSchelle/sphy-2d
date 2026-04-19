@@ -11,6 +11,11 @@
 #include <world-def.hpp>
 #include <yaml-cpp/yaml.h>
 
+namespace mod
+{
+class ResourceMap;
+}
+
 namespace ecs
 {
 
@@ -24,7 +29,8 @@ struct Transform
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
-                         const YAML::Node& node)
+                         const YAML::Node& node,
+                         mod::ResourceMap& resourceMap)
     {
         Transform transform;
         TRY_YAML_DICT(transform.pos, node["pos"], vec2(0.0f, 0.0f));
@@ -50,7 +56,8 @@ struct TransformCache
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
-                         const YAML::Node& node)
+                         const YAML::Node& node,
+                         mod::ResourceMap& resourceMap)
     {
         TransformCache transformCache;
         TRY_YAML_DICT(transformCache.c, node["c"], 0.0f);
@@ -91,7 +98,8 @@ struct Collider
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
-                         const YAML::Node& node)
+                         const YAML::Node& node,
+                         mod::ResourceMap& resourceMap)
     {
         Collider collider;
         TRY_YAML_DICT(collider.vertices, node["vertices"], std::vector<vec2>());
@@ -182,7 +190,8 @@ struct Broadphase
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
-                         const YAML::Node& node)
+                         const YAML::Node& node,
+                         mod::ResourceMap& resourceMap)
     {
         Broadphase broadphase;
         registry.emplace<Broadphase>(entity, broadphase);
@@ -225,7 +234,8 @@ struct TransformNet
     Transform transform;
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
-                         const YAML::Node& node)
+                         const YAML::Node& node,
+                         mod::ResourceMap& resourceMap)
     {
         Transform transform;
         transform.pos = node["pos"].as<vec2>();
@@ -261,7 +271,8 @@ struct PhysicsBody
     }
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
-                         const YAML::Node& node)
+                         const YAML::Node& node,
+                         mod::ResourceMap& resourceMap)
     {
         PhysicsBody physicsBody;
         TRY_YAML_DICT(physicsBody.mass, node["mass"], 1.0f);
@@ -367,7 +378,8 @@ struct PhyThrust
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
-                         const YAML::Node& node)
+                         const YAML::Node& node,
+                         mod::ResourceMap& resourceMap)
     {
         PhyThrust phyThrust;
         TRY_YAML_DICT(phyThrust.thrustGlobal,
@@ -419,7 +431,8 @@ struct MoveCtrl
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
-                         const YAML::Node& node)
+                         const YAML::Node& node,
+                         mod::ResourceMap& resourceMap)
     {
         MoveCtrl c;
         string dirMode;
