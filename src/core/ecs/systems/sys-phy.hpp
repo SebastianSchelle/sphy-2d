@@ -66,7 +66,7 @@ const System sysMoveCtrl = {
             {
                 phyThrust->setThrustGlobal(vec2(0.0f), *transform);
             }
-            else
+            else if (dist > 1e-6f)
             {
                 glm::vec2 desVelV(0.0f);
                 const float maxAcc =
@@ -92,7 +92,9 @@ const System sysMoveCtrl = {
                 case MoveCtrl::FaceDirMode::Forward:
                     if (dist > ptrHandle->minFaceForwardDist)
                     {
-                        moveCtrl->spRot = atan2f(dir.y, dir.x);
+                        // Sprites/models use +Y as "forward", while atan2()
+                        // returns heading from +X, so rotate by 90 degrees.
+                        moveCtrl->spRot = atan2f(-dir.y, dir.x) + M_PI_2f;
                     }
                     break;
                 case MoveCtrl::FaceDirMode::TargetPoint:
@@ -102,7 +104,9 @@ const System sysMoveCtrl = {
                     if (fabs(tgtDir.x) + fabs(tgtDir.y)
                         > ptrHandle->minFaceTargetDist)
                     {
-                        moveCtrl->spRot = atan2f(tgtDir.y, tgtDir.x);
+                        // Sprites/models use +Y as "forward", while atan2()
+                        // returns heading from +X, so rotate by 90 degrees.
+                        moveCtrl->spRot = atan2f(-tgtDir.y, tgtDir.x) + M_PI_2f;
                     }
                 }
                 break;

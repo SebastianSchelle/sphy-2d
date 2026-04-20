@@ -97,7 +97,7 @@ void Engine::start()
         },
         def::ClientFlags{.enConsole = 1}));
     auto clientInfo = clientLib.getItem(handle);
-    clientInfo->setActiveEntity(ecs::EntityId{4, 1});
+    clientInfo->setActiveEntity(ecs::EntityId{0, 1});
 
     // engineThread = std::thread([this]() { engineLoop(); });
     engineLoop();
@@ -1089,10 +1089,11 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
 
-    for (int i = 0; i < 500; ++i)
+    for (int i = 0; i < 1; ++i)
     {
         auto ent = spawnEntityFromAsset(
-            kAssets[assetPick(gen)],
+            //kAssets[assetPick(gen)],
+            "test1",
             sectorPick(gen),
             ecs::Transform{glm::vec2{posDist(gen), posDist(gen)},
                            rotDist(gen)});
