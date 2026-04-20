@@ -96,6 +96,7 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
       model(&userInterface,
             config,
             &modManager,
+            &renderEngine,
             std::bind(&MainWindow::onAfterLoadWorld, this))
 {
     auto path(options.workingdir);
@@ -109,8 +110,6 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
         config, (float)0x2085e085, "theme", "input", "drag-box", "color");
     dragBoxThickness =
         CFG_FLOAT(config, 1.0f, "theme", "input", "drag-box", "thickness");
-    zoomTactical = CFG_FLOAT(config, 0.5f, "ui", "zoom", "tactical-map");
-    zoomStrategic = CFG_FLOAT(config, 0.2f, "ui", "zoom", "strategic-map");
     const unsigned chatCmdHistoryEntries =
         CFG_UINT(config, 50.0f, "chat", "cmd-history-entries");
     userInterface.setChatCmdHistoryMax(chatCmdHistoryEntries);
@@ -366,27 +365,24 @@ void MainWindow::renderGame()
     renderEngine.getViewportRect(viewportRect);
     renderEngine.drawFullScreenTriangles(
         0, renderEngine.getShaderHandle("distantstars"));
-    if (zoom < zoomTactical)
+    switch (renderEngine.getViewMode())
     {
-        viewMode = GameViewMode::StrategicMap;
-        processMouseTactical(zoom);
-        model.drawStrategicMap(renderEngine, viewportRect, zoom);
-        renderEngine.panWorld(panX, panY);
-    }
-    else if (zoom < zoomStrategic)
-    {
-        viewMode = GameViewMode::TacticalMap;
-        processMouseTactical(zoom);
-        model.drawTacticalMap(renderEngine, viewportRect, zoom);
-        renderEngine.panWorld(panX, panY);
-    }
-    else
-    {
-        viewMode = GameViewMode::ThirdPerson;
-        Rect viewportRect;
-        renderEngine.getViewportRect(viewportRect);
-        model.drawThirdPerson(renderEngine, viewportRect, zoom);
-        renderEngine.panWorld(panX, panY);
+        case gfx::GameViewMode::StrategicMap:
+            processMouseTactical(zoom);
+            model.drawStrategicMap(renderEngine, viewportRect, zoom);
+            renderEngine.panWorld(panX, panY);
+            break;
+        case gfx::GameViewMode::TacticalMap:
+            processMouseTactical(zoom);
+            model.drawTacticalMap(renderEngine, viewportRect, zoom);
+            renderEngine.panWorld(panX, panY);
+            break;
+        case gfx::GameViewMode::ThirdPerson:
+            model.drawThirdPerson(renderEngine, viewportRect, zoom);
+            renderEngine.panWorld(panX, panY);
+            break;
+        default:
+            break;
     }
 }
 
@@ -825,7 +821,7 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
     debugData.inputData.ptrSectorPosX = mouseState.mouseCoords.sectorPos.x;
     debugData.inputData.ptrSectorPosY = mouseState.mouseCoords.sectorPos.y;
     debugData.gameData.gameState = magic_enum::enum_name(model.getGameState());
-    debugData.gameData.viewMode = magic_enum::enum_name(viewMode);
+    debugData.gameData.viewMode = magic_enum::enum_name(renderEngine.getViewMode());
     debugData.connectionData.serverLatency =
         model.getTimeSyncData().serverLatency;
     debugData.connectionData.serverTimeOffset =

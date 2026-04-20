@@ -139,4 +139,21 @@ entt::registry& EcsClient::getRegistry()
     return registry;
 }
 
+
+bool EcsClient::validId(EntityId entityId)
+{
+    return entityId.index < idMap.size()
+           && idMap[entityId.index].generation == entityId.generation
+           && idMap[entityId.index].entity != entt::null;
+}
+
+entt::entity EcsClient::getEntity(EntityId entityId)
+{
+    if (!validId(entityId))
+    {
+        return entt::null;
+    }
+    return idMap[entityId.index].entity;
+}
+
 }  // namespace ecs

@@ -1,7 +1,6 @@
 #ifndef NET_SHARED_HPP
 #define NET_SHARED_HPP
 
-#include <item-lib.hpp>
 #include <std-inc.hpp>
 
 namespace net
@@ -39,21 +38,13 @@ struct CmdQueueData
 
 typedef std::function<void(const net::CmdQueueData&)> TcpReceiveClb;
 
-struct ClientFlags
-{
-    uint8_t enConsole : 1;
-};
-
 struct ClientInfo
 {
     std::string token;
-    std::string name;
-    ClientFlags flags;
     int portUdp;
     asio::ip::address address;
     udp::endpoint udpEndpoint;
     std::shared_ptr<TcpConnection> connection;
-    long lastSlowDump;
 };
 
 struct ModelClientInfo
@@ -64,8 +55,6 @@ struct ModelClientInfo
     int tcpPortServ;
     int udpPortCli;
 };
-
-using ClientInfoHandle = typename con::ItemLib<ClientInfo>::Handle;
 
 // EXT_SER(ClientInfo, s.text1b(o.token, 16); s.text1b(o.name, o.name.size());
 //         s.value2b(o.portUdp);

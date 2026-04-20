@@ -2,12 +2,18 @@
 #define TCP_SERVER_HPP
 
 #include <atomic>
-#include <std-inc.hpp>
 #include <net-shared.hpp>
+#include <std-inc.hpp>
 
 namespace net
 {
 static const size_t TCP_REC_BUF_LEN = 1024;
+
+struct TcpClientInfoHandle
+{
+    uint16_t idx;
+    uint16_t generation;
+};
 
 class TcpConnection : public std::enable_shared_from_this<TcpConnection>
 {
@@ -19,12 +25,18 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection>
                           TcpDisconnectCallback disconnectCallback);
 
     tcp::socket& socket();
-    
+
     void sendMessage(const std::vector<uint8_t>& data);
     void start();
     void close();
-    ClientInfoHandle getClientInfoHandle() const { return clientInfoHandle; }
-    void setClientInfoHandle(ClientInfoHandle clientInfoHandle) { this->clientInfoHandle = clientInfoHandle; }
+    const TcpClientInfoHandle& getClientInfoHandle() const
+    {
+        return clientInfoHandle;
+    }
+    void setClientInfoHandle(const TcpClientInfoHandle& clientInfoHandle)
+    {
+        this->clientInfoHandle = clientInfoHandle;
+    }
 
   private:
     TcpConnection(boost::asio::io_context& io_context,
@@ -42,7 +54,7 @@ class TcpConnection : public std::enable_shared_from_this<TcpConnection>
     TcpReceiveClb tcpReceiveCallback;
     TcpDisconnectCallback disconnectCallback;
     std::atomic<bool> disconnectNotified{false};
-    ClientInfoHandle clientInfoHandle;
+    TcpClientInfoHandle clientInfoHandle;
     RcvCmdState rcvCmdState = RcvCmdState::ParseCmd0;
     uint16_t rcvCmdLen = 0;
     uint16_t lastDataStart = 0;

@@ -18,8 +18,9 @@
 #include <ptr-handle.hpp>
 #include <rerun.hpp>
 #include <string>
-#include <world.hpp>
 #include <work-distributor.hpp>
+#include <world.hpp>
+#include <client-def.hpp>
 
 namespace ecs
 {
@@ -58,9 +59,7 @@ class Engine
     ~Engine();
     void start();
     void stop();  // request shutdown, save game, join engine thread
-    void registerClient(const std::string& uuid,
-                        const std::string& name,
-                        net::ClientFlags flags);
+    def::ClientInfoHandle registerClient(const def::ClientInfo& clientInfo);
     void saveGame();
     bool stopped() const
     {
@@ -82,8 +81,8 @@ class Engine
                       std::string& uuid,
                       const udp::endpoint* udpEndpoint,
                       std::shared_ptr<net::TcpConnection>& tcpConnection,
-                      net::ClientInfoHandle handle,
-                      net::ClientInfo* clientInfo,
+                      def::ClientInfoHandle handle,
+                      def::ClientInfo* clientInfo,
                       net::SendType sendType,
                       uint16_t cmd,
                       uint8_t flags,
@@ -110,8 +109,8 @@ class Engine
     const sphy::CmdLinOptionsServer& options;
     std::atomic<bool> stopRequested{false};
     std::thread engineThread;
-    con::ItemLib<net::ClientInfo> clientLib;
-    std::vector<net::ClientInfoHandle> activeClientHandles;
+    con::ItemLib<def::ClientInfo> clientLib;
+    std::vector<def::ClientInfoHandle> activeClientHandles;
     mod::ModManager modManager;
     mod::LuaInterpreter luaInterpreter;
     sthread::WorkDistributor workDistributor;

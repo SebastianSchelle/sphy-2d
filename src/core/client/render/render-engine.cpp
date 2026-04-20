@@ -106,6 +106,8 @@ bool RenderEngine::initPre()
     zoomPanCfgWorld.maxZoom = CFG_FLOAT(config, 10.0f, "ui", "zoom", "max");
     zoomPanCfgWorld.minZoom = CFG_FLOAT(config, 0.01f, "ui", "zoom", "min");
     zoomPanCfgWorld.panSpeed = CFG_FLOAT(config, 10.0f, "ui", "pan", "speed");
+    zoomTactical = CFG_FLOAT(config, 0.5f, "ui", "zoom", "tactical-map");
+    zoomStrategic = CFG_FLOAT(config, 0.2f, "ui", "zoom", "strategic-map");
     maxTexPerDrawCall =
         CFG_INT(config, 1024.0f, "gfx", "max-tex-per-draw-call");
 
@@ -356,6 +358,10 @@ void RenderEngine::updateWorldView()
     bx::mtxMul(worldView, transMtx, scaleMtx);
     bx::mtxMul(worldViewProj, worldView, ortho);
     bx::mtxInverse(invWvp, worldViewProj);
+
+    viewMode = worldZoom < zoomTactical    ? GameViewMode::StrategicMap
+               : worldZoom < zoomStrategic ? GameViewMode::TacticalMap
+                                           : GameViewMode::ThirdPerson;
 }
 
 TextureHandle RenderEngine::loadTexture(const std::string& name,
@@ -984,6 +990,14 @@ void RenderEngine::getViewportRect(Rect& rect) const
 TextureHandle RenderEngine::getTextureHandle(const std::string& name)
 {
     return textureLoader.getTextureHandle(name);
+}
+
+void RenderEngine::panWorldTo(const def::SectorCoords& sectorCoords)
+{
+    sectorOffsetX = sectorCoords.pos.x;
+    sectorOffsetY = sectorCoords.pos.y;
+    worldCameraX = sectorCoords.sectorPos.x;
+    worldCameraY = sectorCoords.sectorPos.y;
 }
 
 }  // namespace gfx

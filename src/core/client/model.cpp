@@ -15,9 +15,10 @@ namespace sphyc
 Model::Model(ui::UserInterface* userInterface,
              cfg::ConfigManager& config,
              mod::ModManager* modManager,
+             gfx::RenderEngine* renderer,
              std::function<void(void)> afterLoadWorldClb)
     : userInterface(userInterface), config(config), modManager(modManager),
-      afterLoadWorldClb(afterLoadWorldClb)
+      renderer(renderer), afterLoadWorldClb(afterLoadWorldClb)
 {
     loadWorldSequence.registerExchange(net::Exchange(
         prot::cmd::WORLD_INFO,
@@ -37,7 +38,6 @@ Model::Model(ui::UserInterface* userInterface,
     cFac->registerComponent<ecs::TransformCache>();
     cFac->registerComponent<ecs::MapIcon>();
 
-    selectedEntity = {0, 1};
     lastGetAabbTree = tim::nowU();
 }
 
@@ -130,6 +130,23 @@ void Model::modelLoopGame(float dt)
     static tim::Timepoint lastReqAllComponents = tim::getCurrentTimeU();
     static tim::Timepoint lastGetAabbTree = tim::getCurrentTimeU();
 
+    if (renderer->getViewMode() == gfx::GameViewMode::ThirdPerson)
+    {
+        entt::entity activeEntity = ecs.getEntity(clientInfo.getActiveEntity());
+        auto& reg = ecs.getRegistry();
+        if (reg.valid(activeEntity))
+        {
+            auto* transform = reg.try_get<ecs::Transform>(activeEntity);
+            auto* sectorId = reg.try_get<ecs::SectorId>(activeEntity);
+            if (transform && sectorId)
+            {
+                renderer->panWorldTo(def::SectorCoords{
+                    .pos = world.idToSectorCoords(sectorId->id),
+                    .sectorPos = transform->pos,
+                });
+            }
+        }
+    }
     // Send some stuff to server
     /*CMDAT_PREP_TOKEN(net::SendType::UDP, prot::cmd::LOG, 0)
     std::string str = "Hello World!";
@@ -163,7 +180,8 @@ void Model::modelLoopGame(float dt)
     DO_PERIODIC_EXTNOW(lastReqAllComponents,
                        1000000,
                        now,
-                       [this]() { reqAllComponents(selectedEntity); });
+                       [this]()
+                       { reqAllComponents(clientInfo.getActiveEntity()); });
 }
 
 void Model::parseCommandData(const net::CmdQueueData& cmdData)
@@ -244,7 +262,8 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
 
                     // latency = half travel time
                     timeSyncData.latency[timeSyncData.cnt] = rtt / 2;
-                    // Server time = server time at request arrival + latency
+                    // Server time = server time at request arrival +
+                    // latency
                     long serverTime = timeSyncData.t1
                                       + timeSyncData.latency[timeSyncData.cnt];
                     timeSyncData.offset[timeSyncData.cnt] =
@@ -375,6 +394,14 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             }
             break;
         }
+        case prot::cmd::ACTIVE_ENTITY_SWITCHED:
+        {
+            if ((flags & CMD_FLAG_RESP) == 0)
+            {
+                handleActiveEntitySwitched(cmddes, posNextCmdOrEof);
+            }
+            break;
+        }
         default:
             break;
     }
@@ -443,6 +470,29 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
                                      0);
             }
         });
+    for (const auto& entityId : selectedEntities)
+    {
+        entt::entity entity = ecs.getEntity(entityId);
+        if (reg.valid(entity))
+        {
+            auto* trans = reg.try_get<ecs::Transform>(entity);
+            auto* sectorId = reg.try_get<ecs::SectorId>(entity);
+            if (trans && sectorId)
+            {
+                glm::vec2 worldPos =
+                    world.getWorldPosSectorOffset(sectorId->id,
+                                                  renderer.getSectorOffsetX(),
+                                                  renderer.getSectorOffsetY())
+                    + trans->pos;
+                renderer.drawRectangle(worldPos,
+                                       glm::vec2(40.0f, 40.0f),
+                                       0xff004000,
+                                       1.0f / zoom,
+                                       0.0f,
+                                       0);
+            }
+        }
+    }
 
     // reg.view<ecs::Transform, ecs::SectorId, ecs::Colllider,
     // ecs::Broadphase>()
@@ -450,7 +500,8 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
     //         [this, &renderer, &viewRect, zoom](ecs::Transform& transform,
     //                                            ecs::SectorId& sectorId,
     //                                            ecs::Colllider& collider,
-    //                                            ecs::Broadphase& broadphase)
+    //                                            ecs::Broadphase&
+    //                                            broadphase)
     //         {
     //             glm::vec2 worldPos =
     //                 world.getWorldPosSectorOffset(sectorId.id,
@@ -467,8 +518,8 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
     //                     glm::vec2 rotatedVertex =
     //                         glm::vec2(c * vertex.x - s * vertex.y,
     //                                   s * vertex.x + c * vertex.y);
-    //                     glm::vec2 vertexWorldPos = worldPos + rotatedVertex;
-    //                     renderer.drawEllipse(
+    //                     glm::vec2 vertexWorldPos = worldPos +
+    //                     rotatedVertex; renderer.drawEllipse(
     //                         vertexWorldPos,
     //                         glm::vec2(size / zoom, size / zoom),
     //                         0xffffffff,
@@ -501,10 +552,11 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
     world.drawStrategicMap(renderer, viewRect, zoom);
     // todo: Group entities by Pos and only show lists or fleets or groups
     auto& reg = ecs.getRegistry();
-    reg.view<ecs::Transform, ecs::SectorId, ecs::MapIcon>().each(
-        [this, &renderer, &viewRect](ecs::Transform& transform,
-                                     ecs::SectorId& sectorId,
-                                     ecs::MapIcon& mapIcon)
+    reg.view<ecs::Transform, ecs::SectorId, ecs::MapIcon, ecs::EntityId>().each(
+        [this, &renderer, &viewRect, zoom](ecs::Transform& transform,
+                                           ecs::SectorId& sectorId,
+                                           ecs::MapIcon& mapIcon,
+                                           ecs::EntityId& entityId)
         {
             glm::vec2 worldPos =
                 world.getWorldPosSectorOffset(sectorId.id,
@@ -540,6 +592,35 @@ void Model::drawThirdPerson(gfx::RenderEngine& renderer,
                             float zoom)
 {
     world.drawThirdPerson(renderer, viewRect, zoom);
+    auto& reg = ecs.getRegistry();
+    reg.view<ecs::Transform, ecs::SectorId, ecs::MapIcon>().each(
+        [this, &renderer, &viewRect](ecs::Transform& transform,
+                                     ecs::SectorId& sectorId,
+                                     ecs::MapIcon& mapIcon)
+        {
+            glm::vec2 worldPos =
+                world.getWorldPosSectorOffset(sectorId.id,
+                                              renderer.getSectorOffsetX(),
+                                              renderer.getSectorOffsetY())
+                + transform.pos;
+            if (smath::pointInsideRect(worldPos, viewRect))
+            {
+                mod::MappedTextureHandle mTexHandle = {mapIcon.texIdx,
+                                                       mapIcon.texGen};
+                const mod::MappedTexture* mappedTexture =
+                    modManager->getResourceMap().getMappedTexture(mTexHandle);
+                gfx::TextureHandle texHandle = gfx::TextureHandle::Invalid();
+                if (mappedTexture)
+                {
+                    texHandle = mappedTexture->texHandle;
+                }
+                renderer.drawTexRect(worldPos,
+                                     glm::vec2(mapIcon.size.x, mapIcon.size.y),
+                                     texHandle,
+                                     transform.rot,
+                                     0);
+            }
+        });
 }
 
 void Model::setOverlayEnabled(const std::string& overlay, bool enabled)
@@ -569,7 +650,8 @@ void Model::sendCmdToServer(const std::string& command)
 
 void Model::checkVersion(const net::ModelClientInfo& clientInfo)
 {
-    this->clientInfo = clientInfo;
+    this->clientInfo =
+        def::ClientInfo("", clientInfo, def::ClientFlags{.enConsole = 0});
     prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
     mcomp.startCommand(prot::cmd::VERSION_CHECK, 0);
     mcomp.ser->value2b(version::MAJOR);
@@ -588,8 +670,8 @@ void Model::authenticate()
     mcomp.ser->value2b(version::MAJOR);
     mcomp.ser->value2b(version::MINOR);
     mcomp.ser->value2b(version::PATCH);
-    mcomp.ser->text1b(clientInfo.token, 16);
-    mcomp.ser->value2b((uint16_t)clientInfo.udpPortCli);
+    mcomp.ser->text1b(clientInfo.modelClientInfo.token, 16);
+    mcomp.ser->value2b((uint16_t)clientInfo.modelClientInfo.udpPortCli);
     mcomp.execute(sendQueue);
     gameState = ClientGameState::Authenticating;
 }
@@ -784,6 +866,15 @@ void Model::drawOverlayAABBs(gfx::RenderEngine& renderer, float zoom)
         mcomp.execute(sendQueue);
     };
     DO_PERIODIC_U_EXTNOW(lastGetAabbTree, 100000, now, sendGetAabbTree);
+}
+
+void Model::handleActiveEntitySwitched(
+    bitsery::Deserializer<InputAdapter>& cmddes,
+    uint16_t posNextCmdOrEof)
+{
+    ecs::EntityId entityId;
+    cmddes.object(entityId);
+    clientInfo.setActiveEntity(entityId);
 }
 
 }  // namespace sphyc

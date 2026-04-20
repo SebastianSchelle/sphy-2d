@@ -25,13 +25,6 @@
 namespace ui
 {
 
-enum class GameViewMode
-{
-    ThirdPerson,
-    TacticalMap,
-    StrategicMap,
-};
-
 struct MouseState
 {
     glm::vec2 mousePos;
@@ -287,14 +280,9 @@ class MainWindow
     float dragThreshold = 0.0f;
     uint32_t dragBoxColor = 0x20ffffff;
     float dragBoxThickness = 1.0f;
-
-    float zoomTactical = 0.0f;
-    float zoomStrategic = 0.0f;
-    GameViewMode viewMode = GameViewMode::ThirdPerson;
 };
 
 }  // namespace ui
 
-EXT_FMT(ui::GameViewMode, "{}", magic_enum::enum_name(o));
 
 #endif

@@ -58,7 +58,7 @@ TcpConnection::TcpConnection(boost::asio::io_context& io_context,
                              TcpDisconnectCallback disconnectCallback)
     : socket_(io_context), tcpReceiveCallback(std::move(tcpReceiveCallback)),
       disconnectCallback(std::move(disconnectCallback)),
-      clientInfoHandle(ClientInfoHandle::Invalid())
+      clientInfoHandle(TcpClientInfoHandle{0, 0})
 {
 }
 

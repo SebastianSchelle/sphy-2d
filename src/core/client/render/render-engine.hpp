@@ -11,6 +11,7 @@
 #include <texture.hpp>
 #include <vertex-defines.hpp>
 #include <world-def.hpp>
+#include <magic_enum/magic_enum.hpp>
 
 namespace gfx
 {
@@ -24,6 +25,13 @@ namespace gfx
 #define SHAPE_TYPE_CIRCLE 2.0f
 #define SHAPE_TYPE_TRIANGLE 3.0f
 #define SHAPE_TYPE_LINE 4.0f
+
+enum class GameViewMode
+{
+    ThirdPerson,
+    TacticalMap,
+    StrategicMap,
+};
 
 struct Geometry
 {
@@ -121,6 +129,7 @@ class RenderEngine
     void zoomWorld(float amount);
     void panWorld(PanDirection dirX, PanDirection dirY);
     void panWorld(const glm::vec2& delta);
+    void panWorldTo(const def::SectorCoords& sectorCoords);
     void setWorldCameraPosition(const glm::vec2& pos);
     TextureHandle loadTexture(const std::string& name,
                               const std::string& type,
@@ -172,6 +181,11 @@ class RenderEngine
     {
         return worldZoom;
     }
+    GameViewMode getViewMode() const
+    {
+        return viewMode;
+    }
+
     glm::vec2 getWorldCameraPosition() const
     {
         return {worldCameraX, worldCameraY};
@@ -286,8 +300,14 @@ class RenderEngine
     size_t maxTexPerDrawCall = 1024;
     size_t currentTexRectCount = 0;
     bgfx::TextureHandle texRectBatchArray = BGFX_INVALID_HANDLE;
+
+    float zoomTactical = 0.0f;
+    float zoomStrategic = 0.0f;
+    GameViewMode viewMode = GameViewMode::ThirdPerson;
 };
 
 }  // namespace gfx
+
+EXT_FMT(gfx::GameViewMode, "{}", magic_enum::enum_name(o));
 
 #endif

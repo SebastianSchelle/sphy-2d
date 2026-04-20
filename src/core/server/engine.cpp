@@ -3,11 +3,12 @@
 #include "rerun.hpp"
 #include "sector.hpp"
 #include "std-inc.hpp"
+#include <comp-gfx.hpp>
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
-#include <comp-gfx.hpp>
 #include <components/comp-phy.hpp>
 #include <engine-impl.hpp>
+#include <net-shared.hpp>
 #include <protocol.hpp>
 #include <random>
 #include <server.hpp>
@@ -87,8 +88,17 @@ void Engine::start()
     registerSlowDumpComponent<ecs::Transform>();
     registerSlowDumpComponent<ecs::MapIcon>();
 
-    registerClient(
-        "1234abcd1234abcd", "Test Client", net::ClientFlags{.enConsole = 1});
+    def::ClientInfoHandle handle = registerClient(def::ClientInfo(
+        "Based Laser King",
+        net::ClientInfo{
+            .token = "1234abcd1234abcd",
+            .portUdp = 0,
+            .address = asio::ip::address::from_string("0.0.0.0"),
+        },
+        def::ClientFlags{.enConsole = 1}));
+    auto clientInfo = clientLib.getItem(handle);
+    clientInfo->setActiveEntity(ecs::EntityId{4, 1});
+
     // engineThread = std::thread([this]() { engineLoop(); });
     engineLoop();
 }
@@ -186,7 +196,7 @@ void Engine::engineLoop()
             parseCommandData(recQueueData);
         }
         lastUpdateTime = nowU;
-        // std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     if (state == EngineState::Running || state == EngineState::Paused)
@@ -332,17 +342,9 @@ void Engine::saveGame()
     world.saveWorld(saveFolder);
 }
 
-void Engine::registerClient(const std::string& uuid,
-                            const std::string& name,
-                            net::ClientFlags flags)
+def::ClientInfoHandle Engine::registerClient(const def::ClientInfo& clientInfo)
 {
-    net::ClientInfo clientInfo;
-    clientInfo.token = uuid;
-    clientInfo.name = name;
-    clientInfo.flags = flags;
-    clientInfo.portUdp = 0;
-    clientInfo.address = asio::ip::address::from_string("0.0.0.0");
-    clientLib.addItem(uuid, clientInfo);
+    return clientLib.addItem(clientInfo.clientInfo.token, clientInfo);
 }
 
 void Engine::parseCommandData(const net::CmdQueueData& cmdData)
@@ -358,9 +360,9 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
         std::string token;
         const udp::endpoint* udpEndpoint;
         std::shared_ptr<net::TcpConnection> tcpConnection;
-        net::ClientInfoHandle clientInfoHandle =
-            net::ClientInfoHandle::Invalid();
-        net::ClientInfo* clientInfo = nullptr;
+        def::ClientInfoHandle clientInfoHandle =
+            def::ClientInfoHandle::Invalid();
+        def::ClientInfo* clientInfo = nullptr;
 
         const std::vector<uint8_t>& data = cmdData.data;
         bitsery::Deserializer<InputAdapter> cmddes(
@@ -375,7 +377,7 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
                      cmdData.udpEndpoint.address().to_string());
                 return;
             }
-            net::ClientInfoHandle handle = clientLib.getHandle(token);
+            def::ClientInfoHandle handle = clientLib.getHandle(token);
             if (!handle.isValid())
             {
                 LG_W("Invalid token received from ip {}",
@@ -388,7 +390,8 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
         else if (cmdData.sendType == net::SendType::TCP)
         {
             tcpConnection = cmdData.tcpConnection;
-            clientInfoHandle = tcpConnection->getClientInfoHandle();
+            clientInfoHandle = *(
+                (def::ClientInfoHandle*)&tcpConnection->getClientInfoHandle());
             if (clientInfoHandle.isValid())
             {
                 clientInfo = clientLib.getItem(clientInfoHandle);
@@ -441,8 +444,8 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                           std::string& uuid,
                           const udp::endpoint* udpEndpoint,
                           std::shared_ptr<net::TcpConnection>& tcpConnection,
-                          net::ClientInfoHandle clientInfoHandle,
-                          net::ClientInfo* clientInfo,
+                          def::ClientInfoHandle clientInfoHandle,
+                          def::ClientInfo* clientInfo,
                           net::SendType sendType,
                           uint16_t cmd,
                           uint8_t flags,
@@ -458,11 +461,11 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 cmddes.text1b(str, 256);
                 if (sendType == net::SendType::UDP)
                 {
-                    LG_I("UDP Log from {}: {}", clientInfo->name, str);
+                    LG_I("UDP Log from {}: {}", clientInfo->getName(), str);
                 }
                 else if (sendType == net::SendType::TCP)
                 {
-                    LG_I("TCP Log from {}: {}", clientInfo->name, str);
+                    LG_I("TCP Log from {}: {}", clientInfo->getName(), str);
                 }
             }
             break;
@@ -515,18 +518,19 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 cmddes.value2b(portUdp);
                 if (token.length() == 16 && major == version::MAJOR)
                 {
-                    net::ClientInfoHandle handle = clientLib.getHandle(token);
+                    def::ClientInfoHandle handle = clientLib.getHandle(token);
                     if (handle.isValid())
                     {
                         auto address =
                             tcpConnection->socket().local_endpoint().address();
-                        net::ClientInfo* clientInfo = clientLib.getItem(handle);
-                        clientInfo->portUdp = portUdp;
-                        clientInfo->address = address;
-                        clientInfo->udpEndpoint =
+                        def::ClientInfo* clientInfo = clientLib.getItem(handle);
+                        clientInfo->clientInfo.portUdp = portUdp;
+                        clientInfo->clientInfo.address = address;
+                        clientInfo->clientInfo.udpEndpoint =
                             udp::endpoint(address, portUdp);
-                        clientInfo->connection = tcpConnection;
-                        clientInfo->connection->setClientInfoHandle(handle);
+                        clientInfo->clientInfo.connection = tcpConnection;
+                        clientInfo->clientInfo.connection->setClientInfoHandle(
+                            *((net::TcpClientInfoHandle*)&handle));
                         LG_I(
                             "Client authenticated. ip={}, udp port={}, "
                             "token={}",
@@ -538,6 +542,9 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                                                     tcpConnection);
                             mcomp.startCommand(prot::cmd::AUTHENTICATE,
                                                CMD_FLAG_RESP);
+                            mcomp.startCommand(
+                                prot::cmd::ACTIVE_ENTITY_SWITCHED, 0);
+                            mcomp.ser->object(clientInfo->getActiveEntity());
                             mcomp.execute(sendQueue);
                         }
                         return;
@@ -566,7 +573,7 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
             {
                 LG_I("Server accepted client readyness of {}",
-                     clientInfo->name);
+                     clientInfo->getName());
                 activeClientHandles.push_back(clientInfoHandle);
                 prot::MsgComposer mcomp(net::SendType::TCP, tcpConnection);
                 mcomp.startCommand(prot::cmd::NOTIFY_CLIENT_READY,
@@ -582,39 +589,28 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 string data;
                 string response;
                 cmddes.text1b(data, len);
-                net::ClientInfoHandle clientInfoHandle =
-                    tcpConnection->getClientInfoHandle();
-                if (clientInfoHandle.isValid())
+                if (clientInfo)
                 {
-                    net::ClientInfo* clientInfo =
-                        clientLib.getItem(clientInfoHandle);
-                    if (clientInfo)
+                    if (clientInfo->getFlags().enConsole)
                     {
-                        if (clientInfo->flags.enConsole)
+                        try
                         {
-                            try
-                            {
-                                response = commandManager.executeCommand(data);
-                            }
-                            catch (const std::exception& e)
-                            {
-                                response = "Failed: " + std::string(e.what());
-                            }
+                            response = commandManager.executeCommand(data);
                         }
-                        else
+                        catch (const std::exception& e)
                         {
-                            response = "Failed: Client " + clientInfo->name
-                                       + " is not a console";
+                            response = "Failed: " + std::string(e.what());
                         }
                     }
                     else
                     {
-                        response = "Failed: Client info not found";
+                        response = "Failed: Client " + clientInfo->getName()
+                                   + " is not a console";
                     }
                 }
                 else
                 {
-                    response = "Failed: Client info handle not valid";
+                    response = "Failed: Client info not found";
                 }
                 prot::MsgComposer mcomp(net::SendType::TCP, tcpConnection);
                 mcomp.startCommand(prot::cmd::CONSOLE_CMD, CMD_FLAG_RESP);
@@ -1016,8 +1012,8 @@ void Engine::runSlowClientDump(long frameTime)
 {
     for (int i = 0; i < activeClientHandles.size(); i++)
     {
-        net::ClientInfoHandle handle = activeClientHandles[i];
-        net::ClientInfo* clientInfo = clientLib.getItem(handle);
+        def::ClientInfoHandle handle = activeClientHandles[i];
+        def::ClientInfo* clientInfo = clientLib.getItem(handle);
         DO_PERIODIC_U_EXTNOW(clientInfo->lastSlowDump,
                              slowDumpUs,
                              frameTime,
@@ -1025,7 +1021,7 @@ void Engine::runSlowClientDump(long frameTime)
                              {
                                  for (auto& component : slowDumpComponents)
                                  {
-                                     component.function(clientInfo,
+                                     component.function(&clientInfo->clientInfo,
                                                         ptrHandle.get());
                                  }
                              });
@@ -1037,8 +1033,9 @@ void Engine::handleTcpDisconnect(
 {
     if (!conn)
         return;
-    net::ClientInfoHandle handle = conn->getClientInfoHandle();
-    conn->setClientInfoHandle(net::ClientInfoHandle::Invalid());
+    def::ClientInfoHandle handle =
+        *((def::ClientInfoHandle*)&conn->getClientInfoHandle());
+    conn->setClientInfoHandle(net::TcpClientInfoHandle{0, 0});
     if (!handle.isValid())
         return;
     const uint32_t hv = handle.value();
@@ -1050,8 +1047,8 @@ void Engine::handleTcpDisconnect(
         else
             ++it;
     }
-    if (net::ClientInfo* ci = clientLib.getItem(handle))
-        ci->connection.reset();
+    if (def::ClientInfo* ci = clientLib.getItem(handle))
+        ci->clientInfo.connection.reset();
     LG_I("TCP client disconnected (handle value={})", hv);
 }
 
@@ -1092,7 +1089,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
 
-    for (int i = 0; i < 50000; ++i)
+    for (int i = 0; i < 500; ++i)
     {
         auto ent = spawnEntityFromAsset(
             kAssets[assetPick(gen)],
@@ -1107,10 +1104,7 @@ void Engine::testSpawn()
             moveCtrl->active = true;
             moveCtrl->spPos.sectorPos.x = posDist(gen);
             moveCtrl->spPos.sectorPos.y = posDist(gen);
-            moveCtrl->spPos.pos.x =
-                world.idToSectorCoords(sectorPick(gen)).first;
-            moveCtrl->spPos.pos.y =
-                world.idToSectorCoords(sectorPick(gen)).second;
+            moveCtrl->spPos.pos = world.idToSectorCoords(sectorPick(gen));
             moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
         }
     }

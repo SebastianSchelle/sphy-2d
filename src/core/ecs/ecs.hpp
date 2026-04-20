@@ -82,7 +82,8 @@ class EcsClient
     ~EcsClient();
     entt::registry& getRegistry();
     entt::entity enttFromServerId(const EntityId& entityId);
-
+    entt::entity getEntity(EntityId entityId);
+    bool validId(EntityId entityId);
   private:
     entt::registry registry;
     std::unordered_map<uint32_t, Slot> idMap;

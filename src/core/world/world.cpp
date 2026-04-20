@@ -183,9 +183,7 @@ void World::update(float dt, ecs::PtrHandle* ptrHandle)
     {
         ptrHandle->workDistributor->addWork(
             [this, sectorId, dt, ph = ptrHandle]()
-            {
-                sectors.at(sectorId)->update(dt, ph);
-            },
+            { sectors.at(sectorId)->update(dt, ph); },
             sectorId % ptrHandle->workDistributor->getThreadCount());
     }
     ptrHandle->workDistributor->awaken();
@@ -343,10 +341,10 @@ Sector* World::getSector(uint32_t sectorId)
     return sectors.at(sectorId);
 }
 
-std::pair<uint32_t, uint32_t> World::idToSectorCoords(uint32_t sectorId) const
+def::SectorPos World::idToSectorCoords(uint32_t sectorId) const
 {
-    return std::make_pair(sectorId % worldShape.numSectorX,
-                          sectorId / worldShape.numSectorY);
+    return def::SectorPos{sectorId % worldShape.numSectorX,
+                          sectorId / worldShape.numSectorY};
 }
 
 uint32_t World::sectorCoordsToId(uint32_t sectorX, uint32_t sectorY) const
@@ -373,12 +371,11 @@ vec2 World::getWorldPosSectorOffset(uint32_t sectorId,
         sectorX, sectorY, sectorOffsetX, sectorOffsetY);
 }
 
-void World::checkSectorSwitchAfterMove(
-    ecs::EntityId entityId,
-    entt::entity entity,
-    ecs::SectorId* sectorId,
-    ecs::Transform* transform,
-    ecs::PtrHandle* ptrHandle)
+void World::checkSectorSwitchAfterMove(ecs::EntityId entityId,
+                                       entt::entity entity,
+                                       ecs::SectorId* sectorId,
+                                       ecs::Transform* transform,
+                                       ecs::PtrHandle* ptrHandle)
 {
     vec2& pos = transform->pos;
     def::Direction dir = def::Direction::NONE;

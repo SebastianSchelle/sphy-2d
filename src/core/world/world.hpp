@@ -59,7 +59,7 @@ class World
     {
         return sectors.getSize();
     }
-    std::pair<uint32_t, uint32_t> idToSectorCoords(uint32_t sectorId) const;
+    def::SectorPos idToSectorCoords(uint32_t sectorId) const;
     uint32_t sectorCoordsToId(uint32_t sectorX, uint32_t sectorY) const;
     vec2 getWorldPosSectorOffset(uint32_t sectorId,
                                  int32_t sectorOffsetX,

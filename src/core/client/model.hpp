@@ -7,6 +7,7 @@
 #include <net-shared.hpp>
 #include <std-inc.hpp>
 #include <world.hpp>
+#include <client-def.hpp>
 
 namespace mod
 {
@@ -39,6 +40,7 @@ class Model
     Model(ui::UserInterface* userInterface,
           cfg::ConfigManager& config,
           mod::ModManager* modManager,
+          gfx::RenderEngine* renderer,
           std::function<void(void)> afterLoadWorldClb);
     ~Model();
     void modelLoop(float dt);
@@ -76,7 +78,7 @@ class Model
     }
     ecs::EntityId getSelectedEntity() const
     {
-        return selectedEntity;
+        return clientInfo.getActiveEntity();
     }
     ecs::EcsClient* getEcs()
     {
@@ -94,7 +96,7 @@ class Model
     {
         return timeSyncData;
     }
-    const net::ModelClientInfo& getClientInfo() const
+    const def::ClientInfo& getClientInfo() const
     {
         return clientInfo;
     }
@@ -122,6 +124,8 @@ class Model
     void notifyReady();
     void handleGetAabbTreeResp(bitsery::Deserializer<InputAdapter>& cmddes,
                                uint16_t posNextCmdOrEof);
+    void handleActiveEntitySwitched(bitsery::Deserializer<InputAdapter>& cmddes,
+                                    uint16_t posNextCmdOrEof);
     void drawOverlayAABBs(gfx::RenderEngine& renderer, float zoom);
 
     cfg::ConfigManager& config;
@@ -131,11 +135,11 @@ class Model
     world::World world;
     ui::UserInterface* userInterface;
     mod::ModManager* modManager;
+    gfx::RenderEngine* renderer;
     ecs::AssetFactory assetFactory;
     tim::Timepoint lastTSync;
-    net::ModelClientInfo clientInfo;
+    def::ClientInfo clientInfo;
     ecs::EcsClient ecs;
-    ecs::EntityId selectedEntity;
 
     std::function<void(void)> afterLoadWorldClb;
     std::vector<ecs::EntityId> selectedEntities;
