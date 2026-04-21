@@ -598,14 +598,16 @@ void Model::drawTextures(gfx::RenderEngine& renderer,
                     {
                         texHandleGFX = mappedTexture->texHandle;
                     }
+                    // Offset is in body space; rotate by +rot (CW, Y-down) to
+                    // world.
                     vec2 texOffset = smath::rotateVec2(
                         vec2(texture.bounds.x, texture.bounds.y),
-                        -transform.rot);
+                        transform.rot);
                     renderer.drawTexRect(
                         worldPos + texOffset,
                         glm::vec2(texture.bounds.z, texture.bounds.w),
                         texHandleGFX,
-                        transform.rot + texture.rot,
+                        texture.rot - transform.rot,
                         texture.zIndex / 100.0f,
                         0);
                 }

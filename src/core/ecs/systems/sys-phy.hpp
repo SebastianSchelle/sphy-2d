@@ -70,10 +70,10 @@ const System sysMoveCtrl = {
             {
                 glm::vec2 desVelV(0.0f);
                 const float maxAcc =
-                    fmaxf(1e-6f,
-                          std::min(phyThrust->thrustManeuverMax,
-                                   phyThrust->thrustMainMax)
-                              / physicsBody->mass);
+                    fmaxf(1e-6f,phyThrust->thrustMainMax / physicsBody->mass);
+                        //   std::min(phyThrust->thrustManeuverMax,
+                        //            phyThrust->thrustMainMax)
+                        //       / physicsBody->mass);
                 dir = worldDir / dist;
                 const float desVelMag = velMargin * sqrtf(2.0f * maxAcc * dist);
                 const float desVel = fminf(phyThrust->maxSpd, desVelMag);
@@ -92,9 +92,10 @@ const System sysMoveCtrl = {
                 case MoveCtrl::FaceDirMode::Forward:
                     if (dist > ptrHandle->minFaceForwardDist)
                     {
-                        // Sprites/models use +Y as "forward", while atan2()
-                        // returns heading from +X, so rotate by 90 degrees.
-                        moveCtrl->spRot = atan2f(-dir.y, dir.x) + M_PI_2f;
+                        // World is Y-down; sprites use local +Y as forward.
+                        // After CW rotation by `rot`, local +Y maps to
+                        // (-sin(rot), cos(rot)) in world — align that with dir.
+                        moveCtrl->spRot = atan2f(-dir.x, dir.y);
                     }
                     break;
                 case MoveCtrl::FaceDirMode::TargetPoint:
@@ -104,9 +105,7 @@ const System sysMoveCtrl = {
                     if (fabs(tgtDir.x) + fabs(tgtDir.y)
                         > ptrHandle->minFaceTargetDist)
                     {
-                        // Sprites/models use +Y as "forward", while atan2()
-                        // returns heading from +X, so rotate by 90 degrees.
-                        moveCtrl->spRot = atan2f(-tgtDir.y, tgtDir.x) + M_PI_2f;
+                        moveCtrl->spRot = atan2f(-tgtDir.x, tgtDir.y);
                     }
                 }
                 break;

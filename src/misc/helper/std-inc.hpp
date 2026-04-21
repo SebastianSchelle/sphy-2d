@@ -351,6 +351,9 @@ inline float angleClamp(float angle)
     return angle;
 }
 
+// Rotate a 2D vector by `radians` in the **world plane** (X right, Y down).
+// Positive angle is **clockwise** (screen-space), matching `Transform::rot`
+// and the SDF / tex-rect vertex shaders (same cos/sin matrix).
 inline vec2 rotateVec2(const vec2& v, float s, float c)
 {
     return vec2(c * v.x - s * v.y, s * v.x + c * v.y);

@@ -351,10 +351,12 @@ struct PhyThrust
 
     void setThrustGlobal(glm::vec2 th, Transform& tr)
     {
-        thrustLocal = smath::rotateVec2(th, tr.rot);
+        // World -> body: inverse of CW rotation by tr.rot
+        thrustLocal = smath::rotateVec2(th, -tr.rot);
         clampThrustLocalToActuatorBox(
             thrustLocal, thrustManeuverMax, thrustMainMax);
-        thrustGlobal = smath::rotateVec2(thrustLocal, -tr.rot);
+        // Body -> world
+        thrustGlobal = smath::rotateVec2(thrustLocal, tr.rot);
     }
 
     void setThrustLocal(glm::vec2 th, Transform& tr)
@@ -362,7 +364,7 @@ struct PhyThrust
         thrustLocal = th;
         clampThrustLocalToActuatorBox(
             thrustLocal, thrustManeuverMax, thrustMainMax);
-        thrustGlobal = smath::rotateVec2(thrustLocal, -tr.rot);
+        thrustGlobal = smath::rotateVec2(thrustLocal, tr.rot);
     }
 
     void setTorque(float trq)
