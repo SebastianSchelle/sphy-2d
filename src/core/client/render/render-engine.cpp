@@ -770,6 +770,7 @@ void RenderEngine::drawTexRect(const glm::vec2& pos,
                                const glm::vec2& size,
                                TextureHandle textureHandle,
                                float rotationRad,
+                               float zIndex,
                                bgfx::ViewId viewId)
 {
     changeRenderState(RenderState::DrawTexRects);
@@ -812,9 +813,9 @@ void RenderEngine::drawTexRect(const glm::vec2& pos,
         reinterpret_cast<TexRectData*>(idbTex.data) + currentTexRectCount;
     inst->rect = vec4(pos.x, pos.y, size.x, size.y);
     inst->atlasUv = glm::vec4(texture->getRelBounds());
-    inst->rotLayer = vec4(rotationRad,
+    inst->rotLayZ = vec4(rotationRad,
                           static_cast<float>(texture->getTexIdent().layerIdx),
-                          0.0f,
+                          zIndex,
                           0.0f);
     inst->colorAbgr = vec4(1.0f, 1.0f, 1.0f, 1.0f);
     currentTexRectCount++;
@@ -846,6 +847,7 @@ void RenderEngine::submitTexRects()
                          | BGFX_SAMPLER_MIP_POINT);
 
     uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
+                     | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS
                      | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
                                              BGFX_STATE_BLEND_INV_SRC_ALPHA);
 

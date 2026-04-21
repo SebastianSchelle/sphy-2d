@@ -627,9 +627,10 @@ void World::drawStrategicMap(gfx::RenderEngine& renderer,
     {
         for (int j = 0; j < worldShape.numSectorY; j++)
         {
-            if (sectorIntersectsRect(i - renderer.getSectorOffsetX(),
-                                     j - renderer.getSectorOffsetY(),
-                                     viewRect))
+            // todo: this seems wrong
+            // if (sectorIntersectsRect(i - renderer.getSectorOffsetX(),
+            //                          j - renderer.getSectorOffsetY(),
+            //                          viewRect))
             {
                 sectors.at(i, j)->drawStrategicMap(renderer, viewRect, zoom);
             }

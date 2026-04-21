@@ -25,6 +25,10 @@ struct EntityId
     {
         return !(*this == other);
     }
+    static const EntityId Invalid()
+    {
+        return {0, 0};
+    }
 };
 
 #define SER_ENTITY_ID S4b(o.index); S2b(o.generation);

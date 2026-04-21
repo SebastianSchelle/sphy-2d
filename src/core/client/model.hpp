@@ -7,7 +7,6 @@
 #include <net-shared.hpp>
 #include <std-inc.hpp>
 #include <world.hpp>
-#include <client-def.hpp>
 
 namespace mod
 {
@@ -48,9 +47,15 @@ class Model
     void startLoadingMods();
     void startModel();
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
-    void drawTacticalMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
-    void drawStrategicMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
-    void drawThirdPerson(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
+    void drawTacticalMap(gfx::RenderEngine& renderer,
+                         const glm::vec4& viewRect,
+                         float zoom);
+    void drawStrategicMap(gfx::RenderEngine& renderer,
+                          const glm::vec4& viewRect,
+                          float zoom);
+    void drawThirdPerson(gfx::RenderEngine& renderer,
+                         const glm::vec4& viewRect,
+                         float zoom);
     void setOverlayEnabled(const std::string& overlay, bool enabled);
     bool isAabbTreeOverlayEnabled() const;
     void sendCmdToServer(const std::string& command);
@@ -106,12 +111,12 @@ class Model
     }
 
   private:
-  void parseCommandData(const net::CmdQueueData& cmdData);
-  void parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
-                    net::SendType sendType,
-                    uint16_t cmd,
-                    uint8_t flags,
-                    uint16_t len);
+    void parseCommandData(const net::CmdQueueData& cmdData);
+    void parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
+                      net::SendType sendType,
+                      uint16_t cmd,
+                      uint8_t flags,
+                      uint16_t len);
     void modelLoopMenu(float dt);
     void modelLoopGame(float dt);
     void timeSync();
@@ -127,6 +132,9 @@ class Model
     void handleActiveEntitySwitched(bitsery::Deserializer<InputAdapter>& cmddes,
                                     uint16_t posNextCmdOrEof);
     void drawOverlayAABBs(gfx::RenderEngine& renderer, float zoom);
+    void drawTextures(gfx::RenderEngine& renderer,
+                      const glm::vec4& viewRect,
+                      float zoom);
 
     cfg::ConfigManager& config;
     net::TimeSync timeSyncData;

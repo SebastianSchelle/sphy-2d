@@ -1,5 +1,7 @@
+#include "ecs.hpp"
 #include <asset-factory.hpp>
 #include <components/comp-ident.hpp>
+#include <ecs.hpp>
 
 namespace ecs
 {
@@ -130,6 +132,49 @@ string AssetFactory::assetInfo(const string& assetId) const
     {
         return "Failed: Could not find asset info";
     }
+}
+
+bool AssetFactory::hasAsset(const std::string& assetId) const
+{
+    return assetMap.find(assetId) != assetMap.end();
+}
+
+EntityId AssetFactory::createFromAsset(ecs::Ecs& ecs,
+                                       const std::string& assetId) const
+{
+    EntityId newEntityId = EntityId::Invalid();
+    auto it = assetMap.find(assetId);
+    if (it == assetMap.end())
+    {
+        LG_E("Asset not found: {}", assetId);
+        return newEntityId;
+    }
+    const entt::entity srcEntity = it->second.entity;
+    if (!this->registry.valid(srcEntity))
+    {
+        LG_E("Source entity not found: {}", srcEntity);
+        return newEntityId;
+    }
+    newEntityId = ecs.createEntity();
+    entt::entity newEntity = ecs.getEntity(newEntityId);
+    if (newEntity == entt::null)
+    {
+        LG_E("Failed to create new entity");
+        ecs.destroyEntity(newEntityId);
+        return EntityId::Invalid();
+    }
+    for (const auto& [hash, helper] : componentFactory.getComponentHelpers())
+    {
+        if (helper.name == "asset-id")
+        {
+            continue;
+        }
+        helper.assetCopier(const_cast<entt::registry&>(this->registry),
+                           srcEntity,
+                           const_cast<entt::registry&>(ecs.getRegistry()),
+                           newEntity);
+    }
+    return newEntityId;
 }
 
 }  // namespace ecs

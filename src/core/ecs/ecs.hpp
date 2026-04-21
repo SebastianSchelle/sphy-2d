@@ -2,14 +2,14 @@
 #define ECS_HPP
 
 #include <asset-factory.hpp>
+#include <comp-ident.hpp>
 #include <entt/entt.hpp>
 #include <ptr-handle.hpp>
 #include <std-inc.hpp>
-#include <comp-ident.hpp>
 
 namespace world
 {
-  class Sector;
+class Sector;
 }
 
 namespace ecs
@@ -62,9 +62,8 @@ class Ecs
     EntityId getEntityIdFromIdx(uint32_t index);
     const vector<System>& getRegisteredSystems();
     void registerSystem(const System system);
-    bool spawnEntityFromAsset(EntityId entityId,
-                              const std::string& assetId,
-                              const AssetFactory& assetFactory);
+    EntityId spawnEntityFromAsset(const std::string& assetId,
+                                  const AssetFactory& assetFactory);
     entt::registry& getRegistry();
     entt::entity insertOrReplaceByExistingEntityId(EntityId entityId);
 
@@ -84,6 +83,7 @@ class EcsClient
     entt::entity enttFromServerId(const EntityId& entityId);
     entt::entity getEntity(EntityId entityId);
     bool validId(EntityId entityId);
+
   private:
     entt::registry registry;
     std::unordered_map<uint32_t, Slot> idMap;

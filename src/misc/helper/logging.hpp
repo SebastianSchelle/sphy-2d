@@ -1,6 +1,10 @@
 #ifndef LOGGING_HPP
 #define LOGGING_HPP
 
+#ifndef SPDLOG_ACTIVE_LEVEL
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
+#endif
+
 #include <spdlog/async.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -8,10 +12,10 @@
 #include <glm/glm.hpp>
 #include "spdlog/fmt/bundled/format.h"
 
-#define LG_D(...) spdlog::debug(__VA_ARGS__)
-#define LG_I(...) spdlog::info(__VA_ARGS__)
-#define LG_E(...) spdlog::critical(__VA_ARGS__)
-#define LG_W(...) spdlog::warn(__VA_ARGS__)
+#define LG_D(...) SPDLOG_DEBUG(__VA_ARGS__)
+#define LG_I(...) SPDLOG_INFO(__VA_ARGS__)
+#define LG_E(...) SPDLOG_CRITICAL(__VA_ARGS__)
+#define LG_W(...) SPDLOG_WARN(__VA_ARGS__)
 
 namespace debug
 {
@@ -27,6 +31,8 @@ inline void createLogger(std::string logFile, uint8_t level)
         "mainlogger", sinks.begin(), sinks.end(), spdlog::thread_pool(),
         spdlog::async_overflow_policy::block);
     spdlog::set_default_logger(logger);
+    spdlog::set_pattern(
+        "[%m%d|%H:%M:%S.%e] [%^%-8l%$] [%s:%!] %v");
     spdlog::set_level(static_cast<spdlog::level::level_enum>(level));
 }
 

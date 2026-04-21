@@ -15,7 +15,7 @@ void main()
 	vec2 scaled = a_position * i_data0.zw;
 	vec2 transformed = rot * scaled;
 	vec2 worldPos = transformed + i_data0.xy;
-	gl_Position = mul(u_myproj, vec4(worldPos, 0.0, 1.0));
+	gl_Position = mul(u_myproj, vec4(worldPos, i_data2.z, 1.0));
 
 	// Same UV mapping as fs_geom: atlas origin + unit quad (0..1) * span
 	vec2 unitUv = a_position + 0.5;

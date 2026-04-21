@@ -77,6 +77,7 @@ void Engine::start()
     cFac->registerComponent<ecs::Broadphase>();
     cFac->registerComponent<ecs::TransformCache>();
     cFac->registerComponent<ecs::MapIcon>();
+    cFac->registerComponent<ecs::Textures>();
 
     ecs.registerSystem(ecs::sysMoveCtrl);
     ecs.registerSystem(ecs::sysPhyThrust);
@@ -87,6 +88,7 @@ void Engine::start()
 
     registerSlowDumpComponent<ecs::Transform>();
     registerSlowDumpComponent<ecs::MapIcon>();
+    registerSlowDumpComponent<ecs::Textures>();
 
     def::ClientInfoHandle handle = registerClient(def::ClientInfo(
         "Based Laser King",
@@ -673,14 +675,7 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
 
 ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId)
 {
-    ecs::EntityId ent = ecs.createEntity();
-    if (!ecs.validId(ent))
-    {
-        LG_E("Failed to create entity");
-        return ent;
-    }
-    ecs.spawnEntityFromAsset(ent, assetId, assetFactory);
-    return ent;
+    return ecs.spawnEntityFromAsset(assetId, assetFactory);
 }
 
 ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId,
@@ -1089,11 +1084,11 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
 
-    for (int i = 0; i < 1; ++i)
+    for (int i = 0; i < 100; ++i)
     {
         auto ent = spawnEntityFromAsset(
             //kAssets[assetPick(gen)],
-            "test1",
+            "BoomBoa",
             sectorPick(gen),
             ecs::Transform{glm::vec2{posDist(gen), posDist(gen)},
                            rotDist(gen)});

@@ -7,11 +7,11 @@
 #include <bx/math.h>
 #include <config-manager.hpp>
 #include <item-lib.hpp>
+#include <magic_enum/magic_enum.hpp>
 #include <shader.hpp>
 #include <texture.hpp>
 #include <vertex-defines.hpp>
 #include <world-def.hpp>
-#include <magic_enum/magic_enum.hpp>
 
 namespace gfx
 {
@@ -62,9 +62,10 @@ using GeometryHandleUuid = typename con::ItemLib<Geometry>::HandleUuid;
 // (origin.xy + local.xy * span.zw).
 struct TexRectData
 {
-    vec4 rect;      // .xy = world-space center, .zw = width and height
-    vec4 atlasUv;   // packed atlas rect: .xy origin, .zw size in UV space
-    vec4 rotLayer;  // .x = rotation (rad), .y = layer index as float
+    vec4 rect;     // .xy = world-space center, .zw = width and height
+    vec4 atlasUv;  // packed atlas rect: .xy origin, .zw size in UV space
+    vec4 rotLayZ;  // .x = rotation (rad), .y = layer index as float, .z =
+                   // z-index as float
     vec4 colorAbgr;
 };
 
@@ -175,6 +176,7 @@ class RenderEngine
                      const glm::vec2& size,
                      TextureHandle textureHandle,
                      float rotationRad = 0.0f,
+                     float zIndex = 0.0f,
                      bgfx::ViewId viewId = 0);
     tim::Timepoint getStartTime() const;
     float getWorldZoom() const

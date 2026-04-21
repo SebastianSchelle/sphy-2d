@@ -282,6 +282,20 @@ template <typename D> void deserialize(D& s, vec3& o)
     s.value4b(o.y);
     s.value4b(o.z);
 }
+template <typename S> void serialize(S& s, vec4& o)
+{
+    s.value4b(o.x);
+    s.value4b(o.y);
+    s.value4b(o.z);
+    s.value4b(o.w);
+}
+template <typename D> void deserialize(D& s, vec4& o)
+{
+    s.value4b(o.x);
+    s.value4b(o.y);
+    s.value4b(o.z);
+    s.value4b(o.w);
+}
 }  // namespace glm
 
 // Bitsery ADL note:
@@ -305,6 +319,11 @@ void deserialize(D& d, vector<T, Allocator>& o)
 
 namespace smath
 {
+
+inline float degToRad(float deg)
+{
+    return deg * M_PI / 180.0f;
+}
 
 inline float between(float d, float min, float max)
 {
@@ -332,11 +351,14 @@ inline float angleClamp(float angle)
     return angle;
 }
 
+inline vec2 rotateVec2(const vec2& v, float s, float c)
+{
+    return vec2(c * v.x - s * v.y, s * v.x + c * v.y);
+}
+
 inline vec2 rotateVec2(const vec2& v, float radians)
 {
-    float c = std::cos(radians);
-    float s = std::sin(radians);
-    return vec2(c * v.x - s * v.y, s * v.x + c * v.y);
+    return rotateVec2(v, std::sin(radians), std::cos(radians));
 }
 
 inline vec2 perpVec2(vec2 vec)

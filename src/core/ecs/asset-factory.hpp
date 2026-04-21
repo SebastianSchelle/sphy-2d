@@ -11,6 +11,8 @@ class ResourceMap;
 
 namespace ecs
 {
+class Ecs;
+struct EntityId;
 
 class ComponentFactory
 {
@@ -124,8 +126,10 @@ class AssetFactory
     void copyComponentsIntoEntity(entt::registry& registry,
                                   entt::entity entity,
                                   const std::string& assetId) const;
+    ecs::EntityId createFromAsset(ecs::Ecs& ecs, const std::string& assetId) const;
     string assetList(const string& assetId) const;
     string assetInfo(const string& assetId) const;
+    bool hasAsset(const std::string& assetId) const;
 
   private:
     entt::registry registry;

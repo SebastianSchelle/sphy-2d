@@ -60,7 +60,7 @@ entt::entity Ecs::getEntity(EntityId entityId)
 
 EntityId Ecs::getEntityIdFromIdx(uint32_t index)
 {
-    if(index < idMap.size())
+    if (index < idMap.size())
     {
         return {index, idMap[index].generation};
     }
@@ -83,16 +83,10 @@ void Ecs::registerSystem(const System system)
     LG_D("Registered ECS system: {}", system.name);
 }
 
-bool Ecs::spawnEntityFromAsset(EntityId entityId, const std::string& assetId, const AssetFactory& assetFactory)
+EntityId Ecs::spawnEntityFromAsset(const std::string& assetId,
+                                   const AssetFactory& assetFactory)
 {
-    entt::entity entity = getEntity(entityId);
-    if (entity == entt::null)
-    {
-        LG_E("Entity not found: {}", entityId);
-        return false;
-    }
-    assetFactory.copyComponentsIntoEntity(registry, entity, assetId);
-    return true;
+    return assetFactory.createFromAsset(*this, assetId);
 }
 
 entt::registry& Ecs::getRegistry()
