@@ -40,8 +40,6 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
         CFG_FLOAT(config, 0.1f, "engine", "physics", "ang-drag");
     ptrHandle->linDrag =
         CFG_FLOAT(config, 0.1f, "engine", "physics", "lin-drag");
-    ptrHandle->minFaceForwardDist =
-        CFG_FLOAT(config, 1.0f, "engine", "physics", "min-face-forward-dist");
     ptrHandle->minFaceTargetDist =
         CFG_FLOAT(config, 1.0f, "engine", "physics", "min-face-target-dist");
     slowDumpUs = 1000 * CFG_UINT(config, 1000.0f, "engine", "slow-dump-ms");
@@ -1084,7 +1082,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
 
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < 50000; ++i)
     {
         auto ent = spawnEntityFromAsset(
             //kAssets[assetPick(gen)],

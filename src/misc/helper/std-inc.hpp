@@ -369,6 +369,11 @@ inline vec2 perpVec2(vec2 vec)
     return vec2(-vec.y, vec.x);
 }
 
+inline float min(float a, float b, float c)
+{
+    return std::min(a, std::min(b, c));
+}
+
 typedef vec4 Rect;
 
 inline bool intersectsRect(const Rect& rect1, const Rect& rect2)

@@ -4,9 +4,9 @@
 #include <aabb-tree.hpp>
 #include <algorithm>
 #include <climits>
-#include <optional>
 #include <entt/entt.hpp>
 #include <magic_enum/magic_enum.hpp>
+#include <optional>
 #include <std-inc.hpp>
 #include <world-def.hpp>
 #include <yaml-cpp/yaml.h>
@@ -75,9 +75,9 @@ EXT_DES(TransformCache, SER_TRANSFORM_CACHE)
 // Uses vec2 (glm) for components; same role as a hypothetical Vec2 type.
 struct Contact
 {
-    vec2 normal{};       // unit, direction from collider A → collider B
-    float penetration{}; // positive overlap along normal (same units as verts)
-    vec2 point{};        // approximate contact (centroid midpoint); refine later
+    vec2 normal{};        // unit, direction from collider A → collider B
+    float penetration{};  // positive overlap along normal (same units as verts)
+    vec2 point{};  // approximate contact (centroid midpoint); refine later
 };
 
 struct ContactInfo
@@ -125,7 +125,8 @@ struct Collider
         c.normal = n;
         c.penetration = pen;
         c.point =
-            0.5f * (sat2d::centroid(vertices) + sat2d::centroid(other.vertices));
+            0.5f
+            * (sat2d::centroid(vertices) + sat2d::centroid(other.vertices));
         return c;
     }
 };
@@ -349,22 +350,39 @@ struct PhyThrust
     float thrustManeuverMax;
     float maxSpd;
 
-    void setThrustGlobal(glm::vec2 th, Transform& tr)
+    void setThrustGlobal(vec2 th, Transform& tr)
     {
         // World -> body: inverse of CW rotation by tr.rot
-        thrustLocal = smath::rotateVec2(th, -tr.rot);
-        clampThrustLocalToActuatorBox(
-            thrustLocal, thrustManeuverMax, thrustMainMax);
-        // Body -> world
-        thrustGlobal = smath::rotateVec2(thrustLocal, tr.rot);
+        const float s = std::sin(tr.rot);
+        const float c = std::cos(tr.rot);
+        setThrustGlobal(th, s, c);
     }
 
-    void setThrustLocal(glm::vec2 th, Transform& tr)
+    void setThrustGlobal(vec2 th, float s, float c)
+    {
+        setThrustLocal(smath::rotateVec2(th, -s, c), s, c);
+    }
+
+    void setThrustLocal(vec2 th, Transform& tr)
+    {
+        const float s = std::sin(tr.rot);
+        const float c = std::cos(tr.rot);
+        setThrustLocal(th, s, c);
+    }
+
+    void setThrustLocal(vec2 th, float s, float c)
     {
         thrustLocal = th;
         clampThrustLocalToActuatorBox(
             thrustLocal, thrustManeuverMax, thrustMainMax);
-        thrustGlobal = smath::rotateVec2(thrustLocal, tr.rot);
+        thrustGlobal = smath::rotateVec2(thrustLocal, s, c);
+    }
+
+    void setThrustNone()
+    {
+        thrustGlobal = vec2(0.0f);
+        thrustLocal = vec2(0.0f);
+        torque = 0.0f;
     }
 
     void setTorque(float trq)
@@ -414,6 +432,15 @@ EXT_DES(PhyThrust, SER_PHY_THRUST)
 
 struct MoveCtrl
 {
+    struct MCForwardData
+    {
+        float minFaceForwardDist;
+    };
+
+    struct MCTargetPointData
+    {
+        vec2 lookAt;
+    };
     enum class FaceDirMode : uint8_t
     {
         None,
@@ -430,6 +457,9 @@ struct MoveCtrl
     // lookAt only works in sector
     vec2 lookAt;
     float spRot;
+
+    std::variant<MCForwardData, MCTargetPointData> faceDirData =
+        MCForwardData{100.0f};
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
@@ -453,6 +483,21 @@ struct MoveCtrl
         else
         {
             c.faceDirMode = FaceDirMode::None;
+        }
+        switch (c.faceDirMode)
+        {
+            case FaceDirMode::Forward:
+                float minFFDist;
+                TRY_YAML_DICT(minFFDist, node["minFFDist"], 100.0f);
+                c.faceDirData = MCForwardData{minFFDist};
+                break;
+            case FaceDirMode::TargetPoint:
+                vec2 lookAt;
+                TRY_YAML_DICT(lookAt, node["lookAt"], vec2(0.0f, 0.0f));
+                c.faceDirData = MCTargetPointData{vec2(0.0f, 0.0f)};
+                break;
+            default:
+                break;
         }
         TRY_YAML_DICT(c.lookAt.x, node["lookAt"][0], 0.0f);
         TRY_YAML_DICT(c.lookAt.y, node["lookAt"][1], 0.0f);

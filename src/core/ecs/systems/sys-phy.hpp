@@ -13,16 +13,16 @@
 namespace ecs
 {
 
-const float velMargin = 0.8f;
+const float velMargin = 0.5f;
 const float posDeadband = 0.1f;
 const float velDeadband = 0.04f;
 const float rotDeadband = 0.03f;
 const float rotVelDeadband = 0.03f;
 
-// Baumgarte stabilization: bias velocity ~ beta * max(p - slop, 0) / dt (clamped).
-// Applied only on the first solver pass — contact penetration is not recomputed
-// between iterations; repeating full bias + positional split each pass launches
-// bodies (stale penetration × N iterations).
+// Baumgarte stabilization: bias velocity ~ beta * max(p - slop, 0) / dt
+// (clamped). Applied only on the first solver pass — contact penetration is not
+// recomputed between iterations; repeating full bias + positional split each
+// pass launches bodies (stale penetration × N iterations).
 constexpr float kContactBaumgarte = 0.25f;
 constexpr float kContactPenetrationSlop = 0.005f;
 constexpr float kContactMaxBiasSpeed = 3.0f;
@@ -42,47 +42,58 @@ const System sysMoveCtrl = {
             auto* sectorId = reg->try_get<ecs::SectorId>(entity);
             auto* moveCtrl = reg->try_get<MoveCtrl>(entity);
             auto* transform = reg->try_get<Transform>(entity);
+            auto* transformCache = reg->try_get<TransformCache>(entity);
             auto* physicsBody = reg->try_get<PhysicsBody>(entity);
             auto* phyThrust = reg->try_get<PhyThrust>(entity);
-            if (!moveCtrl || !transform || !physicsBody || !phyThrust
-                || !sectorId || !moveCtrl->active || dt <= 1e-6f)
+            if (!moveCtrl || !transform || !transformCache || !physicsBody
+                || !phyThrust || !sectorId || !moveCtrl->active || dt <= 1e-6f)
             {
                 return;
             }
 
             // Thrust control =====================
+            const float s = transformCache->s;
+            const float c = transformCache->c;
+            const float m = physicsBody->mass;
+            const vec2 v_vel = physicsBody->vel;
+            const vec2 v_vel_l = smath::rotateVec2(v_vel, -s, c);
+            const float v = glm::length(v_vel);
             vec2 relTargetPos =
-                (vec2(moveCtrl->spPos.pos.x, moveCtrl->spPos.pos.y)
-                 - vec2(sectorId->x, sectorId->y))
+                (moveCtrl->spPos.pos.toVec2() - sectorId->toVec2())
                     * ptrHandle->world->getWorldShape().sectorSize
                 + moveCtrl->spPos.sectorPos;
-            const vec2 worldDir = relTargetPos - transform->pos;
-            const float dist = length(worldDir);
-            const float speed = length(physicsBody->vel);
-            const bool inPosDeadzone =
-                dist < posDeadband && speed < velDeadband;
-            vec2 dir;
+            // d_w: target direction in world space
+            const vec2 d_w = relTargetPos - transform->pos;
+            // d_l: target direction in object local space
+            const vec2 d_l = smath::rotateVec2(d_w, -s, c);
+            const float d_l_mag = glm::length(d_l);
+            // t_ml: maximum thrust vector in object local space and target
+            // direction
+            const float tm_x = phyThrust->thrustManeuverMax;
+            const float tm_y = phyThrust->thrustMainMax;
+            const float k_t = std::min(tm_x / fabs(d_l.x), tm_y / fabs(d_l.y));
+            const vec2 t_ml = k_t * d_l;
+            // t_m: maximum thrust magnitude
+            // a_m: maximum acceleration
+            // v_m: desired velocity
+            const float t_m = glm::length(t_ml);
+            const float a_m = t_m / m;
+            const float v_m = sqrtf(2.0f * a_m * d_l_mag);
+            // v_des: desired velocity magnitude
+            // v_des_l: desired velocity in object local space
+            const float v_des = std::min(velMargin * v_m, phyThrust->maxSpd);
+            const vec2 v_des_l = v_des * d_l / d_l_mag;
+
+            const bool inPosDeadzone = d_l_mag < posDeadband && v < velDeadband;
             if (inPosDeadzone)
             {
-                phyThrust->setThrustGlobal(vec2(0.0f), *transform);
+                phyThrust->setThrustNone();
             }
-            else if (dist > 1e-6f)
+            else if (d_l_mag > 1e-6f)
             {
-                glm::vec2 desVelV(0.0f);
-                const float maxAcc =
-                    fmaxf(1e-6f,phyThrust->thrustMainMax / physicsBody->mass);
-                        //   std::min(phyThrust->thrustManeuverMax,
-                        //            phyThrust->thrustMainMax)
-                        //       / physicsBody->mass);
-                dir = worldDir / dist;
-                const float desVelMag = velMargin * sqrtf(2.0f * maxAcc * dist);
-                const float desVel = fminf(phyThrust->maxSpd, desVelMag);
-                desVelV = dir * desVel;
-
-                const glm::vec2 err = desVelV - physicsBody->vel;
-                const glm::vec2 thrust =
-                    ptrHandle->kpThrust * physicsBody->mass * err;
-                phyThrust->setThrustGlobal(thrust, *transform);
+                const vec2 err = v_des_l - v_vel_l;
+                const vec2 thrust = ptrHandle->kpThrust * m * err;
+                phyThrust->setThrustLocal(thrust, s, c);
             }
 
             // Torque control =====================
@@ -90,14 +101,19 @@ const System sysMoveCtrl = {
             switch (moveCtrl->faceDirMode)
             {
                 case MoveCtrl::FaceDirMode::Forward:
-                    if (dist > ptrHandle->minFaceForwardDist)
+                {
+                    const float minFFDist =
+                        std::get<MoveCtrl::MCForwardData>(moveCtrl->faceDirData)
+                            .minFaceForwardDist;
+                    if (d_l_mag > minFFDist)
                     {
                         // World is Y-down; sprites use local +Y as forward.
                         // After CW rotation by `rot`, local +Y maps to
                         // (-sin(rot), cos(rot)) in world — align that with dir.
-                        moveCtrl->spRot = atan2f(-dir.x, dir.y);
+                        moveCtrl->spRot = atan2f(-d_w.x, d_w.y);
                     }
-                    break;
+                }
+                break;
                 case MoveCtrl::FaceDirMode::TargetPoint:
                 {
                     vec2 tgtDir = vec2(moveCtrl->lookAt.x - transform->pos.x,
@@ -277,9 +293,7 @@ const System sysCollisionDetection = {
     .type = SystemType::SectorOnce,
     .function =
         SFSectorOnce{
-            [](world::Sector* sector,
-               float dt,
-               PtrHandle* ptrHandle)
+            [](world::Sector* sector, float dt, PtrHandle* ptrHandle)
             {
                 // Query broadphase collisions from aabb tree
                 auto* reg = ptrHandle->registry;
@@ -335,12 +349,12 @@ const System sysCollisionDetection = {
                                                      transformCache2);
                     if (contact)
                     {
-                        sector->contactInfos.push_back({
-                            *contact,
-                            collision.first,
-                            collision.second,
-                            std::fmin(collider1.restitution, collider2.restitution)
-                        });
+                        sector->contactInfos.push_back(
+                            {*contact,
+                             collision.first,
+                             collision.second,
+                             std::fmin(collider1.restitution,
+                                       collider2.restitution)});
                         // LG_D(
                         //     "Colliding entities: {} and {} (penetration {}, "
                         //     "normal [{}, {}])",
@@ -358,11 +372,14 @@ const System sysCollisionDetection = {
                         auto& contact = contactInfo.contact;
                         auto& phy1 = reg->get<PhysicsBody>(contactInfo.ent1);
                         auto& phy2 = reg->get<PhysicsBody>(contactInfo.ent2);
-                        auto& transform1 = reg->get<Transform>(contactInfo.ent1);
-                        auto& transform2 = reg->get<Transform>(contactInfo.ent2);
+                        auto& transform1 =
+                            reg->get<Transform>(contactInfo.ent1);
+                        auto& transform2 =
+                            reg->get<Transform>(contactInfo.ent2);
 
-                        // One-shot projection: penetration in contact is from the
-                        // pre-solve narrowphase pass only; do not re-apply per iter.
+                        // One-shot projection: penetration in contact is from
+                        // the pre-solve narrowphase pass only; do not re-apply
+                        // per iter.
                         if (i == 0)
                         {
                             const vec2 correction =
@@ -384,13 +401,13 @@ const System sysCollisionDetection = {
                         }
 
                         float penBias = 0.0f;
-                        if (i == 0 && contact.penetration > kContactPenetrationSlop)
+                        if (i == 0
+                            && contact.penetration > kContactPenetrationSlop)
                         {
-                            const float invDt =
-                                dt > 1e-8f ? 1.0f / dt : 0.0f;
-                            penBias =
-                                kContactBaumgarte * invDt
-                                * (contact.penetration - kContactPenetrationSlop);
+                            const float invDt = dt > 1e-8f ? 1.0f / dt : 0.0f;
+                            penBias = kContactBaumgarte * invDt
+                                      * (contact.penetration
+                                         - kContactPenetrationSlop);
                             penBias = std::min(penBias, kContactMaxBiasSpeed);
                         }
 

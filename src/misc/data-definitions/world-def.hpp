@@ -32,6 +32,10 @@ struct SectorPos
     {
         return x != other.x || y != other.y;
     }
+    vec2 toVec2() const
+    {
+        return vec2(x, y);
+    }
 };
 
 struct SectorCoords

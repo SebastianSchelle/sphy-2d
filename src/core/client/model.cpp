@@ -1,3 +1,4 @@
+#include "comp-phy.hpp"
 #include "logging.hpp"
 #include "std-inc.hpp"
 #include <comp-gfx.hpp>
@@ -554,6 +555,7 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
                                      0);
             }
         });
+
     if (overlayAabbTreeEnabled)
     {
         drawOverlayAABBs(renderer, zoom);

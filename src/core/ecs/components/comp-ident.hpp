@@ -79,6 +79,11 @@ struct SectorId
         TRY_YAML_DICT(sectorId.y, node["y"], 0u);
         registry.emplace<SectorId>(entity, sectorId);
     }
+
+    vec2 toVec2() const
+    {
+        return vec2(x, y);
+    }
 };
 
 #define SER_SECTOR_ID                                                          \
