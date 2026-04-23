@@ -28,6 +28,8 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
 {
     ptrHandle = new ecs::PtrHandle();
     ptrHandle->ecs = &ecs;
+    ptrHandle->registry = &ecs.getRegistry();
+    ptrHandle->engine = this;
     ptrHandle->world = &world;
     ptrHandle->engine = this;
     ptrHandle->systems = &ecs.getRegisteredSystems();
@@ -174,6 +176,7 @@ void Engine::engineLoop()
             case EngineState::Running:
             {
                 update(dt);
+                runConnectedClientWorkSequencers();
                 runSlowClientDump(nowU);
                 DO_PERIODIC_U_EXTNOW(lastSaveTime, TIM_5M, nowU, saveGame)
             }
@@ -218,6 +221,14 @@ void Engine::update(float dt)
     }
     world.update(dt, ptrHandle);
     rerunDebugMovePhy();
+}
+
+void Engine::runConnectedClientWorkSequencers()
+{
+    for (auto handle : connectedClientHandles)
+    {
+        clientLib.getItem(handle)->executeWorkSequencer();
+    }
 }
 
 void Engine::rerunDebugMovePhy()
@@ -350,7 +361,9 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
 {
     if (cmdData.sendType == net::SendType::TCP && cmdData.tcpDisconnected)
     {
-        handleTcpDisconnect(cmdData.tcpConnection);
+        handleTcpDisconnect(
+            cmdData.tcpConnection,
+            def::ClientInfoHandle(cmdData.tcpDisconnectedHandleValue));
         return;
     }
 
@@ -358,7 +371,7 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
     {
         std::string token;
         const udp::endpoint* udpEndpoint;
-        std::shared_ptr<net::TcpConnection> tcpConnection;
+        net::TcpConnection* tcpConnection = nullptr;
         def::ClientInfoHandle clientInfoHandle =
             def::ClientInfoHandle::Invalid();
         def::ClientInfo* clientInfo = nullptr;
@@ -442,7 +455,7 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
 void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                           std::string& uuid,
                           const udp::endpoint* udpEndpoint,
-                          std::shared_ptr<net::TcpConnection>& tcpConnection,
+                          net::TcpConnection* tcpConnection,
                           def::ClientInfoHandle clientInfoHandle,
                           def::ClientInfo* clientInfo,
                           net::SendType sendType,
@@ -530,22 +543,21 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                         clientInfo->clientInfo.connection = tcpConnection;
                         clientInfo->clientInfo.connection->setClientInfoHandle(
                             *((net::TcpClientInfoHandle*)&handle));
+                        connectedClientHandles.push_back(handle);
                         LG_I(
                             "Client authenticated. ip={}, udp port={}, "
                             "token={}",
                             address.to_string(),
                             portUdp,
                             token);
-                        {
-                            prot::MsgComposer mcomp(net::SendType::TCP,
-                                                    tcpConnection);
-                            mcomp.startCommand(prot::cmd::AUTHENTICATE,
-                                               CMD_FLAG_RESP);
-                            mcomp.startCommand(
-                                prot::cmd::ACTIVE_ENTITY_SWITCHED, 0);
-                            mcomp.ser->object(clientInfo->getActiveEntity());
-                            mcomp.execute(sendQueue);
-                        }
+                        prot::MsgComposer mcomp(net::SendType::TCP,
+                                                tcpConnection);
+                        mcomp.startCommand(prot::cmd::AUTHENTICATE,
+                                           CMD_FLAG_RESP);
+                        mcomp.startCommand(prot::cmd::ACTIVE_ENTITY_SWITCHED,
+                                           0);
+                        mcomp.ser->object(clientInfo->getActiveEntity());
+                        mcomp.execute(sendQueue);
                         return;
                     }
                 }
@@ -669,11 +681,14 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         {
             if ((flags & CMD_FLAG_RESP) == 0)
             {
-                // todo: threaded or max number of entities per frame, queue clients to send to
-                LG_D("Sending all entt components to client {}", clientInfo->getName());
-                sendAllEnttComponents(tcpConnection);
+                // todo: threaded or max number of entities per frame, queue
+                // clients to send to
+                LG_D("Sending all entt components to client {}",
+                     clientInfo->getName());
+                sendAllEnttComponents(clientInfo, tcpConnection);
                 prot::MsgComposer mcomp(net::SendType::TCP, tcpConnection);
-                mcomp.startCommand(prot::cmd::ALL_ENTT_COMPONENTS, CMD_FLAG_RESP);
+                mcomp.startCommand(prot::cmd::ALL_ENTT_COMPONENTS,
+                                   CMD_FLAG_RESP);
                 mcomp.execute(sendQueue);
             }
             break;
@@ -706,8 +721,7 @@ ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId,
     ecs::TransformCache& trC = reg.get_or_emplace<ecs::TransformCache>(entity);
     ecs::SectorId& sec = reg.get_or_emplace<ecs::SectorId>(
         entity, ecs::SectorId{world::INVALID_SECTOR_ID, 0, 0});
-    world.moveEntityTo(
-        ptrHandle, ent, sectorId, transform.pos, transform.rot);
+    world.moveEntityTo(ptrHandle, ent, sectorId, transform.pos, transform.rot);
     return ent;
 }
 
@@ -1033,14 +1047,18 @@ void Engine::runSlowClientDump(long frameTime)
     }
 }
 
-void Engine::handleTcpDisconnect(
-    const std::shared_ptr<net::TcpConnection>& conn)
+void Engine::handleTcpDisconnect(net::TcpConnection* conn,
+                                 def::ClientInfoHandle disconnectedHandle)
 {
-    if (!conn)
-        return;
-    def::ClientInfoHandle handle =
-        *((def::ClientInfoHandle*)&conn->getClientInfoHandle());
-    conn->setClientInfoHandle(net::TcpClientInfoHandle{0, 0});
+    def::ClientInfoHandle handle = disconnectedHandle;
+    if (conn)
+    {
+        if (!handle.isValid())
+        {
+            handle = *((def::ClientInfoHandle*)&conn->getClientInfoHandle());
+        }
+        conn->setClientInfoHandle(net::TcpClientInfoHandle{0, 0});
+    }
     if (!handle.isValid())
         return;
     const uint32_t hv = handle.value();
@@ -1052,21 +1070,35 @@ void Engine::handleTcpDisconnect(
         else
             ++it;
     }
+    for (auto it = connectedClientHandles.begin();
+         it != connectedClientHandles.end();)
+    {
+        if (it->value() == hv)
+            it = connectedClientHandles.erase(it);
+        else
+            ++it;
+    }
     if (def::ClientInfo* ci = clientLib.getItem(handle))
-        ci->clientInfo.connection.reset();
+        ci->clientInfo.connection = nullptr;
     LG_I("TCP client disconnected (handle value={})", hv);
 }
 
-void Engine::sendAllEnttComponents(const std::shared_ptr<net::TcpConnection>& conn)
+void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
+                                   net::TcpConnection* conn)
 {
-    ecs.iterateEntities([this, conn](ecs::EntityId entityId)
-    {
-        sendAllComponents(entityId, conn);
-    });
+    ecs.iterateEntities(
+        [this, clientInfo, conn](ecs::EntityId entityId)
+        {
+            const ecs::EntityId entityCopy = entityId;
+            clientInfo->addWorkFunction(
+                [this, entityCopy, conn]()
+                {
+                    sendAllComponents(entityCopy, conn);
+                });
+        });
 }
 
-void Engine::sendAllComponents(ecs::EntityId entityId,
-                               const std::shared_ptr<net::TcpConnection>& conn)
+void Engine::sendAllComponents(ecs::EntityId entityId, net::TcpConnection* conn)
 {
     entt::entity ent = ecs.getEntity(entityId);
     if (ent == entt::null)
@@ -1083,7 +1115,8 @@ void Engine::sendAllComponents(ecs::EntityId entityId,
          assetFactory.componentFactory.getComponentHelpers())
     {
         helper.serializeFromRegistry(reg, ent, *mcomp.ser);
-        if(mcomp.ser->adapter().currentWritePos() >= prot::kMaxSerializedChunkBytes - 100)
+        if (mcomp.ser->adapter().currentWritePos()
+            >= prot::kMaxSerializedChunkBytes - 100)
         {
             mcomp.execute(sendQueue);
             mcomp.resetData();
@@ -1092,7 +1125,6 @@ void Engine::sendAllComponents(ecs::EntityId entityId,
         }
     }
     mcomp.execute(sendQueue);
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
 }
 
 void Engine::testSpawn()
@@ -1110,10 +1142,10 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
 
-    for (int i = 0; i < 5000; ++i)
+    for (int i = 0; i < 100000; ++i)
     {
         auto ent = spawnEntityFromAsset(
-            //kAssets[assetPick(gen)],
+            // kAssets[assetPick(gen)],
             "BoomBoa",
             sectorPick(gen),
             ecs::Transform{glm::vec2{posDist(gen), posDist(gen)},
@@ -1132,8 +1164,7 @@ void Engine::testSpawn()
     }
 }
 
-void Engine::handleGetAabbTree(uint32_t sectorId,
-                               const std::shared_ptr<net::TcpConnection>& conn)
+void Engine::handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn)
 {
     prot::MsgComposer mcomp(net::SendType::TCP, conn);
     mcomp.startCommand(prot::cmd::DBG_GET_AABB_TREE, CMD_FLAG_RESP);

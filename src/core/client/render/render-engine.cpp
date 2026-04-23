@@ -770,6 +770,7 @@ void RenderEngine::drawTexRect(const glm::vec2& pos,
                                const glm::vec2& size,
                                TextureHandle textureHandle,
                                float rotationRad,
+                               uint32_t colorABGR,
                                float zIndex,
                                bgfx::ViewId viewId)
 {
@@ -809,15 +810,20 @@ void RenderEngine::drawTexRect(const glm::vec2& pos,
         texRectBatchArray = arrayHandle;
     }
 
+    uint8_t a = (colorABGR >> 24) & 0xff;
+    uint8_t b = (colorABGR >> 16) & 0xff;
+    uint8_t g = (colorABGR >> 8) & 0xff;
+    uint8_t r = (colorABGR >> 0) & 0xff;
+
     TexRectData* inst =
         reinterpret_cast<TexRectData*>(idbTex.data) + currentTexRectCount;
     inst->rect = vec4(pos.x, pos.y, size.x, size.y);
+    inst->colorAbgr = vec4(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
     inst->atlasUv = glm::vec4(texture->getRelBounds());
     inst->rotLayZ = vec4(rotationRad,
-                          static_cast<float>(texture->getTexIdent().layerIdx),
-                          zIndex,
-                          0.0f);
-    inst->colorAbgr = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+                         static_cast<float>(texture->getTexIdent().layerIdx),
+                         zIndex,
+                         0.0f);
     currentTexRectCount++;
 }
 
@@ -881,8 +887,17 @@ void RenderEngine::allocateForTexRects()
 
 void RenderEngine::zoomWorld(float amount)
 {
-    // todo: save in local variable
-    worldZoom += amount * zoomPanCfgWorld.zoomStep;
+    for (int i = 0; i < abs(amount); i++)
+    {
+        if (amount > 0)
+        {
+            worldZoom *= zoomPanCfgWorld.zoomStep;
+        }
+        else
+        {
+            worldZoom /= zoomPanCfgWorld.zoomStep;
+        }
+    }
     if (amount > 0)
     {
         if (worldZoom > zoomPanCfgWorld.maxZoom)

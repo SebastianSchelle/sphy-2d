@@ -403,7 +403,7 @@ void MainWindow::processMouseTactical(float zoom)
     }
     else if (mouseState.singleClick[0])
     {
-        model.clearSelectedEntities();
+        model.selectEntityAtWorldPosFast(mouseState.mouseCoords, 10.0f/zoom * 10.0f/zoom);
     }
     if (mouseState.buttons[1] && model.getSelectedEntities().size() > 0)
     {

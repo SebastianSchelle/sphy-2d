@@ -5,6 +5,7 @@
 #include <item-lib.hpp>
 #include <net-shared.hpp>
 #include <std-inc.hpp>
+#include <work-sequencer.hpp>
 
 namespace def
 {
@@ -21,6 +22,7 @@ class ClientInfo
     ClientInfo(const std::string& name,
                const net::ClientInfo& clientInfo,
                const ClientFlags& flags)
+        : workSequencer(100)
     {
         this->name = name;
         this->clientInfo = clientInfo;
@@ -39,10 +41,19 @@ class ClientInfo
         this->flags = flags;
     }
 #endif
-    ~ClientInfo(){}
+    ~ClientInfo() {}
 #ifdef SERVER
     net::ClientInfo clientInfo;
     long lastSlowDump;
+
+    void addWorkFunction(std::function<void()> workFunction)
+    {
+        workSequencer.addWorkFunction(workFunction);
+    }
+    void executeWorkSequencer()
+    {
+        workSequencer.execute();
+    }
 #endif
 #ifdef CLIENT
     net::ModelClientInfo modelClientInfo;
@@ -72,6 +83,9 @@ class ClientInfo
     std::string name;
     ecs::EntityId activeEntity;
     ClientFlags flags;
+#ifdef SERVER
+    work::WorkSequencer workSequencer;
+#endif
 };
 
 using ClientInfoHandle = typename con::ItemLib<ClientInfo>::Handle;

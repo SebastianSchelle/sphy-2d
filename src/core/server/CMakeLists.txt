@@ -35,6 +35,7 @@ set(SERVER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/asset-factory.cpp
     ${MISC_DIR}/work-distributor.cpp
     ${MISC_DIR}/helper/sphy-2d.cpp
+    ${MISC_DIR}/work-sequencer.cpp
 )
 
 set(LIBS_PUB

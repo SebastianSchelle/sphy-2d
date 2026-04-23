@@ -64,6 +64,8 @@ class Model
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
 
+    ecs::EntityId selectEntityAtWorldPos(const def::SectorCoords& sectorCoords);
+    ecs::EntityId selectEntityAtWorldPosFast(const def::SectorCoords& sectorCoords, float dist2);
     void selectEntitiesInsideRect(const def::SectorCoords& start,
                                   const def::SectorCoords& end);
     void clearSelectedEntities();

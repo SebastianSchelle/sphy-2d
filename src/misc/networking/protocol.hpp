@@ -52,7 +52,7 @@ void writeMessageUdp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
                      bool useToken = false,
                      uint16_t removeTrailingBytes = 0);
 void writeMessageTcp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
-                     std::shared_ptr<net::TcpConnection> tcpConnection,
+                     net::TcpConnection* tcpConnection,
                      CmdContentWriter contentWriter);
 bool writeMessage(net::CmdQueueData& cmdData,
                   CmdContentWriter contentWriter,
@@ -67,7 +67,7 @@ class MsgComposer
 {
   public:
     MsgComposer(net::SendType type, const udp::endpoint& endpoint, bool useToken = true);
-    MsgComposer(net::SendType type, std::shared_ptr<net::TcpConnection> tcpConnection);
+    MsgComposer(net::SendType type, net::TcpConnection* tcpConnection);
     ~MsgComposer();
     void resetData();
     void startCommand(uint16_t cmd, uint8_t flags);

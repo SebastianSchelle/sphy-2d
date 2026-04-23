@@ -15,14 +15,13 @@ struct TcpClientInfoHandle
     uint16_t generation;
 };
 
-class TcpConnection : public std::enable_shared_from_this<TcpConnection>
+class TcpConnection
 {
   public:
-    typedef std::shared_ptr<TcpConnection> pointer;
-
-    static pointer create(boost::asio::io_context& io_context,
-                          TcpReceiveClb tcpReceiveCallback,
-                          TcpDisconnectCallback disconnectCallback);
+    static std::unique_ptr<TcpConnection>
+    create(boost::asio::io_context& io_context,
+           TcpReceiveClb tcpReceiveCallback,
+           TcpDisconnectCallback disconnectCallback);
 
     tcp::socket& socket();
 
@@ -72,12 +71,13 @@ class TcpServer
   private:
     void StartAccept();
 
-    void HandleAccept(TcpConnection::pointer new_connection,
+    void HandleAccept(TcpConnection* new_connection,
                       const boost::system::error_code& error);
 
 
     boost::asio::io_context& io_context_;
     tcp::acceptor acceptor_;
+    std::deque<std::unique_ptr<TcpConnection>> connections;
     TcpReceiveClb tcpReceiveCallback;
     TcpDisconnectCallback disconnectCallback;
 };

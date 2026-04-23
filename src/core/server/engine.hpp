@@ -79,7 +79,7 @@ class Engine
     void parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                       std::string& uuid,
                       const udp::endpoint* udpEndpoint,
-                      std::shared_ptr<net::TcpConnection>& tcpConnection,
+                      net::TcpConnection* tcpConnection,
                       def::ClientInfoHandle handle,
                       def::ClientInfo* clientInfo,
                       net::SendType sendType,
@@ -98,18 +98,22 @@ class Engine
     void rerunDebugMovePhy();
     void registerConsoleCommands();
     void runSlowClientDump(long frameTime);
-    void handleTcpDisconnect(const std::shared_ptr<net::TcpConnection>& conn);
-    void sendAllEnttComponents(const std::shared_ptr<net::TcpConnection>& conn);
+    void runConnectedClientWorkSequencers();
+    void handleTcpDisconnect(net::TcpConnection* conn,
+                             def::ClientInfoHandle disconnectedHandle);
+    void sendAllEnttComponents(def::ClientInfo* clientInfo,
+                               net::TcpConnection* conn);
     void sendAllComponents(ecs::EntityId entityId,
-                           const std::shared_ptr<net::TcpConnection>& conn);
+                           net::TcpConnection* conn);
     void testSpawn();
     void handleGetAabbTree(uint32_t sectorId,
-                           const std::shared_ptr<net::TcpConnection>& conn);
+                           net::TcpConnection* conn);
 
     const sphy::CmdLinOptionsServer& options;
     std::atomic<bool> stopRequested{false};
     std::thread engineThread;
     con::ItemLib<def::ClientInfo> clientLib;
+    std::vector<def::ClientInfoHandle> connectedClientHandles;
     std::vector<def::ClientInfoHandle> activeClientHandles;
     mod::ModManager modManager;
     mod::LuaInterpreter luaInterpreter;

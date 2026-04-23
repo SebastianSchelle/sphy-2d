@@ -112,6 +112,30 @@ struct Collider
         return tryContact(other).has_value();
     }
 
+    // worldPoint and tr.pos are in the same space (e.g. sector-local when sector matches).
+    // c,s must match TransformCache / cos(rot),sin(rot) used by collideCollidersWorld.
+    bool isPointInsideWorld(const vec2& worldPoint,
+                            const Transform& tr,
+                            float c,
+                            float s) const
+    {
+        if (vertices.size() < 3)
+        {
+            return false;
+        }
+        const float dx = worldPoint.x - tr.pos.x;
+        const float dy = worldPoint.y - tr.pos.y;
+        const vec2 local(c * dx + s * dy, -s * dx + c * dy);
+        return sat2d::pointInConvex(local, vertices);
+    }
+
+    bool isPointInsideWorld(const vec2& worldPoint,
+                            const Transform& tr,
+                            const TransformCache& tc) const
+    {
+        return isPointInsideWorld(worldPoint, tr, tc.c, tc.s);
+    }
+
     // Both colliders' vertices in the same coordinate space (e.g. both local).
     std::optional<Contact> tryContact(const Collider& other) const
     {

@@ -55,6 +55,7 @@ set(CLIENT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/asset-factory.cpp
     ${MISC_DIR}/networking/exchange-sequence.cpp
     ${MISC_DIR}/work-distributor.cpp
+    ${MISC_DIR}/work-sequencer.cpp
 )
 
 set(LIBS_PUB

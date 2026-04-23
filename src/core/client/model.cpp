@@ -9,6 +9,8 @@
 #include <ui/user-interface.hpp>
 #include <version.hpp>
 #include <world-def.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/norm.hpp>
 
 namespace sphyc
 {
@@ -524,9 +526,9 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
     // todo: Group entities by Pos and only show lists or fleets or groups
     auto& reg = ecs.getRegistry();
     reg.view<ecs::Transform, ecs::SectorId, ecs::MapIcon>().each(
-        [this, &renderer, &viewRect](ecs::Transform& transform,
-                                     ecs::SectorId& sectorId,
-                                     ecs::MapIcon& mapIcon)
+        [this, &renderer, &viewRect, zoom](ecs::Transform& transform,
+                                           ecs::SectorId& sectorId,
+                                           ecs::MapIcon& mapIcon)
         {
             glm::vec2 worldPos =
                 world.getWorldPosSectorOffset(sectorId.id,
@@ -544,13 +546,41 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
                 {
                     texHandle = mappedTexture->texHandle;
                 }
-                renderer.drawTexRect(worldPos,
-                                     glm::vec2(mapIcon.size.x, mapIcon.size.y),
-                                     texHandle,
-                                     transform.rot,
-                                     0);
+                renderer.drawTexRect(
+                    worldPos,
+                    glm::vec2(mapIcon.size.x / zoom, mapIcon.size.y / zoom),
+                    texHandle,
+                    transform.rot,
+                    0xff0010ff,
+                    0.0f,
+                    0);
             }
         });
+
+    for (const auto& entityId : selectedEntities)
+    {
+        entt::entity entity = ecs.getEntity(entityId);
+        if (reg.valid(entity))
+        {
+            auto* trans = reg.try_get<ecs::Transform>(entity);
+            auto* sectorId = reg.try_get<ecs::SectorId>(entity);
+            auto* mapIcon = reg.try_get<ecs::MapIcon>(entity);
+            if (trans && sectorId && mapIcon)
+            {
+                glm::vec2 worldPos =
+                    world.getWorldPosSectorOffset(sectorId->id,
+                                                  renderer.getSectorOffsetX(),
+                                                  renderer.getSectorOffsetY())
+                    + trans->pos;
+                renderer.drawRectangle(worldPos,
+                                       glm::vec2(mapIcon->size.x * 1.5f / zoom, mapIcon->size.y * 1.5f / zoom),
+                                       0xff004000,
+                                       1.0f / zoom,
+                                       0.0f,
+                                       0);
+            }
+        }
+    }
 
     if (overlayAabbTreeEnabled)
     {
@@ -605,7 +635,8 @@ void Model::drawTextures(gfx::RenderEngine& renderer,
                         worldPos + texOffset,
                         glm::vec2(texture.bounds.z, texture.bounds.w),
                         texHandleGFX,
-                        texture.rot - transform.rot,
+                        transform.rot - texture.rot,
+                        0xffffffff,
                         texture.zIndex / 100.0f,
                         0);
                 }
@@ -742,7 +773,6 @@ void Model::handleReqAllComponentsResp(
         if (it != compHelper.end())
         {
             auto& reg = ecs.getRegistry();
-            LG_D("Deserializing component: {} into entity: {}", it->second.name, entity);
             it->second.deserializeIntoRegistry(reg, entity, cmddes);
         }
         else
@@ -759,6 +789,58 @@ void Model::reqAllComponents(ecs::EntityId entityId)
     mcomp.startCommand(prot::cmd::REQ_ALL_COMPONENTS, 0);
     mcomp.ser->object(entityId);
     mcomp.execute(sendQueue);
+}
+
+ecs::EntityId
+Model::selectEntityAtWorldPos(const def::SectorCoords& sectorCoords)
+{
+    selectedEntities.clear();
+    ecs::EntityId selectedEntity = ecs::EntityId::Invalid();
+    auto& reg = ecs.getRegistry();
+    for (const auto entity : reg
+             .view<ecs::SectorId, ecs::Transform, ecs::EntityId, ecs::Collider>())
+    {
+        auto& sid = reg.get<ecs::SectorId>(entity);
+        auto& tr = reg.get<ecs::Transform>(entity);
+        auto& eid = reg.get<ecs::EntityId>(entity);
+        auto& collider = reg.get<ecs::Collider>(entity);
+        if (sid.x == sectorCoords.pos.x && sid.y == sectorCoords.pos.y)
+        {
+            if (collider.isPointInsideWorld(
+                    sectorCoords.sectorPos, tr, std::cos(tr.rot), std::sin(tr.rot)))
+            {
+                selectedEntity = eid;
+                selectedEntities.push_back(eid);
+                break;
+            }
+        }
+    }
+    return selectedEntity;
+}
+
+ecs::EntityId
+Model::selectEntityAtWorldPosFast(const def::SectorCoords& sectorCoords,
+                                  float dist2)
+{
+    selectedEntities.clear();
+    ecs::EntityId selectedEntity = ecs::EntityId::Invalid();
+    auto& reg = ecs.getRegistry();
+    for (const auto entity : reg.view<ecs::SectorId, ecs::Transform, ecs::EntityId>())
+    {
+        auto& sid = reg.get<ecs::SectorId>(entity);
+        auto& tr = reg.get<ecs::Transform>(entity);
+        auto& eid = reg.get<ecs::EntityId>(entity);
+        if (sid.x == sectorCoords.pos.x && sid.y == sectorCoords.pos.y)
+        {
+            if (glm::length2(tr.pos - sectorCoords.sectorPos) <= dist2)
+            {
+                selectedEntity = eid;
+                selectedEntities.push_back(eid);
+                break;
+            }
+        }
+    }
+    return selectedEntity;
 }
 
 void Model::selectEntitiesInsideRect(const def::SectorCoords& start,

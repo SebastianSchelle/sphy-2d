@@ -24,6 +24,7 @@
 #include <glm/glm.hpp>
 #include <limits>
 #include <logging.hpp>
+#include <optional>
 #include <memory.h>
 #include <string>
 #include <variant>
@@ -489,6 +490,56 @@ inline vec2 centroid(const std::vector<vec2>& poly)
         sum += v;
     }
     return sum / static_cast<float>(poly.size());
+}
+
+// Convex polygon only; vertices in consistent winding (CW or CCW).
+inline bool pointInConvex(const vec2& p, const std::vector<vec2>& poly)
+{
+    const size_t n = poly.size();
+    if (n < 3)
+    {
+        return false;
+    }
+    constexpr float kEps = 1e-6f;
+    std::optional<int> sign;
+    for (size_t i = 0; i < n; ++i)
+    {
+        const vec2& a = poly[i];
+        const vec2& b = poly[(i + 1) % n];
+        const float cross =
+            (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+        if (std::fabs(cross) < kEps)
+        {
+            continue;
+        }
+        const int s = cross > 0.0f ? 1 : -1;
+        if (!sign)
+        {
+            sign = s;
+        }
+        else if (*sign != s)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+inline float convexPolygonArea(const std::vector<vec2>& poly)
+{
+    const size_t n = poly.size();
+    if (n < 3)
+    {
+        return 0.0f;
+    }
+    float twice = 0.0f;
+    for (size_t i = 0; i < n; ++i)
+    {
+        const vec2& v0 = poly[i];
+        const vec2& v1 = poly[(i + 1) % n];
+        twice += v0.x * v1.y - v0.y * v1.x;
+    }
+    return 0.5f * std::fabs(twice);
 }
 
 inline bool intervalsOverlapOnAxis(const std::vector<vec2>& a,

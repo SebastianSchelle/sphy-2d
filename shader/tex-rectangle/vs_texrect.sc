@@ -8,12 +8,14 @@ uniform mat4 u_myproj;
 
 void main()
 {
-	float cosR = cos(i_data2.x);
-	float sinR = sin(i_data2.x);
-	mat2 rot = mat2(cosR, -sinR, sinR, cosR);
+	// Match rotateVec2 + vs_sdf-shape: +angle is CW (X right, Y down).
+	float c = cos(i_data2.x);
+	float s = sin(i_data2.x);
 
 	vec2 scaled = a_position * i_data0.zw;
-	vec2 transformed = rot * scaled;
+	vec2 transformed = vec2(
+		scaled.x * c - scaled.y * s,
+		scaled.x * s + scaled.y * c);
 	vec2 worldPos = transformed + i_data0.xy;
 	gl_Position = mul(u_myproj, vec4(worldPos, i_data2.z, 1.0));
 

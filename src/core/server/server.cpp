@@ -156,12 +156,18 @@ void Server::tcpReceive(const net::CmdQueueData& cmdData)
     engine.receiveQueue.enqueue(cmdData);
 }
 
-void Server::tcpDisconnected(std::shared_ptr<net::TcpConnection> connection)
+void Server::tcpDisconnected(net::TcpConnection* connection)
 {
     net::CmdQueueData cmdData;
     cmdData.sendType = net::SendType::TCP;
-    cmdData.tcpConnection = std::move(connection);
+    cmdData.tcpConnection = connection;
     cmdData.tcpDisconnected = true;
+    if (connection)
+    {
+        cmdData.tcpDisconnectedHandleValue =
+            ((def::ClientInfoHandle*)&connection->getClientInfoHandle())
+                ->value();
+    }
     engine.receiveQueue.enqueue(cmdData);
 }
 

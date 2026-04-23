@@ -15,9 +15,9 @@ typedef std::function<void(const char* data, size_t length)> TcpReceiveCallback;
 class TcpConnection;
 typedef std::function<void(const char* data,
                            size_t length,
-                           std::shared_ptr<TcpConnection> connection)>
+                           TcpConnection* connection)>
     ReceiveCallbackConn;
-typedef std::function<void(std::shared_ptr<TcpConnection> connection)>
+typedef std::function<void(TcpConnection* connection)>
     TcpDisconnectCallback;
 typedef std::function<void()> ConnectionClosedCallback;
 
@@ -31,9 +31,10 @@ struct CmdQueueData
 {
     SendType sendType;
     udp::endpoint udpEndpoint;
-    std::shared_ptr<TcpConnection> tcpConnection;
+    TcpConnection* tcpConnection = nullptr;
     std::vector<uint8_t> data;
     bool tcpDisconnected = false;
+    uint32_t tcpDisconnectedHandleValue = 0;
 };
 
 typedef std::function<void(const net::CmdQueueData&)> TcpReceiveClb;
@@ -44,7 +45,7 @@ struct ClientInfo
     int portUdp;
     asio::ip::address address;
     udp::endpoint udpEndpoint;
-    std::shared_ptr<TcpConnection> connection;
+    TcpConnection* connection = nullptr;
 };
 
 struct ModelClientInfo

@@ -23,7 +23,7 @@ void writeMessageUdp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
 }
 
 void writeMessageTcp(ConcurrentQueue<net::CmdQueueData>& sendQueue,
-                     std::shared_ptr<net::TcpConnection> tcpConnection,
+                     net::TcpConnection* tcpConnection,
                      CmdContentWriter contentWriter)
 {
     net::CmdQueueData cmdData;
@@ -87,7 +87,7 @@ MsgComposer::MsgComposer(net::SendType type,
 }
 
 MsgComposer::MsgComposer(net::SendType type,
-                         std::shared_ptr<net::TcpConnection> tcpConnection)
+                         net::TcpConnection* tcpConnection)
     : cmdData()
 {
     cmdData.sendType = type;

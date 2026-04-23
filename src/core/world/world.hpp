@@ -12,13 +12,13 @@
 #ifdef CLIENT
 #include <render-engine.hpp>
 #endif
+#include <concurrentqueue.h>
 
 namespace world
 {
 
 struct SectorMoveRequest
 {
-    ecs::PtrHandle* ptrHandle;
     ecs::EntityId entityId;
     uint32_t newSectorId;
 };
@@ -85,13 +85,13 @@ class World
     bool loadWorldProcessData(uint32_t typeId,
                               uint16_t version,
                               bitsery::Deserializer<InputAdapter>& des_);
-    void handleSectorMoveRequests();
+    void handleSectorMoveRequests(ecs::PtrHandle* ptrHandle);
 
     def::WorldShape worldShape;
     con::Matrix2D<Sector> sectors;
     bool dirty;
     float halfSectorSize;
-    vector<SectorMoveRequest> sectorMoveRequests;
+    ConcurrentQueue<SectorMoveRequest> sectorMoveRequests;
 };
 
 }  // namespace world

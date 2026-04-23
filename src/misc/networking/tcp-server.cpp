@@ -4,13 +4,13 @@
 namespace net
 {
 
-TcpConnection::pointer
+std::unique_ptr<TcpConnection>
 TcpConnection::create(boost::asio::io_context& io_context,
                       TcpReceiveClb receiveCallback,
                       TcpDisconnectCallback disconnectCallback)
 {
-    return pointer(new TcpConnection(
-        io_context, receiveCallback, disconnectCallback));
+    return std::unique_ptr<TcpConnection>(
+        new TcpConnection(io_context, receiveCallback, disconnectCallback));
 }
 
 tcp::socket& TcpConnection::socket()
@@ -22,16 +22,15 @@ void TcpConnection::start()
 {
     running.store(true);
     rcvdCmd.sendType = SendType::TCP;
-    rcvdCmd.tcpConnection = shared_from_this();
+    rcvdCmd.tcpConnection = this;
     doRead();
 }
 
 void TcpConnection::close()
 {
-    auto self = shared_from_this();
     boost::asio::dispatch(
         socket_.get_executor(),
-        [this, self]()
+        [this]()
         {
             if (!running.exchange(false))
                 return;
@@ -67,15 +66,14 @@ void TcpConnection::fireDisconnectOnce()
     if (disconnectNotified.exchange(true))
         return;
     if (disconnectCallback)
-        disconnectCallback(shared_from_this());
+        disconnectCallback(this);
 }
 
 void TcpConnection::doRead()
 {
-    auto self(shared_from_this());
     socket_.async_read_some(
         boost::asio::buffer(recvBuf, TCP_REC_BUF_LEN),
-        [this, self](boost::system::error_code ec, std::size_t length)
+        [this](boost::system::error_code ec, std::size_t length)
         {
             if (!ec && length > 0 && running.load())
             {
@@ -132,7 +130,6 @@ void TcpConnection::doRead()
 
 void TcpConnection::sendMessage(const std::vector<uint8_t>& data)
 {
-    auto self(shared_from_this());
     if (!socket_.is_open())
     {
         LG_W("Tcp Socket not open");
@@ -165,8 +162,9 @@ TcpServer::TcpServer(boost::asio::io_context& io_context,
 
 void TcpServer::StartAccept()
 {
-    TcpConnection::pointer new_connection =
-        TcpConnection::create(io_context_, tcpReceiveCallback, disconnectCallback);
+    connections.emplace_back(
+        TcpConnection::create(io_context_, tcpReceiveCallback, disconnectCallback));
+    TcpConnection* new_connection = connections.back().get();
 
     acceptor_.async_accept(
         new_connection->socket(),
@@ -174,7 +172,7 @@ void TcpServer::StartAccept()
         { HandleAccept(new_connection, ec); });
 }
 
-void TcpServer::HandleAccept(TcpConnection::pointer new_connection,
+void TcpServer::HandleAccept(TcpConnection* new_connection,
                              const boost::system::error_code& error)
 {
     if (!error)

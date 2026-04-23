@@ -189,7 +189,7 @@ void World::update(float dt, ecs::PtrHandle* ptrHandle)
     ptrHandle->workDistributor->awaken();
     ptrHandle->workDistributor->waitForEmptyQueues();
     ptrHandle->workDistributor->suspend();
-    handleSectorMoveRequests();
+    handleSectorMoveRequests(ptrHandle);
 }
 
 bool World::getNeighboringSectorId(uint32_t sectorId,
@@ -561,23 +561,22 @@ void World::addSectorMoveRequest(ecs::PtrHandle* ptrHandle,
                                  ecs::EntityId entityId,
                                  uint32_t newSectorId)
 {
-    sectorMoveRequests.push_back(
-        SectorMoveRequest{ptrHandle, entityId, newSectorId});
+    sectorMoveRequests.enqueue(
+        SectorMoveRequest{entityId, newSectorId});
 }
 
-void World::handleSectorMoveRequests()
+void World::handleSectorMoveRequests(ecs::PtrHandle* ptrHandle)
 {
-    while (!sectorMoveRequests.empty())
+    SectorMoveRequest request;
+    while (sectorMoveRequests.try_dequeue(request))
     {
-        auto& request = sectorMoveRequests.back();
         if (!switchSector(
-                request.ptrHandle, request.entityId, request.newSectorId))
+                ptrHandle, request.entityId, request.newSectorId))
         {
             LG_E("Failed to switch sector for entity: {} to sector: {}",
                  request.entityId,
                  request.newSectorId);
         }
-        sectorMoveRequests.pop_back();
     }
 }
 

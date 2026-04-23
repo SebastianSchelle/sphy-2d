@@ -176,6 +176,7 @@ class RenderEngine
                      const glm::vec2& size,
                      TextureHandle textureHandle,
                      float rotationRad = 0.0f,
+                     uint32_t colorABGR = 0xffffffff,
                      float zIndex = 0.0f,
                      bgfx::ViewId viewId = 0);
     tim::Timepoint getStartTime() const;
