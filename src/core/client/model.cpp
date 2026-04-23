@@ -21,11 +21,6 @@ Model::Model(ui::UserInterface* userInterface,
     : userInterface(userInterface), config(config), modManager(modManager),
       renderer(renderer), afterLoadWorldClb(afterLoadWorldClb)
 {
-    loadWorldSequence.registerExchange(net::Exchange(
-        prot::cmd::WORLD_INFO,
-        [this]() {},
-        [this]() {},
-        [this](bitsery::Serializer<OutputAdapter>& ser) {}));
     lastTSync = tim::getCurrentTimeU();
 
     auto cFac = &assetFactory.componentFactory;
@@ -41,6 +36,7 @@ Model::Model(ui::UserInterface* userInterface,
     cFac->registerComponent<ecs::Textures>();
 
     lastGetAabbTree = tim::nowU();
+    registerConnectSequence();
 }
 
 Model::~Model() {}
@@ -746,6 +742,7 @@ void Model::handleReqAllComponentsResp(
         if (it != compHelper.end())
         {
             auto& reg = ecs.getRegistry();
+            LG_D("Deserializing component: {} into entity: {}", it->second.name, entity);
             it->second.deserializeIntoRegistry(reg, entity, cmddes);
         }
         else
@@ -869,6 +866,20 @@ void Model::handleActiveEntitySwitched(
     ecs::EntityId entityId;
     cmddes.object(entityId);
     clientInfo.setActiveEntity(entityId);
+}
+
+void Model::registerConnectSequence()
+{
+    loadWorldSequence.registerExchange(net::Exchange(
+        prot::cmd::WORLD_INFO,
+        [this]() {},
+        [this]() {},
+        [this](bitsery::Serializer<OutputAdapter>& ser) {}));
+    loadWorldSequence.registerExchange(net::Exchange(
+        prot::cmd::ALL_ENTT_COMPONENTS,
+        [this]() {},
+        [this]() {},
+        [this](bitsery::Serializer<OutputAdapter>& ser) {}));
 }
 
 }  // namespace sphyc

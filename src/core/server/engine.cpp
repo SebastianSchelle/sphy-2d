@@ -13,6 +13,7 @@
 #include <random>
 #include <server.hpp>
 #include <sys-phy.hpp>
+#include <thread>
 #include <version.hpp>
 #include <work-distributor.hpp>
 
@@ -25,7 +26,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
       saveFolder(options.savedir), rerunStream("sphy-2d-move-ctrl"),
       commandManager()
 {
-    ptrHandle = std::make_shared<ecs::PtrHandle>();
+    ptrHandle = new ecs::PtrHandle();
     ptrHandle->ecs = &ecs;
     ptrHandle->world = &world;
     ptrHandle->engine = this;
@@ -85,8 +86,6 @@ void Engine::start()
     registerConsoleCommands();
 
     registerSlowDumpComponent<ecs::Transform>();
-    registerSlowDumpComponent<ecs::MapIcon>();
-    registerSlowDumpComponent<ecs::Textures>();
 
     def::ClientInfoHandle handle = registerClient(def::ClientInfo(
         "Based Laser King",
@@ -217,7 +216,7 @@ void Engine::update(float dt)
             // system.function(entity, entityId, dt, ptrHandle);
         }
     }
-    world.update(dt, ptrHandle.get());
+    world.update(dt, ptrHandle);
     rerunDebugMovePhy();
 }
 
@@ -666,6 +665,19 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             }
             break;
         }
+        case prot::cmd::ALL_ENTT_COMPONENTS:
+        {
+            if ((flags & CMD_FLAG_RESP) == 0)
+            {
+                // todo: threaded or max number of entities per frame, queue clients to send to
+                LG_D("Sending all entt components to client {}", clientInfo->getName());
+                sendAllEnttComponents(tcpConnection);
+                prot::MsgComposer mcomp(net::SendType::TCP, tcpConnection);
+                mcomp.startCommand(prot::cmd::ALL_ENTT_COMPONENTS, CMD_FLAG_RESP);
+                mcomp.execute(sendQueue);
+            }
+            break;
+        }
         default:
             break;
     }
@@ -695,7 +707,7 @@ ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId,
     ecs::SectorId& sec = reg.get_or_emplace<ecs::SectorId>(
         entity, ecs::SectorId{world::INVALID_SECTOR_ID, 0, 0});
     world.moveEntityTo(
-        ptrHandle.get(), ent, sectorId, transform.pos, transform.rot);
+        ptrHandle, ent, sectorId, transform.pos, transform.rot);
     return ent;
 }
 
@@ -1015,7 +1027,7 @@ void Engine::runSlowClientDump(long frameTime)
                                  for (auto& component : slowDumpComponents)
                                  {
                                      component.function(&clientInfo->clientInfo,
-                                                        ptrHandle.get());
+                                                        ptrHandle);
                                  }
                              });
     }
@@ -1045,6 +1057,14 @@ void Engine::handleTcpDisconnect(
     LG_I("TCP client disconnected (handle value={})", hv);
 }
 
+void Engine::sendAllEnttComponents(const std::shared_ptr<net::TcpConnection>& conn)
+{
+    ecs.iterateEntities([this, conn](ecs::EntityId entityId)
+    {
+        sendAllComponents(entityId, conn);
+    });
+}
+
 void Engine::sendAllComponents(ecs::EntityId entityId,
                                const std::shared_ptr<net::TcpConnection>& conn)
 {
@@ -1063,8 +1083,16 @@ void Engine::sendAllComponents(ecs::EntityId entityId,
          assetFactory.componentFactory.getComponentHelpers())
     {
         helper.serializeFromRegistry(reg, ent, *mcomp.ser);
+        if(mcomp.ser->adapter().currentWritePos() >= prot::kMaxSerializedChunkBytes - 100)
+        {
+            mcomp.execute(sendQueue);
+            mcomp.resetData();
+            mcomp.startCommand(prot::cmd::REQ_ALL_COMPONENTS, CMD_FLAG_RESP);
+            mcomp.ser->object(entityId);
+        }
     }
     mcomp.execute(sendQueue);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
 }
 
 void Engine::testSpawn()
@@ -1082,7 +1110,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
 
-    for (int i = 0; i < 50000; ++i)
+    for (int i = 0; i < 5000; ++i)
     {
         auto ent = spawnEntityFromAsset(
             //kAssets[assetPick(gen)],

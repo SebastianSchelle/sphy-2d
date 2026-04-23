@@ -135,6 +135,7 @@ class Model
     void drawTextures(gfx::RenderEngine& renderer,
                       const glm::vec4& viewRect,
                       float zoom);
+    void registerConnectSequence();
 
     cfg::ConfigManager& config;
     net::TimeSync timeSyncData;

@@ -19,6 +19,7 @@ typedef std::function<
     void(world::Sector*, entt::entity, const ecs::EntityId&, float, PtrHandle*)>
     SFSectorForeach;
 typedef std::function<void(world::Sector*, float, PtrHandle*)> SFSectorOnce;
+typedef std::function<void(const EntityId& entityId)> IterateEntitiesCallback;
 
 enum class SystemType : uint8_t
 {
@@ -66,6 +67,7 @@ class Ecs
                                   const AssetFactory& assetFactory);
     entt::registry& getRegistry();
     entt::entity insertOrReplaceByExistingEntityId(EntityId entityId);
+    void iterateEntities(IterateEntitiesCallback callback);
 
   private:
     entt::registry registry;

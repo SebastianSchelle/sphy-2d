@@ -20,7 +20,6 @@
 #include <string>
 #include <work-distributor.hpp>
 #include <world.hpp>
-#include <client-def.hpp>
 
 namespace ecs
 {
@@ -100,6 +99,7 @@ class Engine
     void registerConsoleCommands();
     void runSlowClientDump(long frameTime);
     void handleTcpDisconnect(const std::shared_ptr<net::TcpConnection>& conn);
+    void sendAllEnttComponents(const std::shared_ptr<net::TcpConnection>& conn);
     void sendAllComponents(ecs::EntityId entityId,
                            const std::shared_ptr<net::TcpConnection>& conn);
     void testSpawn();
@@ -123,7 +123,7 @@ class Engine
     ecs::AssetFactory assetFactory;
     vector<ecs::EntityId> globalEntityIds;
     vector<entt::entity> globalEntities;
-    std::shared_ptr<ecs::PtrHandle> ptrHandle;
+    ecs::PtrHandle* ptrHandle;
     rerun::RecordingStream rerunStream;
     cmd::CommandManager commandManager;
 

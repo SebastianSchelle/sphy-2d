@@ -42,6 +42,14 @@ void Ecs::destroyEntity(EntityId entityId)
     idMapFreeSlots.push_back(entityId.index);
 }
 
+void Ecs::iterateEntities(IterateEntitiesCallback callback)
+{
+    for (uint32_t i = 0; i < idMap.size(); i++)
+    {
+        callback({i, idMap[i].generation});
+    }
+}
+
 bool Ecs::validId(EntityId entityId)
 {
     return entityId.index < idMap.size()

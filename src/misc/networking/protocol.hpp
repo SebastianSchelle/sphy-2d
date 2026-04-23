@@ -104,6 +104,7 @@ const uint16_t ENT_CMD_MOVETO_POS = 0x0009;
 const uint16_t NOTIFY_CLIENT_READY = 0x000A;
 const uint16_t DBG_GET_AABB_TREE = 0x000B;
 const uint16_t ACTIVE_ENTITY_SWITCHED = 0x000C;
+const uint16_t ALL_ENTT_COMPONENTS = 0x000D;
 
 }  // namespace cmd
 
