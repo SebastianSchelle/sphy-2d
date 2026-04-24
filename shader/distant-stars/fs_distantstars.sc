@@ -14,7 +14,7 @@ uniform vec4 u_screenPos;
 #define tile   0.850
 #define speed  0.000000010 
 
-#define brightness 0.0002
+#define brightness 0.00005
 #define darkmatter 0.300
 #define distfading 0.730
 #define saturation 0.850

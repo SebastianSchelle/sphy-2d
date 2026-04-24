@@ -194,6 +194,11 @@ void Sector::queryBroadphase(const con::AABB& aabb, std::function<void(entt::ent
     aabbTree.query(aabb, callback);
 }
 
+void Sector::markPlayerSector(bool player)
+{
+    playerSector = player;
+}
+
 #ifdef CLIENT
 void Sector::drawDebug(gfx::RenderEngine& renderer, float zoom)
 {
@@ -226,6 +231,7 @@ void Sector::drawThirdPerson(gfx::RenderEngine& renderer,
                              float zoom)
 {
 }
+
 
 #endif
 

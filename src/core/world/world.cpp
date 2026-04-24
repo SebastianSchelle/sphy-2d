@@ -192,18 +192,18 @@ void World::update(float dt, ecs::PtrHandle* ptrHandle)
     handleSectorMoveRequests(ptrHandle);
 }
 
-bool World::getNeighboringSectorId(uint32_t sectorId,
-                                   def::Direction dir,
-                                   def::SectorPos& newPos)
+bool World::getNeighboringSectorPos(uint32_t sectorId,
+                                    def::Direction dir,
+                                    def::SectorPos& newPos)
 {
     auto [sectorX, sectorY] = idToSectorCoords(sectorId);
-    return getNeighboringSectorId(sectorX, sectorY, dir, newPos);
+    return getNeighboringSectorPos(sectorX, sectorY, dir, newPos);
 }
 
-bool World::getNeighboringSectorId(uint32_t sectorX,
-                                   uint32_t sectorY,
-                                   def::Direction dir,
-                                   def::SectorPos& newPos)
+bool World::getNeighboringSectorPos(uint32_t sectorX,
+                                    uint32_t sectorY,
+                                    def::Direction dir,
+                                    def::SectorPos& newPos)
 {
     switch (dir)
     {
@@ -281,7 +281,7 @@ bool World::getNeighboringSectorId(uint32_t sectorX,
 Sector* World::getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir)
 {
     def::SectorPos newPos;
-    if (!getNeighboringSectorId(x, y, dir, newPos))
+    if (!getNeighboringSectorPos(x, y, dir, newPos))
     {
         return nullptr;
     }
@@ -344,7 +344,7 @@ Sector* World::getSector(uint32_t sectorId)
 def::SectorPos World::idToSectorCoords(uint32_t sectorId) const
 {
     return def::SectorPos{sectorId % worldShape.numSectorX,
-                          sectorId / worldShape.numSectorY};
+                          sectorId / worldShape.numSectorX};
 }
 
 uint32_t World::sectorCoordsToId(uint32_t sectorX, uint32_t sectorY) const
@@ -371,6 +371,21 @@ vec2 World::getWorldPosSectorOffset(uint32_t sectorId,
         sectorX, sectorY, sectorOffsetX, sectorOffsetY);
 }
 
+void World::markPlayerSectors(const std::set<uint32_t>& playerSectors)
+{
+    for (uint sId = 0; sId < sectors.getSize(); sId++)
+    {
+        sectors.at(sId)->markPlayerSector(false);
+    }
+    for (auto& sectorId : playerSectors)
+    {
+        if (sectorId < sectors.getSize())
+        {
+            sectors.at(sectorId)->markPlayerSector(true);
+        }
+    }
+}
+
 void World::checkSectorSwitchAfterMove(ecs::EntityId entityId,
                                        entt::entity entity,
                                        ecs::SectorId* sectorId,
@@ -385,15 +400,15 @@ void World::checkSectorSwitchAfterMove(ecs::EntityId entityId,
         if (pos.y < -halfSectorSize)
         {
             dir = def::Direction::NW;
-            if (!getNeighboringSectorId(sectorId->id, dir, newPos))
+            if (!getNeighboringSectorPos(sectorId->id, dir, newPos))
             {
-                if (getNeighboringSectorId(
+                if (getNeighboringSectorPos(
                         sectorId->id, def::Direction::N, newPos))
                 {
                     pos.x = -halfSectorSize;
                     dir = def::Direction::N;
                 }
-                else if (getNeighboringSectorId(
+                else if (getNeighboringSectorPos(
                              sectorId->id, def::Direction::W, newPos))
                 {
                     pos.y = -halfSectorSize;
@@ -404,15 +419,15 @@ void World::checkSectorSwitchAfterMove(ecs::EntityId entityId,
         else if (pos.y > halfSectorSize)
         {
             dir = def::Direction::SW;
-            if (!getNeighboringSectorId(sectorId->id, dir, newPos))
+            if (!getNeighboringSectorPos(sectorId->id, dir, newPos))
             {
-                if (getNeighboringSectorId(
+                if (getNeighboringSectorPos(
                         sectorId->id, def::Direction::S, newPos))
                 {
                     pos.x = -halfSectorSize;
                     dir = def::Direction::S;
                 }
-                else if (getNeighboringSectorId(
+                else if (getNeighboringSectorPos(
                              sectorId->id, def::Direction::W, newPos))
                 {
                     pos.y = halfSectorSize;
@@ -430,15 +445,15 @@ void World::checkSectorSwitchAfterMove(ecs::EntityId entityId,
         if (pos.y < -halfSectorSize)
         {
             dir = def::Direction::NE;
-            if (!getNeighboringSectorId(sectorId->id, dir, newPos))
+            if (!getNeighboringSectorPos(sectorId->id, dir, newPos))
             {
-                if (getNeighboringSectorId(
+                if (getNeighboringSectorPos(
                         sectorId->id, def::Direction::N, newPos))
                 {
                     pos.x = halfSectorSize;
                     dir = def::Direction::N;
                 }
-                else if (getNeighboringSectorId(
+                else if (getNeighboringSectorPos(
                              sectorId->id, def::Direction::E, newPos))
                 {
                     pos.y = -halfSectorSize;
@@ -449,15 +464,15 @@ void World::checkSectorSwitchAfterMove(ecs::EntityId entityId,
         else if (pos.y > halfSectorSize)
         {
             dir = def::Direction::SE;
-            if (!getNeighboringSectorId(sectorId->id, dir, newPos))
+            if (!getNeighboringSectorPos(sectorId->id, dir, newPos))
             {
-                if (getNeighboringSectorId(
+                if (getNeighboringSectorPos(
                         sectorId->id, def::Direction::S, newPos))
                 {
                     pos.x = halfSectorSize;
                     dir = def::Direction::S;
                 }
-                else if (getNeighboringSectorId(
+                else if (getNeighboringSectorPos(
                              sectorId->id, def::Direction::E, newPos))
                 {
                     pos.y = halfSectorSize;
@@ -480,7 +495,7 @@ void World::checkSectorSwitchAfterMove(ecs::EntityId entityId,
     }
     if (dir != def::Direction::NONE)
     {
-        if (getNeighboringSectorId(sectorId->id, dir, newPos))
+        if (getNeighboringSectorPos(sectorId->id, dir, newPos))
         {
             uint32_t newSectorId = sectorCoordsToId(newPos.x, newPos.y);
             addSectorMoveRequest(ptrHandle, entityId, newSectorId);
@@ -561,8 +576,7 @@ void World::addSectorMoveRequest(ecs::PtrHandle* ptrHandle,
                                  ecs::EntityId entityId,
                                  uint32_t newSectorId)
 {
-    sectorMoveRequests.enqueue(
-        SectorMoveRequest{entityId, newSectorId});
+    sectorMoveRequests.enqueue(SectorMoveRequest{entityId, newSectorId});
 }
 
 void World::handleSectorMoveRequests(ecs::PtrHandle* ptrHandle)
@@ -570,8 +584,7 @@ void World::handleSectorMoveRequests(ecs::PtrHandle* ptrHandle)
     SectorMoveRequest request;
     while (sectorMoveRequests.try_dequeue(request))
     {
-        if (!switchSector(
-                ptrHandle, request.entityId, request.newSectorId))
+        if (!switchSector(ptrHandle, request.entityId, request.newSectorId))
         {
             LG_E("Failed to switch sector for entity: {} to sector: {}",
                  request.entityId,

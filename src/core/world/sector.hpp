@@ -32,6 +32,7 @@ class Sector
                          std::function<void(entt::entity)> callback);
     vec2 getWorldPosSectorOffset(int32_t sectorOffsetX,
                                  int32_t sectorOffsetY) const;
+    void markPlayerSector(bool player);
     const float getWorldPosX() const
     {
         return worldPosX;
@@ -90,6 +91,7 @@ class Sector
     vector<ecs::EntityId> entityIds;
     vector<entt::entity> entities;
     con::DynamicAABBTree<entt::entity> aabbTree;
+    bool playerSector = false;
 };
 
 }  // namespace world

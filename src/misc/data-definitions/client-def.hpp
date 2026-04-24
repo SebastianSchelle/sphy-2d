@@ -27,6 +27,7 @@ class ClientInfo
         this->name = name;
         this->clientInfo = clientInfo;
         this->lastSlowDump = tim::nowU();
+        this->lastActiveSectorDump = tim::nowU();
         this->flags = flags;
     }
 #endif
@@ -45,6 +46,7 @@ class ClientInfo
 #ifdef SERVER
     net::ClientInfo clientInfo;
     long lastSlowDump;
+    long lastActiveSectorDump;
 
     void addWorkFunction(std::function<void()> workFunction)
     {
@@ -53,6 +55,18 @@ class ClientInfo
     void executeWorkSequencer()
     {
         workSequencer.execute();
+    }
+    const std::set<uint32_t>& getActiveSectors() const
+    {
+        return activeSectors;
+    }
+    void clearActiveSectors()
+    {
+        activeSectors.clear();
+    }
+    void addActiveSector(uint32_t sectorId)
+    {
+        activeSectors.insert(sectorId);
     }
 #endif
 #ifdef CLIENT
@@ -82,6 +96,7 @@ class ClientInfo
   private:
     std::string name;
     ecs::EntityId activeEntity;
+    std::set<uint32_t> activeSectors;
     ClientFlags flags;
 #ifdef SERVER
     work::WorkSequencer workSequencer;

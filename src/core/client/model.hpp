@@ -125,6 +125,8 @@ class Model
     void authenticate();
     void handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
                         uint16_t posNextCmdOrEof);
+    void handleActiveSectorDump(bitsery::Deserializer<InputAdapter>& cmddes,
+                                  uint16_t posNextCmdOrEof);
     void reqAllComponents(ecs::EntityId entity);
     void handleReqAllComponentsResp(bitsery::Deserializer<InputAdapter>& cmddes,
                                     uint16_t posNextCmdOrEof);

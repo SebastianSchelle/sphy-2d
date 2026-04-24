@@ -31,11 +31,12 @@ class World
     bool createFromConfig(cfg::ConfigManager& config);
     bool createFromSave(cfg::ConfigManager& config, const std::string& savedir);
     bool createFromServer(const def::WorldShape& worldShape);
-    bool getNeighboringSectorId(uint32_t sectorId, def::Direction dir, def::SectorPos& newPos);
-    bool getNeighboringSectorId(uint32_t sectorX, uint32_t sectorY, def::Direction dir, def::SectorPos& newPos);
+    bool getNeighboringSectorPos(uint32_t sectorId, def::Direction dir, def::SectorPos& newPos);
+    bool getNeighboringSectorPos(uint32_t sectorX, uint32_t sectorY, def::Direction dir, def::SectorPos& newPos);
     Sector* getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir);
     bool saveWorld(const std::string& savedir);
     void update(float dt, ecs::PtrHandle* ptrHandle);
+    void markPlayerSectors(const std::set<uint32_t>& playerSectors);
     const def::WorldShape& getWorldShape() const
     {
       return worldShape;

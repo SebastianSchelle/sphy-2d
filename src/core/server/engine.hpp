@@ -31,11 +31,20 @@ namespace sphys
 
 typedef std::function<void(const net::ClientInfo* clientInfo,
                            ecs::PtrHandle* ptrHandle)>
-    SlowDumpFunction;
-struct SlowDumpEntry
+    ClientDumpFunction;
+typedef std::function<void(const net::ClientInfo* clientInfo,
+                           uint32_t sectorId,
+                           ecs::PtrHandle* ptrHandle)>
+    ActiveSectorUpdateFunction;
+struct CompClientDump
 {
     string componentName;
-    SlowDumpFunction function;
+    ClientDumpFunction function;
+};
+struct CompActiveSectorUpdate
+{
+    string componentName;
+    ActiveSectorUpdateFunction function;
 };
 
 enum class EngineState
@@ -71,6 +80,7 @@ class Engine
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
     template <class T> void registerSlowDumpComponent();
+    template <class T> void registerActiveSectorDumpComponent();
 
   private:
     void engineLoop();
@@ -98,6 +108,7 @@ class Engine
     void rerunDebugMovePhy();
     void registerConsoleCommands();
     void runSlowClientDump(long frameTime);
+    void runActiveSectorDump(long frameTime);
     void runConnectedClientWorkSequencers();
     void handleTcpDisconnect(net::TcpConnection* conn,
                              def::ClientInfoHandle disconnectedHandle);
@@ -108,6 +119,7 @@ class Engine
     void testSpawn();
     void handleGetAabbTree(uint32_t sectorId,
                            net::TcpConnection* conn);
+    void markPlayerSectors();
 
     const sphy::CmdLinOptionsServer& options;
     std::atomic<bool> stopRequested{false};
@@ -132,7 +144,9 @@ class Engine
     cmd::CommandManager commandManager;
 
     uint32_t slowDumpUs;
-    vector<SlowDumpEntry> slowDumpComponents;
+    uint32_t activeSectorDumpUs;
+    vector<CompClientDump> slowDumpComponents;
+    vector<CompActiveSectorUpdate> activeSectorUpdates;
     float filteredFps = 0.0f;
 
   public:

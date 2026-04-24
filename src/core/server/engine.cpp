@@ -45,9 +45,13 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
         CFG_FLOAT(config, 0.1f, "engine", "physics", "lin-drag");
     ptrHandle->minFaceTargetDist =
         CFG_FLOAT(config, 1.0f, "engine", "physics", "min-face-target-dist");
-    slowDumpUs = 1000 * CFG_UINT(config, 1000.0f, "engine", "slow-dump-ms");
+    slowDumpUs =
+        1000 * CFG_UINT(config, 1000.0f, "engine", "upd", "dump-int", "slow");
+    activeSectorDumpUs =
+        1000
+        * CFG_UINT(config, 30.0f, "engine", "upd", "dump-int", "active-sector");
+    int updThreads = CFG_UINT(config, 2.0f, "engine", "upd", "threads");
 
-    int updThreads = CFG_UINT(config, 2.0f, "engine", "upd-threads");
     updThreads = std::clamp(updThreads, 1, 16);
     workDistributor.init(updThreads);
 
@@ -88,6 +92,7 @@ void Engine::start()
     registerConsoleCommands();
 
     registerSlowDumpComponent<ecs::Transform>();
+    registerActiveSectorDumpComponent<ecs::Transform>();
 
     def::ClientInfoHandle handle = registerClient(def::ClientInfo(
         "Based Laser King",
@@ -177,6 +182,7 @@ void Engine::engineLoop()
             {
                 update(dt);
                 runConnectedClientWorkSequencers();
+                runActiveSectorDump(nowU);
                 runSlowClientDump(nowU);
                 DO_PERIODIC_U_EXTNOW(lastSaveTime, TIM_5M, nowU, saveGame)
             }
@@ -220,6 +226,7 @@ void Engine::update(float dt)
         }
     }
     world.update(dt, ptrHandle);
+    markPlayerSectors();
     rerunDebugMovePhy();
 }
 
@@ -1047,6 +1054,30 @@ void Engine::runSlowClientDump(long frameTime)
     }
 }
 
+void Engine::runActiveSectorDump(long frameTime)
+{
+    for (int i = 0; i < activeClientHandles.size(); i++)
+    {
+        def::ClientInfoHandle handle = activeClientHandles[i];
+        def::ClientInfo* clientInfo = clientLib.getItem(handle);
+        DO_PERIODIC_U_EXTNOW(
+            clientInfo->lastActiveSectorDump,
+            activeSectorDumpUs,
+            frameTime,
+            [&]()
+            {
+                for (auto& sectorId : clientInfo->getActiveSectors())
+                {
+                    for (auto& component : activeSectorUpdates)
+                    {
+                        component.function(
+                            &clientInfo->clientInfo, sectorId, ptrHandle);
+                    }
+                }
+            });
+    }
+}
+
 void Engine::handleTcpDisconnect(net::TcpConnection* conn,
                                  def::ClientInfoHandle disconnectedHandle)
 {
@@ -1092,9 +1123,7 @@ void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
             const ecs::EntityId entityCopy = entityId;
             clientInfo->addWorkFunction(
                 [this, entityCopy, conn]()
-                {
-                    sendAllComponents(entityCopy, conn);
-                });
+                { sendAllComponents(entityCopy, conn); });
         });
 }
 
@@ -1111,20 +1140,26 @@ void Engine::sendAllComponents(ecs::EntityId entityId, net::TcpConnection* conn)
     mcomp.startCommand(prot::cmd::REQ_ALL_COMPONENTS, CMD_FLAG_RESP);
     mcomp.ser->object(entityId);
     auto& reg = ecs.getRegistry();
+    uint16_t numComponents = 0;
     for (auto& [hash, helper] :
          assetFactory.componentFactory.getComponentHelpers())
     {
         helper.serializeFromRegistry(reg, ent, *mcomp.ser);
+        numComponents++;
         if (mcomp.ser->adapter().currentWritePos()
             >= prot::kMaxSerializedChunkBytes - 100)
         {
             mcomp.execute(sendQueue);
+            numComponents = 0;
             mcomp.resetData();
             mcomp.startCommand(prot::cmd::REQ_ALL_COMPONENTS, CMD_FLAG_RESP);
             mcomp.ser->object(entityId);
         }
     }
-    mcomp.execute(sendQueue);
+    if (numComponents > 0)
+    {
+        mcomp.execute(sendQueue);
+    }
 }
 
 void Engine::testSpawn()
@@ -1142,7 +1177,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
 
-    for (int i = 0; i < 100000; ++i)
+    for (int i = 0; i < 1000; ++i)
     {
         auto ent = spawnEntityFromAsset(
             // kAssets[assetPick(gen)],
@@ -1181,6 +1216,114 @@ void Engine::handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn)
     }
     mcomp.ser->object(aabbs);
     mcomp.execute(sendQueue);
+}
+
+void Engine::markPlayerSectors()
+{
+    std::set<uint32_t> playerSectors;
+    for (auto& clientHandle : activeClientHandles)
+    {
+        def::ClientInfo* clientInfo = clientLib.getItem(clientHandle);
+        clientInfo->clearActiveSectors();
+        if (clientInfo)
+        {
+            ecs::EntityId entityId = clientInfo->getActiveEntity();
+            if (entityId != ecs::EntityId::Invalid())
+            {
+                entt::entity entity = ecs.getEntity(entityId);
+                if (entity != entt::null)
+                {
+                    const float sectorSize = world.getWorldShape().sectorSize;
+                    auto& reg = ecs.getRegistry();
+                    ecs::SectorId* sectorId =
+                        reg.try_get<ecs::SectorId>(entity);
+                    ecs::Transform* transform =
+                        reg.try_get<ecs::Transform>(entity);
+                    if (sectorId && transform)
+                    {
+                        clientInfo->addActiveSector(sectorId->id);
+                        // todo: what threshold for neighboring sectors?
+                        def::SectorPos neighbor;
+                        const bool north =
+                            transform->pos.y < -sectorSize / 2 * 0.7;
+                        const bool south =
+                            transform->pos.y > sectorSize / 2 * 0.7;
+                        const bool west =
+                            transform->pos.x < -sectorSize / 2 * 0.7;
+                        const bool east =
+                            transform->pos.x > sectorSize / 2 * 0.7;
+                        if (west
+                            && world.getNeighboringSectorPos(
+                                sectorId->id, def::Direction::W, neighbor))
+                        {
+                            clientInfo->addActiveSector(
+                                world.sectorCoordsToId(neighbor.x, neighbor.y));
+                            if (north
+                                && world.getNeighboringSectorPos(
+                                    sectorId->id, def::Direction::NW, neighbor))
+                            {
+                                clientInfo->addActiveSector(
+                                    world.sectorCoordsToId(neighbor.x,
+                                                           neighbor.y));
+                            }
+                            else if (south
+                                     && world.getNeighboringSectorPos(
+                                         sectorId->id,
+                                         def::Direction::SW,
+                                         neighbor))
+                            {
+                                clientInfo->addActiveSector(
+                                    world.sectorCoordsToId(neighbor.x,
+                                                           neighbor.y));
+                            }
+                        }
+                        else if (east
+                                 && world.getNeighboringSectorPos(
+                                     sectorId->id, def::Direction::E, neighbor))
+                        {
+                            clientInfo->addActiveSector(
+                                world.sectorCoordsToId(neighbor.x, neighbor.y));
+                            if (north
+                                && world.getNeighboringSectorPos(
+                                    sectorId->id, def::Direction::NE, neighbor))
+                            {
+                                clientInfo->addActiveSector(
+                                    world.sectorCoordsToId(neighbor.x,
+                                                           neighbor.y));
+                            }
+                            else if (south
+                                     && world.getNeighboringSectorPos(
+                                         sectorId->id,
+                                         def::Direction::SE,
+                                         neighbor))
+                            {
+                                clientInfo->addActiveSector(
+                                    world.sectorCoordsToId(neighbor.x,
+                                                           neighbor.y));
+                            }
+                        }
+                        if (north
+                            && world.getNeighboringSectorPos(
+                                sectorId->id, def::Direction::N, neighbor))
+                        {
+                            clientInfo->addActiveSector(
+                                world.sectorCoordsToId(neighbor.x, neighbor.y));
+                        }
+                        else if (south
+                                 && world.getNeighboringSectorPos(
+                                     sectorId->id, def::Direction::S, neighbor))
+                        {
+                            clientInfo->addActiveSector(
+                                world.sectorCoordsToId(neighbor.x, neighbor.y));
+                        }
+                    }
+                }
+            }
+        }
+        playerSectors.insert(clientInfo->getActiveSectors().begin(),
+                             clientInfo->getActiveSectors().end());
+    }
+    world.markPlayerSectors(playerSectors);
 }
 
 }  // namespace sphys

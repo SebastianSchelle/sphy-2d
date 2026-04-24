@@ -375,7 +375,10 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         }
         case prot::cmd::SLOW_DUMP:
         {
-            handleSlowDump(cmddes, posNextCmdOrEof);
+            if ((flags & CMD_FLAG_RESP) == 0)
+            {
+                handleSlowDump(cmddes, posNextCmdOrEof);
+            }
             break;
         }
         case prot::cmd::REQ_ALL_COMPONENTS:
@@ -399,6 +402,14 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             if ((flags & CMD_FLAG_RESP) == 0)
             {
                 handleActiveEntitySwitched(cmddes, posNextCmdOrEof);
+            }
+            break;
+        }
+        case prot::cmd::ACTIVE_SECTOR_UPDATE:
+        {
+            if ((flags & CMD_FLAG_RESP) == 0)
+            {
+                handleActiveSectorDump(cmddes, posNextCmdOrEof);
             }
             break;
         }
@@ -573,7 +584,8 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
                                                   renderer.getSectorOffsetY())
                     + trans->pos;
                 renderer.drawRectangle(worldPos,
-                                       glm::vec2(mapIcon->size.x * 1.5f / zoom, mapIcon->size.y * 1.5f / zoom),
+                                       glm::vec2(mapIcon->size.x * 1.5f / zoom,
+                                                 mapIcon->size.y * 1.5f / zoom),
                                        0xff004000,
                                        1.0f / zoom,
                                        0.0f,
@@ -757,6 +769,36 @@ void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
     }
 }
 
+void Model::handleActiveSectorDump(bitsery::Deserializer<InputAdapter>& cmddes,
+                                   uint16_t posNextCmdOrEof)
+{
+    uint32_t compHash;
+    cmddes.value4b(compHash);
+    for (auto& [hash, helper] :
+         assetFactory.componentFactory.getComponentHelpers())
+    {
+        if (hash == compHash)
+        {
+            uint32_t sectorId;
+            uint16_t numEntities;
+            cmddes.value4b(sectorId);
+            cmddes.value2b(numEntities);
+            for (uint i = 0; i < numEntities; ++i)
+            {
+                ecs::EntityId entityId;
+                cmddes.object(entityId);
+                entt::entity entity = ecs.enttFromServerId(entityId);
+
+                auto& reg = ecs.getRegistry();
+                auto [x, y] = world.idToSectorCoords(sectorId);
+                reg.emplace_or_replace<ecs::SectorId>(entity, sectorId, x, y);
+                reg.emplace_or_replace<ecs::EntityId>(entity, entityId);
+                helper.deserializeIntoRegistry(reg, entity, cmddes);
+            }
+        }
+    }
+}
+
 void Model::handleReqAllComponentsResp(
     bitsery::Deserializer<InputAdapter>& cmddes,
     uint16_t posNextCmdOrEof)
@@ -797,8 +839,10 @@ Model::selectEntityAtWorldPos(const def::SectorCoords& sectorCoords)
     selectedEntities.clear();
     ecs::EntityId selectedEntity = ecs::EntityId::Invalid();
     auto& reg = ecs.getRegistry();
-    for (const auto entity : reg
-             .view<ecs::SectorId, ecs::Transform, ecs::EntityId, ecs::Collider>())
+    for (const auto entity : reg.view<ecs::SectorId,
+                                      ecs::Transform,
+                                      ecs::EntityId,
+                                      ecs::Collider>())
     {
         auto& sid = reg.get<ecs::SectorId>(entity);
         auto& tr = reg.get<ecs::Transform>(entity);
@@ -806,8 +850,10 @@ Model::selectEntityAtWorldPos(const def::SectorCoords& sectorCoords)
         auto& collider = reg.get<ecs::Collider>(entity);
         if (sid.x == sectorCoords.pos.x && sid.y == sectorCoords.pos.y)
         {
-            if (collider.isPointInsideWorld(
-                    sectorCoords.sectorPos, tr, std::cos(tr.rot), std::sin(tr.rot)))
+            if (collider.isPointInsideWorld(sectorCoords.sectorPos,
+                                            tr,
+                                            std::cos(tr.rot),
+                                            std::sin(tr.rot)))
             {
                 selectedEntity = eid;
                 selectedEntities.push_back(eid);
@@ -825,7 +871,8 @@ Model::selectEntityAtWorldPosFast(const def::SectorCoords& sectorCoords,
     selectedEntities.clear();
     ecs::EntityId selectedEntity = ecs::EntityId::Invalid();
     auto& reg = ecs.getRegistry();
-    for (const auto entity : reg.view<ecs::SectorId, ecs::Transform, ecs::EntityId>())
+    for (const auto entity :
+         reg.view<ecs::SectorId, ecs::Transform, ecs::EntityId>())
     {
         auto& sid = reg.get<ecs::SectorId>(entity);
         auto& tr = reg.get<ecs::Transform>(entity);
