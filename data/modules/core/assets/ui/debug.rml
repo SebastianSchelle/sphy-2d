@@ -1,0 +1,220 @@
+<rml>
+
+	<head>
+		<link type="text/css" href="../../../core/assets/ui/style.rcss" />
+		<title>Debug</title>
+		<style>
+			body.debug-window {
+				font-family: Roboto;
+				font-weight: normal;
+				font-style: normal;
+				width: 250px;
+				height: 100%;
+				max-height: 100%;
+				margin: 0px 0px 0px auto;
+				display: flex;
+				flex-direction: column;
+				padding: 6px;
+				box-sizing: border-box;
+				gap: 4px;
+				border-left: 1px #7784ff55;
+				border-radius: 0px;
+				background: #050018e8;
+				color: #dce2ff;
+				font-size: 12px;
+			}
+
+			.dbg-section {
+				font-weight: bold;
+				font-size: 11px;
+				text-transform: uppercase;
+				letter-spacing: 1px;
+				color: #6a7ad0;
+			}
+
+			.dbg-row {
+				display: flex;
+				flex-direction: row;
+				align-items: baseline;
+				gap: 6px;
+				line-height: 1.35;
+				padding: 1px 0px;
+			}
+
+			.dbg-k {
+				flex: 0 0 108px;
+				color: #8b9bd0;
+				font-size: 11px;
+			}
+
+			.dbg-v {
+				flex: 1 1 auto;
+				min-width: 0px;
+				font-size: 11px;
+				color: #a8e8ff;
+				word-break: break-all;
+			}
+
+			.dbg-note {
+				font-size: 10px;
+				color: #5a6588;
+				margin-top: 6px;
+				line-height: 1.3;
+			}
+		</style>
+	</head>
+
+	<body class="debug-window" data-model="debug">
+		<tabset id="dbg-tabs">
+			<tab>Game object</tab>
+			<panel>
+				<div class="dbg-section">Selection</div>
+				<div class="dbg-row"><span class="dbg-k">Entity index</span><span
+						class="dbg-v">{{selGameObject.entityId}}</span></div>
+				<div class="dbg-row"><span class="dbg-k">Generation</span><span
+						class="dbg-v">{{selGameObject.generation}}</span></div>
+
+				<div data-if="selGameObject.hasSectorId">
+					<div class="dbg-section">Sector id</div>
+					<div class="dbg-row"><span class="dbg-k">Id</span><span
+							class="dbg-v">{{selGameObject.sectorId}}</span></div>
+				</div>
+
+				<div data-if="selGameObject.hasTransform">
+					<div class="dbg-section">Transform</div>
+					<div class="dbg-row"><span class="dbg-k">Pos X</span><span
+							class="dbg-v">{{selGameObject.posX}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Pos Y</span><span
+							class="dbg-v">{{selGameObject.posY}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Rot</span><span class="dbg-v">{{selGameObject.rot}}</span>
+					</div>
+				</div>
+
+				<div data-if="selGameObject.hasPhysicsBody">
+					<div class="dbg-section">Physics body</div>
+					<div class="dbg-row"><span class="dbg-k">Mass</span><span
+							class="dbg-v">{{selGameObject.mass}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Inertia</span><span
+							class="dbg-v">{{selGameObject.inertia}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Vel X</span><span
+							class="dbg-v">{{selGameObject.velX}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Vel Y</span><span
+							class="dbg-v">{{selGameObject.velY}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Rot vel</span><span
+							class="dbg-v">{{selGameObject.rotVel}}</span></div>
+				</div>
+
+				<div data-if="selGameObject.hasPhyThrust">
+					<div class="dbg-section">Phy thrust</div>
+					<div class="dbg-row"><span class="dbg-k">Thrust global X</span><span
+							class="dbg-v">{{selGameObject.thrustGlobalX}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Thrust global Y</span><span
+							class="dbg-v">{{selGameObject.thrustGlobalY}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Thrust local X</span><span
+							class="dbg-v">{{selGameObject.thrustLocalX}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Thrust local Y</span><span
+							class="dbg-v">{{selGameObject.thrustLocalY}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Torque</span><span
+							class="dbg-v">{{selGameObject.torque}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Max torque</span><span
+							class="dbg-v">{{selGameObject.maxTorque}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Max rot vel</span><span
+							class="dbg-v">{{selGameObject.maxRotVel}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Thrust main max</span><span
+							class="dbg-v">{{selGameObject.thrustMainMax}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Thrust maneuver max</span><span
+							class="dbg-v">{{selGameObject.thrustManeuverMax}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Max speed</span><span
+							class="dbg-v">{{selGameObject.maxSpd}}</span></div>
+				</div>
+				<div data-if="selGameObject.hasMoveCtrl">
+					<div class="dbg-section">Move ctrl</div>
+					<div class="dbg-row"><span class="dbg-k">Active</span><span
+							class="dbg-v">{{selGameObject.moveCtrlActive}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Setpoint X</span><span
+							class="dbg-v">{{selGameObject.spPosX}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Setpoint Y</span><span
+							class="dbg-v">{{selGameObject.spPosY}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Setpoint sector X</span><span
+							class="dbg-v">{{selGameObject.spPosSecX}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Setpoint sector Y</span><span
+							class="dbg-v">{{selGameObject.spPosSecY}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Setpoint rot</span><span
+							class="dbg-v">{{selGameObject.spRot}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Face mode</span><span
+							class="dbg-v">{{selGameObject.moveCtrlFaceDirMode}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Look at X</span><span
+							class="dbg-v">{{selGameObject.lookAtX}}</span></div>
+					<div class="dbg-row"><span class="dbg-k">Look at Y</span><span
+							class="dbg-v">{{selGameObject.lookAtY}}</span></div>
+				</div>
+			</panel>
+			<tab>Input</tab>
+			<panel>
+				<div class="dbg-section">Pointer</div>
+				<div class="dbg-row"><span class="dbg-k">Screen X</span><span
+						class="dbg-v">{{inputData.ptrScreenX}}</span></div>
+				<div class="dbg-row"><span class="dbg-k">Screen Y</span><span
+						class="dbg-v">{{inputData.ptrScreenY}}</span></div>
+				<div class="dbg-row"><span class="dbg-k">Over UI</span><span
+						class="dbg-v">{{inputData.ptrOverUi}}</span></div>
+				<div class="dbg-row"><span class="dbg-k">Sector X</span><span
+						class="dbg-v">{{inputData.ptrSectorX}}</span></div>
+				<div class="dbg-row"><span class="dbg-k">Sector Y</span><span
+						class="dbg-v">{{inputData.ptrSectorY}}</span></div>
+				<div class="dbg-row"><span class="dbg-k">Sector Pos X</span><span
+						class="dbg-v">{{inputData.ptrSectorPosX}}</span></div>
+				<div class="dbg-row"><span class="dbg-k">Sector Pos Y</span><span
+						class="dbg-v">{{inputData.ptrSectorPosY}}</span></div>
+			</panel>
+
+			<tab>View</tab>
+			<panel>
+				<div class="dbg-section">Window</div>
+				<div class="dbg-row"><span class="dbg-k">Width</span><span class="dbg-v">{{viewData.winW}}</span></div>
+				<div class="dbg-row"><span class="dbg-k">Height</span><span class="dbg-v">{{viewData.winH}}</span></div>
+				<div class="dbg-section">Timing</div>
+				<div class="dbg-row"><span class="dbg-k">FPS (smoothed)</span><span
+						class="dbg-v">{{viewData.fpsSmoothed}}</span></div>
+				<div class="dbg-row"><span class="dbg-k">Frame ms</span><span class="dbg-v">{{viewData.frameMs}}</span>
+				</div>
+				<div class="dbg-section">World camera</div>
+				<div class="dbg-row"><span class="dbg-k">Zoom</span><span class="dbg-v">{{viewData.zoom}}</span></div>
+				<div class="dbg-row"><span class="dbg-k">Cam X</span><span class="dbg-v">{{viewData.camX}}</span></div>
+				<div class="dbg-row"><span class="dbg-k">Cam Y</span><span class="dbg-v">{{viewData.camY}}</span></div>
+				<div class="dbg-row"><span class="dbg-k">Sector offset X</span><span
+						class="dbg-v">{{viewData.sectorOffsetX}}</span></div>
+				<div class="dbg-row"><span class="dbg-k">Sector offset Y</span><span
+						class="dbg-v">{{viewData.sectorOffsetY}}</span></div>
+			</panel>
+
+			<tab>Game</tab>
+			<panel>
+				<div class="dbg-section">Client model</div>
+				<div class="dbg-row"><span class="dbg-k">Game state</span><span
+						class="dbg-v">{{gameData.gameState}}</span></div>
+				<div class="dbg-row"><span class="dbg-k">View mode</span><span
+						class="dbg-v">{{gameData.viewMode}}</span></div>
+			</panel>
+			<tab>Connection</tab>
+			<panel>
+				<div class="dbg-section">Timing</div>
+				<div class="dbg-row"><span class="dbg-k">Latency</span><span
+						class="dbg-v">{{connectionData.serverLatency}}</span></div>
+				<div class="dbg-row"><span class="dbg-k">Time offset</span><span
+						class="dbg-v">{{connectionData.serverTimeOffset}}</span></div>
+			</panel>
+			<tab>Overlays</tab>
+			<panel>
+				<div class="dbg-section">Render overlays</div>
+				<div class="dbg-row">
+					<span class="dbg-k">AABB tree</span>
+					<input type="checkbox"
+						class="checkbox"
+						data-value="overlayData.enableAabbTree" />
+				</div>
+				<div class="dbg-note">Shows server broadphase rectangles for the current sector.</div>
+			</panel>
+		</tabset>
+	</body>
+</rml>

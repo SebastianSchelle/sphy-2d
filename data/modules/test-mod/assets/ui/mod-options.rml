@@ -1,0 +1,12 @@
+<rml>
+    <head>
+        <link type="text/template" href="../../../core/assets/ui/tmp-menu-page.rml" />
+        <title>Test-Mod Options</title>
+    </head>
+
+    <body template="tmp-menu-page">
+		<div id="menu-title-bar">
+			<span id="title">Test-Mod Options</span>
+		</div>
+    </body>
+</rml>

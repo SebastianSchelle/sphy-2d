@@ -1,4 +1,4 @@
-set(LIB_NAME sphy-2d-server)
+set(EXEC_NAME game-server)
 
 set(MISC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../misc)
 set(THIRPARTY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../thirdparty)
@@ -26,6 +26,7 @@ set(SERVER_INC_PRIVATE
 set(SERVER_SOURCES
     engine.cpp
     server.cpp
+    main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../world/world.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../world/sector.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
@@ -34,7 +35,6 @@ set(SERVER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/ecs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/asset-factory.cpp
     ${MISC_DIR}/work-distributor.cpp
-    ${MISC_DIR}/helper/sphy-2d.cpp
     ${MISC_DIR}/work-sequencer.cpp
 )
 
@@ -52,7 +52,7 @@ set(LIBS_PRIV
     Boost::program_options
 )
 
-add_library(${LIB_NAME} STATIC ${SERVER_SOURCES})
+add_executable(${EXEC_NAME} ${SERVER_SOURCES})
 # libDaScript is built with -fno-rtti; TUs that inherit das::* must match or
 # link fails on missing base typeinfo in Release. Apply per-target so the same
 # mod-manager.cpp can still use RTTI when compiled for sphy-2d-client (RmlUi).
@@ -63,16 +63,28 @@ else()
 endif()
 set_property(
     SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
-    TARGET ${LIB_NAME}
+    TARGET ${EXEC_NAME}
     PROPERTY COMPILE_OPTIONS "${_das_mod_no_rtti}")
 set_property(
     SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/../mod/sphy-bindings.cpp
-    TARGET ${LIB_NAME}
+    TARGET ${EXEC_NAME}
     PROPERTY COMPILE_OPTIONS "${_das_mod_no_rtti}")
-target_compile_definitions(${LIB_NAME} PRIVATE SERVER GAME_NAME="${GAME_NAME}")
+target_compile_definitions(${EXEC_NAME} PRIVATE SERVER GAME_NAME="${GAME_NAME}")
 
-target_include_directories(${LIB_NAME} PUBLIC ${SERVER_INC_PUBLIC})
-target_include_directories(${LIB_NAME} PRIVATE ${SERVER_INC_PRIVATE})
-target_link_libraries(${LIB_NAME} PUBLIC ${LIBS_PUB})
-target_link_libraries(${LIB_NAME} PRIVATE ${LIBS_PRIV})
+target_include_directories(${EXEC_NAME} PUBLIC ${SERVER_INC_PUBLIC})
+target_include_directories(${EXEC_NAME} PRIVATE ${SERVER_INC_PRIVATE})
+target_link_libraries(${EXEC_NAME} PUBLIC ${LIBS_PUB})
+target_link_libraries(${EXEC_NAME} PRIVATE ${LIBS_PRIV})
+
+# libDaScript ships uriparser; Arrow (rerun SDK) also embeds the same C objects
+# in libarrow — duplicate global symbols. Prefer first definition.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
+    (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+)
+    target_link_options(
+        ${EXEC_NAME}
+        PRIVATE
+        "LINKER:--allow-multiple-definition"
+    )
+endif()
 

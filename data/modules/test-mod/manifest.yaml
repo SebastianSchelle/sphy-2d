@@ -1,0 +1,6 @@
+name: Test-Mod
+desc: Test module
+version: 1.0.0
+deps:
+    - engine
+    - core

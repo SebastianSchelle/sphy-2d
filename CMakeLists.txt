@@ -35,6 +35,8 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SphyBuildTypes.cmake")
 # Define DEBUG only for Debug configuration.
 add_compile_definitions($<$<CONFIG:Debug>:DEBUG>)
 
+set(GAME_NAME "sphy2d" CACHE STRING "Game name used for save files and binaries")
+
 find_package(Boost REQUIRED COMPONENTS regex thread system chrono program_options)
 find_package(GTest REQUIRED)
 
@@ -74,6 +76,36 @@ add_subdirectory(src/misc/helper helper)
 add_subdirectory(src/misc/networking networking)
 add_subdirectory(src/core/server)
 add_subdirectory(src/core/client)
+
+set(DEPLOY_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/deploy.sh)
+set(DEPLOY_DIR ${CMAKE_SOURCE_DIR}/deploy)
+
+# Find bash
+find_program(BASH_EXECUTABLE bash)
+if(NOT BASH_EXECUTABLE)
+    message(FATAL_ERROR "bash not found")
+endif()
+# Custom target to run deploy script
+# Pass build directory and executable paths to the script
+add_custom_target(deploy
+    COMMAND ${BASH_EXECUTABLE} ${DEPLOY_SCRIPT} ${DEPLOY_DIR} ${CMAKE_BINARY_DIR} "$<TARGET_FILE:game-client>" "$<TARGET_FILE:game-server>"
+    DEPENDS game-client game-server
+    COMMENT "Deploying modules and executables to ${DEPLOY_DIR}"
+)
+
+add_custom_target(
+    run-server
+    COMMAND ${DEPLOY_DIR}/game-server -w ${DEPLOY_DIR} -s "$ENV{HOME}/Documents/galaxies/test-game-2"
+    DEPENDS deploy
+    COMMENT "Running server (save: ${RUN_SERVER_SAVE_DIR})"
+)
+
+add_custom_target(
+    run-client
+    COMMAND ${DEPLOY_DIR}/game-client -w ${DEPLOY_DIR}
+    DEPENDS deploy
+    COMMENT "Running client"
+)
 
 enable_testing()
 

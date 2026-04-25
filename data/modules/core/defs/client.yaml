@@ -1,0 +1,30 @@
+loglevel: 1
+chat:
+  cmd-history-entries: 50
+win:
+  width: 1200
+  height: 800
+gfx:
+  tex-width: 2000
+  tex-height: 2000
+  tex-layer-cnt: 16
+  tex-bucket-size: 1000
+  tex-excess-height-threshold: 0.8
+  max-tex-per-draw-call: 1024
+ui:
+  zoom:
+    tactical-map: 0.1
+    strategic-map: 0.4
+    max: 6
+    min: 0.0001
+    step: 1.1
+  pan:
+    speed: 10
+input:
+  drag-threshold:
+    world: 300
+theme:
+  input:
+    drag-box:
+      color: 0x2085e085
+      thickness: 1

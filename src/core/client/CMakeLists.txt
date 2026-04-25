@@ -1,4 +1,4 @@
-set(LIB_NAME sphy-2d-client)
+set(EXEC_NAME game-client)
 
 set(THIRPARTY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../thirdparty)
 set(BGFX_DIR ${THIRPARTY_DIR}/bgfx)
@@ -38,6 +38,7 @@ set(CLIENT_INC_PRIVATE
 set(CLIENT_SOURCES
     client.cpp
     model.cpp
+    main.cpp
     win/main-window.cpp
     render/render-engine.cpp
     render/texture.cpp
@@ -123,8 +124,8 @@ add_custom_target(shaders ALL
     DEPENDS ${SHADER_BINARIES}
 )
 
-add_library(${LIB_NAME} STATIC ${CLIENT_SOURCES})
-add_dependencies(${LIB_NAME} shaders)
+add_executable(${EXEC_NAME} ${CLIENT_SOURCES})
+add_dependencies(${EXEC_NAME} shaders)
 # Match libDaScript (-fno-rtti) for mod sources; mod-manager.hpp no longer pulls
 # RmlUi before daScript subclasses in this TU.
 if(MSVC)
@@ -134,16 +135,16 @@ else()
 endif()
 set_property(
     SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
-    TARGET ${LIB_NAME}
+    TARGET ${EXEC_NAME}
     PROPERTY COMPILE_OPTIONS "${_das_mod_no_rtti}")
 set_property(
     SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/../mod/sphy-bindings.cpp
-    TARGET ${LIB_NAME}
+    TARGET ${EXEC_NAME}
     PROPERTY COMPILE_OPTIONS "${_das_mod_no_rtti}")
-target_compile_definitions(${LIB_NAME} PRIVATE BX_CONFIG_DEBUG=1 CLIENT GAME_NAME="${GAME_NAME}")
+target_compile_definitions(${EXEC_NAME} PRIVATE BX_CONFIG_DEBUG=1 CLIENT GAME_NAME="${GAME_NAME}")
 
-target_include_directories(${LIB_NAME} PUBLIC ${CLIENT_INC_PUBLIC})
-target_include_directories(${LIB_NAME} PRIVATE ${CLIENT_INC_PRIVATE})
-target_link_libraries(${LIB_NAME} PUBLIC ${LIBS_PUB})
-target_link_libraries(${LIB_NAME} PRIVATE ${LIBS_PRIV})
+target_include_directories(${EXEC_NAME} PUBLIC ${CLIENT_INC_PUBLIC})
+target_include_directories(${EXEC_NAME} PRIVATE ${CLIENT_INC_PRIVATE})
+target_link_libraries(${EXEC_NAME} PUBLIC ${LIBS_PUB})
+target_link_libraries(${EXEC_NAME} PRIVATE ${LIBS_PRIV})
 

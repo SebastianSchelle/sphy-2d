@@ -1,0 +1,188 @@
+<rml>
+
+	<head>
+		<link type="text/css" href="../../../core/assets/ui/style.rcss" />
+		<title>Chat</title>
+		<style>
+			body.chat-window {
+				font-family: Roboto;
+				font-weight: normal;
+				font-style: normal;
+				width: 420px;
+				height: 320px;
+				margin: auto auto 0px 0px;
+				display: flex;
+				flex-direction: column;
+				padding: 8px;
+				box-sizing: border-box;
+				gap: 6px;
+			}
+
+			.chat-header {
+				font-size: 11px;
+				font-weight: bold;
+				letter-spacing: 1px;
+				color: #b8c4ff;
+				text-transform: uppercase;
+				padding: 2px 4px 6px 4px;
+				flex: none;
+			}
+
+			.chat-transcript {
+				flex: 1 1 auto;
+				min-height: 120px;
+				border: 1px #7784ff40;
+				border-radius: 4px;
+				background: #04001885;
+				box-sizing: border-box;
+			}
+
+			#chat-messages {
+				display: flex;
+				flex-direction: column;
+				gap: 0px;
+				padding: 0px;
+				box-sizing: border-box;
+			}
+
+			.chat-message-box {
+				display: flex;
+				flex-direction: column;
+				align-items: stretch;
+				gap: 0px;
+				padding: 0px;
+				margin: 0px;
+				border: 1px #7784ff18;
+				box-sizing: border-box;
+			}
+
+			.chat-message-row {
+				display: flex;
+				flex-direction: row;
+				align-items: flex-start;
+				gap: 4px;
+				padding: 2px 4px;
+				margin: 0px;
+			}
+
+			.chat-message-row:nth-child(even) {
+				background: #ffffff0a;
+			}
+
+			.chat-timestamp {
+				flex: none;
+				font-size: 11px;
+				font-weight: bold;
+				color: #8399fa;
+				line-height: 1.35;
+				text-align: left;
+			}
+
+			.chat-sender {
+				flex: none;
+				max-width: 210px;
+				font-size: 11px;
+				font-weight: bold;
+				color: #a8b8ff;
+				line-height: 1.35;
+				overflow: hidden;
+				white-space: nowrap;
+				text-overflow: ellipsis;
+				text-align: left;
+			}
+
+			.chat-sender-click {
+				cursor: pointer;
+			}
+
+			.chat-sender-click:hover {
+				color: #c8d4ff;
+			}
+
+			.chat-target {
+				flex: none;
+				max-width: 210px;
+				font-size: 11px;
+				font-weight: bold;
+				color: #8399fa;
+				line-height: 1.35;
+				overflow: hidden;
+				white-space: nowrap;
+				text-overflow: ellipsis;
+				text-align: left;
+			}
+
+			/* Padding on a wrapper so every wrapped line stays inside the padded band (RmlUi text + padding quirk). */
+			.chat-message-text-wrap {
+				display: block;
+				width: 100%;
+				min-width: 0px;
+				padding: 2px 4px;
+				margin: 0px;
+				box-sizing: border-box;
+			}
+
+			.chat-message-text {
+				display: block;
+				width: 100%;
+				min-width: 0px;
+				font-size: 11px;
+				color: #e4e4e4;
+				line-height: 1.4;
+				word-break: break-word;
+				white-space: pre-wrap;
+				padding: 0px;
+				margin: 0px;
+				box-sizing: border-box;
+			}
+
+			.chat-composer {
+				display: flex;
+				flex-direction: row;
+				align-items: stretch;
+				flex: none;
+				gap: 6px;
+				padding-top: 2px;
+				border-top: 1px #7784ff35;
+				margin-top: 2px;
+			}
+
+			.form_row input.text {
+				flex: 1 1 auto;
+				min-width: 0px;
+				margin: 0px;
+			}
+
+			.form_row .button {
+				flex: none;
+				min-width: 32px;
+				margin: 0px;
+			}
+		</style>
+	</head>
+
+	<body class="chat-window" data-model="chat">
+		<div class="chat-header">Messages</div>
+		<div id="chat-scroll" class="chat-transcript scrollbox" data-event-scroll="chat_scroll()">
+			<div id="chat-messages" data-for="message : messages">
+				<div class="chat-message-box">
+					<div class="chat-message-row">
+						<div class="chat-timestamp">{{message.timestampText}}</div>
+						<div class="chat-sender chat-sender-click" data-event-click="chat_sender_click(message.sender)">
+							{{message.sender}}</div>
+						<div class="chat-target">{{message.target}}</div>
+					</div>
+					<div class="chat-message-text-wrap">
+						<div class="chat-message-text">{{message.message}}</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="form_row">
+			<span>{{curr_msg_target}}</span>
+			<input type="text" id="chat-input" class="text" data-value="chat_input_text" />
+			<button class="button" data-event-click="chat_send_msg(chat_input_text)">&gt;&gt;</button>
+			<button class="button" data-event-click="chat_scroll_down()">v</button>
+		</div>
+	</body>
+</rml>

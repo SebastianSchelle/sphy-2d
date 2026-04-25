@@ -5,25 +5,33 @@
             "name": "Debug Client",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/deploy/test-client/test-client",
-            "args": [],
-            "cwd": "${workspaceFolder}/deploy/test-client",
+            "program": "${workspaceFolder}/deploy/game-client",
+            "args": [
+                "-w",
+                "${workspaceFolder}/deploy",
+            ],
+            "cwd": "${workspaceFolder}/deploy",
             "stopOnEntry": false
         },
         {
             "name": "Debug Server",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/deploy/test-server/test-server",
-            "args": [],
-            "cwd": "${workspaceFolder}/deploy/test-server",
+            "program": "${workspaceFolder}/deploy/game-server",
+            "args": [
+                "-w",
+                "${workspaceFolder}/deploy",
+                "-s",
+                "${env:HOME}/Documents/galaxies/test-game-2"
+            ],
+            "cwd": "${workspaceFolder}/deploy",
             "stopOnEntry": false
         },
         {
             "name": "Debug Storage Allocator",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/build/test-shelf-allocator",
+            "program": "${workspaceFolder}/sphy-2d/build/test-shelf-allocator",
             "args": [],
             "cwd": "${workspaceFolder}",
             "stopOnEntry": false

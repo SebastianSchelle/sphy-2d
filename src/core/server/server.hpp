@@ -25,8 +25,6 @@ class Server
     void startServer();
     void startEngine();
 
-    virtual void registerSystems(ecs::Ecs& ecs);
-
   private:
     void scheduleSend();
     void udpReceive(udp::endpoint endpoint, const char* data, size_t length);

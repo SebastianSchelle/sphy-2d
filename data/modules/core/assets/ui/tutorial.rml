@@ -1,0 +1,17 @@
+<rml>
+	<head>
+		<link type="text/template" href="template.rml" />
+		<title>Window</title>
+		<style>
+			body {
+				width: 400dp;
+				height: 300dp;
+				margin: auto;
+			}
+		</style>
+	</head>
+
+	<body template="window">
+		Lorem ipsum
+	</body>
+</rml>

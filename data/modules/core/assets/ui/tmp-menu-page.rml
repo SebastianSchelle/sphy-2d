@@ -1,0 +1,20 @@
+<template name="tmp-menu-page" content="content">
+
+	<head>
+		<link type="text/css" href="../../../core/assets/ui/style.rcss" />
+		<title>Menu Page</title>
+		<style>
+			body {
+				width: 50%;
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
+			}
+		</style>
+	</head>
+
+	<body class="menu-window">
+		<div id="content" data-model="menu"></div>
+	</body>
+</template>

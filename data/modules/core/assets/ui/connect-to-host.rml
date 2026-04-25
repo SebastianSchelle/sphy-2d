@@ -1,0 +1,18 @@
+<rml>
+    <head>
+        <link type="text/template" href="../../../core/assets/ui/tmp-menu-page.rml" />
+        <title>Audio Options</title>
+    </head>
+
+    <body template="tmp-menu-page">
+		<div id="menu-title-bar">
+			<span id="title">Audio Options</span>
+      <label class="form_row"><span>Token</span><input type="text" data-value="connectData.token"/></label>
+      <label class="form_row"><span>Server Ip Address</span><input type="text" data-value="connectData.ipAddress"/></label>
+      <label class="form_row"><span>Server UDP Port</span><input type="text" data-value="connectData.udpPortServ"/></label>
+      <label class="form_row"><span>Server TCP Port</span><input type="text" data-value="connectData.tcpPortServ"/></label>
+      <label class="form_row"><span>Client UDP Port</span><input type="text" data-value="connectData.udpPortCli"/></label>
+      <button data-event-click="connectToServer()">Connect</button>
+		</div>
+    </body>
+</rml>

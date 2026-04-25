@@ -22,7 +22,12 @@ Server::Server(sphy::CmdLinOptionsServer& options)
     // version instead of the derived override.
 }
 
-Server::~Server() {
+Server::~Server()
+{
+    if (ioThread.joinable()) {
+        ioContext.stop();
+        ioThread.join();
+    }
 }
 
 void Server::startUdpTcp()
@@ -87,7 +92,6 @@ void Server::startServer()
 
 void Server::startEngine()
 {
-    registerSystems(engine.ecs);
     engine.start();
 }
 
@@ -120,9 +124,6 @@ void Server::scheduleSend()
                 LG_E("Send timer aborted");
             }
         });
-}
-
-void Server::registerSystems(ecs::Ecs& ecs) {
 }
 
 void Server::udpReceive(udp::endpoint endpoint, const char* data, size_t length)

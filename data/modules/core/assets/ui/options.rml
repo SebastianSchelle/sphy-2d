@@ -1,0 +1,16 @@
+<rml>
+
+    <head>
+        <link type="text/template" href="../../../core/assets/ui/tmp-menu-page.rml" />
+        <title>Options</title>
+    </head>
+
+    <body template="tmp-menu-page">
+		<div id="menu-title-bar">
+			<span id="title">Options</span>
+		</div>
+        <button data-event-click="onNavigate('display')">Display</button>
+        <button data-event-click="onNavigate('graphics')">Graphics</button>
+        <button data-event-click="onNavigate('audio')">Audio</button>
+    </body>
+</rml>

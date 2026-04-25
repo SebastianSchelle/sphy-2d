@@ -1,0 +1,40 @@
+<rml>
+
+    <head>
+        <link type="text/template" href="../../../core/assets/ui/tmp-menu-page.rml" />
+        <title>Options</title>
+    </head>
+
+    <body template="tmp-menu-page">
+        <!--div class="scrollbox" data-model="debug">
+            <h4>Hello World!</h4>
+            <div>FPS: {{fpsClient}}</div>
+            <div class="flex_row">
+                <button onclick="game.start()">Start Game</button>
+                <button onclick="game.start()">Start Game</button>
+            </div>
+
+            <button data-event-click="dbgHello">Test Log</button>
+
+            <h4>Hello World!</h4>
+            <label class="form_row"><span>test</span><input type="text" data-value="dbgInput"/></label>
+            <label class="form_row"><input type="password" value="pizza" /></label>
+            <div class="flex_row">
+                <label class="form_row"><span>Test</span><input type="checkbox" /></label>
+                <label class="form_row"><span>Test</span><input type="checkbox" /></label>
+                <label class="form_row"><span>Test</span><input type="checkbox" /></label>
+            </div>
+            <form>
+                <label class="form_row"><span>test</span><input type="text" value="pizza" /></label>
+                <label class="form_row"><span>test</span><input type="text" value="pizza" /></label>
+                <label class="form_row"><span>test</span><input type="range" min="0" max="10" step="1" value="5" /><span
+                        class="sl_val" id="someId">5000</span></label>
+                <label class="form_row"><span>Select Option</span><select>
+                        <option value="1">Bad</option>
+                        <option value="2">Very Bad</option>
+                        <option value="3">Abysmal</option>
+                    </select></label>
+            </form>
+        </div-->
+    </body>
+</rml>
