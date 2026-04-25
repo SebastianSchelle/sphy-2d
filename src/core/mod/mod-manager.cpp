@@ -1,12 +1,11 @@
+#include <daScript/daScript.h>
+#include <daScript/daScriptModule.h>
+#include <daScript/misc/free_list.h>
 #include <lua-interpreter.hpp>
 #include <mod-manager.hpp>
 #include <sphy-bindings.hpp>
+#include <memory>
 #include <yaml-cpp/yaml.h>
-
-void registerDasDefaultModules()
-{
-    NEED_ALL_DEFAULT_MODULES;
-}
 
 namespace mod
 {
@@ -15,7 +14,6 @@ namespace
 {
 
 thread_local bool gDasThreadRuntimeReady = false;
-bool gDasRootConfigured = false;
 
 class DasLogWriter : public das::TextWriter
 {
@@ -99,11 +97,20 @@ void ensureDasRuntimeForCurrentThread()
     {
         return;
     }
+    // Free-list + global operator::new (when DAS_FREE_LIST=1) expect this on
+    // new threads; harmless when DAS_FREE_LIST=0 (no-op), required by tutorial
+    // 21 / daScriptC.h for worker-thread compilation.
+    static thread_local std::unique_ptr<das::ReuseCacheGuard> sDasReuseCache;
+    if (!sDasReuseCache)
+    {
+        sDasReuseCache = std::make_unique<das::ReuseCacheGuard>();
+    }
     das::daScriptEnvironment::ensure();
+    // "daslib" = deploy/daslib; stdlib is getDasRoot()+"/daslib/" (…/daslib/daslib/)
     das::setDasRoot("daslib");
-    ::registerDasDefaultModules();
-    // Register custom modules after builtins are available because their
-    // constructors typically call ModuleLibrary::addBuiltInModule().
+    // Idempotent; same set as the daslang console (incl. UriParser, JobQue, …).
+    das::register_builtin_modules();
+    // Register custom modules after builtins (constructors add to module library).
     mod::touchSphyBindingsModule();
     das::Module::Initialize();
     LG_D("daScript runtime initialized for current thread");

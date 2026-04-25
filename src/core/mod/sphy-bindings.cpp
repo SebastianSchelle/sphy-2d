@@ -60,9 +60,9 @@ namespace mod
 
 void touchSphyBindingsModule()
 {
-    // REGISTER_MODULE only declares the registrar function; we still need to
-    // call it so the module instance exists before script compilation.
-    static bool registered = false;
+    // daScriptEnvironment is per-thread; each thread must register modules for
+    // that environment. A process-wide static would skip sphy on new threads.
+    static thread_local bool registered = false;
     if (registered)
     {
         return;

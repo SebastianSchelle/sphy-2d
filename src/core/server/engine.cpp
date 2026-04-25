@@ -1177,7 +1177,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
 
-    for (int i = 0; i < 1000; ++i)
+    for (int i = 0; i < 50000; ++i)
     {
         auto ent = spawnEntityFromAsset(
             // kAssets[assetPick(gen)],
