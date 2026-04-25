@@ -408,7 +408,7 @@ bool ModManager::loadGameObjects(PtrHandles& ptrHandles, const ModInfo& modInfo)
     if (std::filesystem::exists(assetsPath))
     {
         for (const auto& fileEntry :
-             std::filesystem::directory_iterator(assetsPath))
+             std::filesystem::recursive_directory_iterator(assetsPath))
         {
             if (fileEntry.is_regular_file()
                 && fileEntry.path().extension() == ".yaml")

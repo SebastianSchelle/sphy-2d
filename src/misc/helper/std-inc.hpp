@@ -666,7 +666,21 @@ inline bool convexConvex(const std::vector<vec2>& a, const std::vector<vec2>& b)
     float pen;
     return convexConvexMTV(a, b, n, pen);
 }
+
 }  // namespace sat2d
+
+struct GenericHandle
+{
+    uint16_t idx;
+    uint16_t gen;
+};
+
+#define SER_GENERIC_HANDLE                                                     \
+    S2b(o.idx);                                                                \
+    S2b(o.gen);
+EXT_SER(GenericHandle, SER_GENERIC_HANDLE)
+EXT_DES(GenericHandle, SER_GENERIC_HANDLE)
+
 
 using smath::Rect;
 

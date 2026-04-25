@@ -30,3 +30,14 @@
       bounds: [0.0, 25.0, 25.0, 50.0]
       zIndex: 1
       rot: 180.0
+- type: ship-hull
+  hullMax: 10000.0
+  slots:
+    - type: BayS_Common
+      pos: [0.0, -25.0]
+      rot: 0.0
+      z: 3
+    - type: RoofS_Common 
+      pos: [0.0, 0.0]
+      rot: 0.0
+      z: 2

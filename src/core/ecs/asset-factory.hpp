@@ -43,6 +43,7 @@ class ComponentFactory
         SerializeFromRegistryFunc serializeFromRegistry;
     };
 
+    void registerAllComponents();
     void registerHelper(const std::string& name, ComponentHelper func);
     void loadComponent(const std::string& name,
                        entt::registry& registry,
@@ -58,43 +59,80 @@ class ComponentFactory
             name,
             ComponentHelper(
                 name,
-                &Component::fromYaml,
+                [](entt::registry& registry,
+                   entt::entity entity,
+                   const YAML::Node& node,
+                   mod::ResourceMap& resourceMap)
+                {
+                    if constexpr (requires {
+                                      Component::fromYaml(
+                                          registry, entity, node, resourceMap);
+                                  })
+                    {
+                        Component::fromYaml(registry, entity, node, resourceMap);
+                    }
+                    else
+                    {
+                        // Marker/empty components can be loaded by presence only.
+                        registry.emplace_or_replace<Component>(entity);
+                    }
+                },
                 [name](const entt::registry& srcRegistry,
                        entt::entity srcEntity,
                        entt::registry& dstRegistry,
                        entt::entity dstEntity)
                 {
-                    auto component = srcRegistry.try_get<Component>(srcEntity);
-                    if (component)
+                    if constexpr (std::is_empty_v<Component>)
                     {
-                        // LG_D(
-                        //     "Copying component: {} from asset entity: {} "
-                        //     "to entity: {} value: {}",
-                        //     name,
-                        //     srcEntity,
-                        //     dstEntity,
-                        //     *component);
-                        dstRegistry.emplace_or_replace<Component>(dstEntity,
-                                                                  *component);
+                        if (srcRegistry.all_of<Component>(srcEntity))
+                        {
+                            dstRegistry.emplace_or_replace<Component>(dstEntity);
+                        }
+                    }
+                    else
+                    {
+                        auto component = srcRegistry.try_get<Component>(srcEntity);
+                        if (component)
+                        {
+                            dstRegistry.emplace_or_replace<Component>(dstEntity,
+                                                                      *component);
+                        }
                     }
                 },
                 [name](entt::registry& registry,
                        entt::entity entity,
                        bitsery::Deserializer<InputAdapter>& s)
                 {
-                    Component component;
-                    s.object(component);
-                    registry.emplace_or_replace<Component>(entity, component);
+                    if constexpr (std::is_empty_v<Component>)
+                    {
+                        registry.emplace_or_replace<Component>(entity);
+                    }
+                    else
+                    {
+                        Component component;
+                        s.object(component);
+                        registry.emplace_or_replace<Component>(entity, component);
+                    }
                 },
                 [name, hash](entt::registry& registry,
                              entt::entity entity,
                              bitsery::Serializer<OutputAdapter>& s)
                 {
-                    auto component = registry.try_get<Component>(entity);
-                    if (component)
+                    if constexpr (std::is_empty_v<Component>)
                     {
-                        s.value4b(hash);
-                        s.object(*component);
+                        if (registry.all_of<Component>(entity))
+                        {
+                            s.value4b(hash);
+                        }
+                    }
+                    else
+                    {
+                        auto component = registry.try_get<Component>(entity);
+                        if (component)
+                        {
+                            s.value4b(hash);
+                            s.object(*component);
+                        }
                     }
                 }));
     }

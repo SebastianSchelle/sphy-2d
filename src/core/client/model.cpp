@@ -3,6 +3,8 @@
 #include "std-inc.hpp"
 #include <comp-gfx.hpp>
 #include <comp-ident.hpp>
+#include <comp-ship.hpp>
+#include <comp-tag.hpp>
 #include <exchange-sequence.hpp>
 #include <model.hpp>
 #include <protocol.hpp>
@@ -25,17 +27,7 @@ Model::Model(ui::UserInterface* userInterface,
 {
     lastTSync = tim::getCurrentTimeU();
 
-    auto cFac = &assetFactory.componentFactory;
-    cFac->registerComponent<ecs::Transform>();
-    cFac->registerComponent<ecs::PhysicsBody>();
-    cFac->registerComponent<ecs::AssetId>();
-    cFac->registerComponent<ecs::PhyThrust>();
-    cFac->registerComponent<ecs::MoveCtrl>();
-    cFac->registerComponent<ecs::Collider>();
-    cFac->registerComponent<ecs::Broadphase>();
-    cFac->registerComponent<ecs::TransformCache>();
-    cFac->registerComponent<ecs::MapIcon>();
-    cFac->registerComponent<ecs::Textures>();
+    assetFactory.componentFactory.registerAllComponents();
 
     lastGetAabbTree = tim::nowU();
     registerConnectSequence();

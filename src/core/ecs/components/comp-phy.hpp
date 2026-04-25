@@ -1,6 +1,7 @@
 #ifndef COMP_PHY_HPP
 #define COMP_PHY_HPP
 
+#include "comp-ident.hpp"
 #include <aabb-tree.hpp>
 #include <algorithm>
 #include <climits>
@@ -34,7 +35,9 @@ struct Transform
     {
         Transform transform;
         TRY_YAML_DICT(transform.pos, node["pos"], vec2(0.0f, 0.0f));
-        TRY_YAML_DICT(transform.rot, node["rot"], 0.0f);
+        float rot;
+        TRY_YAML_DICT(rot, node["rot"], 0.0f);
+        transform.rot = smath::degToRad(rot);
         registry.emplace<Transform>(entity, transform);
     }
 };
@@ -538,6 +541,41 @@ struct MoveCtrl
 EXT_SER(MoveCtrl, SER_MOVE_CTRL_HOLD)
 EXT_DES(MoveCtrl, SER_MOVE_CTRL_HOLD)
 
+struct AnchorFixed
+{
+    static const uint16_t VERSION = 1;
+    static constexpr string NAME = "anchor-fixed";
+
+    vec2 pos;
+    float rot;
+    EntityId ref;
+
+    static void fromYaml(entt::registry& registry,
+                         entt::entity entity,
+                         const YAML::Node& node,
+                         mod::ResourceMap& resourceMap)
+    {
+        AnchorFixed anchorFixed;
+        TRY_YAML_DICT(anchorFixed.pos, node["pos"], vec2(0.0f, 0.0f));
+        float rot;
+        TRY_YAML_DICT(rot, node["rot"], 0.0f);
+        anchorFixed.rot = smath::degToRad(rot);
+        uint16_t refIdx;
+        uint16_t refGen;
+        TRY_YAML_DICT(refIdx, node["ref"][0], 0);
+        TRY_YAML_DICT(refGen, node["ref"][1], 0);
+        anchorFixed.ref = {refIdx, refGen};
+        registry.emplace<AnchorFixed>(entity, anchorFixed);
+    }
+};
+
+#define SER_ANCHOR_FIXED                                                     \
+    SOBJ(o.pos);                                                             \
+    S4b(o.rot);                                                              \
+    SOBJ(o.ref);
+EXT_SER(AnchorFixed, SER_ANCHOR_FIXED)
+EXT_DES(AnchorFixed, SER_ANCHOR_FIXED)
+
 }  // namespace ecs
 
 EXT_FMT(ecs::Transform, "(pos: {}, rot: {})", o.pos, o.rot);
@@ -575,5 +613,6 @@ EXT_FMT(ecs::Collider, "{}", o.vertices);
 EXT_FMT(ecs::Broadphase, "(proxyId: {}, fatAABB: {})", o.proxyId, o.fatAABB);
 EXT_FMT(ecs::TransformCache, "(c: {}, s: {})", o.c, o.s);
 EXT_FMT(con::AABB, "(lower: {}, upper: {})", o.lower, o.upper);
+EXT_FMT(ecs::AnchorFixed, "(pos: {}, rot: {}, ref: {})", o.pos, o.rot, o.ref);
 
 #endif

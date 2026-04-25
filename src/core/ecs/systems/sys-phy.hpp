@@ -427,6 +427,38 @@ const System sysCollisionDetection = {
     .afterEntityUpdate = true,
 };
 
+const System sysAnchorFixed = {
+    .name = "sysAnchorFixed",
+    .type = SystemType::SectorForeachEntitiy,
+    .function = SFSectorForeach{
+        [](world::Sector* sector,
+           entt::entity entity,
+           const ecs::EntityId& entityId,
+           float dt,
+           PtrHandle* ptrHandle)
+        {
+            auto reg = ptrHandle->registry;
+            auto* anchorFixed = reg->try_get<AnchorFixed>(entity);
+            auto* transform = reg->try_get<Transform>(entity);
+            if (anchorFixed && transform)
+            {
+                entt::entity parent =
+                    ptrHandle->ecs->getEntity(anchorFixed->ref);
+                if (parent != entt::null)
+                {
+                    const auto& parentTransform = reg->get<Transform>(parent);
+                    const auto& parentTransformCache =
+                        reg->get<TransformCache>(parent);
+                    vec2 anchorFixedPos =
+                        smath::rotateVec2(anchorFixed->pos,
+                                          parentTransformCache.s,
+                                          parentTransformCache.c);
+                    transform->pos = parentTransform.pos + anchorFixedPos;
+                    transform->rot = parentTransform.rot - anchorFixed->rot;
+                }
+            }
+        }}};
+
 }  // namespace ecs
 
 #endif

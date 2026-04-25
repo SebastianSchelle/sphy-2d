@@ -6,6 +6,8 @@
 #include <comp-gfx.hpp>
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
+#include <comp-ship.hpp>
+#include <comp-tag.hpp>
 #include <components/comp-phy.hpp>
 #include <engine-impl.hpp>
 #include <net-shared.hpp>
@@ -72,22 +74,13 @@ Engine::~Engine()
 
 void Engine::start()
 {
-    auto cFac = &assetFactory.componentFactory;
-    cFac->registerComponent<ecs::Transform>();
-    cFac->registerComponent<ecs::PhysicsBody>();
-    cFac->registerComponent<ecs::AssetId>();
-    cFac->registerComponent<ecs::PhyThrust>();
-    cFac->registerComponent<ecs::MoveCtrl>();
-    cFac->registerComponent<ecs::Collider>();
-    cFac->registerComponent<ecs::Broadphase>();
-    cFac->registerComponent<ecs::TransformCache>();
-    cFac->registerComponent<ecs::MapIcon>();
-    cFac->registerComponent<ecs::Textures>();
+    assetFactory.componentFactory.registerAllComponents();
 
     ecs.registerSystem(ecs::sysMoveCtrl);
     ecs.registerSystem(ecs::sysPhyThrust);
     ecs.registerSystem(ecs::sysPhysics);
     ecs.registerSystem(ecs::sysCollisionDetection);
+    ecs.registerSystem(ecs::sysAnchorFixed);
 
     registerConsoleCommands();
 
@@ -1179,24 +1172,39 @@ void Engine::testSpawn()
 
     for (int i = 0; i < 50000; ++i)
     {
-        auto ent = spawnEntityFromAsset(
-            // kAssets[assetPick(gen)],
-            "BoomBoa",
-            sectorPick(gen),
-            ecs::Transform{glm::vec2{posDist(gen), posDist(gen)},
-                           rotDist(gen)});
-        entt::entity entt = ecs.getEntity(ent);
-        auto& reg = ecs.getRegistry();
-        auto* moveCtrl = reg.try_get<ecs::MoveCtrl>(entt);
-        if (moveCtrl)
-        {
-            moveCtrl->active = true;
-            moveCtrl->spPos.sectorPos.x = posDist(gen);
-            moveCtrl->spPos.sectorPos.y = posDist(gen);
-            moveCtrl->spPos.pos = world.idToSectorCoords(sectorPick(gen));
-            moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
-        }
+        // auto ent = spawnEntityFromAsset(
+        //     // kAssets[assetPick(gen)],
+        //     "BoomBoa",
+        //     sectorPick(gen),
+        //     ecs::Transform{glm::vec2{posDist(gen), posDist(gen)},
+        //                    rotDist(gen)});
+        // entt::entity entt = ecs.getEntity(ent);
+        // auto& reg = ecs.getRegistry();
+        // auto* moveCtrl = reg.try_get<ecs::MoveCtrl>(entt);
+        // if (moveCtrl)
+        // {
+        //     moveCtrl->active = true;
+        //     moveCtrl->spPos.sectorPos.x = posDist(gen);
+        //     moveCtrl->spPos.sectorPos.y = posDist(gen);
+        //     moveCtrl->spPos.pos = world.idToSectorCoords(sectorPick(gen));
+        //     moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
+        // }
     }
+
+    auto ent = spawnEntityFromAsset(
+        "Chungus", 0, ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
+    entt::entity entt = ecs.getEntity(ent);
+    auto& reg = ecs.getRegistry();
+    auto& hull = reg.get<ecs::ship::Hull>(entt);
+
+    auto ent2 = spawnEntityFromAsset(
+        "Def-Main-Thrust", 0, ecs::Transform{glm::vec2{300.0f, 300.0f}, 0.0f});
+    entt::entity entt2 = ecs.getEntity(ent2);
+    auto& anchorFixed = reg.get<ecs::AnchorFixed>(entt2);
+    anchorFixed.ref = ent;
+    anchorFixed.pos = hull.slots[0].pos;
+    anchorFixed.rot = hull.slots[0].rot;
+    hull.slots[0].ref = ent2;
 }
 
 void Engine::handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn)

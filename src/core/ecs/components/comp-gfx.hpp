@@ -9,18 +9,6 @@
 namespace ecs
 {
 
-struct GenericHandle
-{
-    uint16_t idx;
-    uint16_t gen;
-};
-
-#define SER_GENERIC_HANDLE                                                     \
-    S2b(o.idx);                                                                \
-    S2b(o.gen);
-EXT_SER(GenericHandle, SER_GENERIC_HANDLE)
-EXT_DES(GenericHandle, SER_GENERIC_HANDLE)
-
 struct MapIcon
 {
     static const uint16_t VERSION = 1;

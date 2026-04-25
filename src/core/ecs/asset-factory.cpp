@@ -2,6 +2,11 @@
 #include <asset-factory.hpp>
 #include <components/comp-ident.hpp>
 #include <ecs.hpp>
+#include <comp-gfx.hpp>
+#include <comp-ident.hpp>
+#include <comp-phy.hpp>
+#include <comp-ship.hpp>
+#include <comp-tag.hpp>
 
 namespace ecs
 {
@@ -27,6 +32,26 @@ void ComponentFactory::loadComponent(const std::string& name,
     {
         throw std::runtime_error("Unknown component: " + name);
     }
+}
+
+void ComponentFactory::registerAllComponents()
+{
+    registerComponent<ecs::Transform>();
+    registerComponent<ecs::PhysicsBody>();
+    registerComponent<ecs::AssetId>();
+    registerComponent<ecs::PhyThrust>();
+    registerComponent<ecs::MoveCtrl>();
+    registerComponent<ecs::Collider>();
+    registerComponent<ecs::Broadphase>();
+    registerComponent<ecs::TransformCache>();
+    registerComponent<ecs::MapIcon>();
+    registerComponent<ecs::Textures>();
+    registerComponent<ecs::ship::Hull>();
+    registerComponent<ecs::ship::Module>();
+    registerComponent<ecs::AnchorFixed>();
+    registerComponent<ecs::tag::obj::Ship>();
+    registerComponent<ecs::tag::mod::MainThruster>();
+    registerComponent<ecs::tag::mod::ManeuverThruster>();
 }
 
 AssetFactory::AssetFactory() {}
