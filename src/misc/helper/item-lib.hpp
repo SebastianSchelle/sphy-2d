@@ -23,7 +23,18 @@ template <class T> class ItemLib
         {
             return Handle(0, 0);
         }
-
+        Handle(GenericHandle genericHandle)
+            : idx(genericHandle.idx), generation(genericHandle.gen)
+        {
+        }
+        GenericHandle toGenericHandle() const
+        {
+            return {idx, generation};
+        }
+        const std::string toString() const
+        {
+            return fmt::format("({}, {})", idx, generation);
+        }
         Handle(uint16_t idx, uint16_t generation)
             : idx(idx), generation(generation)
         {
@@ -144,7 +155,8 @@ ItemLib<T>::Handle ItemLib<T>::addItem(const std::string& name, const T& item)
     }
 }
 
-template <class T> ItemLib<T>::HandleUuid ItemLib<T>::addWithRandomKey(const T& item)
+template <class T>
+ItemLib<T>::HandleUuid ItemLib<T>::addWithRandomKey(const T& item)
 {
     std::string uuid = sec::uuid();
     return {addItem(uuid, item), uuid};

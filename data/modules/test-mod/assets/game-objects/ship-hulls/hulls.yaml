@@ -1,0 +1,30 @@
+textures:
+  chungus:
+    name: chungus
+    textures:
+      - name: chungus
+        bounds: [0.0, 0.0, 512.0, 512.0]
+        zIndex: 1
+        flags: 0
+        rot: 0.0
+map-icon:
+  frigate:
+    name: frigate
+    texName: frigate
+    size: [10.0, 10.0]
+collider:
+  chungus:
+    vertices: [[-50, -50], [50, -50], [50, 50], [-50, 50]]
+    restitution: 0.1
+hull:
+  chungus:
+    name: chungus
+    hullpoints: 1000.0
+    textures: chungus
+    collider: chungus
+    map-icon: frigate
+    slots:
+      - mod-type: ThrusterMainS_Common
+        pos: [0.0, -256.0]
+        rot: 180.0
+        z: 3

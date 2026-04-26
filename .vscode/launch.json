@@ -5,6 +5,7 @@
             "name": "Debug Client",
             "type": "lldb",
             "request": "launch",
+            "preLaunchTask": "build-debug-deploy",
             "program": "${workspaceFolder}/deploy/game-client",
             "args": [
                 "-w",
@@ -17,6 +18,7 @@
             "name": "Debug Server",
             "type": "lldb",
             "request": "launch",
+            "preLaunchTask": "build-debug-deploy",
             "program": "${workspaceFolder}/deploy/game-server",
             "args": [
                 "-w",

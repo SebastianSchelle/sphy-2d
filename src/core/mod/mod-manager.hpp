@@ -19,6 +19,10 @@ class UserInterface;
 #include <functional>
 #include <item-lib.hpp>
 #include <std-inc.hpp>
+#include <lib-hull.hpp>
+#include <lib-modules.hpp>
+#include <lib-textures.hpp>
+#include <lib-collider.hpp>
 
 #ifdef FMT_THROW
 #pragma push_macro("FMT_THROW")
@@ -160,6 +164,27 @@ class ModManager
     void populateMenuData(vector<MenuDataMod>& mods);
 #endif
 
+    con::ItemLib<gobj::Hull>& getHullLib()
+    {
+        return hullLib;
+    }
+    con::ItemLib<gobj::ModuleSlot>& getModuleSlotLib()
+    {
+        return moduleSlotLib;
+    }
+    con::ItemLib<gobj::Textures>& getTexturesLib()
+    {
+        return texturesLib;
+    }
+    con::ItemLib<gobj::MapIcon>& getMapIconLib()
+    {
+        return mapIconLib;
+    }
+    con::ItemLib<gobj::Collider>& getColliderLib()
+    {
+        return colliderLib;
+    }
+
   private:
     bool checkDependency(const std::string& modId,
                          std::vector<std::string>& modList,
@@ -182,8 +207,8 @@ class ModManager
     bool loadModOptions(PtrHandles& ptrHandles, ModInfo& modInfo);
 #endif
     bool runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo);
-    bool loadGameObjects(PtrHandles& ptrHandles, const ModInfo& modInfo);
-    bool loadGameObject(PtrHandles& ptrHandles, const std::string& path);
+    bool loadGameLibs(PtrHandles& ptrHandles, const ModInfo& modInfo);
+    bool loadGameLib(PtrHandles& ptrHandles, const std::string& path);
     bool loadScripts(PtrHandles& ptrHandles,
                      const ModInfo& modInfo,
                      YAML::Node scripts);
@@ -191,6 +216,12 @@ class ModManager
     con::ItemLib<Mod> modLib;
     std::vector<ModHandle> modHandles;
     ResourceMap resourceMap;
+
+    con::ItemLib<gobj::Hull> hullLib;
+    con::ItemLib<gobj::ModuleSlot> moduleSlotLib;
+    con::ItemLib<gobj::Textures> texturesLib;
+    con::ItemLib<gobj::MapIcon> mapIconLib;
+    con::ItemLib<gobj::Collider> colliderLib;
 };
 
 }  // namespace mod

@@ -681,6 +681,7 @@ struct GenericHandle
 EXT_SER(GenericHandle, SER_GENERIC_HANDLE)
 EXT_DES(GenericHandle, SER_GENERIC_HANDLE)
 
+EXT_FMT(GenericHandle, "({}, {})", o.idx, o.gen);
 
 using smath::Rect;
 

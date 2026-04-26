@@ -19,6 +19,14 @@ namespace sthread
 {
 class WorkDistributor;
 }
+namespace con
+{
+template <typename T> class ItemLib;
+}
+namespace gobj
+{
+struct Collider;
+}
 
 namespace world
 {
@@ -47,6 +55,7 @@ struct PtrHandle
     const vector<System>* systems;
     ecs::Ecs* ecs;
     sthread::WorkDistributor* workDistributor;
+    con::ItemLib<gobj::Collider>* colliderLib = nullptr;
 };
 
 }  // namespace ecs

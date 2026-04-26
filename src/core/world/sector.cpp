@@ -134,7 +134,8 @@ bool Sector::addEntity(ecs::PtrHandle* ptrHandle,
         transformCache->c = cosf(transform.rot);
         transformCache->s = sinf(transform.rot);
         con::AABB aabb =
-            ecs::calculateAABB(transform, *transformCache, *collider);
+            ecs::calculateAABB(
+                transform, *transformCache, *collider, ptrHandle->colliderLib);
         broadphase->proxyId = aabbTree.createProxy(aabb, entity);
         broadphase->fatAABB = aabb;
     }

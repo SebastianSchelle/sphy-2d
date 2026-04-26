@@ -255,8 +255,13 @@ const System sysPhysics = {
                 }
                 if (hasSignificantSpd || hasSignificantRotSpd)
                 {
+                    const gobj::Collider* colliderDef =
+                        collider->getColliderDef(ptrHandle->colliderLib);
                     con::AABB newAabb =
-                        calculateAABB(*transform, *transformCache, *collider);
+                        calculateAABB(*transform,
+                                      *transformCache,
+                                      *collider,
+                                      colliderDef);
                     auto* sector = ptrHandle->world->getSector(sectorId->id);
                     if (sector)
                     {
@@ -339,12 +344,18 @@ const System sysCollisionDetection = {
                         reg->get<TransformCache>(collision.second);
                     auto& collider1 = reg->get<Collider>(collision.first);
                     auto& collider2 = reg->get<Collider>(collision.second);
+                    const gobj::Collider* colliderDef1 =
+                        collider1.getColliderDef(ptrHandle->colliderLib);
+                    const gobj::Collider* colliderDef2 =
+                        collider2.getColliderDef(ptrHandle->colliderLib);
 
                     const std::optional<Contact> contact =
                         ::ecs::collideCollidersWorld(collider1,
+                                                     colliderDef1,
                                                      transform1,
                                                      transformCache1,
                                                      collider2,
+                                                     colliderDef2,
                                                      transform2,
                                                      transformCache2);
                     if (contact)
@@ -353,8 +364,8 @@ const System sysCollisionDetection = {
                             {*contact,
                              collision.first,
                              collision.second,
-                             std::fmin(collider1.restitution,
-                                       collider2.restitution)});
+                             std::fmin(collider1.getRestitution(colliderDef1),
+                                       collider2.getRestitution(colliderDef2))});
                         // LG_D(
                         //     "Colliding entities: {} and {} (penetration {}, "
                         //     "normal [{}, {}])",

@@ -2,9 +2,9 @@
 #include <daScript/daScriptModule.h>
 #include <daScript/misc/free_list.h>
 #include <lua-interpreter.hpp>
+#include <memory>
 #include <mod-manager.hpp>
 #include <sphy-bindings.hpp>
-#include <memory>
 #include <yaml-cpp/yaml.h>
 
 namespace mod
@@ -106,11 +106,13 @@ void ensureDasRuntimeForCurrentThread()
         sDasReuseCache = std::make_unique<das::ReuseCacheGuard>();
     }
     das::daScriptEnvironment::ensure();
-    // "daslib" = deploy/daslib; stdlib is getDasRoot()+"/daslib/" (…/daslib/daslib/)
+    // "daslib" = deploy/daslib; stdlib is getDasRoot()+"/daslib/"
+    // (…/daslib/daslib/)
     das::setDasRoot("daslib");
     // Idempotent; same set as the daslang console (incl. UriParser, JobQue, …).
     das::register_builtin_modules();
-    // Register custom modules after builtins (constructors add to module library).
+    // Register custom modules after builtins (constructors add to module
+    // library).
     mod::touchSphyBindingsModule();
     das::Module::Initialize();
     LG_D("daScript runtime initialized for current thread");
@@ -307,7 +309,7 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
             }
         }
 #endif
-        if (!loadGameObjects(ptrHandles, modInfo))
+        if (!loadGameLibs(ptrHandles, modInfo))
         {
             return false;
         }
@@ -402,7 +404,7 @@ bool ModManager::runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo)
 }
 
 
-bool ModManager::loadGameObjects(PtrHandles& ptrHandles, const ModInfo& modInfo)
+bool ModManager::loadGameLibs(PtrHandles& ptrHandles, const ModInfo& modInfo)
 {
     std::string assetsPath = modInfo.modDir + "/assets/game-objects";
     if (std::filesystem::exists(assetsPath))
@@ -414,7 +416,7 @@ bool ModManager::loadGameObjects(PtrHandles& ptrHandles, const ModInfo& modInfo)
                 && fileEntry.path().extension() == ".yaml")
             {
                 const std::string gameObjectPath = fileEntry.path().string();
-                if (!loadGameObject(ptrHandles, gameObjectPath))
+                if (!loadGameLib(ptrHandles, gameObjectPath))
                 {
                     return false;
                 }
@@ -424,11 +426,67 @@ bool ModManager::loadGameObjects(PtrHandles& ptrHandles, const ModInfo& modInfo)
     return true;
 }
 
-bool ModManager::loadGameObject(PtrHandles& ptrHandles, const std::string& path)
+bool ModManager::loadGameLib(PtrHandles& ptrHandles, const std::string& path)
 {
-    YAML::Node gameObject = YAML::LoadFile(path);
-    return ptrHandles.assetFactory->loadAsset(path, resourceMap) != entt::null;
+    YAML::Node libs = YAML::LoadFile(path);
+    for (const auto& libEntry : libs)
+    {
+        bool skip = false;
+        if (!libEntry.first.IsScalar() || !libEntry.second.IsMap())
+        {
+            LG_E("Failed to load game library: invalid node; expected a map");
+            skip = true;
+        }
+        std::string libName = libEntry.first.as<std::string>();
+        for (const auto& libEntry2 : libEntry.second)
+        {
+            if (libEntry2.first.IsScalar() && libEntry2.second.IsMap())
+            {
+                std::string objName = libEntry2.first.as<std::string>();
+                if (libName == "hull")
+                {
+                    const gobj::Hull hull = gobj::Hull::fromYaml(
+                        libEntry2.second, texturesLib, colliderLib, mapIconLib);
+                    string key = hull.name != "" ? hull.name : objName;
+                    hullLib.addItem(key, hull);
+                    LG_I("Added hull blueprint: {}: {}", key, hull);
+                }
+                else if (libName == "textures")
+                {
+                    const gobj::Textures textures =
+                        gobj::Textures::fromYaml(libEntry2.second, resourceMap);
+                    texturesLib.addItem(objName, textures);
+                    LG_I("Added textures: {}: {}", objName, textures);
+                }
+                else if (libName == "map-icon")
+                {
+                    const gobj::MapIcon mapIcon =
+                        gobj::MapIcon::fromYaml(libEntry2.second, resourceMap);
+                    mapIconLib.addItem(objName, mapIcon);
+                    LG_I("Added map icon: {}: {}", objName, mapIcon);
+                }
+                else if (libName == "collider")
+                {
+                    const gobj::Collider collider =
+                        gobj::Collider::fromYaml(libEntry2.second, resourceMap);
+                    colliderLib.addItem(objName, collider);
+                    LG_I("Added collider: {}: {}", objName, collider);
+                }
+                else
+                {
+                    LG_E("Unknown library: {}", libName);
+                    skip = true;
+                }
+            }
+        }
+        if (skip)
+        {
+            continue;
+        }
+    }
+    return true;
 }
+
 
 Mod::Mod(const std::string& id,
          const std::string& name,
@@ -594,7 +652,8 @@ MappedTextureHandle ResourceMap::getTextureHandle(const string& texName) const
     return textureId.getHandle(texName);
 }
 
-const MappedTexture* ResourceMap::getMappedTexture(const MappedTextureHandle& mappedTextureHandle)
+const MappedTexture*
+ResourceMap::getMappedTexture(const MappedTextureHandle& mappedTextureHandle)
 {
     return textureId.getItem(mappedTextureHandle);
 }

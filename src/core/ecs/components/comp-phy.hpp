@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <climits>
 #include <entt/entt.hpp>
+#include <lib-collider.hpp>
 #include <magic_enum/magic_enum.hpp>
 #include <optional>
 #include <std-inc.hpp>
@@ -96,78 +97,124 @@ struct Collider
     static const uint16_t VERSION = 1;
     static constexpr string NAME = "collider";
 
-    std::vector<vec2> vertices;
-    float restitution = 0.5f;
+    GenericHandle colliderHandle;
 
-    static void fromYaml(entt::registry& registry,
-                         entt::entity entity,
-                         const YAML::Node& node,
-                         mod::ResourceMap& resourceMap)
+    const gobj::Collider*
+    getColliderDef(con::ItemLib<gobj::Collider>* colliderLib) const
     {
-        Collider collider;
-        TRY_YAML_DICT(collider.vertices, node["vertices"], std::vector<vec2>());
-        TRY_YAML_DICT(collider.restitution, node["restitution"], 0.5f);
-        registry.emplace<Collider>(entity, collider);
+        if (!colliderLib)
+        {
+            return nullptr;
+        }
+        return colliderLib->getItem(gobj::ColliderHandle(colliderHandle));
     }
 
-    bool isColliding(const Collider& other) const
+    const std::vector<vec2>*
+    getVertices(con::ItemLib<gobj::Collider>* colliderLib) const
     {
-        return tryContact(other).has_value();
+        return getVertices(getColliderDef(colliderLib));
     }
 
-    // worldPoint and tr.pos are in the same space (e.g. sector-local when sector matches).
-    // c,s must match TransformCache / cos(rot),sin(rot) used by collideCollidersWorld.
-    bool isPointInsideWorld(const vec2& worldPoint,
-                            const Transform& tr,
-                            float c,
-                            float s) const
+    float getRestitution(con::ItemLib<gobj::Collider>* colliderLib) const
     {
-        if (vertices.size() < 3)
+        return getRestitution(getColliderDef(colliderLib));
+    }
+
+    const std::vector<vec2>*
+    getVertices(const gobj::Collider* colliderDef) const
+    {
+        if (colliderDef)
+        {
+            return &colliderDef->vertices;
+        }
+        return nullptr;
+    }
+
+    float getRestitution(const gobj::Collider* colliderDef) const
+    {
+        if (colliderDef)
+        {
+            return colliderDef->restitution;
+        }
+        return 0.5f;
+    }
+
+    // worldPoint and tr.pos are in the same space (e.g. sector-local when
+    // sector matches). c,s must match TransformCache / cos(rot),sin(rot) used
+    // by collideCollidersWorld.
+    bool isPointInsideWorld(
+        const vec2& worldPoint,
+        const Transform& tr,
+        float c,
+        float s,
+        con::ItemLib<gobj::Collider>* colliderLib = nullptr) const
+    {
+        const auto* verts = getVertices(colliderLib);
+        if (!verts || verts->size() < 3)
         {
             return false;
         }
         const float dx = worldPoint.x - tr.pos.x;
         const float dy = worldPoint.y - tr.pos.y;
         const vec2 local(c * dx + s * dy, -s * dx + c * dy);
-        return sat2d::pointInConvex(local, vertices);
+        return sat2d::pointInConvex(local, *verts);
     }
 
-    bool isPointInsideWorld(const vec2& worldPoint,
-                            const Transform& tr,
-                            const TransformCache& tc) const
+    bool isPointInsideWorld(
+        const vec2& worldPoint,
+        const Transform& tr,
+        const TransformCache& tc,
+        con::ItemLib<gobj::Collider>* colliderLib = nullptr) const
     {
-        return isPointInsideWorld(worldPoint, tr, tc.c, tc.s);
-    }
-
-    // Both colliders' vertices in the same coordinate space (e.g. both local).
-    std::optional<Contact> tryContact(const Collider& other) const
-    {
-        vec2 n;
-        float pen;
-        if (!sat2d::convexConvexMTV(vertices, other.vertices, n, pen))
-        {
-            return std::nullopt;
-        }
-        Contact c;
-        c.normal = n;
-        c.penetration = pen;
-        c.point =
-            0.5f
-            * (sat2d::centroid(vertices) + sat2d::centroid(other.vertices));
-        return c;
+        return isPointInsideWorld(worldPoint, tr, tc.c, tc.s, colliderLib);
     }
 };
 
 // World-space SAT + contact: same rotation/translation as calculateAABB.
 inline std::optional<Contact> collideCollidersWorld(const Collider& c1,
+                                                    const gobj::Collider* c1Def,
                                                     const Transform& t1,
                                                     const TransformCache& tc1,
                                                     const Collider& c2,
+                                                    const gobj::Collider* c2Def,
+                                                    const Transform& t2,
+                                                    const TransformCache& tc2);
+inline std::optional<Contact>
+collideCollidersWorld(const Collider& c1,
+                      const Transform& t1,
+                      const TransformCache& tc1,
+                      const Collider& c2,
+                      const Transform& t2,
+                      const TransformCache& tc2,
+                      con::ItemLib<gobj::Collider>* colliderLib = nullptr)
+{
+    return collideCollidersWorld(c1,
+                                 c1.getColliderDef(colliderLib),
+                                 t1,
+                                 tc1,
+                                 c2,
+                                 c2.getColliderDef(colliderLib),
+                                 t2,
+                                 tc2);
+}
+
+inline std::optional<Contact> collideCollidersWorld(const Collider& c1,
+                                                    const gobj::Collider* c1Def,
+                                                    const Transform& t1,
+                                                    const TransformCache& tc1,
+                                                    const Collider& c2,
+                                                    const gobj::Collider* c2Def,
                                                     const Transform& t2,
                                                     const TransformCache& tc2)
 {
-    const size_t n1 = c1.vertices.size();
-    const size_t n2 = c2.vertices.size();
+    const auto* v1 = c1.getVertices(c1Def);
+    const auto* v2 = c2.getVertices(c2Def);
+    if (!v1 || !v2)
+    {
+        return std::nullopt;
+    }
+    const size_t n1 = v1->size();
+    const size_t n2 = v2->size();
     if (n1 < 3 || n2 < 3)
     {
         return std::nullopt;
@@ -180,13 +227,13 @@ inline std::optional<Contact> collideCollidersWorld(const Collider& c1,
 
     for (size_t i = 0; i < n1; ++i)
     {
-        const vec2& v = c1.vertices[i];
+        const vec2& v = (*v1)[i];
         w1[i].x = tc1.c * v.x - tc1.s * v.y + t1.pos.x;
         w1[i].y = tc1.s * v.x + tc1.c * v.y + t1.pos.y;
     }
     for (size_t i = 0; i < n2; ++i)
     {
-        const vec2& v = c2.vertices[i];
+        const vec2& v = (*v2)[i];
         w2[i].x = tc2.c * v.x - tc2.s * v.y + t2.pos.x;
         w2[i].y = tc2.s * v.x + tc2.c * v.y + t2.pos.y;
     }
@@ -204,7 +251,7 @@ inline std::optional<Contact> collideCollidersWorld(const Collider& c1,
     return c;
 }
 
-#define SER_COLLIDER SOBJ(o.vertices);
+#define SER_COLLIDER SOBJ(o.colliderHandle);
 EXT_SER(Collider, SER_COLLIDER)
 EXT_DES(Collider, SER_COLLIDER)
 
@@ -234,11 +281,33 @@ EXT_DES(Broadphase, SER_BROADPHASE)
 
 inline con::AABB calculateAABB(const Transform& transform,
                                const TransformCache& transformCache,
-                               const Collider& collider)
+                               const Collider& collider,
+                               const gobj::Collider* colliderDef);
+inline con::AABB
+calculateAABB(const Transform& transform,
+              const TransformCache& transformCache,
+              const Collider& collider,
+              con::ItemLib<gobj::Collider>* colliderLib = nullptr)
+{
+    return calculateAABB(transform,
+                         transformCache,
+                         collider,
+                         collider.getColliderDef(colliderLib));
+}
+
+inline con::AABB calculateAABB(const Transform& transform,
+                               const TransformCache& transformCache,
+                               const Collider& collider,
+                               const gobj::Collider* colliderDef)
 {
     con::AABB aabb =
         con::AABB{vec2{1.0e10f, 1.0e10f}, vec2{-1.0e10f, -1.0e10f}};
-    for (const auto& vert : collider.vertices)
+    const auto* verts = collider.getVertices(colliderDef);
+    if (!verts)
+    {
+        return aabb;
+    }
+    for (const auto& vert : *verts)
     {
         float x = transformCache.c * vert.x - transformCache.s * vert.y
                   + transform.pos.x;
@@ -569,9 +638,9 @@ struct AnchorFixed
     }
 };
 
-#define SER_ANCHOR_FIXED                                                     \
-    SOBJ(o.pos);                                                             \
-    S4b(o.rot);                                                              \
+#define SER_ANCHOR_FIXED                                                       \
+    SOBJ(o.pos);                                                               \
+    S4b(o.rot);                                                                \
     SOBJ(o.ref);
 EXT_SER(AnchorFixed, SER_ANCHOR_FIXED)
 EXT_DES(AnchorFixed, SER_ANCHOR_FIXED)
@@ -609,7 +678,7 @@ EXT_FMT(ecs::MoveCtrl,
         magic_enum::enum_name(o.faceDirMode),
         o.lookAt);
 
-EXT_FMT(ecs::Collider, "{}", o.vertices);
+EXT_FMT(ecs::Collider, "(colliderHandle: {})", o.colliderHandle);
 EXT_FMT(ecs::Broadphase, "(proxyId: {}, fatAABB: {})", o.proxyId, o.fatAABB);
 EXT_FMT(ecs::TransformCache, "(c: {}, s: {})", o.c, o.s);
 EXT_FMT(con::AABB, "(lower: {}, upper: {})", o.lower, o.upper);

@@ -1,0 +1,26 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build-debug-deploy",
+            "type": "shell",
+            "command": "cmake --build build/debug -j 12 -t deploy",
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "build-release-deploy",
+            "type": "shell",
+            "command": "cmake --build build/release -j 12 -t deploy",
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "build-profile-deploy",
+            "type": "shell",
+            "command": "cmake --build build/profile -j 12 -t deploy",
+            "group": "build",
+            "problemMatcher": []
+        }
+    ]
+}

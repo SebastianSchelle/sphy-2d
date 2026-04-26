@@ -46,8 +46,7 @@ void ComponentFactory::registerAllComponents()
     registerComponent<ecs::TransformCache>();
     registerComponent<ecs::MapIcon>();
     registerComponent<ecs::Textures>();
-    registerComponent<ecs::ship::Hull>();
-    registerComponent<ecs::ship::Module>();
+    registerComponent<ecs::Hull>();
     registerComponent<ecs::AnchorFixed>();
     registerComponent<ecs::tag::obj::Ship>();
     registerComponent<ecs::tag::mod::MainThruster>();

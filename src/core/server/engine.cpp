@@ -37,6 +37,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->systems = &ecs.getRegisteredSystems();
     ptrHandle->registry = &ecs.getRegistry();
     ptrHandle->workDistributor = &workDistributor;
+    ptrHandle->colliderLib = &modManager.getColliderLib();
     ptrHandle->kpThrust =
         CFG_FLOAT(config, 25.0f, "engine", "physics", "kp-thrust");
     ptrHandle->kpTurn =
@@ -1191,20 +1192,31 @@ void Engine::testSpawn()
         // }
     }
 
-    auto ent = spawnEntityFromAsset(
-        "Chungus", 0, ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
+    auto ent = ecs.createEntity();
     entt::entity entt = ecs.getEntity(ent);
-    auto& reg = ecs.getRegistry();
-    auto& hull = reg.get<ecs::ship::Hull>(entt);
+    auto hullHandle = modManager.getHullLib().getHandle("chungus");
+    auto hull = modManager.getHullLib().getItem(hullHandle);
 
-    auto ent2 = spawnEntityFromAsset(
-        "Def-Main-Thrust", 0, ecs::Transform{glm::vec2{300.0f, 300.0f}, 0.0f});
-    entt::entity entt2 = ecs.getEntity(ent2);
-    auto& anchorFixed = reg.get<ecs::AnchorFixed>(entt2);
-    anchorFixed.ref = ent;
-    anchorFixed.pos = hull.slots[0].pos;
-    anchorFixed.rot = hull.slots[0].rot;
-    hull.slots[0].ref = ent2;
+    auto& reg = ecs.getRegistry();
+    ecs::Hull hullComp;
+    hullComp.hullHandle = hullHandle.toGenericHandle();
+    hullComp.hull = hull->hullpoints;
+    reg.emplace<ecs::Hull>(entt, hullComp);
+
+    // auto ent = spawnEntityFromAsset(
+    //     "Chungus", 0, ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
+    // entt::entity entt = ecs.getEntity(ent);
+    // auto& reg = ecs.getRegistry();
+    // auto& hull = reg.get<ecs::ship::Hull>(entt);
+
+    // auto ent2 = spawnEntityFromAsset(
+    //     "Def-Main-Thrust", 0, ecs::Transform{glm::vec2{300.0f, 300.0f}, 0.0f});
+    // entt::entity entt2 = ecs.getEntity(ent2);
+    // auto& anchorFixed = reg.get<ecs::AnchorFixed>(entt2);
+    // anchorFixed.ref = ent;
+    // anchorFixed.pos = hull.slots[0].pos;
+    // anchorFixed.rot = hull.slots[0].rot;
+    // hull.slots[0].ref = ent2;
 }
 
 void Engine::handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn)

@@ -1,4 +1,5 @@
 #include "comp-phy.hpp"
+#include "lib-textures.hpp"
 #include "logging.hpp"
 #include "std-inc.hpp"
 #include <comp-gfx.hpp>
@@ -540,23 +541,30 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
                 + transform.pos;
             if (smath::pointInsideRect(worldPos, viewRect))
             {
-                mod::MappedTextureHandle mTexHandle =
-                    *(mod::MappedTextureHandle*)&mapIcon.texHandle;
-                const mod::MappedTexture* mappedTexture =
-                    modManager->getResourceMap().getMappedTexture(mTexHandle);
-                gfx::TextureHandle texHandle = gfx::TextureHandle::Invalid();
-                if (mappedTexture)
+                auto* mapIconItem = modManager->getMapIconLib().getItem(
+                    gobj::MapIconHandle(mapIcon.mapIconHandle));
+                if (mapIconItem)
                 {
-                    texHandle = mappedTexture->texHandle;
+                    mod::MappedTextureHandle mTexHandle =
+                        *(mod::MappedTextureHandle*)&mapIconItem->texHandle;
+                    const mod::MappedTexture* mappedTexture =
+                        modManager->getResourceMap().getMappedTexture(
+                            mTexHandle);
+                    gfx::TextureHandle texHandle =
+                        gfx::TextureHandle::Invalid();
+                    if (mappedTexture)
+                    {
+                        texHandle = mappedTexture->texHandle;
+                    }
+                    renderer.drawTexRect(worldPos,
+                                         glm::vec2(mapIconItem->size.x / zoom,
+                                                   mapIconItem->size.y / zoom),
+                                         texHandle,
+                                         transform.rot,
+                                         0xff0010ff,
+                                         0.0f,
+                                         0);
                 }
-                renderer.drawTexRect(
-                    worldPos,
-                    glm::vec2(mapIcon.size.x / zoom, mapIcon.size.y / zoom),
-                    texHandle,
-                    transform.rot,
-                    0xff0010ff,
-                    0.0f,
-                    0);
             }
         });
 
@@ -570,18 +578,24 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
             auto* mapIcon = reg.try_get<ecs::MapIcon>(entity);
             if (trans && sectorId && mapIcon)
             {
-                glm::vec2 worldPos =
-                    world.getWorldPosSectorOffset(sectorId->id,
-                                                  renderer.getSectorOffsetX(),
-                                                  renderer.getSectorOffsetY())
-                    + trans->pos;
-                renderer.drawRectangle(worldPos,
-                                       glm::vec2(mapIcon->size.x * 1.5f / zoom,
-                                                 mapIcon->size.y * 1.5f / zoom),
-                                       0xff004000,
-                                       1.0f / zoom,
-                                       0.0f,
-                                       0);
+                auto* mapIconItem = modManager->getMapIconLib().getItem(
+                    gobj::MapIconHandle(mapIcon->mapIconHandle));
+                if (mapIconItem)
+                {
+                    glm::vec2 worldPos = world.getWorldPosSectorOffset(
+                                             sectorId->id,
+                                             renderer.getSectorOffsetX(),
+                                             renderer.getSectorOffsetY())
+                                         + trans->pos;
+                    renderer.drawRectangle(
+                        worldPos,
+                        glm::vec2(mapIconItem->size.x * 1.5f / zoom,
+                                  mapIconItem->size.y * 1.5f / zoom),
+                        0xff004000,
+                        1.0f / zoom,
+                        0.0f,
+                        0);
+                }
             }
         }
     }
@@ -617,32 +631,37 @@ void Model::drawTextures(gfx::RenderEngine& renderer,
                 + transform.pos;
             if (smath::pointInsideRect(worldPos, viewRect))
             {
-                for (const auto& texture : textures.textures)
+                auto* texturesItem = modManager->getTexturesLib().getItem(
+                    gobj::TexturesHandle(textures.texturesHandle));
+                if (texturesItem)
                 {
-                    mod::MappedTextureHandle mTexHandle =
-                        *(mod::MappedTextureHandle*)&texture.texHandle;
-                    const mod::MappedTexture* mappedTexture =
-                        modManager->getResourceMap().getMappedTexture(
-                            mTexHandle);
-                    gfx::TextureHandle texHandleGFX =
-                        gfx::TextureHandle::Invalid();
-                    if (mappedTexture)
+                    for (const auto& texture : texturesItem->textures)
                     {
-                        texHandleGFX = mappedTexture->texHandle;
+                        mod::MappedTextureHandle mTexHandle =
+                            *(mod::MappedTextureHandle*)&texture.texHandle;
+                        const mod::MappedTexture* mappedTexture =
+                            modManager->getResourceMap().getMappedTexture(
+                                mTexHandle);
+                        gfx::TextureHandle texHandleGFX =
+                            gfx::TextureHandle::Invalid();
+                        if (mappedTexture)
+                        {
+                            texHandleGFX = mappedTexture->texHandle;
+                        }
+                        // Offset is in body space; rotate by +rot (CW, Y-down)
+                        // to world.
+                        vec2 texOffset = smath::rotateVec2(
+                            vec2(texture.bounds.x, texture.bounds.y),
+                            transform.rot);
+                        renderer.drawTexRect(
+                            worldPos + texOffset,
+                            glm::vec2(texture.bounds.z, texture.bounds.w),
+                            texHandleGFX,
+                            transform.rot - texture.rot,
+                            0xffffffff,
+                            texture.zIndex / 100.0f,
+                            0);
                     }
-                    // Offset is in body space; rotate by +rot (CW, Y-down) to
-                    // world.
-                    vec2 texOffset = smath::rotateVec2(
-                        vec2(texture.bounds.x, texture.bounds.y),
-                        transform.rot);
-                    renderer.drawTexRect(
-                        worldPos + texOffset,
-                        glm::vec2(texture.bounds.z, texture.bounds.w),
-                        texHandleGFX,
-                        transform.rot - texture.rot,
-                        0xffffffff,
-                        texture.zIndex / 100.0f,
-                        0);
                 }
             }
         });
@@ -845,7 +864,8 @@ Model::selectEntityAtWorldPos(const def::SectorCoords& sectorCoords)
             if (collider.isPointInsideWorld(sectorCoords.sectorPos,
                                             tr,
                                             std::cos(tr.rot),
-                                            std::sin(tr.rot)))
+                                            std::sin(tr.rot),
+                                            &modManager->getColliderLib()))
             {
                 selectedEntity = eid;
                 selectedEntities.push_back(eid);

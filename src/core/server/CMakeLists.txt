@@ -17,6 +17,7 @@ set(SERVER_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/systems
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/components
+    ${CMAKE_CURRENT_SOURCE_DIR}/../game-objects/libraries
     ${CMAKE_CURRENT_SOURCE_DIR}/..
 )
 
@@ -34,6 +35,10 @@ set(SERVER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/lua-interpreter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/ecs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/asset-factory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../game-objects/libraries/lib-hull.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../game-objects/libraries/lib-textures.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../game-objects/libraries/lib-modules.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../game-objects/libraries/lib-collider.cpp
     ${MISC_DIR}/work-distributor.cpp
     ${MISC_DIR}/work-sequencer.cpp
 )
