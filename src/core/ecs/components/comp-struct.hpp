@@ -1,5 +1,5 @@
-#ifndef COMP_SHIP_HPP
-#define COMP_SHIP_HPP
+#ifndef COMP_STRUCT_HPP
+#define COMP_STRUCT_HPP
 
 #include "comp-ident.hpp"
 #include "std-inc.hpp"

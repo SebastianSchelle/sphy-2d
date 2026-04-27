@@ -21,6 +21,13 @@
 #include <work-distributor.hpp>
 #include <world.hpp>
 
+#include <lib-hull.hpp>
+
+#include <comp-gfx.hpp>
+#include <comp-phy.hpp>
+#include <comp-struct.hpp>
+
+
 namespace ecs
 {
 struct PtrHandle;
@@ -114,12 +121,34 @@ class Engine
                              def::ClientInfoHandle disconnectedHandle);
     void sendAllEnttComponents(def::ClientInfo* clientInfo,
                                net::TcpConnection* conn);
-    void sendAllComponents(ecs::EntityId entityId,
-                           net::TcpConnection* conn);
+    void sendAllComponents(ecs::EntityId entityId, net::TcpConnection* conn);
     void testSpawn();
-    void handleGetAabbTree(uint32_t sectorId,
-                           net::TcpConnection* conn);
+    void handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn);
     void markPlayerSectors();
+
+    ecs::EntityId spawnShipHull(gobj::HullHandle hullHandle,
+                                uint32_t sectorId,
+                                const ecs::Transform& transform);
+
+    ecs::Hull* makeHull(entt::entity entity,
+                        const gobj::HullHandle& hullHandle);
+    ecs::Collider* makeCollider(entt::entity entity,
+                                const gobj::ColliderHandle& colliderHandle);
+    ecs::MapIcon* makeMapIcon(entt::entity entity,
+                              const gobj::MapIconHandle& mapIconHandle);
+    ecs::Textures* makeTextures(entt::entity entity,
+                                const gobj::TexturesHandle& texturesHandle);
+    ecs::PhysicsBody* makePhysicsBody(entt::entity entity,
+                                      const ecs::PhysicsBody& physicsBody);
+    ecs::MoveCtrl* makeMoveCtrl(entt::entity entity,
+                                const ecs::PhyThrust& phyThrust,
+                                const ecs::MoveCtrl& moveCtrl);
+    bool placeInSector(ecs::EntityId ent,
+                       entt::entity entity,
+                       uint32_t sectorId,
+                       const ecs::Transform& transform);
+
+    ecs::EntityId spawnModule(ecs::EntityId parent);
 
     const sphy::CmdLinOptionsServer& options;
     std::atomic<bool> stopRequested{false};

@@ -6,7 +6,7 @@
 #include <comp-gfx.hpp>
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
-#include <comp-ship.hpp>
+#include <comp-struct.hpp>
 #include <comp-tag.hpp>
 #include <components/comp-phy.hpp>
 #include <engine-impl.hpp>
@@ -1191,32 +1191,9 @@ void Engine::testSpawn()
         //     moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
         // }
     }
-
-    auto ent = ecs.createEntity();
-    entt::entity entt = ecs.getEntity(ent);
-    auto hullHandle = modManager.getHullLib().getHandle("chungus");
-    auto hull = modManager.getHullLib().getItem(hullHandle);
-
-    auto& reg = ecs.getRegistry();
-    ecs::Hull hullComp;
-    hullComp.hullHandle = hullHandle.toGenericHandle();
-    hullComp.hull = hull->hullpoints;
-    reg.emplace<ecs::Hull>(entt, hullComp);
-
-    // auto ent = spawnEntityFromAsset(
-    //     "Chungus", 0, ecs::Transform{glm::vec2{0.0f, 0.0f}, 0.0f});
-    // entt::entity entt = ecs.getEntity(ent);
-    // auto& reg = ecs.getRegistry();
-    // auto& hull = reg.get<ecs::ship::Hull>(entt);
-
-    // auto ent2 = spawnEntityFromAsset(
-    //     "Def-Main-Thrust", 0, ecs::Transform{glm::vec2{300.0f, 300.0f}, 0.0f});
-    // entt::entity entt2 = ecs.getEntity(ent2);
-    // auto& anchorFixed = reg.get<ecs::AnchorFixed>(entt2);
-    // anchorFixed.ref = ent;
-    // anchorFixed.pos = hull.slots[0].pos;
-    // anchorFixed.rot = hull.slots[0].rot;
-    // hull.slots[0].ref = ent2;
+    spawnShipHull(modManager.getHullLib().getHandle("mace"),
+                  0,
+                  ecs::Transform{vec2{0.0f, 0.0f}, 0.0f});
 }
 
 void Engine::handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn)
@@ -1346,6 +1323,193 @@ void Engine::markPlayerSectors()
     world.markPlayerSectors(playerSectors);
 }
 
+
+ecs::Hull* Engine::makeHull(entt::entity entity,
+                            const gobj::HullHandle& hullHandle)
+{
+    auto& reg = ecs.getRegistry();
+    auto hull = modManager.getHullLib().getItem(hullHandle);
+    if (!hull)
+    {
+        return nullptr;
+    }
+    ecs::Hull hullComp;
+    hullComp.hullHandle = hullHandle.toGenericHandle();
+    hullComp.hull = hull->hullpoints;
+    return &reg.emplace_or_replace<ecs::Hull>(entity, hullComp);
+}
+
+ecs::Collider* Engine::makeCollider(entt::entity entity,
+                                    const gobj::ColliderHandle& colliderHandle)
+{
+    auto& reg = ecs.getRegistry();
+    auto collider = modManager.getColliderLib().getItem(colliderHandle);
+    if (!collider)
+    {
+        return nullptr;
+    }
+    ecs::Collider colliderComp;
+    colliderComp.colliderHandle = colliderHandle.toGenericHandle();
+    ecs::Broadphase& br = reg.emplace_or_replace<ecs::Broadphase>(entity);
+    return &reg.emplace_or_replace<ecs::Collider>(entity, colliderComp);
+}
+
+ecs::MapIcon* Engine::makeMapIcon(entt::entity entity,
+                                  const gobj::MapIconHandle& mapIconHandle)
+{
+    auto& reg = ecs.getRegistry();
+    auto mapIcon = modManager.getMapIconLib().getItem(mapIconHandle);
+    if (!mapIcon)
+    {
+        return nullptr;
+    }
+    ecs::MapIcon mapIconComp;
+    mapIconComp.mapIconHandle = mapIconHandle.toGenericHandle();
+    return &reg.emplace_or_replace<ecs::MapIcon>(entity, mapIconComp);
+}
+
+ecs::Textures* Engine::makeTextures(entt::entity entity,
+                                    const gobj::TexturesHandle& texturesHandle)
+{
+    auto& reg = ecs.getRegistry();
+    auto textures = modManager.getTexturesLib().getItem(texturesHandle);
+    if (!textures)
+    {
+        return nullptr;
+    }
+    ecs::Textures texturesComp;
+    texturesComp.texturesHandle = texturesHandle.toGenericHandle();
+    return &reg.emplace_or_replace<ecs::Textures>(entity, texturesComp);
+}
+
+bool Engine::placeInSector(ecs::EntityId ent,
+                           entt::entity entity,
+                           uint32_t sectorId,
+                           const ecs::Transform& transform)
+{
+    auto& reg = ecs.getRegistry();
+    ecs::Transform& tr = reg.get_or_emplace<ecs::Transform>(entity);
+    ecs::SectorId& sec = reg.get_or_emplace<ecs::SectorId>(
+        entity, ecs::SectorId{world::INVALID_SECTOR_ID, 0, 0});
+    return world.moveEntityTo(
+        ptrHandle, ent, sectorId, transform.pos, transform.rot);
+}
+
+ecs::PhysicsBody* Engine::makePhysicsBody(entt::entity entity,
+                                          const ecs::PhysicsBody& physicsBody)
+{
+    auto& reg = ecs.getRegistry();
+    reg.emplace_or_replace<ecs::TransformCache>(
+        entity, ecs::TransformCache{0.0f, 0.0f});
+    return &reg.emplace_or_replace<ecs::PhysicsBody>(entity, physicsBody);
+}
+
+ecs::MoveCtrl* Engine::makeMoveCtrl(entt::entity entity,
+                                    const ecs::PhyThrust& phyThrust,
+                                    const ecs::MoveCtrl& moveCtrl)
+{
+    auto& reg = ecs.getRegistry();
+    reg.emplace_or_replace<ecs::PhyThrust>(entity, phyThrust);
+    return &reg.emplace_or_replace<ecs::MoveCtrl>(entity, moveCtrl);
+}
+
+ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
+                                    uint32_t sectorId,
+                                    const ecs::Transform& transform)
+{
+    auto ent = ecs.createEntity();
+    entt::entity entt = ecs.getEntity(ent);
+    if (entt == entt::null)
+    {
+        return ecs::EntityId::Invalid();
+    }
+    gobj::Hull* hull = modManager.getHullLib().getItem(hullHandle);
+    if (!makeHull(entt, hullHandle))
+    {
+        return ecs::EntityId::Invalid();
+    }
+    if (!makeCollider(entt, hull->collider))
+    {
+        return ecs::EntityId::Invalid();
+    }
+    if (!makeMapIcon(entt, hull->mapIcon))
+    {
+        return ecs::EntityId::Invalid();
+    }
+    if (!makeTextures(entt, hull->textures))
+    {
+        return ecs::EntityId::Invalid();
+    }
+    if (!makePhysicsBody(entt,
+                         ecs::PhysicsBody{.mass = 1.0f,
+                                          .vel = vec2(0.0f, 0.0f),
+                                          .acc = vec2(0.0f, 0.0f),
+                                          .inertia = 1.0f,
+                                          .rotVel = 0.0f,
+                                          .rotAcc = 0.0f}))
+    {
+        return ecs::EntityId::Invalid();
+    }
+    if (!makeMoveCtrl(
+            entt,
+            ecs::PhyThrust{.maxTorque = 100.0f,
+                           .maxRotVel = 10.0f,
+                           .thrustMainMax = 1000.0f,
+                           .thrustManeuverMax = 100.0f,
+                           .maxSpd = 100.0f},
+            ecs::MoveCtrl{.active = true,
+                          .faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward,
+                          .spPos = {0, 0},
+                          .spRot = 0.0f}))
+    {
+        return ecs::EntityId::Invalid();
+    }
+    if (!placeInSector(ent, entt, sectorId, transform))
+    {
+        return ecs::EntityId::Invalid();
+    }
+    return ent;
+}
+
+ecs::EntityId Engine::spawnModule(ecs::EntityId parent)
+{
+    auto ent = ecs.createEntity();
+    entt::entity entt = ecs.getEntity(ent);
+    if (entt == entt::null)
+    {
+        return ecs::EntityId::Invalid();
+    }
+    return ent;
+}
+
 }  // namespace sphys
 
 template class con::ItemLib<net::ClientInfo>;
+
+/*
+
+    auto& reg = ecs.getRegistry();
+    ecs::Hull hullComp;
+    hullComp.hullHandle = hullHandle.toGenericHandle();
+    hullComp.hull = hull->hullpoints;
+    reg.emplace<ecs::Hull>(entt, hullComp);
+
+    ecs::MapIcon mapIconComp;
+    mapIconComp.mapIconHandle = hull->mapIcon.toGenericHandle();
+    reg.emplace<ecs::MapIcon>(entt, mapIconComp);
+
+    ecs::Textures texturesComp;
+    texturesComp.texturesHandle = hull->textures.toGenericHandle();
+    reg.emplace<ecs::Textures>(entt, texturesComp);
+
+    ecs::Collider colliderComp;
+    colliderComp.colliderHandle = hull->collider.toGenericHandle();
+    reg.emplace<ecs::Collider>(entt, colliderComp);
+
+    ecs::Transform& tr = reg.get_or_emplace<ecs::Transform>(entt);
+    ecs::Broadphase& br = reg.get_or_emplace<ecs::Broadphase>(entt);
+    ecs::TransformCache& trC = reg.get_or_emplace<ecs::TransformCache>(entt);
+    ecs::SectorId& sec = reg.get_or_emplace<ecs::SectorId>(
+        entt, ecs::SectorId{world::INVALID_SECTOR_ID, 0, 0});
+    world.moveEntityTo(ptrHandle, ent, 0, vec2{0.0f, 0.0f}, 0.0f);
+*/

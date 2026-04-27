@@ -4,7 +4,7 @@
 #include "std-inc.hpp"
 #include <comp-gfx.hpp>
 #include <comp-ident.hpp>
-#include <comp-ship.hpp>
+#include <comp-struct.hpp>
 #include <comp-tag.hpp>
 #include <exchange-sequence.hpp>
 #include <model.hpp>

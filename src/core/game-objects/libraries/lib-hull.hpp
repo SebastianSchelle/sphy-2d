@@ -13,10 +13,10 @@ namespace gobj
 
 struct Hull
 {
-    std::string name;
-    std::string description;
+    string name;
+    string description;
     float hullpoints;
-    std::vector<ModuleSlot> slots;
+    vector<ModuleSlot> slots;
     TexturesHandle textures = TexturesHandle::Invalid();
     ColliderHandle collider = ColliderHandle::Invalid();
     MapIconHandle mapIcon = MapIconHandle::Invalid();

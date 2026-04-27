@@ -222,6 +222,8 @@ class ModManager
     con::ItemLib<gobj::Textures> texturesLib;
     con::ItemLib<gobj::MapIcon> mapIconLib;
     con::ItemLib<gobj::Collider> colliderLib;
+    con::ItemLib<gobj::ThrusterManeuver> thrusterManeuverLib;
+    con::ItemLib<gobj::ThrusterMain> thrusterMainLib;
 };
 
 }  // namespace mod

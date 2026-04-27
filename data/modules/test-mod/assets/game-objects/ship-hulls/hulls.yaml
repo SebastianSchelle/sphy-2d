@@ -1,30 +1,52 @@
 textures:
-  chungus:
-    name: chungus
+  mace:
     textures:
-      - name: chungus
-        bounds: [0.0, 0.0, 512.0, 512.0]
+      - name: mace
+        bounds: [ 0.0, 0.0, 29.6, 72.9 ]
         zIndex: 1
         flags: 0
         rot: 0.0
+  thrust-main-common-s:
+    textures:
+      - name: thrust-main-common-s
+        bounds: [ 0.0, 0.0, 7.3, 14.0 ]
+        zIndex: 3
+        flags: 0
+        rot: 0.0
+  thrust-maneuver-common-s:
+    textures:
+      - name: thrust-maneuver-common-s
+        bounds: [ 0.0, 0.0, 1.9, 4.5 ]
+        zIndex: 3
+        flags: 0
+        rot: 0.0
+
 map-icon:
   frigate:
     name: frigate
     texName: frigate
-    size: [10.0, 10.0]
+    size: [ 10.0, 10.0 ]
+
 collider:
-  chungus:
-    vertices: [[-50, -50], [50, -50], [50, 50], [-50, 50]]
+  mace:
+    vertices: [ [ -14.8, -36.45 ], [ 14.8, -36.45 ], [ 14.8, 36.45 ], [ -14.8, 36.45 ] ]
     restitution: 0.1
+
+thruster-maneuver:
+  thrust-maneuver-common-s:
+    maxThrust: 100.0
+    textures: thrust-maneuver-common-s
+
 hull:
-  chungus:
-    name: chungus
+  mace:
+    name: mace
     hullpoints: 1000.0
-    textures: chungus
-    collider: chungus
+    textures: mace
+    collider: mace
     map-icon: frigate
     slots:
       - mod-type: ThrusterMainS_Common
-        pos: [0.0, -256.0]
+        pos: [ 0.0, -32.0 ]
         rot: 180.0
         z: 3
+thruster-main-common-s:

@@ -5,7 +5,7 @@
 #include <comp-gfx.hpp>
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
-#include <comp-ship.hpp>
+#include <comp-struct.hpp>
 #include <comp-tag.hpp>
 
 namespace ecs
