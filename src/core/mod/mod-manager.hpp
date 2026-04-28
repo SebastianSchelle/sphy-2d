@@ -184,6 +184,10 @@ class ModManager
     {
         return colliderLib;
     }
+    con::ItemLib<gobj::Module>& getModuleLib()
+    {
+        return moduleLib;
+    }
 
   private:
     bool checkDependency(const std::string& modId,
@@ -222,8 +226,7 @@ class ModManager
     con::ItemLib<gobj::Textures> texturesLib;
     con::ItemLib<gobj::MapIcon> mapIconLib;
     con::ItemLib<gobj::Collider> colliderLib;
-    con::ItemLib<gobj::ThrusterManeuver> thrusterManeuverLib;
-    con::ItemLib<gobj::ThrusterMain> thrusterMainLib;
+    con::ItemLib<gobj::Module> moduleLib;
 };
 
 }  // namespace mod

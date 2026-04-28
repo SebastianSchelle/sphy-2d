@@ -472,19 +472,12 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles, const std::string& path)
                     colliderLib.addItem(objName, collider);
                     LG_I("Added collider: {}: {}", objName, collider);
                 }
-                else if (libName == "thruster-maneuver")
+                else if (libName == "module")
                 {
-                    const gobj::ThrusterManeuver thrusterManeuver =
-                        gobj::ThrusterManeuver::fromYaml(libEntry2.second, texturesLib);
-                    thrusterManeuverLib.addItem(objName, thrusterManeuver);
-                    LG_I("Added thruster maneuver: {}: {}", objName, thrusterManeuver);
-                }
-                else if (libName == "thruster-main")
-                {
-                    const gobj::ThrusterMain thrusterMain =
-                        gobj::ThrusterMain::fromYaml(libEntry2.second, texturesLib);
-                    thrusterMainLib.addItem(objName, thrusterMain);
-                    LG_I("Added thruster main: {}: {}", objName, thrusterMain);
+                    const gobj::Module module =
+                        gobj::Module::fromYaml(libEntry2.second, texturesLib);
+                    moduleLib.addItem(objName, module);
+                    LG_I("Added module: {}: {}", objName, module);
                 }
                 else
                 {

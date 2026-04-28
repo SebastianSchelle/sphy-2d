@@ -38,7 +38,7 @@ Hull Hull::fromYaml(const YAML::Node& node,
             std::string modTypeStr;
             TRY_YAML_DICT(
                 modTypeStr, slotNode["mod-type"], "ThrusterMainS_Common");
-            slot.modType =
+            slot.type =
                 magic_enum::enum_cast<ModuleSlotType>(modTypeStr).value();
             TRY_YAML_DICT(slot.pos, slotNode["pos"], vec2(0.0f, 0.0f));
             float rotDeg = 0.0f;

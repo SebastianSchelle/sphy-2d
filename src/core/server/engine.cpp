@@ -1170,30 +1170,46 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> assetPick(0, 3);
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
-
-    for (int i = 0; i < 50000; ++i)
+    auto& reg = ecs.getRegistry();
+    for (int i = 0; i < 50; ++i)
     {
-        // auto ent = spawnEntityFromAsset(
-        //     // kAssets[assetPick(gen)],
-        //     "BoomBoa",
-        //     sectorPick(gen),
-        //     ecs::Transform{glm::vec2{posDist(gen), posDist(gen)},
-        //                    rotDist(gen)});
-        // entt::entity entt = ecs.getEntity(ent);
-        // auto& reg = ecs.getRegistry();
-        // auto* moveCtrl = reg.try_get<ecs::MoveCtrl>(entt);
-        // if (moveCtrl)
-        // {
-        //     moveCtrl->active = true;
-        //     moveCtrl->spPos.sectorPos.x = posDist(gen);
-        //     moveCtrl->spPos.sectorPos.y = posDist(gen);
-        //     moveCtrl->spPos.pos = world.idToSectorCoords(sectorPick(gen));
-        //     moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
-        // }
+        vec2 pos = vec2{posDist(gen), posDist(gen)};
+        float rot = rotDist(gen);
+        uint32_t sectorId = sectorPick(gen);
+        auto ent = spawnShipHull(modManager.getHullLib().getHandle("mace"),
+                                 sectorId,
+                                 ecs::Transform{pos, rot});
+        spawnModule(ent,
+                    modManager.getModuleLib().getHandle("thrust-main-common-s"),
+                    0);
+        spawnModule(ent,
+                    modManager.getModuleLib().getHandle("thrust-maneuver-common-s"),
+                    1);
+        spawnModule(ent,
+                    modManager.getModuleLib().getHandle("thrust-maneuver-common-s"),
+                    2);
+        spawnModule(ent,
+                    modManager.getModuleLib().getHandle("cargo-common-s"),
+                    3);
+        spawnModule(ent,
+                    modManager.getModuleLib().getHandle("cargo-common-s"),
+                    4);
+        spawnModule(ent,
+                    modManager.getModuleLib().getHandle("cargo-common-s"),
+                    5);
+        spawnModule(ent,
+                    modManager.getModuleLib().getHandle("cargo-common-s"),
+                    6);
+        auto* moveCtrl = reg.try_get<ecs::MoveCtrl>(ecs.getEntity(ent));
+        if (moveCtrl)
+        {
+            moveCtrl->active = true;
+            moveCtrl->spPos.sectorPos.x = posDist(gen);
+            moveCtrl->spPos.sectorPos.y = posDist(gen);
+            moveCtrl->spPos.pos = world.idToSectorCoords(sectorPick(gen));
+            moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
+        }
     }
-    spawnShipHull(modManager.getHullLib().getHandle("mace"),
-                  0,
-                  ecs::Transform{vec2{0.0f, 0.0f}, 0.0f});
 }
 
 void Engine::handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn)
@@ -1413,6 +1429,13 @@ ecs::MoveCtrl* Engine::makeMoveCtrl(entt::entity entity,
     return &reg.emplace_or_replace<ecs::MoveCtrl>(entity, moveCtrl);
 }
 
+ecs::AnchorFixed* Engine::makeAnchorFixed(entt::entity entity,
+                                          const ecs::AnchorFixed& anchorFixed)
+{
+    auto& reg = ecs.getRegistry();
+    return &reg.emplace_or_replace<ecs::AnchorFixed>(entity, anchorFixed);
+}
+
 ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
                                     uint32_t sectorId,
                                     const ecs::Transform& transform)
@@ -1441,10 +1464,10 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
         return ecs::EntityId::Invalid();
     }
     if (!makePhysicsBody(entt,
-                         ecs::PhysicsBody{.mass = 1.0f,
+                         ecs::PhysicsBody{.mass = 1000.0f,
                                           .vel = vec2(0.0f, 0.0f),
                                           .acc = vec2(0.0f, 0.0f),
-                                          .inertia = 1.0f,
+                                          .inertia = 100.0f,
                                           .rotVel = 0.0f,
                                           .rotAcc = 0.0f}))
     {
@@ -1452,10 +1475,10 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
     }
     if (!makeMoveCtrl(
             entt,
-            ecs::PhyThrust{.maxTorque = 100.0f,
-                           .maxRotVel = 10.0f,
-                           .thrustMainMax = 1000.0f,
-                           .thrustManeuverMax = 100.0f,
+            ecs::PhyThrust{.maxTorque = 1000.0f,
+                           .maxRotVel = 1.0f,
+                           .thrustMainMax = 10000.0f,
+                           .thrustManeuverMax = 1000.0f,
                            .maxSpd = 100.0f},
             ecs::MoveCtrl{.active = true,
                           .faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward,
@@ -1471,13 +1494,75 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
     return ent;
 }
 
-ecs::EntityId Engine::spawnModule(ecs::EntityId parent)
+ecs::EntityId Engine::spawnModule(ecs::EntityId parent,
+                                  const gobj::ModuleHandle& moduleHandle,
+                                  uint16_t slotIndex)
 {
+    auto& reg = ecs.getRegistry();
+    entt::entity parentEntt = ecs.getEntity(parent);
+    if (parentEntt == entt::null)
+    {
+        LG_E("Parent entity not found for module");
+        return ecs::EntityId::Invalid();
+    }
+    ecs::SectorId* sectorId = reg.try_get<ecs::SectorId>(parentEntt);
+    if (!sectorId)
+    {
+        LG_E("Parent entity has no sector id component");
+        return ecs::EntityId::Invalid();
+    }
+    gobj::Module* module = modManager.getModuleLib().getItem(moduleHandle);
+    if (!module)
+    {
+        LG_E("Module not found");
+        return ecs::EntityId::Invalid();
+    }
+    auto hull = reg.try_get<ecs::Hull>(parentEntt);
+    if (!hull)
+    {
+        LG_E("Parent entity has no hull component");
+        return ecs::EntityId::Invalid();
+    }
+    gobj::Hull* hullItem = modManager.getHullLib().getItem(hull->hullHandle);
+    if (!hullItem)
+    {
+        LG_E("Hull item not found");
+        return ecs::EntityId::Invalid();
+    }
+    if (slotIndex >= hullItem->slots.size())
+    {
+        LG_E("Slot index out of range");
+        return ecs::EntityId::Invalid();
+    }
+    gobj::ModuleSlot& slot = hullItem->slots[slotIndex];
+    if (slot.type != module->slotType)
+    {
+        LG_E("Slot type mismatch");
+        return ecs::EntityId::Invalid();
+    }
+
     auto ent = ecs.createEntity();
     entt::entity entt = ecs.getEntity(ent);
     if (entt == entt::null)
     {
+        LG_E("Failed to create entity for module");
         return ecs::EntityId::Invalid();
+    }
+    makeTextures(entt, module->textures);
+    placeInSector(ent, entt, sectorId->id, {{0.0f, 0.0f}, 0.0f});
+    makeAnchorFixed(
+        entt,
+        ecs::AnchorFixed{.pos = slot.pos, .rot = slot.rot, .ref = parent});
+    switch (module->type)
+    {
+        case gobj::ModuleType::MainThruster:
+            break;
+        case gobj::ModuleType::ManeuverThruster:
+            break;
+        case gobj::ModuleType::Storage:
+            break;
+        default:
+            break;
     }
     return ent;
 }
@@ -1496,6 +1581,14 @@ template class con::ItemLib<net::ClientInfo>;
 
     ecs::MapIcon mapIconComp;
     mapIconComp.mapIconHandle = hull->mapIcon.toGenericHandle();
+                           .thrustMainMax = 1000.0f,
+                           .thrustManeuverMax = 100.0f,
+                           .maxSpd = 100.0f},
+            ecs::MoveCtrl{.active = true,
+                          .faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward,
+                          .spPos = {0, 0},
+                          .spRot = 0.0f}))
+    {
     reg.emplace<ecs::MapIcon>(entt, mapIconComp);
 
     ecs::Textures texturesComp;

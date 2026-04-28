@@ -30,61 +30,73 @@ enum class ModuleSlotType : uint8_t
 
 struct ModuleSlot
 {
-    ModuleSlotType modType;
+    ModuleSlotType type;
     vec2 pos;
     float rot;
     uint8_t z;
 };
 
-struct ThrusterManeuver
+enum class ModuleType : uint8_t
+{
+    MainThruster,
+    ManeuverThruster,
+    Storage,
+};
+
+namespace mdata
+{
+
+struct MainThruster
+{
+    float maxThrust;
+    static MainThruster fromYaml(const YAML::Node& node);
+};
+struct ManeuverThruster
+{
+    float maxThrust;
+    static ManeuverThruster fromYaml(const YAML::Node& node);
+};
+struct Storage
+{
+    float volume;
+    static Storage fromYaml(const YAML::Node& node);
+};
+
+using Data = std::variant<MainThruster, ManeuverThruster, Storage>;
+
+}  // namespace mdata
+
+struct Module
 {
     string name;
     string description;
-    float maxThrust;
+    ModuleSlotType slotType;
     TexturesHandle textures = TexturesHandle::Invalid();
+    ModuleType type;
+    mdata::Data data;
 
-    static ThrusterManeuver
-    fromYaml(const YAML::Node& node,
-             const con::ItemLib<gobj::Textures>& texturesLib);
+    static Module fromYaml(const YAML::Node& node,
+                           const con::ItemLib<gobj::Textures>& texturesLib);
 };
 
-using ThrusterManeuverHandle = typename con::ItemLib<ThrusterManeuver>::Handle;
-
-struct ThrusterMain
-{
-    string name;
-    string description;
-    float maxThrust;
-    TexturesHandle textures = TexturesHandle::Invalid();
-
-    static ThrusterMain
-    fromYaml(const YAML::Node& node,
-             const con::ItemLib<gobj::Textures>& texturesLib);
-};
-
-using ThrusterMainHandle = typename con::ItemLib<ThrusterMain>::Handle;
+using ModuleHandle = typename con::ItemLib<Module>::Handle;
 
 }  // namespace gobj
 
 EXT_FMT(gobj::ModuleSlotType, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::ModuleSlot,
         "(modType: {}, pos: {}, rot: {}, z: {})",
-        o.modType,
+        o.type,
         o.pos,
         o.rot,
         o.z);
-
-EXT_FMT(gobj::ThrusterManeuver,
-        "(name: {}, description: {}, maxThrust: {}, textures: {})",
+EXT_FMT(gobj::ModuleType, "{}", magic_enum::enum_name(o));
+EXT_FMT(gobj::Module,
+        "(name: {}, description: {}, type: {}, slotType: {}, textures: {})",
         o.name,
         o.description,
-        o.maxThrust,
-        o.textures.toString());
-EXT_FMT(gobj::ThrusterMain,
-        "(name: {}, description: {}, maxThrust: {}, textures: {})",
-        o.name,
-        o.description,
-        o.maxThrust,
+        o.type,
+        o.slotType,
         o.textures.toString());
 
 #endif  // LIB_MODULES_HPP

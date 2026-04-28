@@ -20,7 +20,13 @@ textures:
         zIndex: 3
         flags: 0
         rot: 0.0
-
+  cargo-common-s:
+    textures:
+      - name: cargo-common-s
+        bounds: [ 0.0, 0.0, 4.6, 21.0 ]
+        zIndex: 3
+        flags: 0
+        rot: 0.0
 map-icon:
   frigate:
     name: frigate
@@ -32,10 +38,25 @@ collider:
     vertices: [ [ -14.8, -36.45 ], [ 14.8, -36.45 ], [ 14.8, 36.45 ], [ -14.8, 36.45 ] ]
     restitution: 0.1
 
-thruster-maneuver:
+module:
   thrust-maneuver-common-s:
-    maxThrust: 100.0
+    slot-type: ThrusterManeuverS_Common
+    type: ManeuverThruster
     textures: thrust-maneuver-common-s
+    data:
+      maxThrust: 100.0
+  thrust-main-common-s:
+    slot-type: ThrusterMainS_Common
+    type: MainThruster
+    textures: thrust-main-common-s
+    data:
+      maxThrust: 100.0
+  cargo-common-s:
+    slot-type: BayS_Common
+    type: Storage
+    textures: cargo-common-s
+    data:
+      volume: 100.0
 
 hull:
   mace:
@@ -46,7 +67,30 @@ hull:
     map-icon: frigate
     slots:
       - mod-type: ThrusterMainS_Common
-        pos: [ 0.0, -32.0 ]
+        pos: [ 0.0, -36.0 ]
+        rot: 0.0
+        z: 3
+      - mod-type: ThrusterManeuverS_Common
+        pos: [ 6.0, -26.5 ]
+        rot: 0.0
+        z: 3
+      - mod-type: ThrusterManeuverS_Common
+        pos: [ -6.0, -26.5 ]
         rot: 180.0
         z: 3
-thruster-main-common-s:
+      - mod-type: BayS_Common
+        pos: [ 12, 17.0 ]
+        rot: 0.0
+        z: 3
+      - mod-type: BayS_Common
+        pos: [ -12, 17.0 ]
+        rot: 180.0
+        z: 3
+      - mod-type: BayS_Common
+        pos: [ 12, -9 ]
+        rot: 180.0
+        z: 3
+      - mod-type: BayS_Common
+        pos: [ -12, -9 ]
+        rot: 180.0
+        z: 3

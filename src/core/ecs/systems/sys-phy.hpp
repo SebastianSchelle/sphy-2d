@@ -257,11 +257,8 @@ const System sysPhysics = {
                 {
                     const gobj::Collider* colliderDef =
                         collider->getColliderDef(ptrHandle->colliderLib);
-                    con::AABB newAabb =
-                        calculateAABB(*transform,
-                                      *transformCache,
-                                      *collider,
-                                      colliderDef);
+                    con::AABB newAabb = calculateAABB(
+                        *transform, *transformCache, *collider, colliderDef);
                     auto* sector = ptrHandle->world->getSector(sectorId->id);
                     if (sector)
                     {
@@ -296,147 +293,140 @@ const System sysPhysics = {
 const System sysCollisionDetection = {
     .name = "sysCollisionDetection",
     .type = SystemType::SectorOnce,
-    .function =
-        SFSectorOnce{
-            [](world::Sector* sector, float dt, PtrHandle* ptrHandle)
+    .function = SFSectorOnce{
+        [](world::Sector* sector, float dt, PtrHandle* ptrHandle)
+        {
+            // Query broadphase collisions from aabb tree
+            auto* reg = ptrHandle->registry;
+            sector->broadphaseCollisions.clear();
+            sector->contactInfos.clear();
+
+            for (auto entity : sector->broadphaseQueryEntities)
             {
-                // Query broadphase collisions from aabb tree
-                auto* reg = ptrHandle->registry;
-                sector->broadphaseCollisions.clear();
-                sector->contactInfos.clear();
-
-                for (auto entity : sector->broadphaseQueryEntities)
-                {
-                    auto& broadphase = reg->get<Broadphase>(entity);
-                    sector->queryBroadphase(
-                        broadphase.fatAABB,
-                        [sector, entity](entt::entity entityOther)
+                auto& broadphase = reg->get<Broadphase>(entity);
+                sector->queryBroadphase(
+                    broadphase.fatAABB,
+                    [sector, entity](entt::entity entityOther)
+                    {
+                        if (entity != entityOther)
                         {
-                            if (entity != entityOther)
-                            {
-                                sector->broadphaseCollisions.push_back(
-                                    std::make_pair(entity, entityOther));
-                            }
-                        });
-                }
-                // Erase duplicates from the broadphase collisions
-                std::sort(sector->broadphaseCollisions.begin(),
-                          sector->broadphaseCollisions.end(),
-                          [](const std::pair<entt::entity, entt::entity>& a,
-                             const std::pair<entt::entity, entt::entity>& b)
-                          { return a.first < b.first; });
-                sector->broadphaseCollisions.erase(
-                    std::unique(sector->broadphaseCollisions.begin(),
-                                sector->broadphaseCollisions.end()),
-                    sector->broadphaseCollisions.end());
-                for (const auto& collision : sector->broadphaseCollisions)
+                            sector->broadphaseCollisions.push_back(
+                                std::make_pair(entity, entityOther));
+                        }
+                    });
+            }
+            // Erase duplicates from the broadphase collisions
+            std::sort(sector->broadphaseCollisions.begin(),
+                      sector->broadphaseCollisions.end(),
+                      [](const std::pair<entt::entity, entt::entity>& a,
+                         const std::pair<entt::entity, entt::entity>& b)
+                      { return a.first < b.first; });
+            sector->broadphaseCollisions.erase(
+                std::unique(sector->broadphaseCollisions.begin(),
+                            sector->broadphaseCollisions.end()),
+                sector->broadphaseCollisions.end());
+            for (const auto& collision : sector->broadphaseCollisions)
+            {
+                // LG_D(
+                //     "Broadphase collision detected between entities: {} "
+                //     "and {}",
+                //     collision.first,
+                //     collision.second);
+                auto& transform1 = reg->get<Transform>(collision.first);
+                auto& transform2 = reg->get<Transform>(collision.second);
+                auto& transformCache1 =
+                    reg->get<TransformCache>(collision.first);
+                auto& transformCache2 =
+                    reg->get<TransformCache>(collision.second);
+                auto& collider1 = reg->get<Collider>(collision.first);
+                auto& collider2 = reg->get<Collider>(collision.second);
+                const gobj::Collider* colliderDef1 =
+                    collider1.getColliderDef(ptrHandle->colliderLib);
+                const gobj::Collider* colliderDef2 =
+                    collider2.getColliderDef(ptrHandle->colliderLib);
+
+                const std::optional<Contact> contact =
+                    ::ecs::collideCollidersWorld(collider1,
+                                                 colliderDef1,
+                                                 transform1,
+                                                 transformCache1,
+                                                 collider2,
+                                                 colliderDef2,
+                                                 transform2,
+                                                 transformCache2);
+                if (contact)
                 {
+                    sector->contactInfos.push_back(
+                        {*contact,
+                         collision.first,
+                         collision.second,
+                         std::fmin(collider1.getRestitution(colliderDef1),
+                                   collider2.getRestitution(colliderDef2))});
                     // LG_D(
-                    //     "Broadphase collision detected between entities: {} "
-                    //     "and {}",
+                    //     "Colliding entities: {} and {} (penetration {}, "
+                    //     "normal [{}, {}])",
                     //     collision.first,
-                    //     collision.second);
-                    auto& transform1 = reg->get<Transform>(collision.first);
-                    auto& transform2 = reg->get<Transform>(collision.second);
-                    auto& transformCache1 =
-                        reg->get<TransformCache>(collision.first);
-                    auto& transformCache2 =
-                        reg->get<TransformCache>(collision.second);
-                    auto& collider1 = reg->get<Collider>(collision.first);
-                    auto& collider2 = reg->get<Collider>(collision.second);
-                    const gobj::Collider* colliderDef1 =
-                        collider1.getColliderDef(ptrHandle->colliderLib);
-                    const gobj::Collider* colliderDef2 =
-                        collider2.getColliderDef(ptrHandle->colliderLib);
-
-                    const std::optional<Contact> contact =
-                        ::ecs::collideCollidersWorld(collider1,
-                                                     colliderDef1,
-                                                     transform1,
-                                                     transformCache1,
-                                                     collider2,
-                                                     colliderDef2,
-                                                     transform2,
-                                                     transformCache2);
-                    if (contact)
-                    {
-                        sector->contactInfos.push_back(
-                            {*contact,
-                             collision.first,
-                             collision.second,
-                             std::fmin(collider1.getRestitution(colliderDef1),
-                                       collider2.getRestitution(colliderDef2))});
-                        // LG_D(
-                        //     "Colliding entities: {} and {} (penetration {}, "
-                        //     "normal [{}, {}])",
-                        //     collision.first,
-                        //     collision.second,
-                        //     contact->penetration,
-                        //     contact->normal.x,
-                        //     contact->normal.y);
-                    }
+                    //     collision.second,
+                    //     contact->penetration,
+                    //     contact->normal.x,
+                    //     contact->normal.y);
                 }
-                for (int i = 0; i < kContactSolverIterations; ++i)
+            }
+            for (int i = 0; i < kContactSolverIterations; ++i)
+            {
+                for (const auto& contactInfo : sector->contactInfos)
                 {
-                    for (const auto& contactInfo : sector->contactInfos)
+                    auto& contact = contactInfo.contact;
+                    auto& phy1 = reg->get<PhysicsBody>(contactInfo.ent1);
+                    auto& phy2 = reg->get<PhysicsBody>(contactInfo.ent2);
+                    auto& transform1 = reg->get<Transform>(contactInfo.ent1);
+                    auto& transform2 = reg->get<Transform>(contactInfo.ent2);
+
+                    // One-shot projection: penetration in contact is from
+                    // the pre-solve narrowphase pass only; do not re-apply
+                    // per iter.
+                    if (i == 0)
                     {
-                        auto& contact = contactInfo.contact;
-                        auto& phy1 = reg->get<PhysicsBody>(contactInfo.ent1);
-                        auto& phy2 = reg->get<PhysicsBody>(contactInfo.ent2);
-                        auto& transform1 =
-                            reg->get<Transform>(contactInfo.ent1);
-                        auto& transform2 =
-                            reg->get<Transform>(contactInfo.ent2);
-
-                        // One-shot projection: penetration in contact is from
-                        // the pre-solve narrowphase pass only; do not re-apply
-                        // per iter.
-                        if (i == 0)
-                        {
-                            const vec2 correction =
-                                contact.normal * contact.penetration * 0.5f;
-                            transform1.pos -= correction;
-                            transform2.pos += correction;
-                        }
-
-                        const vec2 rv = phy2.vel - phy1.vel;
-                        const float velAlongNormal =
-                            glm::dot(rv, contact.normal);
-
-                        const float invMass1 = 1.0f / phy1.mass;
-                        const float invMass2 = 1.0f / phy2.mass;
-                        const float denom = invMass1 + invMass2;
-                        if (denom < 1e-12f)
-                        {
-                            continue;
-                        }
-
-                        float penBias = 0.0f;
-                        if (i == 0
-                            && contact.penetration > kContactPenetrationSlop)
-                        {
-                            const float invDt = dt > 1e-8f ? 1.0f / dt : 0.0f;
-                            penBias = kContactBaumgarte * invDt
-                                      * (contact.penetration
-                                         - kContactPenetrationSlop);
-                            penBias = std::min(penBias, kContactMaxBiasSpeed);
-                        }
-
-                        const float e = contactInfo.restitution;
-                        float jN = 0.0f;
-                        if (velAlongNormal < 0.0f)
-                        {
-                            jN = -(1.0f + e) * velAlongNormal;
-                        }
-                        const float j = (jN + penBias) / denom;
-                        const vec2 impulse = contact.normal * j;
-                        phy1.vel -= impulse * invMass1;
-                        phy2.vel += impulse * invMass2;
+                        const vec2 correction =
+                            contact.normal * contact.penetration * 0.5f;
+                        transform1.pos -= correction;
+                        transform2.pos += correction;
                     }
+
+                    const vec2 rv = phy2.vel - phy1.vel;
+                    const float velAlongNormal = glm::dot(rv, contact.normal);
+
+                    const float invMass1 = 1.0f / phy1.mass;
+                    const float invMass2 = 1.0f / phy2.mass;
+                    const float denom = invMass1 + invMass2;
+                    if (denom < 1e-12f)
+                    {
+                        continue;
+                    }
+
+                    float penBias = 0.0f;
+                    if (i == 0 && contact.penetration > kContactPenetrationSlop)
+                    {
+                        const float invDt = dt > 1e-8f ? 1.0f / dt : 0.0f;
+                        penBias =
+                            kContactBaumgarte * invDt
+                            * (contact.penetration - kContactPenetrationSlop);
+                        penBias = std::min(penBias, kContactMaxBiasSpeed);
+                    }
+
+                    const float e = contactInfo.restitution;
+                    float jN = 0.0f;
+                    if (velAlongNormal < 0.0f)
+                    {
+                        jN = -(1.0f + e) * velAlongNormal;
+                    }
+                    const float j = (jN + penBias) / denom;
+                    const vec2 impulse = contact.normal * j;
+                    phy1.vel -= impulse * invMass1;
+                    phy2.vel += impulse * invMass2;
                 }
-            }},
-    .afterEntityUpdate = true,
-};
+            }
+        }}};
 
 const System sysAnchorFixed = {
     .name = "sysAnchorFixed",
@@ -451,6 +441,7 @@ const System sysAnchorFixed = {
             auto reg = ptrHandle->registry;
             auto* anchorFixed = reg->try_get<AnchorFixed>(entity);
             auto* transform = reg->try_get<Transform>(entity);
+            auto* sectorId = reg->try_get<ecs::SectorId>(entity);
             if (anchorFixed && transform)
             {
                 entt::entity parent =
@@ -460,12 +451,19 @@ const System sysAnchorFixed = {
                     const auto& parentTransform = reg->get<Transform>(parent);
                     const auto& parentTransformCache =
                         reg->get<TransformCache>(parent);
+                    const auto& parentSectorId =
+                        reg->get<ecs::SectorId>(parent);
                     vec2 anchorFixedPos =
                         smath::rotateVec2(anchorFixed->pos,
                                           parentTransformCache.s,
                                           parentTransformCache.c);
                     transform->pos = parentTransform.pos + anchorFixedPos;
                     transform->rot = parentTransform.rot - anchorFixed->rot;
+                    if (parentSectorId.id != sectorId->id)
+                    {
+                        ptrHandle->world->addSectorMoveRequest(
+                            ptrHandle, entityId, parentSectorId.id);
+                    }
                 }
             }
         }}};

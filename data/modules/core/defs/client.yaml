@@ -14,8 +14,8 @@ gfx:
 ui:
   zoom:
     tactical-map: 0.1
-    strategic-map: 0.4
-    max: 6
+    strategic-map: 4
+    max: 4.5
     min: 0.0001
     step: 1.1
   pan:

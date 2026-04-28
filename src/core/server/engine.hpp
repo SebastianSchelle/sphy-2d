@@ -143,12 +143,16 @@ class Engine
     ecs::MoveCtrl* makeMoveCtrl(entt::entity entity,
                                 const ecs::PhyThrust& phyThrust,
                                 const ecs::MoveCtrl& moveCtrl);
+    ecs::AnchorFixed* makeAnchorFixed(entt::entity entity,
+                                      const ecs::AnchorFixed& anchorFixed);
     bool placeInSector(ecs::EntityId ent,
                        entt::entity entity,
                        uint32_t sectorId,
                        const ecs::Transform& transform);
 
-    ecs::EntityId spawnModule(ecs::EntityId parent);
+    ecs::EntityId spawnModule(ecs::EntityId parent,
+                              const gobj::ModuleHandle& moduleHandle,
+                              uint16_t slotIndex);
 
     const sphy::CmdLinOptionsServer& options;
     std::atomic<bool> stopRequested{false};

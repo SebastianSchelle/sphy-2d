@@ -34,7 +34,6 @@ struct System
     std::string name;
     SystemType type;
     SystemFunction function;
-    bool afterEntityUpdate = false;
     bool operator==(const System& other) const
     {
         return name == other.name;

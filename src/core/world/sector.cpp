@@ -49,61 +49,47 @@ void Sector::update(float dt, ecs::PtrHandle* ptrHandle)
 
     for (const auto& system : *ptrHandle->systems)
     {
-        if (system.type == ecs::SystemType::SectorOnce && !system.afterEntityUpdate)
+        switch (system.type)
         {
-            std::visit(
-                [&](auto&& fn)
-                {
-                    using Fn = std::decay_t<decltype(fn)>;
-                    if constexpr (std::is_same_v<Fn, ecs::SFSectorOnce>)
-                    {
-                        fn(this, dt, ptrHandle);
-                    }
-                },
-                system.function);
-        }
-    }
-
-    for (size_t i = 0; i < entityIds.size(); i++)
-    {
-        for (const auto& system : *ptrHandle->systems)
-        {
-            if (system.type == ecs::SystemType::SectorForeachEntitiy)
-            {
+            case ecs::SystemType::SectorOnce:
                 std::visit(
                     [&](auto&& fn)
                     {
                         using Fn = std::decay_t<decltype(fn)>;
-                        if constexpr (std::is_same_v<Fn, ecs::SFSectorForeach>)
+                        if constexpr (std::is_same_v<Fn, ecs::SFSectorOnce>)
                         {
-                            fn(this, entities[i], entityIds[i], dt, ptrHandle);
+                            fn(this, dt, ptrHandle);
                         }
                     },
                     system.function);
-            }
-        }
-    }
-
-    for(const auto& system : *ptrHandle->systems)
-    {
-        if (system.type == ecs::SystemType::SectorOnce && system.afterEntityUpdate)
-        {
-            std::visit(
-                [&](auto&& fn)
+                break;
+            case ecs::SystemType::SectorForeachEntitiy:
+                for (size_t i = 0; i < entityIds.size(); i++)
                 {
-                    using Fn = std::decay_t<decltype(fn)>;
-                    if constexpr (std::is_same_v<Fn, ecs::SFSectorOnce>)
-                    {
-                        fn(this, dt, ptrHandle);
-                    }
-                },
-                system.function);
+                    std::visit(
+                        [&](auto&& fn)
+                        {
+                            using Fn = std::decay_t<decltype(fn)>;
+                            if constexpr (std::is_same_v<Fn,
+                                                         ecs::SFSectorForeach>)
+                            {
+                                fn(this,
+                                   entities[i],
+                                   entityIds[i],
+                                   dt,
+                                   ptrHandle);
+                            }
+                        },
+                        system.function);
+                }
+                break;
+            default:
+                break;
         }
     }
 }
 
-bool Sector::addEntity(ecs::PtrHandle* ptrHandle,
-                       ecs::EntityId entityId)
+bool Sector::addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
 {
     if (!ptrHandle->ecs->validId(entityId))
     {
@@ -133,17 +119,15 @@ bool Sector::addEntity(ecs::PtrHandle* ptrHandle,
     {
         transformCache->c = cosf(transform.rot);
         transformCache->s = sinf(transform.rot);
-        con::AABB aabb =
-            ecs::calculateAABB(
-                transform, *transformCache, *collider, ptrHandle->colliderLib);
+        con::AABB aabb = ecs::calculateAABB(
+            transform, *transformCache, *collider, ptrHandle->colliderLib);
         broadphase->proxyId = aabbTree.createProxy(aabb, entity);
         broadphase->fatAABB = aabb;
     }
     return true;
 }
 
-bool Sector::removeEntity(ecs::PtrHandle* ptrHandle,
-                          ecs::EntityId entityId)
+bool Sector::removeEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
 {
     if (!ptrHandle->ecs->validId(entityId))
     {
@@ -190,7 +174,8 @@ void Sector::getAllAABBs(std::vector<con::AABB>& aabbs) const
     aabbTree.getAllAABBs(aabbs);
 }
 
-void Sector::queryBroadphase(const con::AABB& aabb, std::function<void(entt::entity)> callback)
+void Sector::queryBroadphase(const con::AABB& aabb,
+                             std::function<void(entt::entity)> callback)
 {
     aabbTree.query(aabb, callback);
 }
