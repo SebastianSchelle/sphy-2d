@@ -1171,7 +1171,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 50; ++i)
+    for (int i = 0; i < 50000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1570,39 +1570,3 @@ ecs::EntityId Engine::spawnModule(ecs::EntityId parent,
 }  // namespace sphys
 
 template class con::ItemLib<net::ClientInfo>;
-
-/*
-
-    auto& reg = ecs.getRegistry();
-    ecs::Hull hullComp;
-    hullComp.hullHandle = hullHandle.toGenericHandle();
-    hullComp.hull = hull->hullpoints;
-    reg.emplace<ecs::Hull>(entt, hullComp);
-
-    ecs::MapIcon mapIconComp;
-    mapIconComp.mapIconHandle = hull->mapIcon.toGenericHandle();
-                           .thrustMainMax = 1000.0f,
-                           .thrustManeuverMax = 100.0f,
-                           .maxSpd = 100.0f},
-            ecs::MoveCtrl{.active = true,
-                          .faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward,
-                          .spPos = {0, 0},
-                          .spRot = 0.0f}))
-    {
-    reg.emplace<ecs::MapIcon>(entt, mapIconComp);
-
-    ecs::Textures texturesComp;
-    texturesComp.texturesHandle = hull->textures.toGenericHandle();
-    reg.emplace<ecs::Textures>(entt, texturesComp);
-
-    ecs::Collider colliderComp;
-    colliderComp.colliderHandle = hull->collider.toGenericHandle();
-    reg.emplace<ecs::Collider>(entt, colliderComp);
-
-    ecs::Transform& tr = reg.get_or_emplace<ecs::Transform>(entt);
-    ecs::Broadphase& br = reg.get_or_emplace<ecs::Broadphase>(entt);
-    ecs::TransformCache& trC = reg.get_or_emplace<ecs::TransformCache>(entt);
-    ecs::SectorId& sec = reg.get_or_emplace<ecs::SectorId>(
-        entt, ecs::SectorId{world::INVALID_SECTOR_ID, 0, 0});
-    world.moveEntityTo(ptrHandle, ent, 0, vec2{0.0f, 0.0f}, 0.0f);
-*/

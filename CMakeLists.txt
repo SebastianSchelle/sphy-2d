@@ -140,5 +140,5 @@ gtest_discover_tests(test-shelf-allocator)
 
 # Match Debug fusion level in Release (see cmake/SphyDaScriptFusionFix.cmake);
 # do not modify thirdparty/daScript/CMake.
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SphyDaScriptFusionFix.cmake")
-sphy_das_fusion_zero_release(libDaScript game-server game-client)
+#include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SphyDaScriptFusionFix.cmake")
+#sphy_das_fusion_zero_release(libDaScript game-server game-client)

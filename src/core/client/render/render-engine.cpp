@@ -9,6 +9,15 @@
 namespace gfx
 {
 
+// Atlas sampling: full POINT (MIN|MAG|MIP) makes texels snap hard to the grid.
+// With fractional screen positions (camera zoom/pan), that shows up as shimmer /
+// crawl. MIN_ANISOTROPIC + MAG_POINT is a common 2D tradeoff: sharper when
+// zoomed in, smoother minification when zoomed out. For pixel-perfect art at
+// integer scales only, use BGFX_SAMPLER_POINT + UVW_CLAMP instead.
+static constexpr uint32_t kSpriteSamplerFlags =
+    BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
+    | BGFX_SAMPLER_MIN_ANISOTROPIC | BGFX_SAMPLER_MAG_POINT;
+
 static_assert(
     sizeof(TexRectData) % 16 == 0,
     "TexRectData stride must be a multiple of 16 for bgfx instancing");
@@ -244,9 +253,7 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
     bgfx::setTexture(0,
                      u_texArray,
                      texture->getTexIdent().texHandle,
-                     BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
-                         | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT
-                         | BGFX_SAMPLER_MIP_POINT);
+                     kSpriteSamplerFlags);
 
     float layerArr[] = {
         static_cast<float>(texture->getTexIdent().layerIdx), 0.0f, 0.0f, 0.0f};
@@ -848,9 +855,7 @@ void RenderEngine::submitTexRects()
     bgfx::setTexture(0,
                      u_texArray,
                      texRectBatchArray,
-                     BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
-                         | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT
-                         | BGFX_SAMPLER_MIP_POINT);
+                     kSpriteSamplerFlags);
 
     uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
                      | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS
