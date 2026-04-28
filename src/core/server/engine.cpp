@@ -1,6 +1,5 @@
 #include "bitsery/serializer.h"
 #include "ecs.hpp"
-#include "rerun.hpp"
 #include "sector.hpp"
 #include "std-inc.hpp"
 #include <comp-gfx.hpp>
@@ -25,8 +24,7 @@ namespace sphys
 Engine::Engine(const sphy::CmdLinOptionsServer& options,
                cfg::ConfigManager& config)
     : options(options), config(config), state(EngineState::Init), saveConfig(),
-      saveFolder(options.savedir), rerunStream("sphy-2d-move-ctrl"),
-      commandManager()
+      saveFolder(options.savedir), commandManager()
 {
     ptrHandle = new ecs::PtrHandle();
     ptrHandle->ecs = &ecs;
@@ -57,11 +55,6 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
 
     updThreads = std::clamp(updThreads, 1, 16);
     workDistributor.init(updThreads);
-
-    if (options.enableRerun)
-    {
-        rerunStream.spawn().exit_on_failure();
-    }
 }
 
 Engine::~Engine()
@@ -93,7 +86,7 @@ void Engine::start()
         net::ClientInfo{
             .token = "1234abcd1234abcd",
             .portUdp = 0,
-            .address = asio::ip::address::from_string("0.0.0.0"),
+            .address = asio::ip::make_address("0.0.0.0"),
         },
         def::ClientFlags{.enConsole = 1}));
     auto clientInfo = clientLib.getItem(handle);
@@ -221,7 +214,6 @@ void Engine::update(float dt)
     }
     world.update(dt, ptrHandle);
     markPlayerSectors();
-    rerunDebugMovePhy();
 }
 
 void Engine::runConnectedClientWorkSequencers()
@@ -229,52 +221,6 @@ void Engine::runConnectedClientWorkSequencers()
     for (auto handle : connectedClientHandles)
     {
         clientLib.getItem(handle)->executeWorkSequencer();
-    }
-}
-
-void Engine::rerunDebugMovePhy()
-{
-    if (!options.enableRerun)
-    {
-        return;
-    }
-    const ecs::EntityId entityId0 = ecs.getEntityIdFromIdx(0);
-    if (!ecs.validId(entityId0))
-    {
-        return;
-    }
-    entt::entity ent0 = ecs.getEntity(entityId0);
-    if (ent0 == entt::null || !ptrHandle->registry->valid(ent0))
-    {
-        return;
-    }
-
-    auto& reg = *ptrHandle->registry;
-    auto* tr = reg.try_get<ecs::Transform>(ent0);
-    auto* pb = reg.try_get<ecs::PhysicsBody>(ent0);
-    auto* th = reg.try_get<ecs::PhyThrust>(ent0);
-    auto* moveCtrl = reg.try_get<ecs::MoveCtrl>(ent0);
-    if (!tr || !pb)
-    {
-        return;
-    }
-
-    if (moveCtrl && tr && pb && th)
-    {
-        rerunStream.log("rot/vel", rerun::Scalars({pb->rotVel}));
-        rerunStream.log("rot/trq", rerun::Scalars({th ? th->torque : 0.f}));
-        rerunStream.log("pos/x", rerun::Scalars({tr->pos.x}));
-        rerunStream.log("pos/y", rerun::Scalars({tr->pos.y}));
-        rerunStream.log("pos/des/x",
-                        rerun::Scalars({moveCtrl->spPos.sectorPos.x}));
-        rerunStream.log("pos/des/y",
-                        rerun::Scalars({moveCtrl->spPos.sectorPos.y}));
-        rerunStream.log("pos/vel/x", rerun::Scalars({pb->vel.x}));
-        rerunStream.log("pos/vel/y", rerun::Scalars({pb->vel.y}));
-        rerunStream.log("pos/thrust/x",
-                        rerun::Scalars({th ? th->thrustGlobal.x : 0.f}));
-        rerunStream.log("pos/thrust/y",
-                        rerun::Scalars({th ? th->thrustGlobal.y : 0.f}));
     }
 }
 
@@ -339,8 +285,7 @@ bool Engine::loadMods()
         LG_E("Failed to check dependencies");
         return false;
     }
-    mod::PtrHandles ptrHandles{.luaInterpreter = &luaInterpreter,
-                               .assetFactory = &assetFactory};
+    mod::PtrHandles ptrHandles{.assetFactory = &assetFactory};
     if (!modManager.loadMods(ptrHandles))
     {
         LG_E("Failed to load mods");
@@ -1182,24 +1127,22 @@ void Engine::testSpawn()
         spawnModule(ent,
                     modManager.getModuleLib().getHandle("thrust-main-common-s"),
                     0);
-        spawnModule(ent,
-                    modManager.getModuleLib().getHandle("thrust-maneuver-common-s"),
-                    1);
-        spawnModule(ent,
-                    modManager.getModuleLib().getHandle("thrust-maneuver-common-s"),
-                    2);
-        spawnModule(ent,
-                    modManager.getModuleLib().getHandle("cargo-common-s"),
-                    3);
-        spawnModule(ent,
-                    modManager.getModuleLib().getHandle("cargo-common-s"),
-                    4);
-        spawnModule(ent,
-                    modManager.getModuleLib().getHandle("cargo-common-s"),
-                    5);
-        spawnModule(ent,
-                    modManager.getModuleLib().getHandle("cargo-common-s"),
-                    6);
+        spawnModule(
+            ent,
+            modManager.getModuleLib().getHandle("thrust-maneuver-common-s"),
+            1);
+        spawnModule(
+            ent,
+            modManager.getModuleLib().getHandle("thrust-maneuver-common-s"),
+            2);
+        spawnModule(
+            ent, modManager.getModuleLib().getHandle("cargo-common-s"), 3);
+        spawnModule(
+            ent, modManager.getModuleLib().getHandle("cargo-common-s"), 4);
+        spawnModule(
+            ent, modManager.getModuleLib().getHandle("cargo-common-s"), 5);
+        spawnModule(
+            ent, modManager.getModuleLib().getHandle("cargo-common-s"), 6);
         auto* moveCtrl = reg.try_get<ecs::MoveCtrl>(ecs.getEntity(ent));
         if (moveCtrl)
         {

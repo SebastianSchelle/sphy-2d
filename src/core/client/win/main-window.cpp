@@ -9,7 +9,6 @@
 #include <main-window.hpp>
 #include <memory>
 #include <os-helper.hpp>
-#include <sol/sol.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/norm.hpp>
 
@@ -245,8 +244,6 @@ void MainWindow::winLoop()
     while (!glfwWindowShouldClose(window))
     {
         processUiTasks();
-
-        // luaInterpreter.callFunction("dbg.test");
 
         tim::Timepoint now = tim::getCurrentTimeU();
         float deltaTime = (float)tim::durationU(lastLoopTime, now) / 1000000.0f;
@@ -529,7 +526,6 @@ void MainWindow::startLoading()
                         return false;
                     }
                 },
-                .luaInterpreter = &luaInterpreter,
                 .assetFactory = model.getAssetFactory(),
             };
             if (!modManager.loadMods(ptrHandles))
@@ -564,7 +560,6 @@ void MainWindow::loadingLoop()
             modManager.populateMenuData(menuData.mods);
             rmlModelMenu.DirtyVariable("mods");
             userInterface.showMenu();
-            luaInterpreter.dumpAllTables();
             model.startModel();
         }
         else
@@ -1122,7 +1117,7 @@ void MainWindow::onNewGame(Rml::DataModelHandle handle,
     {
         stopServer();
     }
-    serverProcess = new bp::child(serverExe.string());
+    serverProcess = new boost::process::v1::child(serverExe.string());
 }
 
 void MainWindow::stopServer()

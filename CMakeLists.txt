@@ -11,10 +11,6 @@ FetchContent_Declare(
     URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
 )
 
-FetchContent_Declare(rerun_sdk URL
-    https://github.com/rerun-io/rerun/releases/latest/download/rerun_cpp_sdk.zip)
-FetchContent_MakeAvailable(rerun_sdk)
-
 # GLFW backend configuration
 if(USE_WAYLAND)
     set(GLFW_BUILD_X11 OFF CACHE BOOL "" FORCE)
@@ -37,12 +33,8 @@ add_compile_definitions($<$<CONFIG:Debug>:DEBUG>)
 
 set(GAME_NAME "sphy2d" CACHE STRING "Game name used for save files and binaries")
 
-find_package(Boost REQUIRED COMPONENTS regex thread system chrono program_options)
+find_package(Boost REQUIRED COMPONENTS regex thread chrono program_options)
 find_package(GTest REQUIRED)
-
-set(LUA_INCLUDE_DIR /usr/include/lua5.4)
-set(LUA_LIBRARY /usr/lib64/liblua-5.4.so)
-find_package(Lua 5.4 REQUIRED)
 
 # add third party libraries
 add_subdirectory(thirdparty/yaml-cpp yaml-cpp)
@@ -59,7 +51,6 @@ if(TARGET freetype)
 endif()
 add_subdirectory(thirdparty/rmlui)
 add_subdirectory(thirdparty/rectpack2D)
-add_subdirectory(thirdparty/sol2)
 add_subdirectory(thirdparty/entt)
 add_subdirectory(thirdparty/magic_enum)
 # daScript as subproject: disable optional modules that expect standalone
@@ -112,7 +103,6 @@ enable_testing()
 set(TEST_LIBS
     GTest::gtest_main
     helper
-    Boost::system
     Boost::chrono
     Boost::thread
     Boost::program_options

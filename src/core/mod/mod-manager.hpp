@@ -50,7 +50,6 @@ struct MenuDataMod
 };
 #endif
 
-class LuaInterpreter;
 class Mod;
 
 struct PtrHandles
@@ -63,7 +62,6 @@ struct PtrHandles
     /// loop runs the task.
     std::function<bool(std::function<bool()>)> runUiBool;
 #endif
-    mod::LuaInterpreter* luaInterpreter;
     ecs::AssetFactory* assetFactory;
     mod::Mod* currentMod;
 };

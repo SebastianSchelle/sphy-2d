@@ -11,8 +11,33 @@ UdpServer::UdpServer(boost::asio::io_context& io_context, int port, ReceiveCallb
     startReceive();
 }
 
+UdpServer::~UdpServer()
+{
+    close();
+}
+
+void UdpServer::close()
+{
+    boost::asio::dispatch(
+        socket_.get_executor(),
+        [this]()
+        {
+            if (!running.exchange(false))
+            {
+                return;
+            }
+            boost::system::error_code ec;
+            (void)socket_.cancel(ec);
+            (void)socket_.close(ec);
+        });
+}
+
 void UdpServer::startReceive()
 {
+    if (!running.load())
+    {
+        return;
+    }
     socket_.async_receive_from(
         boost::asio::buffer(recvBuf),
         remote_endpoint_,
@@ -23,6 +48,10 @@ void UdpServer::startReceive()
 void UdpServer::handleReceive(const boost::system::error_code& error,
                               size_t bytesReceived)
 {
+    if (!running.load())
+    {
+        return;
+    }
     if (!error && bytesReceived > 0)
     {
         if(receiveCallback)
@@ -33,6 +62,10 @@ void UdpServer::handleReceive(const boost::system::error_code& error,
         {
             LG_D("Received: {}", std::string(recvBuf, bytesReceived));
         }
+    }
+    if (error == boost::asio::error::operation_aborted)
+    {
+        return;
     }
     startReceive();
 }

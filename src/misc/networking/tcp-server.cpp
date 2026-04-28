@@ -160,8 +160,40 @@ TcpServer::TcpServer(boost::asio::io_context& io_context,
     StartAccept();
 }
 
+TcpServer::~TcpServer()
+{
+    close();
+}
+
+void TcpServer::close()
+{
+    boost::asio::dispatch(
+        io_context_,
+        [this]()
+        {
+            if (!running.exchange(false))
+            {
+                return;
+            }
+            boost::system::error_code ec;
+            (void)acceptor_.cancel(ec);
+            (void)acceptor_.close(ec);
+            for (auto& conn : connections)
+            {
+                if (conn)
+                {
+                    conn->close();
+                }
+            }
+        });
+}
+
 void TcpServer::StartAccept()
 {
+    if (!running.load())
+    {
+        return;
+    }
     connections.emplace_back(
         TcpConnection::create(io_context_, tcpReceiveCallback, disconnectCallback));
     TcpConnection* new_connection = connections.back().get();
@@ -175,11 +207,18 @@ void TcpServer::StartAccept()
 void TcpServer::HandleAccept(TcpConnection* new_connection,
                              const boost::system::error_code& error)
 {
+    if (!running.load())
+    {
+        return;
+    }
     if (!error)
     {
         new_connection->start();
     }
-
+    else if (error == boost::asio::error::operation_aborted)
+    {
+        return;
+    }
     StartAccept();
 }
 

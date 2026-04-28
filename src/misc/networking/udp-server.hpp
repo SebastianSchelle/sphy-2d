@@ -15,6 +15,8 @@ class UdpServer
     UdpServer(boost::asio::io_context& io_context,
               int port,
               ReceiveCallback receiveCallback);
+    ~UdpServer();
+    void close();
     void sendMessage(udp::endpoint endpoint, const std::vector<uint8_t>& data);
 
   private:
@@ -27,6 +29,7 @@ class UdpServer
     udp::endpoint remote_endpoint_;
     char recvBuf[UDP_REC_BUF_LEN];
     ReceiveCallback receiveCallback;
+    std::atomic<bool> running{true};
 };
 
 }  // namespace net

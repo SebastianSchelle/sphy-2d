@@ -11,7 +11,6 @@ set(NETWORKING_SOURCES
 )
 
 set(LIBS_PUB
-    Boost::system
     helper
 )
 

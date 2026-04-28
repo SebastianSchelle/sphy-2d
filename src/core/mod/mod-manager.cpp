@@ -1,7 +1,6 @@
 #include <daScript/daScript.h>
 #include <daScript/daScriptModule.h>
 #include <daScript/misc/free_list.h>
-#include <lua-interpreter.hpp>
 #include <memory>
 #include <mod-manager.hpp>
 #include <sphy-bindings.hpp>
@@ -14,6 +13,7 @@ namespace
 {
 
 thread_local bool gDasThreadRuntimeReady = false;
+std::once_flag gDasGlobalRuntimeInitOnce;
 
 class DasLogWriter : public das::TextWriter
 {
@@ -97,25 +97,26 @@ void ensureDasRuntimeForCurrentThread()
     {
         return;
     }
-    // Free-list + global operator::new (when DAS_FREE_LIST=1) expect this on
-    // new threads; harmless when DAS_FREE_LIST=0 (no-op), required by tutorial
-    // 21 / daScriptC.h for worker-thread compilation.
-    static thread_local std::unique_ptr<das::ReuseCacheGuard> sDasReuseCache;
-    if (!sDasReuseCache)
-    {
-        sDasReuseCache = std::make_unique<das::ReuseCacheGuard>();
-    }
+
+    // Thread-local daScript TLS bootstrap for the current worker thread.
     das::daScriptEnvironment::ensure();
-    // "daslib" = deploy/daslib; stdlib is getDasRoot()+"/daslib/"
-    // (…/daslib/daslib/)
-    das::setDasRoot("daslib");
-    // Idempotent; same set as the daslang console (incl. UriParser, JobQue, …).
-    das::register_builtin_modules();
-    // Register custom modules after builtins (constructors add to module
-    // library).
-    mod::touchSphyBindingsModule();
-    das::Module::Initialize();
-    LG_D("daScript runtime initialized for current thread");
+
+    // Global module setup must happen exactly once process-wide.
+    std::call_once(
+        gDasGlobalRuntimeInitOnce,
+        []()
+        {
+            // "daslib" = deploy/daslib; stdlib is getDasRoot()+"/daslib/"
+            // (…/daslib/daslib/)
+            das::setDasRoot("daslib");
+            // Same set as the daslang console (incl. UriParser, JobQue, …).
+            das::register_builtin_modules();
+            // Register custom modules after builtins.
+            mod::touchSphyBindingsModule();
+            das::Module::Initialize();
+            LG_D("daScript runtime initialized globally");
+        });
+
     gDasThreadRuntimeReady = true;
 }
 
@@ -349,6 +350,9 @@ bool ModManager::loadScripts(PtrHandles& ptrHandles,
         LG_E("Failed to load scripts: invalid node; expected a map");
         return false;
     }
+    // With DAS_FREE_LIST enabled, each worker thread that compiles scripts
+    // should hold a cache guard for the duration of that compilation scope.
+    das::ReuseCacheGuard reuseCacheGuard;
     ensureDasRuntimeForCurrentThread();
     for (YAML::const_iterator it = scripts.begin(); it != scripts.end(); ++it)
     {
@@ -391,15 +395,10 @@ bool ModManager::loadScripts(PtrHandles& ptrHandles,
 
 bool ModManager::runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo)
 {
-    const std::string initScriptPath = modInfo.modDir + "/scripts/init.lua";
-    if (std::filesystem::exists(initScriptPath))
-    {
-        if (!ptrHandles.luaInterpreter->storeScript(modInfo.id, initScriptPath))
-        {
-            LG_E("Failed to run init script: {}", initScriptPath);
-            return false;
-        }
-    }
+    (void)ptrHandles;
+    (void)modInfo;
+    // Lua init scripts are no longer part of PtrHandles/runtime. Keep this as
+    // a successful no-op for compatibility until legacy script support returns.
     return true;
 }
 

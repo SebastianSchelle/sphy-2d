@@ -12,11 +12,9 @@
 #include <config-manager/config-manager.hpp>
 #include <functional>
 #include <item-lib.hpp>
-#include <lua-interpreter.hpp>
 #include <mod-manager.hpp>
 #include <net-shared.hpp>
 #include <ptr-handle.hpp>
-#include <rerun.hpp>
 #include <string>
 #include <work-distributor.hpp>
 #include <world.hpp>
@@ -112,7 +110,6 @@ class Engine
     bool loadMods();
     void update(float dt);
     void postWorldSetup();
-    void rerunDebugMovePhy();
     void registerConsoleCommands();
     void runSlowClientDump(long frameTime);
     void runActiveSectorDump(long frameTime);
@@ -161,7 +158,6 @@ class Engine
     std::vector<def::ClientInfoHandle> connectedClientHandles;
     std::vector<def::ClientInfoHandle> activeClientHandles;
     mod::ModManager modManager;
-    mod::LuaInterpreter luaInterpreter;
     sthread::WorkDistributor workDistributor;
 
     EngineState state;
@@ -173,7 +169,6 @@ class Engine
     vector<ecs::EntityId> globalEntityIds;
     vector<entt::entity> globalEntities;
     ecs::PtrHandle* ptrHandle;
-    rerun::RecordingStream rerunStream;
     cmd::CommandManager commandManager;
 
     uint32_t slowDumpUs;

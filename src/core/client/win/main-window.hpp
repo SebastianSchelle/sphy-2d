@@ -2,6 +2,7 @@
 #define MAIN_WINDOW_HPP
 
 #include "std-inc.hpp"
+#include <boost/process/v1/child.hpp>
 #include <GLFW/glfw3.h>
 #include <bgfx/bgfx.h>
 #include <bx/math.h>
@@ -10,7 +11,6 @@
 #include <config-manager/config-manager.hpp>
 #include <functional>
 #include <future>
-#include <lua-interpreter.hpp>
 #include <mod-manager.hpp>
 #include <model.hpp>
 #include <mutex>
@@ -251,7 +251,6 @@ class MainWindow
     sphy::CmdLinOptionsClient options;
     mod::ModManager modManager;
     ui::UserInterface userInterface;
-    mod::LuaInterpreter luaInterpreter;
     sphyc::Model model;
 
     tim::Timepoint lastLoopTime;
@@ -272,7 +271,7 @@ class MainWindow
     UiMenuData menuData;
     UiDebugData debugData;
 
-    bp::child* serverProcess = nullptr;
+    boost::process::v1::child* serverProcess = nullptr;
 
     gfx::PanDirection panX = gfx::PanDirection::Stop;
     gfx::PanDirection panY = gfx::PanDirection::Stop;

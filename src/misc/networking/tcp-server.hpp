@@ -2,6 +2,7 @@
 #define TCP_SERVER_HPP
 
 #include <atomic>
+#include <deque>
 #include <net-shared.hpp>
 #include <std-inc.hpp>
 
@@ -67,6 +68,8 @@ class TcpServer
               int port,
               TcpReceiveClb tcpReceiveCallback,
               TcpDisconnectCallback disconnectCallback);
+    ~TcpServer();
+    void close();
 
   private:
     void StartAccept();
@@ -80,6 +83,7 @@ class TcpServer
     std::deque<std::unique_ptr<TcpConnection>> connections;
     TcpReceiveClb tcpReceiveCallback;
     TcpDisconnectCallback disconnectCallback;
+    std::atomic<bool> running{true};
 };
 
 }  // namespace net

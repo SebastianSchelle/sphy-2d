@@ -14,7 +14,6 @@ set(CLIENT_INC_PUBLIC
     ${THIRPARTY_DIR}/glfw/include
     ${THIRPARTY_DIR}/rmlui/Include
     ${THIRPARTY_DIR}/rectpack2D/src
-    ${THIRPARTY_DIR}/sol2/include
     ${THIRPARTY_DIR}/entt/src
     ${THIRPARTY_DIR}/magic_enum/include
     ${THIRPARTY_DIR}/dascript/include
@@ -52,7 +51,6 @@ set(CLIENT_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager-client.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/sphy-bindings.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../mod/lua-interpreter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/ecs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/asset-factory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../game-objects/libraries/lib-hull.cpp
@@ -68,7 +66,6 @@ set(LIBS_PUB
     helper
     networking
     concurrentqueue
-    ${LUA_LIBRARIES}
     libDaScript
 )
 

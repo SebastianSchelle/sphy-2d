@@ -24,9 +24,24 @@ Server::Server(sphy::CmdLinOptionsServer& options)
 
 Server::~Server()
 {
-    if (ioThread.joinable()) {
+    shutdownNetworking();
+    if (ioThread.joinable())
+    {
         ioContext.stop();
         ioThread.join();
+    }
+}
+
+void Server::shutdownNetworking()
+{
+    sendTimer.cancel();
+    if (udpServer)
+    {
+        udpServer->close();
+    }
+    if (tcpServer)
+    {
+        tcpServer->close();
     }
 }
 
@@ -43,6 +58,7 @@ void Server::startUdpTcp()
                 return;
             LG_I("Signal received ({}), shutting down...", sig);
             engine.stop();  // save game and join engine thread
+            shutdownNetworking();
             ioContext.stop();
         });
 
@@ -67,7 +83,7 @@ void Server::startUdpTcp()
                                                    std::placeholders::_3));
     LG_D("Setup socket on port-udp={}", portUdp);
 
-    ioContext.post([this]() { scheduleSend(); });
+    boost::asio::post(ioContext, [this]() { scheduleSend(); });
     ioThread = std::thread([this]() { ioContext.run(); });
 }
 
@@ -82,6 +98,7 @@ void Server::startServer()
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }*/
 
+    shutdownNetworking();
     ioContext.stop();
     if (ioThread.joinable())
     {

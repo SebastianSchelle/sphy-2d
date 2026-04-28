@@ -13,7 +13,6 @@
 #include <boost/date_time/posix_time/posix_time_config.hpp>
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
-#include <boost/process.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
@@ -35,8 +34,6 @@ using std::string;
 using std::unordered_map;
 using std::vector;
 namespace fs = std::filesystem;
-namespace bp = boost::process;
-
 namespace asio = boost::asio;
 using tcp = asio::ip::tcp;
 using udp = asio::ip::udp;

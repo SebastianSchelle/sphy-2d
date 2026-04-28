@@ -26,6 +26,7 @@ class Server
     void startEngine();
 
   private:
+    void shutdownNetworking();
     void scheduleSend();
     void udpReceive(udp::endpoint endpoint, const char* data, size_t length);
     //void tcpReceive(const char* data, size_t length, std::shared_ptr<net::TcpConnection> connection);

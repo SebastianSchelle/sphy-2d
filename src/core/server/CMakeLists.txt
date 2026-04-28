@@ -9,7 +9,6 @@ set(SERVER_INC_PUBLIC
     ${MISC_DIR}/data-definitions
     ${MISC_DIR}/containers
     ${MISC_DIR}
-    ${THIRPARTY_DIR}/sol2/include
     ${THIRPARTY_DIR}/entt/src
     ${THIRPARTY_DIR}/magic_enum/include
     ${THIRPARTY_DIR}/dascript/include
@@ -32,7 +31,6 @@ set(SERVER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../world/sector.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod/sphy-bindings.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../mod/lua-interpreter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/ecs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/asset-factory.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../game-objects/libraries/lib-hull.cpp
@@ -47,8 +45,6 @@ set(LIBS_PUB
     helper
     networking
     concurrentqueue
-    ${LUA_LIBRARIES}
-    rerun_sdk
     libDaScript
 )
 
