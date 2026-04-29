@@ -7,6 +7,7 @@
 #include <comp-phy.hpp>
 #include <comp-struct.hpp>
 #include <comp-tag.hpp>
+#include <comp-ai.hpp>
 
 namespace ecs
 {
@@ -51,6 +52,7 @@ void ComponentFactory::registerAllComponents()
     registerComponent<ecs::tag::obj::Ship>();
     registerComponent<ecs::tag::mod::MainThruster>();
     registerComponent<ecs::tag::mod::ManeuverThruster>();
+    registerComponent<ecs::Ai>();
 }
 
 AssetFactory::AssetFactory() {}

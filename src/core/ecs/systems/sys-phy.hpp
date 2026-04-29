@@ -45,8 +45,8 @@ const System sysMoveCtrl = {
             auto* transformCache = reg->try_get<TransformCache>(entity);
             auto* physicsBody = reg->try_get<PhysicsBody>(entity);
             auto* phyThrust = reg->try_get<PhyThrust>(entity);
-            if (!moveCtrl || !transform || !transformCache || !physicsBody
-                || !phyThrust || !sectorId || !moveCtrl->active || dt <= 1e-6f)
+            if (!moveCtrl || !moveCtrl->active || !transform || !transformCache
+                || !physicsBody || !phyThrust || !sectorId || dt <= 1e-6f)
             {
                 return;
             }
@@ -154,6 +154,7 @@ const System sysMoveCtrl = {
                 float trq = ptrHandle->kpTurn * werr * physicsBody->inertia;
                 phyThrust->setTorque(trq);
             }
+            moveCtrl->targetReached = inPosDeadzone && inRotDeadzone;
         }}};
 
 const System sysPhyThrust = {

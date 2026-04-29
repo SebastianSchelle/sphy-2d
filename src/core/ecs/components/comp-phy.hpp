@@ -548,6 +548,7 @@ struct MoveCtrl
     static constexpr string NAME = "move-ctrl";
 
     bool active = false;
+    bool targetReached = false;
     FaceDirMode faceDirMode;
     def::SectorCoords spPos;
     // lookAt only works in sector
@@ -565,6 +566,7 @@ struct MoveCtrl
         MoveCtrl c;
         string dirMode;
         TRY_YAML_DICT(c.active, node["active"], false);
+        TRY_YAML_DICT(c.targetReached, node["targetReached"], false);
         TRY_YAML_DICT(c.spPos.sectorPos.x, node["spPos"][0], 0.0f);
         TRY_YAML_DICT(c.spPos.sectorPos.y, node["spPos"][1], 0.0f);
         TRY_YAML_DICT(c.spPos.pos.x, node["spPosSec"][0], 0u);
@@ -603,6 +605,7 @@ struct MoveCtrl
 
 #define SER_MOVE_CTRL_HOLD                                                     \
     S1b(o.active);                                                             \
+    S1b(o.targetReached);                                                      \
     SOBJ(o.spPos);                                                             \
     S4b(o.spRot);                                                              \
     S1b(o.faceDirMode);                                                        \
@@ -671,8 +674,9 @@ EXT_FMT(ecs::PhyThrust,
         o.thrustManeuverMax,
         o.maxSpd);
 EXT_FMT(ecs::MoveCtrl,
-        "(active: {}, spPos: {}, spRot: {}, faceDirMode: {}, lookAt: {})",
+        "(active: {}, targetReached: {}, spPos: {}, spRot: {}, faceDirMode: {}, lookAt: {})",
         o.active,
+        o.targetReached,
         o.spPos,
         o.spRot,
         magic_enum::enum_name(o.faceDirMode),

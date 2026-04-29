@@ -15,6 +15,12 @@ struct Ai
     uint32_t nextRunFrame;
 };
 
+#define SER_AI SOBJ(o.stackHandle);
+EXT_SER(Ai, SER_AI)
+EXT_DES(Ai, SER_AI)
+
 }  // namespace ecs
+
+EXT_FMT(ecs::Ai, "stackHandle: {}, nextRunFrame: {}", o.stackHandle, o.nextRunFrame);
 
 #endif

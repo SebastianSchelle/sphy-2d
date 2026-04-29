@@ -3,14 +3,24 @@
 
 #include <std-inc.hpp>
 #include <world-def.hpp>
+#include <task.hpp>
 
 namespace ai
 {
 namespace taskdata
 {
 
+struct Idle
+{
+    TASK_HEADER("idle", 60);
+    TaskFunResult function(TaskFunArgs* args);
+};
+
 struct Patrol
 {
+    TASK_HEADER("patrol", 60);
+    TaskFunResult function(TaskFunArgs* args);
+
     struct Config
     {
         std::vector<def::SectorCoords> wayPoints;
@@ -25,6 +35,9 @@ struct Patrol
 
 struct Goto
 {
+    TASK_HEADER("goto", 60);
+    TaskFunResult function(TaskFunArgs* args);
+
     struct Config
     {
         def::SectorCoords target;
@@ -34,14 +47,15 @@ struct Goto
 
 struct DebugLog
 {
+    TASK_HEADER("debug-log", 60);
+    TaskFunResult function(TaskFunArgs* args);
+
     struct Config
     {
         std::string message;
     };
     Config config;
 };
-
-using TaskData = std::variant<Patrol, Goto, DebugLog>;
 
 }  // namespace taskdata
 

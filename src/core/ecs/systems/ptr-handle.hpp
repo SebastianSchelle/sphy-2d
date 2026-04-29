@@ -53,11 +53,11 @@ struct PtrHandle
     float angDrag;
     float linDrag;
     float minFaceTargetDist;
-    uint32_t frameCnt;
     ai::TaskSystem* taskSystem;
 #elif CLIENT
     sphyc::Client* client;
 #endif
+    uint32_t frameCnt;
     const vector<System>* systems;
     ecs::Ecs* ecs;
     sthread::WorkDistributor* workDistributor;

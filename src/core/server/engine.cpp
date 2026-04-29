@@ -1,4 +1,5 @@
 #include "bitsery/serializer.h"
+#include "comp-ai.hpp"
 #include "ecs.hpp"
 #include "sector.hpp"
 #include "std-inc.hpp"
@@ -13,6 +14,7 @@
 #include <protocol.hpp>
 #include <random>
 #include <server.hpp>
+#include <sys-ai.hpp>
 #include <sys-phy.hpp>
 #include <thread>
 #include <version.hpp>
@@ -37,6 +39,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->registry = &ecs.getRegistry();
     ptrHandle->workDistributor = &workDistributor;
     ptrHandle->colliderLib = &modManager.getColliderLib();
+    ptrHandle->frameCnt = 0;
     ptrHandle->kpThrust =
         CFG_FLOAT(config, 25.0f, "engine", "physics", "kp-thrust");
     ptrHandle->kpTurn =
@@ -76,20 +79,21 @@ void Engine::start()
     ecs.registerSystem(ecs::sysPhysics);
     ecs.registerSystem(ecs::sysCollisionDetection);
     ecs.registerSystem(ecs::sysAnchorFixed);
+    ecs.registerSystem(ecs::sysAi);
 
     registerConsoleCommands();
 
     registerSlowDumpComponent<ecs::Transform>();
     registerActiveSectorDumpComponent<ecs::Transform>();
 
-    def::ClientInfoHandle handle = registerClient(def::ClientInfo(
-        "Based Laser King",
-        net::ClientInfo{
-            .token = "1234abcd1234abcd",
-            .portUdp = 0,
-            .address = asio::ip::make_address("0.0.0.0"),
-        },
-        def::ClientFlags{.enConsole = 1}));
+    def::ClientInfoHandle handle = registerClient(
+        def::ClientInfo("Based Laser King",
+                        net::ClientInfo{
+                            .token = "1234abcd1234abcd",
+                            .portUdp = 0,
+                            .address = asio::ip::make_address("0.0.0.0"),
+                        },
+                        def::ClientFlags{.enConsole = 1}));
     auto clientInfo = clientLib.getItem(handle);
     clientInfo->setActiveEntity(ecs::EntityId{0, 1});
 
@@ -204,6 +208,7 @@ void Engine::engineLoop()
 
 void Engine::update(float dt)
 {
+    ptrHandle->frameCnt++;
     for (int i = 0; i < globalEntityIds.size(); i++)
     {
         ecs::EntityId entityId = globalEntityIds[i];
@@ -603,13 +608,12 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                     return;
                 }
                 // todo: check if allowed
-                auto* moveCtrl =
-                    ptrHandle->registry->try_get<ecs::MoveCtrl>(ent);
-                if (moveCtrl)
+                auto* ai = ptrHandle->registry->try_get<ecs::Ai>(ent);
+                if (ai)
                 {
-                    moveCtrl->active = true;
-                    moveCtrl->spPos = sectorCoords;
-                    moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
+                    ai::TaskStackHandle stackHandle(ai->stackHandle);
+                    taskSystem.addTask(stackHandle,
+                                       ai::taskdata::Goto{sectorCoords});
                 }
             }
             break;
@@ -1117,7 +1121,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 50000; ++i)
+    for (int i = 0; i < 1; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1380,6 +1384,15 @@ ecs::AnchorFixed* Engine::makeAnchorFixed(entt::entity entity,
     return &reg.emplace_or_replace<ecs::AnchorFixed>(entity, anchorFixed);
 }
 
+ecs::Ai* Engine::makeAi(entt::entity entity,
+                        const ai::taskdata::TaskData& defaultTask)
+{
+    auto& reg = ecs.getRegistry();
+    auto stackHandle = taskSystem.createTaskStack(defaultTask);
+    return &reg.emplace_or_replace<ecs::Ai>(
+        entity, ecs::Ai{.stackHandle = stackHandle.toGenericHandle()});
+}
+
 ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
                                     uint32_t sectorId,
                                     const ecs::Transform& transform)
@@ -1428,6 +1441,11 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
                           .faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward,
                           .spPos = {0, 0},
                           .spRot = 0.0f}))
+    {
+        return ecs::EntityId::Invalid();
+    }
+    def::SectorCoords target = {.pos = {0, 0}, .sectorPos = {0, 0}};
+    if (!makeAi(entt, ai::taskdata::Goto{.config = {.target = target}}))
     {
         return ecs::EntityId::Invalid();
     }

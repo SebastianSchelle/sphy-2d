@@ -16,12 +16,13 @@
 #include <net-shared.hpp>
 #include <ptr-handle.hpp>
 #include <string>
+#include <task-system.hpp>
 #include <work-distributor.hpp>
 #include <world.hpp>
-#include <task-system.hpp>
 
 #include <lib-hull.hpp>
 
+#include <comp-ai.hpp>
 #include <comp-gfx.hpp>
 #include <comp-phy.hpp>
 #include <comp-struct.hpp>
@@ -143,6 +144,9 @@ class Engine
                                 const ecs::MoveCtrl& moveCtrl);
     ecs::AnchorFixed* makeAnchorFixed(entt::entity entity,
                                       const ecs::AnchorFixed& anchorFixed);
+    ecs::Ai*
+    makeAi(entt::entity entity,
+           const ai::taskdata::TaskData& defaultTask = ai::taskdata::Idle());
     bool placeInSector(ecs::EntityId ent,
                        entt::entity entity,
                        uint32_t sectorId,
