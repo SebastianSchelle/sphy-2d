@@ -30,6 +30,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->ecs = &ecs;
     ptrHandle->registry = &ecs.getRegistry();
     ptrHandle->engine = this;
+    ptrHandle->taskSystem = &taskSystem;
     ptrHandle->world = &world;
     ptrHandle->engine = this;
     ptrHandle->systems = &ecs.getRegisteredSystems();

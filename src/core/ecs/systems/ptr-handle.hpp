@@ -8,6 +8,10 @@ namespace sphys
 {
 class Engine;
 }
+namespace ai
+{
+class TaskSystem;
+}
 #elif CLIENT
 namespace sphyc
 {
@@ -49,6 +53,8 @@ struct PtrHandle
     float angDrag;
     float linDrag;
     float minFaceTargetDist;
+    uint32_t frameCnt;
+    ai::TaskSystem* taskSystem;
 #elif CLIENT
     sphyc::Client* client;
 #endif

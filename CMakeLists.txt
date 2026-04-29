@@ -63,10 +63,7 @@ set(DAS_TOOLS_DISABLED OFF CACHE BOOL "" FORCE)
 set(DAS_TUTORIAL_DISABLED ON CACHE BOOL "" FORCE)
 set(DAS_TESTS_DISABLED ON CACHE BOOL "" FORCE)
 add_subdirectory(thirdparty/dascript)
-add_subdirectory(src/misc/helper helper)
-add_subdirectory(src/misc/networking networking)
-add_subdirectory(src/core/server)
-add_subdirectory(src/core/client)
+add_subdirectory(src)
 
 set(DEPLOY_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/deploy.sh)
 set(DEPLOY_DIR ${CMAKE_SOURCE_DIR}/deploy)
@@ -102,7 +99,9 @@ enable_testing()
 
 set(TEST_LIBS
     GTest::gtest_main
-    helper
+    sphy_misc_containers
+    sphy_misc_data_definitions
+    sphy_misc_ai
     Boost::chrono
     Boost::thread
     Boost::program_options
@@ -115,6 +114,7 @@ add_executable(
 target_link_libraries(
     test-shelf-allocator
     PRIVATE
+    helper
     ${TEST_LIBS}
 )
 target_include_directories(

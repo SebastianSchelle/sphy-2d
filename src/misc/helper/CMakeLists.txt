@@ -22,6 +22,7 @@ set(LIBS_PUB
     concurrentqueue
 )
 
-add_library(helper OBJECT ${HELPER_SOURCES})
-target_include_directories(helper PUBLIC ${HELPER_INC_PUBLIC})
-target_link_libraries(helper PUBLIC ${LIBS_PUB})
+add_library(helper INTERFACE)
+target_sources(helper INTERFACE ${HELPER_SOURCES})
+target_include_directories(helper INTERFACE ${HELPER_INC_PUBLIC})
+target_link_libraries(helper INTERFACE ${LIBS_PUB})

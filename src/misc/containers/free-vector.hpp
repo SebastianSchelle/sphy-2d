@@ -1,19 +1,19 @@
-#ifndef GAME_LIB_HPP
-#define GAME_LIB_HPP
+#ifndef FREE_VECTOR_HPP
+#define FREE_VECTOR_HPP
 
 #include <std-inc.hpp>
 
 namespace con
 {
 
-template <class T> struct ILibItemWrapper
+template <class T> struct FreeVecItemWrapper
 {
     T item;
     bool alive;
     uint16_t generation;
 };
 
-template <class T> class ItemLib
+template <class T> class FreeVec
 {
   public:
     class Handle
@@ -69,18 +69,16 @@ template <class T> class ItemLib
 
 
   public:
-    ItemLib() {}
-    virtual ~ItemLib() {}
+    FreeVec() {}
+    virtual ~FreeVec() {}
 
-    Handle addItem(const std::string& name, const T& item);
-    HandleUuid addWithRandomKey(const T& item);
+    Handle addItem(const T& item);
     void removeItem(int idx);
     void removeItem(Handle handle);
 
-    Handle getHandle(const std::string& name) const;
     T* getItem(int idx, bool getCorpse = false);
     T* getItem(Handle handle, bool getCorpse = false);
-    ILibItemWrapper<T>* getWrappedItem(int idx);
+    FreeVecItemWrapper<T>* getWrappedItem(int idx);
     uint16_t getGeneration(int idx) const;
     Handle firstAliveHandle() const;
 
@@ -114,69 +112,33 @@ template <class T> class ItemLib
 
   protected:
   private:
-    std::unordered_map<std::string, int> idMap;
-    std::vector<ILibItemWrapper<T>> items;
+    std::vector<FreeVecItemWrapper<T>> items;
     std::vector<int> freeSlots;
 };
 
-template <class T>
-ItemLib<T>::Handle ItemLib<T>::addItem(const std::string& name, const T& item)
+template <class T> FreeVec<T>::Handle FreeVec<T>::addItem(const T& item)
 {
-    auto it = idMap.find(name);
-    if (it != idMap.end())
+    int idx;
+    if (freeSlots.empty())
     {
-        // Replace old item
-        int idx = it->second;
+        FreeVecItemWrapper<T> wrapper = {item, true, 1};
+        items.push_back(wrapper);
+        idx = items.size() - 1;
+    }
+    else
+    {
+        idx = freeSlots.back();
+        freeSlots.pop_back();
         items[idx].item = item;
         items[idx].alive = true;
         items[idx].generation++;
-        return Handle(idx, items[idx].generation);
     }
-    else
-    {
-        int idx;
-        if (freeSlots.empty())
-        {
-            ILibItemWrapper<T> wrapper = {item, true, 1};
-            items.push_back(wrapper);
-            idx = items.size() - 1;
-        }
-        else
-        {
-            idx = freeSlots.back();
-            freeSlots.pop_back();
-            items[idx].item = item;
-            items[idx].alive = true;
-            items[idx].generation++;
-        }
 
-        idMap[name] = idx;
-        return Handle(idx, items[idx].generation);
-    }
+    return Handle(idx, items[idx].generation);
 }
 
 template <class T>
-ItemLib<T>::HandleUuid ItemLib<T>::addWithRandomKey(const T& item)
-{
-    std::string uuid = sec::uuid();
-    return {addItem(uuid, item), uuid};
-}
-
-template <class T>
-ItemLib<T>::Handle ItemLib<T>::getHandle(const std::string& name) const
-{
-    auto it = idMap.find(name);
-    if (it != idMap.end())
-    {
-        return Handle(it->second, items[it->second].generation);
-    }
-    else
-    {
-        return Handle::Invalid();
-    }
-}
-
-template <class T> ItemLib<T>::Handle ItemLib<T>::firstAliveHandle() const
+FreeVec<T>::Handle FreeVec<T>::firstAliveHandle() const
 {
     for (int i = 0; i < items.size(); i++)
     {
@@ -188,7 +150,7 @@ template <class T> ItemLib<T>::Handle ItemLib<T>::firstAliveHandle() const
     return Handle::Invalid();
 }
 
-template <class T> ILibItemWrapper<T>* ItemLib<T>::getWrappedItem(int idx)
+template <class T> FreeVecItemWrapper<T>* FreeVec<T>::getWrappedItem(int idx)
 {
     if (idx < items.size() && idx >= 0 && items[idx].alive)
     {
@@ -200,9 +162,9 @@ template <class T> ILibItemWrapper<T>* ItemLib<T>::getWrappedItem(int idx)
     }
 }
 
-template <class T> T* ItemLib<T>::getItem(int idx, bool getCorpse)
+template <class T> T* FreeVec<T>::getItem(int idx, bool getCorpse)
 {
-    ILibItemWrapper<T>* wrapper = getWrappedItem(idx);
+    FreeVecItemWrapper<T>* wrapper = getWrappedItem(idx);
     if (wrapper && (wrapper->alive || getCorpse))
     {
         return &wrapper->item;
@@ -213,7 +175,7 @@ template <class T> T* ItemLib<T>::getItem(int idx, bool getCorpse)
     }
 }
 
-template <class T> T* ItemLib<T>::getItem(Handle handle, bool getCorpse)
+template <class T> T* FreeVec<T>::getItem(Handle handle, bool getCorpse)
 {
     if (handle.isValid())
     {
@@ -225,7 +187,7 @@ template <class T> T* ItemLib<T>::getItem(Handle handle, bool getCorpse)
     }
 }
 
-template <class T> uint16_t ItemLib<T>::getGeneration(int idx) const
+template <class T> uint16_t FreeVec<T>::getGeneration(int idx) const
 {
     if (idx < items.size() && idx >= 0 && items[idx].alive)
     {
@@ -237,24 +199,16 @@ template <class T> uint16_t ItemLib<T>::getGeneration(int idx) const
     }
 }
 
-template <class T> void ItemLib<T>::removeItem(int idx)
+template <class T> void FreeVec<T>::removeItem(int idx)
 {
     if (idx < items.size() && idx >= 0 && items[idx].alive)
     {
         items[idx].alive = false;
         freeSlots.push_back(idx);
-        for (auto it = idMap.begin(); it != idMap.end(); ++it)
-        {
-            if (it->second == idx)
-            {
-                idMap.erase(it);
-                break;
-            }
-        }
     }
 }
 
-template <class T> void ItemLib<T>::removeItem(Handle handle)
+template <class T> void FreeVec<T>::removeItem(Handle handle)
 {
     if (handle.isValid())
     {

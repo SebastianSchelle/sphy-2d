@@ -3,18 +3,11 @@ set(EXEC_NAME game-client)
 set(THIRPARTY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../thirdparty)
 set(BGFX_DIR ${THIRPARTY_DIR}/bgfx)
 set(MISC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../misc)
+add_subdirectory(render)
+add_subdirectory(ui)
 
 set(CLIENT_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/../mod
-    ${CMAKE_CURRENT_SOURCE_DIR}/../ecs
-    ${MISC_DIR}/data-definitions
-    ${MISC_DIR}/containers
-    ${MISC_DIR}/ai
-    ${MISC_DIR}
-    ${THIRPARTY_DIR}/glfw/include
-    ${THIRPARTY_DIR}/rmlui/Include
-    ${THIRPARTY_DIR}/rectpack2D/src
     ${THIRPARTY_DIR}/entt/src
     ${THIRPARTY_DIR}/magic_enum/include
     ${THIRPARTY_DIR}/dascript/include
@@ -23,17 +16,7 @@ set(CLIENT_INC_PUBLIC
     ${BGFX_DIR}/bgfx/3rdparty
     ${BGFX_DIR}/bx/include
     ${BGFX_DIR}/bimg/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../world
-    ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/systems
-    ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/components
-    ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ${CMAKE_CURRENT_SOURCE_DIR}/../game-objects/libraries
-    ui
     win
-    render
-)
-
-set(CLIENT_INC_PRIVATE
 )
 
 set(CLIENT_SOURCES
@@ -41,26 +24,7 @@ set(CLIENT_SOURCES
     model.cpp
     main.cpp
     win/main-window.cpp
-    render/render-engine.cpp
-    render/texture.cpp
-    render/shader.cpp
-    ui/rmlui-renderinterface.cpp
-    ui/rmlui-systeminterface.cpp
-    ui/user-interface.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../world/world.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../world/sector.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager-client.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../mod/sphy-bindings.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/ecs.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/asset-factory.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../game-objects/libraries/lib-hull.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../game-objects/libraries/lib-textures.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../game-objects/libraries/lib-modules.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../game-objects/libraries/lib-collider.cpp
     ${MISC_DIR}/networking/exchange-sequence.cpp
-    ${MISC_DIR}/work-distributor.cpp
-    ${MISC_DIR}/work-sequencer.cpp
 )
 
 set(LIBS_PUB
@@ -68,6 +32,14 @@ set(LIBS_PUB
     networking
     concurrentqueue
     libDaScript
+    sphy_core_world
+    sphy_core_ecs
+    sphy_core_game_objects_libs
+    sphy_core_mod_common
+    sphy_core_mod_client
+    sphy_misc_runtime
+    sphy_client_render
+    sphy_client_ui
 )
 
 set(BGFX_BUILD ${BGFX_DIR}/build/cmake)
@@ -129,8 +101,6 @@ add_custom_target(shaders ALL
 
 add_executable(${EXEC_NAME} ${CLIENT_SOURCES})
 add_dependencies(${EXEC_NAME} shaders)
-# Match libDaScript (-fno-rtti) for mod sources; mod-manager.hpp no longer pulls
-# RmlUi before daScript subclasses in this TU.
 if(MSVC)
     set(_das_mod_no_rtti /GR-)
 else()
@@ -147,7 +117,6 @@ set_property(
 target_compile_definitions(${EXEC_NAME} PRIVATE BX_CONFIG_DEBUG=1 CLIENT GAME_NAME="${GAME_NAME}")
 
 target_include_directories(${EXEC_NAME} PUBLIC ${CLIENT_INC_PUBLIC})
-target_include_directories(${EXEC_NAME} PRIVATE ${CLIENT_INC_PRIVATE})
 target_link_libraries(${EXEC_NAME} PUBLIC ${LIBS_PUB})
 target_link_libraries(${EXEC_NAME} PRIVATE ${LIBS_PRIV})
 

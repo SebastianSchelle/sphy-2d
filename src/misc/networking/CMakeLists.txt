@@ -14,8 +14,9 @@ set(LIBS_PUB
     helper
 )
 
-add_library(networking OBJECT ${NETWORKING_SOURCES})
+add_library(networking INTERFACE)
 
-target_include_directories(networking PUBLIC ${NETWORKING_INC_PUBLIC})
+target_sources(networking INTERFACE ${NETWORKING_SOURCES})
+target_include_directories(networking INTERFACE ${NETWORKING_INC_PUBLIC})
 
-target_link_libraries(networking PUBLIC ${LIBS_PUB})
+target_link_libraries(networking INTERFACE ${LIBS_PUB})
