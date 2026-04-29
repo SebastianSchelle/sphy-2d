@@ -8,6 +8,7 @@ set(SERVER_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../mod
     ${MISC_DIR}/data-definitions
     ${MISC_DIR}/containers
+    ${MISC_DIR}/ai
     ${MISC_DIR}
     ${THIRPARTY_DIR}/entt/src
     ${THIRPARTY_DIR}/magic_enum/include
@@ -39,6 +40,7 @@ set(SERVER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../game-objects/libraries/lib-collider.cpp
     ${MISC_DIR}/work-distributor.cpp
     ${MISC_DIR}/work-sequencer.cpp
+    ${MISC_DIR}/ai/task-stack.cpp
 )
 
 set(LIBS_PUB

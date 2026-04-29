@@ -18,6 +18,7 @@
 #include <string>
 #include <work-distributor.hpp>
 #include <world.hpp>
+#include <task-stack.hpp>
 
 #include <lib-hull.hpp>
 
@@ -159,6 +160,7 @@ class Engine
     std::vector<def::ClientInfoHandle> activeClientHandles;
     mod::ModManager modManager;
     sthread::WorkDistributor workDistributor;
+    ai::TaskStack taskStack;
 
     EngineState state;
     world::World world;
