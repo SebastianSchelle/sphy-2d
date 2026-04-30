@@ -5,6 +5,7 @@
 #include "std-inc.hpp"
 #include <comp-gfx.hpp>
 #include <comp-ident.hpp>
+#include <comp-module.hpp>
 #include <comp-phy.hpp>
 #include <comp-struct.hpp>
 #include <comp-tag.hpp>
@@ -39,6 +40,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->registry = &ecs.getRegistry();
     ptrHandle->workDistributor = &workDistributor;
     ptrHandle->colliderLib = &modManager.getColliderLib();
+    ptrHandle->modManager = &modManager;
     ptrHandle->frameCnt = 0;
     ptrHandle->kpThrust =
         CFG_FLOAT(config, 25.0f, "engine", "physics", "kp-thrust");
@@ -593,14 +595,16 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             }
             break;
         }
-        case prot::cmd::ENT_CMD_MOVETO_POS:
+        case prot::cmd::SEL_CMD_MOVETO:
         {
             if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
             {
                 ecs::EntityId entityId;
                 def::SectorCoords sectorCoords;
+                prot::cmd::MoveToFlags moveToFlags;
                 cmddes.object(entityId);
                 cmddes.object(sectorCoords);
+                cmddes.value1b(*((uint8_t*)&moveToFlags));
                 entt::entity ent = ecs.getEntity(entityId);
                 if (ent == entt::null)
                 {
@@ -612,8 +616,24 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 if (ai)
                 {
                     ai::TaskStackHandle stackHandle(ai->stackHandle);
-                    taskSystem.addTask(stackHandle,
-                                       ai::taskdata::Goto{sectorCoords});
+                    if (moveToFlags.queue)
+                    {
+                        taskSystem.addTaskLast(
+                            stackHandle,
+                            ai::taskdata::Goto{
+                                .config = {.target = sectorCoords,
+                                           .allowedPosError = 10.0f,
+                                           .allowedRotError = 2.0f}});
+                    }
+                    else
+                    {
+                        taskSystem.addTaskReplaceAll(
+                            stackHandle,
+                            ai::taskdata::Goto{
+                                .config = {.target = sectorCoords,
+                                           .allowedPosError = 10.0f,
+                                           .allowedRotError = 2.0f}});
+                    }
                 }
             }
             break;
@@ -1121,7 +1141,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 1; ++i)
+    for (int i = 0; i < 20000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1148,6 +1168,9 @@ void Engine::testSpawn()
             ent, modManager.getModuleLib().getHandle("cargo-common-s"), 5);
         spawnModule(
             ent, modManager.getModuleLib().getHandle("cargo-common-s"), 6);
+        spawnModule(ent,
+                    modManager.getModuleLib().getHandle("drone-hatch-common-s"),
+                    7);
         auto* moveCtrl = reg.try_get<ecs::MoveCtrl>(ecs.getEntity(ent));
         if (moveCtrl)
         {
@@ -1156,6 +1179,11 @@ void Engine::testSpawn()
             moveCtrl->spPos.sectorPos.y = posDist(gen);
             moveCtrl->spPos.pos = world.idToSectorCoords(sectorPick(gen));
             moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
+        }
+        auto* phyThrust = reg.try_get<ecs::PhyThrust>(ecs.getEntity(ent));
+        if (phyThrust)
+        {
+            phyThrust->updateStatsFromEntity(ecs.getEntity(ent), ptrHandle);
         }
     }
 }
@@ -1297,10 +1325,11 @@ ecs::Hull* Engine::makeHull(entt::entity entity,
     {
         return nullptr;
     }
-    ecs::Hull hullComp;
-    hullComp.hullHandle = hullHandle.toGenericHandle();
-    hullComp.hull = hull->hullpoints;
-    return &reg.emplace_or_replace<ecs::Hull>(entity, hullComp);
+    return &reg.emplace_or_replace<ecs::Hull>(
+        entity,
+        ecs::Hull(hull->slots.size(),
+                  hull->hullpoints,
+                  hullHandle.toGenericHandle()));
 }
 
 ecs::Collider* Engine::makeCollider(entt::entity entity,
@@ -1393,6 +1422,12 @@ ecs::Ai* Engine::makeAi(entt::entity entity,
         entity, ecs::Ai{.stackHandle = stackHandle.toGenericHandle()});
 }
 
+void Engine::makeSelectable(entt::entity entity)
+{
+    auto& reg = ecs.getRegistry();
+    reg.emplace_or_replace<ecs::tag::Selectable>(entity);
+}
+
 ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
                                     uint32_t sectorId,
                                     const ecs::Transform& transform)
@@ -1404,6 +1439,7 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
         return ecs::EntityId::Invalid();
     }
     gobj::Hull* hull = modManager.getHullLib().getItem(hullHandle);
+    makeSelectable(entt);
     if (!makeHull(entt, hullHandle))
     {
         return ecs::EntityId::Invalid();
@@ -1444,8 +1480,11 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
     {
         return ecs::EntityId::Invalid();
     }
-    def::SectorCoords target = {.pos = {0, 0}, .sectorPos = {0, 0}};
-    if (!makeAi(entt, ai::taskdata::Goto{.config = {.target = target}}))
+    if (!makeAi(
+            entt,
+            ai::taskdata::SectorPatrol{
+                .config = {.allowedPosError = 100.0f,
+                           .allowedRotError = M_PIf}}))
     {
         return ecs::EntityId::Invalid();
     }
@@ -1515,6 +1554,8 @@ ecs::EntityId Engine::spawnModule(ecs::EntityId parent,
     makeAnchorFixed(
         entt,
         ecs::AnchorFixed{.pos = slot.pos, .rot = slot.rot, .ref = parent});
+    reg.emplace_or_replace<ecs::Module>(
+        entt, ecs::Module{moduleHandle.toGenericHandle()});
     switch (module->type)
     {
         case gobj::ModuleType::MainThruster:
@@ -1526,6 +1567,7 @@ ecs::EntityId Engine::spawnModule(ecs::EntityId parent,
         default:
             break;
     }
+    hull->addModule(slotIndex, ecs::ModuleRef{ent, module->type});
     return ent;
 }
 

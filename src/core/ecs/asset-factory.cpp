@@ -49,6 +49,7 @@ void ComponentFactory::registerAllComponents()
     registerComponent<ecs::Textures>();
     registerComponent<ecs::Hull>();
     registerComponent<ecs::AnchorFixed>();
+    registerComponent<ecs::tag::Selectable>();
     registerComponent<ecs::tag::obj::Ship>();
     registerComponent<ecs::tag::mod::MainThruster>();
     registerComponent<ecs::tag::mod::ManeuverThruster>();

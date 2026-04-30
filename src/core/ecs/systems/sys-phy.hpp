@@ -67,34 +67,40 @@ const System sysMoveCtrl = {
             // d_l: target direction in object local space
             const vec2 d_l = smath::rotateVec2(d_w, -s, c);
             const float d_l_mag = glm::length(d_l);
-            // t_ml: maximum thrust vector in object local space and target
-            // direction
-            const float tm_x = phyThrust->thrustManeuverMax;
-            const float tm_y = phyThrust->thrustMainMax;
-            const float k_t = std::min(tm_x / fabs(d_l.x), tm_y / fabs(d_l.y));
-            const vec2 t_ml = k_t * d_l;
-            // t_m: maximum thrust magnitude
-            // a_m: maximum acceleration
-            // v_m: desired velocity
-            const float t_m = glm::length(t_ml);
-            const float a_m = t_m / m;
-            const float v_m = sqrtf(2.0f * a_m * d_l_mag);
-            // v_des: desired velocity magnitude
-            // v_des_l: desired velocity in object local space
-            const float v_des = std::min(velMargin * v_m, phyThrust->maxSpd);
-            const vec2 v_des_l = v_des * d_l / d_l_mag;
+
+            vec2 v_des_l = vec2(0.0f, 0.0f);
+
+            moveCtrl->posReached = d_l_mag < moveCtrl->allowedPosError;
+            if (!moveCtrl->posReached)
+            {
+                // t_ml: maximum thrust vector in object local space and target
+                // direction
+                const float tm_x = phyThrust->thrustManeuverMax;
+                const float tm_y = phyThrust->thrustMainMax;
+                const float k_t =
+                    std::min(tm_x / fabs(d_l.x), tm_y / fabs(d_l.y));
+                const vec2 t_ml = k_t * d_l;
+                // t_m: maximum thrust magnitude
+                // a_m: maximum acceleration
+                // v_m: desired velocity
+                const float t_m = glm::length(t_ml);
+                const float a_m = t_m / m;
+                const float v_m = sqrtf(2.0f * a_m * d_l_mag);
+                // v_des: desired velocity magnitude
+                // v_des_l: desired velocity in object local space
+                const float v_des =
+                    std::min(velMargin * v_m, phyThrust->maxSpd);
+                v_des_l = v_des * d_l / d_l_mag;
+            }
 
             const bool inPosDeadzone = d_l_mag < posDeadband && v < velDeadband;
             if (inPosDeadzone)
             {
                 phyThrust->setThrustNone();
             }
-            else if (d_l_mag > 1e-6f)
-            {
-                const vec2 err = v_des_l - v_vel_l;
-                const vec2 thrust = ptrHandle->kpThrust * m * err;
-                phyThrust->setThrustLocal(thrust, s, c);
-            }
+            const vec2 err = v_des_l - v_vel_l;
+            const vec2 thrust = ptrHandle->kpThrust * m * err;
+            phyThrust->setThrustLocal(thrust, s, c);
 
             // Torque control =====================
 
@@ -131,30 +137,29 @@ const System sysMoveCtrl = {
 
             const float angleErr =
                 smath::angleError(moveCtrl->spRot, transform->rot);
+            moveCtrl->rotReached =
+                std::abs(angleErr) < moveCtrl->allowedRotError;
+            const float maxAngAcc = phyThrust->maxTorque / physicsBody->inertia;
+            const float desWMag =
+                velMargin
+                * std::sqrt(
+                    std::max(0.0f, 2.0f * maxAngAcc * std::abs(angleErr)));
+            const float maxRotVel = std::max(0.0f, phyThrust->maxRotVel);
+            float desW = std::min(desWMag, maxRotVel);
+            desW *= glm::sign(angleErr);
             const bool inRotDeadzone =
                 std::abs(angleErr) < rotDeadband
                 && std::abs(physicsBody->rotVel) < rotVelDeadband;
-            float desW = 0.0f;
             if (inRotDeadzone)
             {
                 phyThrust->setTorque(0.0f);
             }
             else
             {
-                const float maxAngAcc =
-                    phyThrust->maxTorque / physicsBody->inertia;
-                const float desWMag =
-                    velMargin
-                    * std::sqrt(
-                        std::max(0.0f, 2.0f * maxAngAcc * std::abs(angleErr)));
-                const float maxRotVel = std::max(0.0f, phyThrust->maxRotVel);
-                desW = std::min(desWMag, maxRotVel);
-                desW *= glm::sign(angleErr);
                 const float werr = desW - physicsBody->rotVel;
                 float trq = ptrHandle->kpTurn * werr * physicsBody->inertia;
                 phyThrust->setTorque(trq);
             }
-            moveCtrl->targetReached = inPosDeadzone && inRotDeadzone;
         }}};
 
 const System sysPhyThrust = {

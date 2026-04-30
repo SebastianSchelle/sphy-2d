@@ -38,9 +38,11 @@ struct ModuleSlot
 
 enum class ModuleType : uint8_t
 {
+    None,
     MainThruster,
     ManeuverThruster,
     Storage,
+    Dock,
 };
 
 namespace mdata
@@ -62,7 +64,12 @@ struct Storage
     static Storage fromYaml(const YAML::Node& node);
 };
 
-using Data = std::variant<MainThruster, ManeuverThruster, Storage>;
+struct Dock
+{
+    static Dock fromYaml(const YAML::Node& node);
+};
+
+using Data = std::variant<MainThruster, ManeuverThruster, Storage, Dock>;
 
 }  // namespace mdata
 

@@ -12,7 +12,7 @@ namespace ai
 
 namespace taskdata
 {
-using TaskData = std::variant<Idle, Patrol, Goto, DebugLog>;
+using TaskData = std::variant<Idle, SectorPatrol, Patrol, Goto, DebugLog>;
 }  // namespace taskdata
 
 class TaskStack
@@ -22,7 +22,9 @@ class TaskStack
     ~TaskStack();
 
     TaskFunResult runTask(TaskFunArgs* args);
-    void addTask(const taskdata::TaskData& task);
+    void addTaskFirst(const taskdata::TaskData& task);
+    void addTaskLast(const taskdata::TaskData& task);
+    void addTaskReplaceAll(const taskdata::TaskData& task);
     void setDefaultTask(const taskdata::TaskData& defaultTask);
 
   private:
@@ -42,7 +44,9 @@ class TaskSystem
 
     TaskStack* getTaskStack(TaskStackHandle handle);
     TaskFunResult runTask(TaskStackHandle stackHandle, TaskFunArgs* args);
-    void addTask(TaskStackHandle stackHandle, const taskdata::TaskData& task);
+    void addTaskFirst(TaskStackHandle stackHandle, const taskdata::TaskData& task);
+    void addTaskLast(TaskStackHandle stackHandle, const taskdata::TaskData& task);
+    void addTaskReplaceAll(TaskStackHandle stackHandle, const taskdata::TaskData& task);
 
   private:
     con::FreeVec<TaskStack> taskStacks;

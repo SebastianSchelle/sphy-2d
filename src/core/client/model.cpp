@@ -817,7 +817,7 @@ void Model::handleReqAllComponentsResp(
     ecs::EntityId entityId;
     cmddes.object(entityId);
     entt::entity entity = ecs.enttFromServerId(entityId);
-    while (cmddes.adapter().currentReadPos() < posNextCmdOrEof - 4)
+    while (cmddes.adapter().currentReadPos() <= posNextCmdOrEof - 4)
     {
         uint32_t compHash;
         cmddes.value4b(compHash);
@@ -883,8 +883,10 @@ Model::selectEntityAtWorldPosFast(const def::SectorCoords& sectorCoords,
     selectedEntities.clear();
     ecs::EntityId selectedEntity = ecs::EntityId::Invalid();
     auto& reg = ecs.getRegistry();
-    for (const auto entity :
-         reg.view<ecs::SectorId, ecs::Transform, ecs::EntityId>())
+    for (const auto entity : reg.view<ecs::SectorId,
+                                      ecs::Transform,
+                                      ecs::EntityId,
+                                      ecs::tag::Selectable>())
     {
         auto& sid = reg.get<ecs::SectorId>(entity);
         auto& tr = reg.get<ecs::Transform>(entity);
@@ -911,27 +913,32 @@ void Model::selectEntitiesInsideRect(const def::SectorCoords& start,
     auto& xMax = def::SectorCoords::maxX(start, end);
     auto& yMin = def::SectorCoords::minY(start, end);
     auto& yMax = def::SectorCoords::maxY(start, end);
-    reg.view<ecs::SectorId, ecs::Transform, ecs::EntityId>().each(
-        [this, &xMin, &xMax, &yMin, &yMax](
-            ecs::SectorId& sid, ecs::Transform& tr, ecs::EntityId& eid)
-        {
-            bool xMinBool =
-                sid.x > xMin.pos.x
-                || (sid.x == xMin.pos.x && tr.pos.x > xMin.sectorPos.x);
-            bool xMaxBool =
-                sid.x < xMax.pos.x
-                || (sid.x == xMax.pos.x && tr.pos.x < xMax.sectorPos.x);
-            bool yMinBool =
-                sid.y > yMin.pos.y
-                || (sid.y == yMin.pos.y && tr.pos.y > yMin.sectorPos.y);
-            bool yMaxBool =
-                sid.y < yMax.pos.y
-                || (sid.y == yMax.pos.y && tr.pos.y < yMax.sectorPos.y);
-            if (xMinBool && xMaxBool && yMinBool && yMaxBool)
+    reg.view<ecs::SectorId,
+             ecs::Transform,
+             ecs::EntityId,
+             ecs::tag::Selectable>()
+        .each(
+            [this, &xMin, &xMax, &yMin, &yMax](ecs::SectorId& sid,
+                                               ecs::Transform& tr,
+                                               ecs::EntityId& eid)
             {
-                selectedEntities.push_back(eid);
-            }
-        });
+                bool xMinBool =
+                    sid.x > xMin.pos.x
+                    || (sid.x == xMin.pos.x && tr.pos.x > xMin.sectorPos.x);
+                bool xMaxBool =
+                    sid.x < xMax.pos.x
+                    || (sid.x == xMax.pos.x && tr.pos.x < xMax.sectorPos.x);
+                bool yMinBool =
+                    sid.y > yMin.pos.y
+                    || (sid.y == yMin.pos.y && tr.pos.y > yMin.sectorPos.y);
+                bool yMaxBool =
+                    sid.y < yMax.pos.y
+                    || (sid.y == yMax.pos.y && tr.pos.y < yMax.sectorPos.y);
+                if (xMinBool && xMaxBool && yMinBool && yMaxBool)
+                {
+                    selectedEntities.push_back(eid);
+                }
+            });
 }
 
 void Model::clearSelectedEntities()
@@ -939,7 +946,7 @@ void Model::clearSelectedEntities()
     selectedEntities.clear();
 }
 
-void Model::selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords)
+void Model::selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords, bool queue)
 {
     std::size_t idx = 0;
     if (selectedEntities.empty())
@@ -949,9 +956,11 @@ void Model::selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords)
     prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
     for (auto& entityId : selectedEntities)
     {
-        mcomp.startCommand(prot::cmd::ENT_CMD_MOVETO_POS, 0);
+        mcomp.startCommand(prot::cmd::SEL_CMD_MOVETO, 0);
         mcomp.ser->object(entityId);
         mcomp.ser->object(sectorCoords);
+        prot::cmd::MoveToFlags flags{.queue = queue};
+        mcomp.ser->value1b(*((uint8_t*)&flags));
         if (mcomp.ser->adapter().currentWritePos()
             > prot::kMaxSerializedChunkBytes
                   - (sizeof(ecs::EntityId) + sizeof(def::SectorCoords)))

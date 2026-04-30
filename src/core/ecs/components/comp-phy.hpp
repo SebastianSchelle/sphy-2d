@@ -2,6 +2,7 @@
 #define COMP_PHY_HPP
 
 #include "comp-ident.hpp"
+#include "ptr-handle.hpp"
 #include <aabb-tree.hpp>
 #include <algorithm>
 #include <climits>
@@ -20,6 +21,7 @@ class ResourceMap;
 
 namespace ecs
 {
+struct PtrHandle;
 
 struct Transform
 {
@@ -512,6 +514,8 @@ struct PhyThrust
         TRY_YAML_DICT(phyThrust.maxSpd, node["maxSpd"], 0.0f);
         registry.emplace<PhyThrust>(entity, phyThrust);
     }
+
+    void updateStatsFromEntity(entt::entity entity, ecs::PtrHandle* ptrHandle);
 };
 
 #define SER_PHY_THRUST                                                         \
@@ -548,12 +552,15 @@ struct MoveCtrl
     static constexpr string NAME = "move-ctrl";
 
     bool active = false;
-    bool targetReached = false;
+    bool posReached = false;
+    bool rotReached = false;
     FaceDirMode faceDirMode;
     def::SectorCoords spPos;
     // lookAt only works in sector
     vec2 lookAt;
     float spRot;
+    float allowedPosError;
+    float allowedRotError;
 
     std::variant<MCForwardData, MCTargetPointData> faceDirData =
         MCForwardData{100.0f};
@@ -566,12 +573,18 @@ struct MoveCtrl
         MoveCtrl c;
         string dirMode;
         TRY_YAML_DICT(c.active, node["active"], false);
-        TRY_YAML_DICT(c.targetReached, node["targetReached"], false);
+        TRY_YAML_DICT(c.posReached, node["targetReached"], false);
         TRY_YAML_DICT(c.spPos.sectorPos.x, node["spPos"][0], 0.0f);
         TRY_YAML_DICT(c.spPos.sectorPos.y, node["spPos"][1], 0.0f);
         TRY_YAML_DICT(c.spPos.pos.x, node["spPosSec"][0], 0u);
         TRY_YAML_DICT(c.spPos.pos.y, node["spPosSec"][1], 0u);
-        TRY_YAML_DICT(c.spRot, node["spRot"], 0.0f);
+        float rot;
+        TRY_YAML_DICT(rot, node["spRot"], 0.0f);
+        c.spRot = smath::degToRad(rot);
+        TRY_YAML_DICT(c.allowedPosError, node["allowedPosError"], 100.0f);
+        float allRotErr;
+        TRY_YAML_DICT(allRotErr, node["allowedRotError"], 5.0f);
+        c.allowedRotError = smath::degToRad(allRotErr);
         TRY_YAML_DICT(dirMode, node["faceDirMode"], "None");
         auto faceDirMode = magic_enum::enum_cast<FaceDirMode>(dirMode);
         if (faceDirMode.has_value())
@@ -605,11 +618,14 @@ struct MoveCtrl
 
 #define SER_MOVE_CTRL_HOLD                                                     \
     S1b(o.active);                                                             \
-    S1b(o.targetReached);                                                      \
+    S1b(o.posReached);                                                         \
+    S1b(o.rotReached);                                                         \
     SOBJ(o.spPos);                                                             \
     S4b(o.spRot);                                                              \
     S1b(o.faceDirMode);                                                        \
-    SOBJ(o.lookAt);
+    SOBJ(o.lookAt);                                                            \
+    S4b(o.allowedPosError);                                                    \
+    S4b(o.allowedRotError);
 EXT_SER(MoveCtrl, SER_MOVE_CTRL_HOLD)
 EXT_DES(MoveCtrl, SER_MOVE_CTRL_HOLD)
 
@@ -674,9 +690,10 @@ EXT_FMT(ecs::PhyThrust,
         o.thrustManeuverMax,
         o.maxSpd);
 EXT_FMT(ecs::MoveCtrl,
-        "(active: {}, targetReached: {}, spPos: {}, spRot: {}, faceDirMode: {}, lookAt: {})",
+        "(active: {}, targetReached: {}, spPos: {}, spRot: {}, faceDirMode: "
+        "{}, lookAt: {})",
         o.active,
-        o.targetReached,
+        o.posReached,
         o.spPos,
         o.spRot,
         magic_enum::enum_name(o.faceDirMode),

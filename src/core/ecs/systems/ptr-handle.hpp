@@ -23,10 +23,12 @@ namespace sthread
 {
 class WorkDistributor;
 }
+
 namespace con
 {
 template <typename T> class ItemLib;
 }
+
 namespace gobj
 {
 struct Collider;
@@ -35,6 +37,11 @@ struct Collider;
 namespace world
 {
 class World;
+}
+
+namespace mod
+{
+class ModManager;
 }
 
 namespace ecs
@@ -46,6 +53,7 @@ struct PtrHandle
 {
     entt::registry* registry;
     world::World* world;
+    mod::ModManager* modManager;
 #ifdef SERVER
     sphys::Engine* engine;
     float kpThrust;

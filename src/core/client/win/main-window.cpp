@@ -400,11 +400,15 @@ void MainWindow::processMouseTactical(float zoom)
     }
     else if (mouseState.singleClick[0])
     {
-        model.selectEntityAtWorldPosFast(mouseState.mouseCoords, 10.0f/zoom * 10.0f/zoom);
+        //model.selectEntityAtWorldPosFast(mouseState.mouseCoords, 10.0f/zoom * 10.0f/zoom);
+        model.selectEntityAtWorldPos(mouseState.mouseCoords);
     }
     if (mouseState.buttons[1] && model.getSelectedEntities().size() > 0)
     {
-        model.selectedEntitiesMoveCmd(mouseState.mouseCoords);
+        const bool shiftPressed = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS
+                                  || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT)
+                                         == GLFW_PRESS;
+        model.selectedEntitiesMoveCmd(mouseState.mouseCoords, shiftPressed);
     }
 }
 

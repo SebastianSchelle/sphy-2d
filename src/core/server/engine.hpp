@@ -142,6 +142,7 @@ class Engine
     ecs::MoveCtrl* makeMoveCtrl(entt::entity entity,
                                 const ecs::PhyThrust& phyThrust,
                                 const ecs::MoveCtrl& moveCtrl);
+    void makeSelectable(entt::entity entity);
     ecs::AnchorFixed* makeAnchorFixed(entt::entity entity,
                                       const ecs::AnchorFixed& anchorFixed);
     ecs::Ai*

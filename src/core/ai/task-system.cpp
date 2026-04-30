@@ -21,8 +21,19 @@ void TaskStack::setDefaultTask(const taskdata::TaskData& defaultTask)
     std::construct_at(&this->defaultTask, std::move(tmp));
 }
 
-void TaskStack::addTask(const taskdata::TaskData& task)
+void TaskStack::addTaskFirst(const taskdata::TaskData& task)
 {
+    tasks.push_back(task);
+}
+
+void TaskStack::addTaskLast(const taskdata::TaskData& task)
+{
+    tasks.insert(tasks.begin(), task);
+}
+
+void TaskStack::addTaskReplaceAll(const taskdata::TaskData& task)
+{
+    tasks.clear();
     tasks.push_back(task);
 }
 
@@ -44,10 +55,8 @@ TaskFunResult TaskStack::runTask(TaskFunArgs* args)
     auto& task = tasks.back();
     auto result = std::visit(
         [args](auto& taskData) { return taskData.function(args); }, task);
-    LG_D("TaskStack::runTask: Task result: {}", magic_enum::enum_name(result));
     if (result != TaskFunResult::Continue)
     {
-        LG_D("Removing task from stack");
         tasks.pop_back();
     }
     return result;
@@ -80,7 +89,7 @@ TaskFunResult TaskSystem::runTask(TaskStackHandle stackHandle,
     return taskStack->runTask(args);
 }
 
-void TaskSystem::addTask(TaskStackHandle stackHandle,
+void TaskSystem::addTaskFirst(TaskStackHandle stackHandle,
                          const taskdata::TaskData& task)
 {
     auto* taskStack = getTaskStack(stackHandle);
@@ -89,7 +98,31 @@ void TaskSystem::addTask(TaskStackHandle stackHandle,
         LG_E("No task stack for handle: {}", stackHandle.toGenericHandle());
         return;
     }
-    taskStack->addTask(task);
+    taskStack->addTaskFirst(task);
+}
+
+void TaskSystem::addTaskLast(TaskStackHandle stackHandle,
+                             const taskdata::TaskData& task)
+{
+    auto* taskStack = getTaskStack(stackHandle);
+    if (!taskStack)
+    {
+        LG_E("No task stack for handle: {}", stackHandle.toGenericHandle());
+        return;
+    }
+    taskStack->addTaskLast(task);
+}
+
+void TaskSystem::addTaskReplaceAll(TaskStackHandle stackHandle,
+                                   const taskdata::TaskData& task)
+{
+    auto* taskStack = getTaskStack(stackHandle);
+    if (!taskStack)
+    {
+        LG_E("No task stack for handle: {}", stackHandle.toGenericHandle());
+        return;
+    }
+    taskStack->addTaskReplaceAll(task);
 }
 
 }  // namespace ai

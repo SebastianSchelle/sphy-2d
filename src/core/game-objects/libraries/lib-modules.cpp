@@ -27,6 +27,12 @@ Storage Storage::fromYaml(const YAML::Node& node)
     return storage;
 }
 
+Dock Dock::fromYaml(const YAML::Node& node)
+{
+    Dock dock;
+    return dock;
+}
+
 }  // namespace mdata
 
 Module Module::fromYaml(const YAML::Node& node,
@@ -62,6 +68,9 @@ Module Module::fromYaml(const YAML::Node& node,
                 break;
             case ModuleType::Storage:
                 module.data = mdata::Storage::fromYaml(dataNode);
+                break;
+            case ModuleType::Dock:
+                module.data = mdata::Dock::fromYaml(dataNode);
                 break;
             default:
                 break;

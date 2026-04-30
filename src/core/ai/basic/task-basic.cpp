@@ -1,5 +1,6 @@
 #include "task-basic.hpp"
 #include <ecs.hpp>
+#include <world.hpp>
 
 namespace ai
 {
@@ -11,9 +12,79 @@ TaskFunResult Idle::function(TaskFunArgs* args)
     return TaskFunResult::Done;
 }
 
+TaskFunResult SectorPatrol::function(TaskFunArgs* args)
+{
+    auto* reg = args->ptrHandle->registry;
+    auto* transform = reg->try_get<ecs::Transform>(args->entity);
+    auto* sectorId = reg->try_get<ecs::SectorId>(args->entity);
+    auto* moveCtrl = reg->try_get<ecs::MoveCtrl>(args->entity);
+    if (!transform || !sectorId || !moveCtrl)
+    {
+        SCHED_NEXT(DEFAULT_INTERVAL);
+        return TaskFunResult::EcsCompMissing;
+    }
+    if (!state.initialized)
+    {
+        makeRandomPos(args);
+        state.initialized = true;
+    }
+    moveCtrl->active = true;
+    moveCtrl->spPos = {.pos = {sectorId->x, sectorId->y},
+                       .sectorPos = state.randomPos};
+    moveCtrl->allowedPosError = config.allowedPosError;
+    moveCtrl->allowedRotError = config.allowedRotError;
+    moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
+    if (moveCtrl->active && moveCtrl->posReached && moveCtrl->rotReached)
+    {
+        moveCtrl->posReached = false;
+        moveCtrl->rotReached = false;
+        moveCtrl->active = false;
+        makeRandomPos(args);
+    }
+    SCHED_NEXT(DEFAULT_INTERVAL);
+    return TaskFunResult::Continue;
+}
+
+void SectorPatrol::makeRandomPos(TaskFunArgs* args)
+{
+    auto& worldShape = args->ptrHandle->world->getWorldShape();
+    state.randomPos =
+        0.9f
+        * vec2((rand() % (int)worldShape.sectorSize) - worldShape.sectorSize / 2,
+               (rand() % (int)worldShape.sectorSize) - worldShape.sectorSize / 2);
+}
+
 TaskFunResult Patrol::function(TaskFunArgs* args)
 {
-    return TaskFunResult::Done;
+    if (state.currentWayPointIndex >= config.wayPoints.size())
+    {
+        SCHED_NEXT(DEFAULT_INTERVAL);
+        return TaskFunResult::Done;
+    }
+    auto* reg = args->ptrHandle->registry;
+    auto* transform = reg->try_get<ecs::Transform>(args->entity);
+    auto* sectorId = reg->try_get<ecs::SectorId>(args->entity);
+    auto* moveCtrl = reg->try_get<ecs::MoveCtrl>(args->entity);
+    if (!transform || !sectorId || !moveCtrl)
+    {
+        SCHED_NEXT(DEFAULT_INTERVAL);
+        return TaskFunResult::EcsCompMissing;
+    }
+    auto& wayPoint = config.wayPoints[state.currentWayPointIndex];
+    moveCtrl->active = true;
+    moveCtrl->spPos = wayPoint;
+    moveCtrl->allowedPosError = config.allowedPosError;
+    moveCtrl->allowedRotError = config.allowedRotError;
+    moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
+    if (moveCtrl->active && moveCtrl->posReached && moveCtrl->rotReached)
+    {
+        moveCtrl->posReached = false;
+        moveCtrl->rotReached = false;
+        moveCtrl->active = false;
+        state.currentWayPointIndex++;
+    }
+    SCHED_NEXT(DEFAULT_INTERVAL);
+    return TaskFunResult::Continue;
 }
 
 TaskFunResult Goto::function(TaskFunArgs* args)
@@ -29,24 +100,19 @@ TaskFunResult Goto::function(TaskFunArgs* args)
     }
     moveCtrl->active = true;
     moveCtrl->spPos = config.target;
+    moveCtrl->allowedPosError = config.allowedPosError;
+    moveCtrl->allowedRotError = config.allowedRotError;
     moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
-    LG_D("Goto: target: {}, sector: {}, pos: {}, rot: {}",
-         config.target.pos.x,
-         config.target.pos.y,
-         config.target.sectorPos.x,
-         config.target.sectorPos.y);
-    LG_D("Goto: moveCtrl.spPos: {}, moveCtrl.targetReached: {}", moveCtrl->spPos, moveCtrl->targetReached);
-    if (moveCtrl->active && moveCtrl->targetReached)
+    if (moveCtrl->active && moveCtrl->posReached && moveCtrl->rotReached)
     {
-        LG_D("Goto: target reached");
         SCHED_NEXT(DEFAULT_INTERVAL);
         moveCtrl->active = false;
-        moveCtrl->targetReached = false;
+        moveCtrl->posReached = false;
+        moveCtrl->rotReached = false;
         return TaskFunResult::Done;
     }
     else
     {
-        LG_D("Goto: target not reached yet");
         SCHED_NEXT(DEFAULT_INTERVAL);
         return TaskFunResult::Continue;
     }

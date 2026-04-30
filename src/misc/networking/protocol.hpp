@@ -92,6 +92,11 @@ enum class State
     FAILURE,
 };
 
+struct MoveToFlags
+{
+    uint8_t queue : 1 = 0;
+};
+
 const uint16_t LOG = 0x0001;
 const uint16_t TIME_SYNC = 0x0002;
 const uint16_t AUTHENTICATE = 0x0003;
@@ -100,7 +105,7 @@ const uint16_t CONSOLE_CMD = 0x0005;
 const uint16_t VERSION_CHECK = 0x0006;
 const uint16_t SLOW_DUMP = 0x0007;
 const uint16_t REQ_ALL_COMPONENTS = 0x0008;
-const uint16_t ENT_CMD_MOVETO_POS = 0x0009;
+const uint16_t SEL_CMD_MOVETO = 0x0009;
 const uint16_t NOTIFY_CLIENT_READY = 0x000A;
 const uint16_t DBG_GET_AABB_TREE = 0x000B;
 const uint16_t ACTIVE_ENTITY_SWITCHED = 0x000C;

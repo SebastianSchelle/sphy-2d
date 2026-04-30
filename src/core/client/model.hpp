@@ -69,7 +69,7 @@ class Model
     void selectEntitiesInsideRect(const def::SectorCoords& start,
                                   const def::SectorCoords& end);
     void clearSelectedEntities();
-    void selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords);
+    void selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords, bool queue);
 
     const std::vector<ecs::EntityId>& getSelectedEntities() const
     {

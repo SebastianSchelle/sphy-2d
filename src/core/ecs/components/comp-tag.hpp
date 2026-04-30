@@ -16,6 +16,11 @@ namespace ecs
 namespace tag
 {
 
+struct Selectable
+{
+    static constexpr string NAME = "ts-selectable";
+};
+
 namespace obj
 {
 struct Ship
