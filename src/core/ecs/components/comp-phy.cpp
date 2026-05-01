@@ -1,5 +1,4 @@
 #include "comp-phy.hpp"
-#include "comp-module.hpp"
 #include "comp-struct.hpp"
 #include "ecs.hpp"
 #include "lib-modules.hpp"
@@ -53,8 +52,6 @@ void PhyThrust::updateStatsFromEntity(entt::entity entity,
                 }
             }
         }
-        LG_I("Thrust main max: {}", thrustMainMax);
-        LG_I("Thrust maneuver max: {}", thrustManeuverMax);
     }
 }
 

@@ -128,9 +128,20 @@ class Engine
     ecs::EntityId spawnShipHull(gobj::HullHandle hullHandle,
                                 uint32_t sectorId,
                                 const ecs::Transform& transform);
+    ecs::EntityId spawnStation(uint32_t sectorId,
+                               const ecs::Transform& transform);
+    ecs::EntityId addFirstStationPart(ecs::EntityId stationId,
+                                      const gobj::StationPartHandle& partHandle,
+                                      float rot);
+    ecs::EntityId addStationPart(ecs::EntityId stationId,
+                                 ecs::EntityId partIdConnectTo,
+                                 const gobj::StationPartHandle& partHandle,
+                                 uint16_t slotConnectTo,
+                                 uint16_t slotNewPart);
 
     ecs::Hull* makeHull(entt::entity entity,
                         const gobj::HullHandle& hullHandle);
+    ecs::Station* makeStation(entt::entity entity);
     ecs::Collider* makeCollider(entt::entity entity,
                                 const gobj::ColliderHandle& colliderHandle);
     ecs::MapIcon* makeMapIcon(entt::entity entity,
@@ -142,6 +153,8 @@ class Engine
     ecs::MoveCtrl* makeMoveCtrl(entt::entity entity,
                                 const ecs::PhyThrust& phyThrust,
                                 const ecs::MoveCtrl& moveCtrl);
+    ecs::StationPart* makeStationPart(entt::entity entity,
+                                      const gobj::StationPartHandle& partHandle);
     void makeSelectable(entt::entity entity);
     ecs::AnchorFixed* makeAnchorFixed(entt::entity entity,
                                       const ecs::AnchorFixed& anchorFixed);

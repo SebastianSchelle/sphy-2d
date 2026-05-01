@@ -4,6 +4,7 @@ target_sources(sphy_core_game_objects_libs INTERFACE
     lib-textures.cpp
     lib-modules.cpp
     lib-collider.cpp
+    lib-station-part.cpp
 )
 
 target_include_directories(sphy_core_game_objects_libs

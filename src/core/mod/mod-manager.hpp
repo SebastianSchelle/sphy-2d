@@ -23,6 +23,7 @@ class UserInterface;
 #include <lib-modules.hpp>
 #include <lib-textures.hpp>
 #include <lib-collider.hpp>
+#include <lib-station-part.hpp>
 
 #ifdef FMT_THROW
 #pragma push_macro("FMT_THROW")
@@ -186,7 +187,10 @@ class ModManager
     {
         return moduleLib;
     }
-
+    con::ItemLib<gobj::StationPart>& getStationPartLib()
+    {
+        return stationPartLib;
+    }
   private:
     bool checkDependency(const std::string& modId,
                          std::vector<std::string>& modList,
@@ -225,6 +229,7 @@ class ModManager
     con::ItemLib<gobj::MapIcon> mapIconLib;
     con::ItemLib<gobj::Collider> colliderLib;
     con::ItemLib<gobj::Module> moduleLib;
+    con::ItemLib<gobj::StationPart> stationPartLib;
 };
 
 }  // namespace mod

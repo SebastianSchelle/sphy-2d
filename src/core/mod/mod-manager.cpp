@@ -102,20 +102,20 @@ void ensureDasRuntimeForCurrentThread()
     das::daScriptEnvironment::ensure();
 
     // Global module setup must happen exactly once process-wide.
-    std::call_once(
-        gDasGlobalRuntimeInitOnce,
-        []()
-        {
-            // "daslib" = deploy/daslib; stdlib is getDasRoot()+"/daslib/"
-            // (…/daslib/daslib/)
-            das::setDasRoot("daslib");
-            // Same set as the daslang console (incl. UriParser, JobQue, …).
-            das::register_builtin_modules();
-            // Register custom modules after builtins.
-            mod::touchSphyBindingsModule();
-            das::Module::Initialize();
-            LG_D("daScript runtime initialized globally");
-        });
+    std::call_once(gDasGlobalRuntimeInitOnce,
+                   []()
+                   {
+                       // "daslib" = deploy/daslib; stdlib is
+                       // getDasRoot()+"/daslib/" (…/daslib/daslib/)
+                       das::setDasRoot("daslib");
+                       // Same set as the daslang console (incl. UriParser,
+                       // JobQue, …).
+                       das::register_builtin_modules();
+                       // Register custom modules after builtins.
+                       mod::touchSphyBindingsModule();
+                       das::Module::Initialize();
+                       LG_D("daScript runtime initialized globally");
+                   });
 
     gDasThreadRuntimeReady = true;
 }
@@ -477,6 +477,14 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles, const std::string& path)
                         gobj::Module::fromYaml(libEntry2.second, texturesLib);
                     moduleLib.addItem(objName, module);
                     LG_I("Added module: {}: {}", objName, module);
+                }
+                else if (libName == "station-part")
+                {
+                    const gobj::StationPart stationPart =
+                        gobj::StationPart::fromYaml(
+                            libEntry2.second, texturesLib, colliderLib);
+                    stationPartLib.addItem(objName, stationPart);
+                    LG_I("Added station part: {}: {}", objName, stationPart);
                 }
                 else
                 {
