@@ -112,15 +112,20 @@ bool Sector::addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
     sector.y = (uint32_t)coordY;
     // add AABB calculation from polygon
     auto& transform = reg->get<ecs::Transform>(entity);
-    auto* transformCache = reg->try_get<ecs::TransformCache>(entity);
     auto* collider = reg->try_get<ecs::Collider>(entity);
     auto* broadphase = reg->try_get<ecs::Broadphase>(entity);
-    if (transformCache && collider && broadphase)
+    if (collider && broadphase)
     {
-        transformCache->c = cosf(transform.rot);
-        transformCache->s = sinf(transform.rot);
+        auto* transformCache = reg->try_get<ecs::TransformCache>(entity);
+        float c = cosf(transform.rot);
+        float s = sinf(transform.rot);
+        if (transformCache)
+        {
+            transformCache->c = c;
+            transformCache->s = s;
+        }
         con::AABB aabb = ecs::calculateAABB(
-            transform, *transformCache, *collider, ptrHandle->colliderLib);
+            transform, {c, s}, *collider, ptrHandle->colliderLib);
         broadphase->proxyId = aabbTree.createProxy(aabb, entity);
         broadphase->fatAABB = aabb;
     }

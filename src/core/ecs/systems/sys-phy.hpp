@@ -383,8 +383,8 @@ const System sysCollisionDetection = {
                 for (const auto& contactInfo : sector->contactInfos)
                 {
                     auto& contact = contactInfo.contact;
-                    auto& phy1 = reg->get<PhysicsBody>(contactInfo.ent1);
-                    auto& phy2 = reg->get<PhysicsBody>(contactInfo.ent2);
+                    auto* phy1 = reg->try_get<PhysicsBody>(contactInfo.ent1);
+                    auto* phy2 = reg->try_get<PhysicsBody>(contactInfo.ent2);
                     auto& transform1 = reg->get<Transform>(contactInfo.ent1);
                     auto& transform2 = reg->get<Transform>(contactInfo.ent2);
 
@@ -395,15 +395,35 @@ const System sysCollisionDetection = {
                     {
                         const vec2 correction =
                             contact.normal * contact.penetration * 0.5f;
-                        transform1.pos -= correction;
-                        transform2.pos += correction;
+                        if(phy1)
+                        {
+                            transform1.pos -= correction;
+                        }
+                        if(phy2)
+                        {
+                            transform2.pos += correction;
+                        }
+                    }
+                    vec2 vel1 = vec2(0.0f, 0.0f);
+                    float mass1 = 100000.0f;
+                    if(phy1)
+                    {
+                        vel1 = phy1->vel;
+                        mass1 = phy1->mass;
+                    }
+                    vec2 vel2 = vec2(0.0f, 0.0f);
+                    float mass2 = 100000.0f;
+                    if(phy2)
+                    {
+                        vel2 = phy2->vel;
+                        mass2 = phy2->mass;
                     }
 
-                    const vec2 rv = phy2.vel - phy1.vel;
+                    const vec2 rv = vel2 - vel1;
                     const float velAlongNormal = glm::dot(rv, contact.normal);
 
-                    const float invMass1 = 1.0f / phy1.mass;
-                    const float invMass2 = 1.0f / phy2.mass;
+                    const float invMass1 = 1.0f / mass1;
+                    const float invMass2 = 1.0f / mass2;
                     const float denom = invMass1 + invMass2;
                     if (denom < 1e-12f)
                     {
@@ -428,8 +448,14 @@ const System sysCollisionDetection = {
                     }
                     const float j = (jN + penBias) / denom;
                     const vec2 impulse = contact.normal * j;
-                    phy1.vel -= impulse * invMass1;
-                    phy2.vel += impulse * invMass2;
+                    if(phy1)
+                    {
+                        phy1->vel -= impulse * invMass1;
+                    }
+                    if(phy2)
+                    {
+                        phy2->vel += impulse * invMass2;
+                    }
                 }
             }
         }}};
