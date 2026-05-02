@@ -2,9 +2,9 @@
 #define MAIN_WINDOW_HPP
 
 #include "std-inc.hpp"
-#include <boost/process/v1/child.hpp>
 #include <GLFW/glfw3.h>
 #include <bgfx/bgfx.h>
+#include <boost/process/v1/child.hpp>
 #include <bx/math.h>
 #include <client.hpp>
 #include <cmd-options.hpp>
@@ -12,6 +12,7 @@
 #include <functional>
 #include <future>
 #include <mod-manager.hpp>
+#include <modding-tools.hpp>
 #include <model.hpp>
 #include <mutex>
 #include <render/render-engine.hpp>
@@ -213,6 +214,10 @@ class MainWindow
                    Rml::Event& event,
                    const Rml::VariantList& args);
 
+    void onStartModdingTools(Rml::DataModelHandle handle,
+                             Rml::Event& event,
+                             const Rml::VariantList& args);
+
     void onConnectToServer(Rml::DataModelHandle handle,
                            Rml::Event& event,
                            const Rml::VariantList& args);
@@ -239,6 +244,7 @@ class MainWindow
     static Rml::Input::KeyIdentifier glfwToRmlKey(int key);
     void renderMenu();
     void renderGame();
+    void renderModdingTools();
     void processMouseTactical(float zoom);
 
     GLFWwindow* window;
@@ -251,6 +257,7 @@ class MainWindow
     sphy::CmdLinOptionsClient options;
     mod::ModManager modManager;
     ui::UserInterface userInterface;
+    modding::ModdingTools moddingTools;
     sphyc::Model model;
 
     tim::Timepoint lastLoopTime;

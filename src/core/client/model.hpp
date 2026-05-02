@@ -70,6 +70,7 @@ class Model
                                   const def::SectorCoords& end);
     void clearSelectedEntities();
     void selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords, bool queue);
+    void startModdingTools();
 
     const std::vector<ecs::EntityId>& getSelectedEntities() const
     {

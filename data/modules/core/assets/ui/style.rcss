@@ -24,6 +24,26 @@ body.chat-window {
     padding: 5px 5px;
 }
 
+body.mod-obj-window {
+    font-family: Roboto;
+    font-weight: normal;
+    font-style: normal;
+    width: 250px;
+    height: 100%;
+    max-height: 100%;
+    margin: 0px 0px 0px auto;
+    display: flex;
+    flex-direction: column;
+    padding: 6px;
+    box-sizing: border-box;
+    gap: 4px;
+    border-left: 1px #7784ff55;
+    border-radius: 0px;
+    background: #050018e8;
+    color: #dce2ff;
+    font-size: 12px;
+}
+
 /******************************************************************************
  * Headings
  */
@@ -387,4 +407,201 @@ panel {
     box-sizing: border-box;
     height: 100%;
     overflow: auto;
+}
+
+/******************************************************************************
+ * Modding tools / menu bar
+ */
+
+body.modding-tools-chrome {
+    font-family: Roboto;
+    font-weight: normal;
+    font-style: normal;
+    color: #e0e0e0;
+    background: #080075c9;
+    border: 1px #7784ffc0;
+    border-radius: 5px;
+    padding: 0px;
+    margin: 0px;
+    box-sizing: border-box;
+}
+
+/* Stacked modding documents: menu (top) + obj (rest). Keep top in sync with .modding-tools-obj-doc top. */
+body.modding-tools-menu-doc {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    right: 0px;
+    width: auto;
+    z-index: 200;
+    border-radius: 5px 5px 0px 0px;
+    min-height: 32px;
+}
+
+body.modding-tools-obj-doc {
+    position: absolute;
+    top: 32px;
+    left: 0px;
+    right: 0px;
+    bottom: 0px;
+    width: auto;
+    z-index: 100;
+    border-radius: 0px 0px 5px 5px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0px;
+}
+
+.menubar {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0px;
+    width: 100%;
+    box-sizing: border-box;
+    background: #12122a98;
+    border-bottom: 1px #7784ff35;
+}
+
+.menubar-root {
+    position: relative;
+    display: block;
+    flex: none;
+}
+
+.menubar-top-label {
+    display: block;
+    padding: 6px 14px;
+    font-size: 12px;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    color: #b8c8ff;
+    background: transparent;
+    border: none;
+    box-sizing: border-box;
+}
+
+.menubar-root:hover .menubar-top-label {
+    color: #eef2ff;
+    background: #1c1c3a98;
+}
+
+.menubar-panel {
+    display: none;
+    position: absolute;
+    left: 0px;
+    top: 100%;
+    min-width: 160px;
+    padding: 4px 0px;
+    background: #08001aee;
+    border: 1px #7784ff55;
+    border-radius: 0px 4px 4px 4px;
+    box-sizing: border-box;
+    z-index: 100;
+}
+
+.menubar-root:hover>.menubar-panel {
+    display: block;
+}
+
+.menubar-panel--sub {
+    left: 100%;
+    top: 0px;
+    margin-left: -1px;
+    border-radius: 4px;
+    padding: 4px 0px;
+}
+
+.menubar-row--submenu {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 12px;
+    font-size: 12px;
+    color: #e0e0e0;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.menubar-row--submenu:hover {
+    background: #252548c0;
+    color: #eef2ff;
+}
+
+.menubar-row--submenu .menubar-submenu-hint {
+    margin-left: 12px;
+    font-size: 10px;
+    color: #7a8cc8;
+}
+
+.menubar-row--submenu:hover .menubar-submenu-hint {
+    color: #b8c8ff;
+}
+
+.menubar-panel.menubar-panel--sub {
+    display: none;
+}
+
+.menubar-row--submenu:hover>.menubar-panel--sub {
+    display: block;
+}
+
+.menubar button.menubar-cmd {
+    display: block;
+    width: auto;
+    margin: 0px 4px;
+    padding: 5px 12px;
+    text-align: left;
+    background: transparent;
+    color: #e0e0e0;
+    font-size: 12px;
+    border: 0px;
+}
+
+.menubar button.menubar-cmd:hover {
+    background: #252548c0;
+    color: #eef2ff;
+}
+
+.menubar button.menubar-cmd:active {
+    background: #3a82c54f;
+}
+
+.modding-tools-side-panel {
+    flex: none;
+    width: 220px;
+    box-sizing: border-box;
+    background: #08001a85;
+    border-left: 1px #7784ff40;
+    padding: 8px 10px;
+}
+
+.modding-tools-main {
+    flex: 1 1 auto;
+    min-width: 0px;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+.modding-tools-mode-panel {
+    display: block;
+    padding: 6px 4px;
+    margin-bottom: 6px;
+    border-radius: 4px;
+    background: #12122a60;
+    border: 1px #7784ff25;
+    box-sizing: border-box;
+}
+
+.modding-tools-mode-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #eef2ff;
+    margin: 0px;
+    padding: 0px;
+    display: block;
 }

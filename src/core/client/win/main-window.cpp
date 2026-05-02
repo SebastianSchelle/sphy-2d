@@ -178,6 +178,7 @@ bool MainWindow::initPre()
 
     setupDataModelDebug();
     setupDataModelMenu();
+    moddingTools.setupDataModel(userInterface);
 
     return true;
 }
@@ -328,6 +329,8 @@ void MainWindow::winLoop()
             case ClientGameState::GameLoop:
                 renderGame();
                 break;
+            case ClientGameState::ModdingTools:
+                break;
             default:
                 break;
         }
@@ -381,6 +384,10 @@ void MainWindow::renderGame()
         default:
             break;
     }
+}
+
+void MainWindow::renderModdingTools()
+{
 }
 
 void MainWindow::processMouseTactical(float zoom)
@@ -1070,6 +1077,8 @@ void MainWindow::setupDataModelMenu()
         menuConstructor.BindEventCallback(
             "onNewGame", &MainWindow::onNewGame, this);
         menuConstructor.BindEventCallback(
+            "onStartModdingTools", &MainWindow::onStartModdingTools, this);
+        menuConstructor.BindEventCallback(
             "connectToServer", &MainWindow::onConnectToServer, this);
 
         if (auto md_handle = menuConstructor.RegisterStruct<mod::MenuDataMod>())
@@ -1122,6 +1131,14 @@ void MainWindow::onNewGame(Rml::DataModelHandle handle,
         stopServer();
     }
     serverProcess = new boost::process::v1::child(serverExe.string());
+}
+
+void MainWindow::onStartModdingTools(Rml::DataModelHandle handle,
+                                     Rml::Event& event,
+                                     const Rml::VariantList& args)
+{
+    moddingTools.openToolsUi(userInterface);
+    model.startModdingTools();
 }
 
 void MainWindow::stopServer()

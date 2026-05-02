@@ -108,7 +108,30 @@ template <class T> class ItemLib
             return Handle::Invalid();
         }
     }
-
+    std::vector<Handle> getHandles() const
+    {
+        std::vector<Handle> handles;
+        for (int i = 0; i < items.size(); i++)
+        {
+            if (items[i].alive)
+            {
+                handles.push_back(Handle(i, items[i].generation));
+            }
+        }
+        return handles;
+    }
+    std::vector<const T*> getItems() const
+    {
+        std::vector<const T*> res;
+        for (int i = 0; i < items.size(); i++)
+        {
+            if (items[i].alive)
+            {
+                res.push_back(&(items[i].item));
+            }
+        }
+        return res;
+    }
     // const std::unordered_map<std::string, int> &getIdMap() const { return
     // idMap; };
 

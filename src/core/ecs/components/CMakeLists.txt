@@ -4,7 +4,6 @@ target_sources(sphy_core_ecs_components INTERFACE
     comp-ai.hpp
     comp-gfx.hpp
     comp-ident.hpp
-    comp-module.hpp
     comp-phy.cpp
     comp-phy.hpp
     comp-storage.hpp

@@ -295,6 +295,14 @@ void UserInterface::hideDocument(UiDocHandle handle)
     }
 }
 
+void UserInterface::hideAllDocuments()
+{
+    for (auto& doc : rmlDocLib.getItems())
+    {
+        (*doc)->Hide();
+    }
+}
+
 UiDocHandle UserInterface::getDocumentHandle(const std::string& name)
 {
     return rmlDocLib.getHandle(name);

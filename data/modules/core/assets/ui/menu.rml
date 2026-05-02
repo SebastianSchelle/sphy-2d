@@ -12,6 +12,7 @@
         <button data-event-click="onNavigate('connect-to-host')">Connect to Host</button>
         <button data-event-click="onNavigate('options')">Options</button>
         <button data-event-click="onNavigate('mod-options')">Mod Options</button>
+        <button data-event-click="onStartModdingTools()" data-if="!inGame">Modding Tools</button>
         <button data-event-click="onQuit()" data-if="!inGame">Exit</button>
         <button data-event-click="onExitToMenu()" data-if="inGame">Back to Menu</button>
     </body>

@@ -66,6 +66,7 @@ class UserInterface
     void render();
     void showDocument(UiDocHandle handle);
     void hideDocument(UiDocHandle handle);
+    void hideAllDocuments();
     UiDocHandle getDocumentHandle(const std::string& name);
     void showMenu();
     void closeMenu();

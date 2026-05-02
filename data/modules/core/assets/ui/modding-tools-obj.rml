@@ -1,0 +1,28 @@
+<rml>
+
+    <head>
+        <link type="text/css" href="style.rcss" />
+        <title>Modding Tools — Editor</title>
+        <style>
+            body {
+                width: 100%;
+                height: 100%;
+            }
+        </style>
+    </head>
+
+    <body class="mod-obj-window" data-model="modding-tools">
+        <div class="modding-tools-mode-panel" data-if="mode == 'None'">
+            <h3 class="modding-tools-mode-title">{{mode}}</h3>
+        </div>
+        <div class="modding-tools-mode-panel" data-if="mode == 'Hull'">
+            <h3 class="modding-tools-mode-title">{{mode}}</h3>
+        </div>
+        <div class="modding-tools-mode-panel" data-if="mode == 'Module'">
+            <h3 class="modding-tools-mode-title">{{mode}}</h3>
+        </div>
+        <div class="modding-tools-mode-panel" data-if="mode == 'StationPart'">
+            <h3 class="modding-tools-mode-title">{{mode}}</h3>
+        </div>
+    </body>
+</rml>

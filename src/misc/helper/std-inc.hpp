@@ -172,6 +172,7 @@ enum class ClientGameState
     LoadWorld,
     NotifyServerReady,
     GameLoop,
+    ModdingTools,
 };
 
 namespace tim

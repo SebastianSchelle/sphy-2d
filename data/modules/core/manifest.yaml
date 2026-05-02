@@ -28,3 +28,7 @@ ui-docs:
     path: chat.rml
   debug:
     path: debug.rml
+  modding-tools-menu:
+    path: modding-tools-menu.rml
+  modding-tools-obj:
+    path: modding-tools-obj.rml

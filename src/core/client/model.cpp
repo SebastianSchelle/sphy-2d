@@ -836,6 +836,11 @@ void Model::handleReqAllComponentsResp(
     }
 }
 
+void Model::startModdingTools()
+{
+    gameState = ClientGameState::ModdingTools;
+}
+
 void Model::reqAllComponents(ecs::EntityId entityId)
 {
     prot::MsgComposer mcomp(net::SendType::TCP, nullptr);

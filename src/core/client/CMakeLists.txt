@@ -37,6 +37,7 @@ set(LIBS_PUB
     sphy_core_game_objects_libs
     sphy_core_mod_common
     sphy_core_mod_client
+    sphy_core_modding
     sphy_misc_runtime
     sphy_client_render
     sphy_client_ui
