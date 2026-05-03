@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <daScript/daScript.h>
 #include <daScript/daScriptModule.h>
 #include <daScript/misc/free_list.h>
@@ -406,37 +407,66 @@ bool ModManager::runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo)
 bool ModManager::loadGameLibs(PtrHandles& ptrHandles, const ModInfo& modInfo)
 {
     std::string assetsPath = modInfo.modDir + "/assets/game-objects";
-    if (std::filesystem::exists(assetsPath))
+    if (!std::filesystem::exists(assetsPath))
     {
-        for (const auto& fileEntry :
-             std::filesystem::recursive_directory_iterator(assetsPath))
+        return true;
+    }
+    std::vector<std::string> yamlPaths;
+    for (const auto& fileEntry :
+         std::filesystem::recursive_directory_iterator(assetsPath))
+    {
+        if (fileEntry.is_regular_file()
+            && fileEntry.path().extension() == ".yaml")
         {
-            if (fileEntry.is_regular_file()
-                && fileEntry.path().extension() == ".yaml")
+            yamlPaths.push_back(fileEntry.path().string());
+        }
+    }
+    std::sort(yamlPaths.begin(), yamlPaths.end());
+    for (GameLibLoadPhase phase :
+         {GameLibLoadPhase::Dependencies, GameLibLoadPhase::GameObjects})
+    {
+        for (const std::string& gameObjectPath : yamlPaths)
+        {
+            if (!loadGameLib(ptrHandles, gameObjectPath, phase))
             {
-                const std::string gameObjectPath = fileEntry.path().string();
-                if (!loadGameLib(ptrHandles, gameObjectPath))
-                {
-                    return false;
-                }
+                return false;
             }
         }
     }
     return true;
 }
 
-bool ModManager::loadGameLib(PtrHandles& ptrHandles, const std::string& path)
+bool ModManager::loadGameLib(PtrHandles& ptrHandles,
+                             const std::string& path,
+                             GameLibLoadPhase phase)
 {
+    (void)ptrHandles;
     YAML::Node libs = YAML::LoadFile(path);
     for (const auto& libEntry : libs)
     {
-        bool skip = false;
         if (!libEntry.first.IsScalar() || !libEntry.second.IsMap())
         {
             LG_E("Failed to load game library: invalid node; expected a map");
-            skip = true;
+            continue;
         }
-        std::string libName = libEntry.first.as<std::string>();
+        const std::string libName = libEntry.first.as<std::string>();
+        const bool depLib = (libName == "textures" || libName == "map-icon"
+                             || libName == "collider");
+        const bool objLib =
+            (libName == "hull" || libName == "module" || libName == "station-part");
+        if (!depLib && !objLib)
+        {
+            LG_E("Unknown library: {}", libName);
+            continue;
+        }
+        if (phase == GameLibLoadPhase::Dependencies && !depLib)
+        {
+            continue;
+        }
+        if (phase == GameLibLoadPhase::GameObjects && !objLib)
+        {
+            continue;
+        }
         for (const auto& libEntry2 : libEntry.second)
         {
             if (libEntry2.first.IsScalar() && libEntry2.second.IsMap())
@@ -486,16 +516,7 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles, const std::string& path)
                     stationPartLib.addItem(objName, stationPart);
                     LG_I("Added station part: {}: {}", objName, stationPart);
                 }
-                else
-                {
-                    LG_E("Unknown library: {}", libName);
-                    skip = true;
-                }
             }
-        }
-        if (skip)
-        {
-            continue;
         }
     }
     return true;

@@ -6,6 +6,7 @@
 #include <RmlUi/Core/Event.h>
 #include <lib-textures.hpp>
 #include <lib-modules.hpp>
+#include <lib-station-part.hpp>
 
 namespace gfx
 {
@@ -62,11 +63,39 @@ struct SlotInfo
     int zIndexVal = 0;
 };
 
+struct ColliderVertex
+{
+    string x = "0.0";
+    string y = "0.0";
+    float xVal = 0.0f;
+    float yVal = 0.0f;
+};
+
 struct GeneralInfo
 {
     string name = "new";
     string hp = "1000.0";
     string mapIcon = "frigate";
+    float colliderRestitutionVal = 0.1f;
+};
+
+struct StationPartInfo
+{
+    string partType = "Structural";
+    gobj::StationPartType partTypeVal = gobj::StationPartType::Structural;
+    /** `data.volume` for Storage parts (see hulls.yaml). */
+    string storageVolume = "0";
+    float storageVolumeVal = 0.0f;
+};
+
+struct ConnectorInfo
+{
+    string posX = "0.0";
+    string posY = "0.0";
+    string rot = "0.0";
+    float posXVal = 0.0f;
+    float posYVal = 0.0f;
+    float rotDegVal = 0.0f;
 };
 
 class ModdingTools
@@ -105,6 +134,9 @@ class ModdingTools
     void onClearTextures(Rml::DataModelHandle handle,
                          Rml::Event& event,
                          const Rml::VariantList& args);
+    void onRemoveTexture(Rml::DataModelHandle handle,
+                         Rml::Event& event,
+                         const Rml::VariantList& args);
     void onAddSlot(Rml::DataModelHandle handle,
                    Rml::Event& event,
                    const Rml::VariantList& args);
@@ -114,6 +146,24 @@ class ModdingTools
     void onRemoveSlot(Rml::DataModelHandle handle,
                       Rml::Event& event,
                       const Rml::VariantList& args);
+    void onAddColliderVertex(Rml::DataModelHandle handle,
+                             Rml::Event& event,
+                             const Rml::VariantList& args);
+    void onClearColliderVertices(Rml::DataModelHandle handle,
+                                 Rml::Event& event,
+                                 const Rml::VariantList& args);
+    void onRemoveColliderVertex(Rml::DataModelHandle handle,
+                                Rml::Event& event,
+                                const Rml::VariantList& args);
+    void onAddConnector(Rml::DataModelHandle handle,
+                        Rml::Event& event,
+                        const Rml::VariantList& args);
+    void onClearConnectors(Rml::DataModelHandle handle,
+                           Rml::Event& event,
+                           const Rml::VariantList& args);
+    void onRemoveConnector(Rml::DataModelHandle handle,
+                           Rml::Event& event,
+                           const Rml::VariantList& args);
     void syncModeToRml();
 
     void drawRoofSlot(gfx::RenderEngine& renderer, const SlotInfo& slot);
@@ -121,22 +171,35 @@ class ModdingTools
     void drawThrusterManeuverSlot(gfx::RenderEngine& renderer, const SlotInfo& slot);
     void drawInternalSlot(gfx::RenderEngine& renderer, const SlotInfo& slot);
     void drawBaySlot(gfx::RenderEngine& renderer, const SlotInfo& slot);
+    void drawColliders(gfx::RenderEngine& renderer);
+    void drawSlots(gfx::RenderEngine& renderer);
+    void drawTextures(gfx::RenderEngine& renderer);
+    void drawConnectors(gfx::RenderEngine& renderer);
 
     bool saveHullDataToPath(const string& path);
     bool loadHullDataFromPath(const string& path);
+    bool saveStationPartDataToPath(const string& path);
+    bool loadStationPartDataFromPath(const string& path);
     void parseEditorNumericFields();
+    ModdingToolsMode determineAssetType(const string& path);
 
     Rml::DataModelHandle rmlModel_;
     string openFilepath;
     ModdingToolsMode activeMode = ModdingToolsMode::None;
     /** magic_enum::enum_name(activeMode); bound to Rml as "mode" */
     string mode;
-    GeneralInfo hull;
+    GeneralInfo genInfo;
+    StationPartInfo stationPartInfo;
     float hpVal = 0.0f;
     vector<TextureInfo> textures;
     vector<SlotInfo> slots;
+    vector<ColliderVertex> collider;
+    vector<ConnectorInfo> connectors;
+    /** Physics restitution for hull collider; YAML key `restitution` under `collider:<hullKey>`. */
     bool extendTextures = true;
     bool extendSlots = true;
+    bool extendCollider = true;
+    bool extendConnectors = true;
 };
 
 }  // namespace modding

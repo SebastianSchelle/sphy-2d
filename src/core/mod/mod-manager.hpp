@@ -214,7 +214,15 @@ class ModManager
 #endif
     bool runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo);
     bool loadGameLibs(PtrHandles& ptrHandles, const ModInfo& modInfo);
-    bool loadGameLib(PtrHandles& ptrHandles, const std::string& path);
+    /** Load one YAML game-objects file. Dependencies pass must run before GameObjects for the same mod. */
+    enum class GameLibLoadPhase : uint8_t
+    {
+        Dependencies,
+        GameObjects,
+    };
+    bool loadGameLib(PtrHandles& ptrHandles,
+                     const std::string& path,
+                     GameLibLoadPhase phase);
     bool loadScripts(PtrHandles& ptrHandles,
                      const ModInfo& modInfo,
                      YAML::Node scripts);

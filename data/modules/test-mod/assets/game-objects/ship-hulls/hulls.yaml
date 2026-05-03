@@ -3,21 +3,21 @@ textures:
     textures:
       - name: thrust-main-common-s
         bounds: [ 0.0, 0.0, 7.3, 14.0 ]
-        zIndex: 3
+        zIndex: 51
         flags: 0
         rot: 0.0
   thrust-maneuver-common-s:
     textures:
       - name: thrust-maneuver-common-s
         bounds: [ 0.0, 0.0, 4.5, 1.9 ]
-        zIndex: 3
+        zIndex: 51
         flags: 0
         rot: 0.0
   cargo-common-s:
     textures:
       - name: cargo-common-s
         bounds: [ 0.0, 0.0, 21.0, 4.6 ]
-        zIndex: 3
+        zIndex: 51
         flags: 0
         rot: 0.0
   drone-hatch-common-s:
@@ -27,20 +27,20 @@ textures:
         zIndex: 1
         flags: 0
         rot: 0.0
-  strut-1:
-    textures:
-      - name: strut-1
-        bounds: [ 0.0, 0.0, 70.0, 110.0 ]
-        zIndex: 1
-        flags: 0
-        rot: 0.0
-  tank-1:
-    textures:
-      - name: tank-1
-        bounds: [ 0.0, 0.0, 156.7, 88.3 ]
-        zIndex: 1
-        flags: 0
-        rot: 0.0
+  # strut-1:
+  #   textures:
+  #     - name: strut-1
+  #       bounds: [ 0.0, 0.0, 70.0, 110.0 ]
+  #       zIndex: 1
+  #       flags: 0
+  #       rot: 0.0
+  # tank-1:
+  #   textures:
+  #     - name: tank-1
+  #       bounds: [ 0.0, 0.0, 156.7, 88.3 ]
+  #       zIndex: 1
+  #       flags: 0
+  #       rot: 0.0
 
 map-icon:
   frigate:
@@ -50,16 +50,13 @@ map-icon:
     texName: station
     size: [ 15.0, 15.0 ]
 
-collider:
-  mace:
-    vertices: [ [ -14.8, -36.45 ], [ 14.8, -36.45 ], [ 14.8, 36.45 ], [ -14.8, 36.45 ] ]
-    restitution: 0.1
-  strut-1:
-    vertices: [ [ -35.0, -55.0 ], [ 35.0, -55.0 ], [ 35.0, 55.0 ], [ -35.0, 55.0 ] ]
-    restitution: 0.1
-  tank-1:
-    vertices: [ [ -78.35, 44.15 ], [ 78.35, 44.15 ], [ 78.35, -44.15 ], [ -78.35, -44.15 ] ]
-    restitution: 0.1
+# collider:
+#   strut-1:
+#     vertices: [ [ -35.0, -55.0 ], [ 35.0, -55.0 ], [ 35.0, 55.0 ], [ -35.0, 55.0 ] ]
+#     restitution: 0.1
+#   tank-1:
+#     vertices: [ [ -78.35, 44.15 ], [ 78.35, 44.15 ], [ 78.35, -44.15 ], [ -78.35, -44.15 ] ]
+#     restitution: 0.1
 
 module:
   thrust-maneuver-common-s:
@@ -87,27 +84,27 @@ module:
     data:
       dummy: nodata
 
-station-part:
-  strut-1:
-    type: Structural
-    textures: strut-1
-    collider: strut-1
-    hp: 1000.0
-    connectors:
-      - pos: [ 0.0, -55.0 ]
-        rot: 180.0
-      - pos: [ 0.0, 55.0 ]
-        rot: 00.0
-    data:
-      dummy: nodata
-  tank-1:
-    type: Storage
-    textures: tank-1
-    collider: tank-1
-    connectors:
-      - pos: [ -10.0, 44.15 ]
-        rot: 0.0
-      - pos: [ 55.0, -20.0 ]
-        rot: 225.0
-    data:
-      volume: 1000.0
+# station-part:
+#   strut-1:
+#     type: Structural
+#     textures: strut-1
+#     collider: strut-1
+#     hp: 1000.0
+#     connectors:
+#       - pos: [ 0.0, -55.0 ]
+#         rot: 180.0
+#       - pos: [ 0.0, 55.0 ]
+#         rot: 00.0
+#     data:
+#       dummy: nodata
+#   tank-1:
+#     type: Storage
+#     textures: tank-1
+#     collider: tank-1
+#     connectors:
+#       - pos: [ -10.0, 44.15 ]
+#         rot: 0.0
+#       - pos: [ 55.0, -20.0 ]
+#         rot: 225.0
+#     data:
+#       volume: 1000.0

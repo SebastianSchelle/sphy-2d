@@ -1,4 +1,5 @@
 #include "modding-tools.hpp"
+#include "texture.hpp"
 #include <cctype>
 #include <fstream>
 #include <magic_enum/magic_enum.hpp>
@@ -6,6 +7,7 @@
 #include <save-file-dialog.hpp>
 #include <std-inc.hpp>
 #include <user-interface.hpp>
+#include <yaml-cpp/yaml.h>
 
 namespace modding
 {
@@ -76,18 +78,45 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     moddingToolsConstructor.BindEventCallback(
         "onClearTextures", &ModdingTools::onClearTextures, this);
     moddingToolsConstructor.BindEventCallback(
+        "removeTexture", &ModdingTools::onRemoveTexture, this);
+    moddingToolsConstructor.BindEventCallback(
         "onAddSlot", &ModdingTools::onAddSlot, this);
     moddingToolsConstructor.BindEventCallback(
         "onClearSlots", &ModdingTools::onClearSlots, this);
     moddingToolsConstructor.BindEventCallback(
         "removeSlot", &ModdingTools::onRemoveSlot, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onAddColliderVertex", &ModdingTools::onAddColliderVertex, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onClearColliderVertices",
+        &ModdingTools::onClearColliderVertices,
+        this);
+    moddingToolsConstructor.BindEventCallback(
+        "onRemoveColliderVertex", &ModdingTools::onRemoveColliderVertex, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onAddConnector", &ModdingTools::onAddConnector, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onClearConnectors", &ModdingTools::onClearConnectors, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onRemoveConnector", &ModdingTools::onRemoveConnector, this);
     if (auto hullHandle = moddingToolsConstructor.RegisterStruct<GeneralInfo>())
     {
         hullHandle.RegisterMember("name", &GeneralInfo::name);
         hullHandle.RegisterMember("hp", &GeneralInfo::hp);
         hullHandle.RegisterMember("mapIcon", &GeneralInfo::mapIcon);
+        hullHandle.RegisterMember("colliderRestitution",
+                                  &GeneralInfo::colliderRestitutionVal);
     }
-    moddingToolsConstructor.Bind("hull", &hull);
+    moddingToolsConstructor.Bind("hull", &genInfo);
+    if (auto stationPartHandle =
+            moddingToolsConstructor.RegisterStruct<StationPartInfo>())
+    {
+        stationPartHandle.RegisterMember("partType",
+                                         &StationPartInfo::partType);
+        stationPartHandle.RegisterMember("storageVolume",
+                                         &StationPartInfo::storageVolume);
+    }
+    moddingToolsConstructor.Bind("stationPart", &stationPartInfo);
     if (auto textureHandle =
             moddingToolsConstructor.RegisterStruct<TextureInfo>())
     {
@@ -115,9 +144,29 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     moddingToolsConstructor.RegisterArray<std::vector<SlotInfo>>();
     moddingToolsConstructor.Bind("slots", &slots);
 
+    if (auto colliderHandle =
+            moddingToolsConstructor.RegisterStruct<ColliderVertex>())
+    {
+        colliderHandle.RegisterMember("x", &ColliderVertex::x);
+        colliderHandle.RegisterMember("y", &ColliderVertex::y);
+    }
+    moddingToolsConstructor.RegisterArray<std::vector<ColliderVertex>>();
+    moddingToolsConstructor.Bind("collider", &collider);
+    if (auto connectorHandle =
+            moddingToolsConstructor.RegisterStruct<ConnectorInfo>())
+    {
+        connectorHandle.RegisterMember("posX", &ConnectorInfo::posX);
+        connectorHandle.RegisterMember("posY", &ConnectorInfo::posY);
+        connectorHandle.RegisterMember("rot", &ConnectorInfo::rot);
+    }
+    moddingToolsConstructor.RegisterArray<std::vector<ConnectorInfo>>();
+    moddingToolsConstructor.Bind("connectors", &connectors);
+
     moddingToolsConstructor.Bind("openFilepath", &openFilepath);
     moddingToolsConstructor.Bind("extendTextures", &extendTextures);
     moddingToolsConstructor.Bind("extendSlots", &extendSlots);
+    moddingToolsConstructor.Bind("extendCollider", &extendCollider);
+    moddingToolsConstructor.Bind("extendConnectors", &extendConnectors);
 
     rmlModel_ = moddingToolsConstructor.GetModelHandle();
 }
@@ -139,14 +188,21 @@ void ModdingTools::onModdingNewHull(Rml::DataModelHandle handle,
 {
     activeMode = ModdingToolsMode::Hull;
     openFilepath = "";
-    hull = GeneralInfo{};
+    genInfo = GeneralInfo{};
+    stationPartInfo = StationPartInfo{};
     textures.clear();
     slots.clear();
+    collider.clear();
+    connectors.clear();
+    genInfo.colliderRestitutionVal = 0.1f;
     syncModeToRml();
     handle.DirtyVariable("openFilepath");
     handle.DirtyVariable("hull");
+    handle.DirtyVariable("stationPart");
     handle.DirtyVariable("textures");
     handle.DirtyVariable("slots");
+    handle.DirtyVariable("collider");
+    handle.DirtyVariable("connectors");
     LG_D("Modding tools: new hull");
 }
 
@@ -167,8 +223,23 @@ void ModdingTools::onModdingNewStationPart(Rml::DataModelHandle handle,
 {
     activeMode = ModdingToolsMode::StationPart;
     openFilepath = "";
+    genInfo = GeneralInfo{};
+    genInfo.mapIcon.clear();
+    stationPartInfo = StationPartInfo{};
+    textures.clear();
+    slots.clear();
+    collider.clear();
+    connectors.clear();
+    genInfo.colliderRestitutionVal = 0.1f;
+    hpVal = 1000.0f;
+    floatToString(hpVal, genInfo.hp, 2);
     syncModeToRml();
     handle.DirtyVariable("openFilepath");
+    handle.DirtyVariable("hull");
+    handle.DirtyVariable("stationPart");
+    handle.DirtyVariable("textures");
+    handle.DirtyVariable("collider");
+    handle.DirtyVariable("connectors");
     LG_D("Modding tools: new station part");
 }
 
@@ -178,31 +249,55 @@ void ModdingTools::onModdingFileSave(Rml::DataModelHandle handle,
 {
     (void)event;
     (void)args;
-    if (activeMode != ModdingToolsMode::Hull)
-    {
-        return;
-    }
     parseEditorNumericFields();
-    if (textures.empty())
-    {
-        LG_W("Modding tools: no textures to save");
-        return;
-    }
+
     const string defaultFile =
-        sanitizeHullKey(hull.name.empty() ? string("hull") : hull.name) + ".yaml";
+        sanitizeHullKey(genInfo.name.empty() ? string("asset") : genInfo.name)
+        + ".yaml";
     std::string path;
-    if (!osh::pick_save_file_path(path, "Save hull as", defaultFile))
+    if (!osh::pick_save_file_path(path, "Save as", defaultFile))
     {
         return;
     }
-    if (!saveHullDataToPath(path))
+    switch (activeMode)
     {
-        LG_W("Modding tools: failed to write {}", path);
-        return;
+        case ModdingToolsMode::Hull:
+        {
+            if (textures.empty())
+            {
+                LG_W("Modding tools: no textures to save");
+                return;
+            }
+            if (!saveHullDataToPath(path))
+            {
+                LG_W("Modding tools: failed to write {}", path);
+                return;
+            }
+            openFilepath = std::move(path);
+            handle.DirtyVariable("openFilepath");
+            LG_D("Modding tools: saved hull to {}", openFilepath);
+        }
+        break;
+        case ModdingToolsMode::StationPart:
+        {
+            if (textures.empty())
+            {
+                LG_W("Modding tools: no textures to save");
+                return;
+            }
+            if (!saveStationPartDataToPath(path))
+            {
+                LG_W("Modding tools: failed to write {}", path);
+                return;
+            }
+            openFilepath = std::move(path);
+            handle.DirtyVariable("openFilepath");
+            LG_D("Modding tools: saved station part to {}", openFilepath);
+        }
+        break;
+        default:
+            return;
     }
-    openFilepath = std::move(path);
-    handle.DirtyVariable("openFilepath");
-    LG_D("Modding tools: saved hull to {}", openFilepath);
 }
 
 void ModdingTools::onModdingFileLoad(Rml::DataModelHandle handle,
@@ -212,22 +307,43 @@ void ModdingTools::onModdingFileLoad(Rml::DataModelHandle handle,
     (void)event;
     (void)args;
     std::string path;
-    if (!osh::pick_open_file_path(path, "Open hull YAML", openFilepath))
+    if (!osh::pick_open_file_path(path, "Open game object YAML", openFilepath))
     {
         return;
     }
-    if (!loadHullDataFromPath(path))
+    const ModdingToolsMode assetType = determineAssetType(path);
+    switch (assetType)
     {
-        LG_W("Modding tools: failed to load hull from {}", path);
-        return;
+        case ModdingToolsMode::Hull:
+            if (!loadHullDataFromPath(path))
+            {
+                LG_W("Modding tools: failed to load hull from {}", path);
+                return;
+            }
+            LG_D("Modding tools: loaded hull from {}", openFilepath);
+            break;
+        case ModdingToolsMode::StationPart:
+            if (!loadStationPartDataFromPath(path))
+            {
+                LG_W("Modding tools: failed to load station part from {}",
+                     path);
+                return;
+            }
+            LG_D("Modding tools: loaded station part from {}", openFilepath);
+            break;
+        default:
+            LG_W("Modding tools: unsupported asset type: {}", path);
+            return;
     }
     openFilepath = std::move(path);
     handle.DirtyVariable("openFilepath");
     handle.DirtyVariable("hull");
     handle.DirtyVariable("textures");
     handle.DirtyVariable("slots");
+    handle.DirtyVariable("collider");
+    handle.DirtyVariable("connectors");
+    handle.DirtyVariable("stationPart");
     handle.DirtyVariable("mode");
-    LG_D("Modding tools: loaded hull from {}", openFilepath);
 }
 
 void ModdingTools::onAddTexture(Rml::DataModelHandle handle,
@@ -244,6 +360,23 @@ void ModdingTools::onClearTextures(Rml::DataModelHandle handle,
 {
     textures.clear();
     rmlModel_.DirtyVariable("textures");
+}
+
+void ModdingTools::onRemoveTexture(Rml::DataModelHandle handle,
+                                   Rml::Event& event,
+                                   const Rml::VariantList& args)
+{
+    (void)event;
+    if (args.size() != 1)
+    {
+        return;
+    }
+    const int i = args[0].Get<int>(-1);
+    if (i >= 0 && i < static_cast<int>(textures.size()))
+    {
+        textures.erase(textures.begin() + static_cast<size_t>(i));
+        handle.DirtyVariable("textures");
+    }
 }
 
 void ModdingTools::onAddSlot(Rml::DataModelHandle handle,
@@ -279,11 +412,81 @@ void ModdingTools::onRemoveSlot(Rml::DataModelHandle handle,
     }
 }
 
+
+void ModdingTools::onAddColliderVertex(Rml::DataModelHandle handle,
+                                       Rml::Event& event,
+                                       const Rml::VariantList& args)
+{
+    collider.push_back(ColliderVertex{});
+    rmlModel_.DirtyVariable("collider");
+}
+
+void ModdingTools::onClearColliderVertices(Rml::DataModelHandle handle,
+                                           Rml::Event& event,
+                                           const Rml::VariantList& args)
+{
+    collider.clear();
+    rmlModel_.DirtyVariable("collider");
+}
+
+void ModdingTools::onRemoveColliderVertex(Rml::DataModelHandle handle,
+                                          Rml::Event& event,
+                                          const Rml::VariantList& args)
+{
+    if (args.size() != 1)
+    {
+        return;
+    }
+    const int i = args[0].Get<int>(-1);
+    if (i >= 0 && i < static_cast<int>(collider.size()))
+    {
+        collider.erase(collider.begin() + static_cast<size_t>(i));
+        handle.DirtyVariable("collider");
+    }
+}
+
+void ModdingTools::onAddConnector(Rml::DataModelHandle handle,
+                                  Rml::Event& event,
+                                  const Rml::VariantList& args)
+{
+    (void)event;
+    (void)args;
+    connectors.push_back(ConnectorInfo{});
+    handle.DirtyVariable("connectors");
+}
+
+void ModdingTools::onClearConnectors(Rml::DataModelHandle handle,
+                                     Rml::Event& event,
+                                     const Rml::VariantList& args)
+{
+    (void)event;
+    (void)args;
+    connectors.clear();
+    handle.DirtyVariable("connectors");
+}
+
+void ModdingTools::onRemoveConnector(Rml::DataModelHandle handle,
+                                     Rml::Event& event,
+                                     const Rml::VariantList& args)
+{
+    (void)event;
+    if (args.size() != 1)
+    {
+        return;
+    }
+    const int i = args[0].Get<int>(-1);
+    if (i >= 0 && i < static_cast<int>(connectors.size()))
+    {
+        connectors.erase(connectors.begin() + static_cast<size_t>(i));
+        handle.DirtyVariable("connectors");
+    }
+}
+
 void ModdingTools::parseEditorNumericFields()
 {
     int val;
-    tryParseFloat(hull.hp, hpVal);
-    floatToString(hpVal, hull.hp, 2);
+    tryParseFloat(genInfo.hp, hpVal);
+    floatToString(hpVal, genInfo.hp, 2);
 
     for (auto& texture : textures)
     {
@@ -299,6 +502,7 @@ void ModdingTools::parseEditorNumericFields()
         floatToString(texture.sizeYVal, texture.sizeY, 2);
         floatToString(texture.rotVal, texture.rot, 2);
         intToString(texture.zIndexVal, texture.zIndex);
+        rmlModel_.DirtyVariable("texture");
     }
     for (auto& slot : slots)
     {
@@ -310,12 +514,44 @@ void ModdingTools::parseEditorNumericFields()
         floatToString(slot.posYVal, slot.posY, 2);
         floatToString(slot.rotVal, slot.rot, 2);
         intToString(slot.zIndexVal, slot.zIndex);
-        auto slotType = magic_enum::enum_cast<gobj::ModuleSlotType>(slot.slotType);
+        auto slotType =
+            magic_enum::enum_cast<gobj::ModuleSlotType>(slot.slotType);
         if (slotType.has_value())
         {
             slot.slotTypeVal = slotType.value();
         }
+        rmlModel_.DirtyVariable("slot");
     }
+    for (auto& vertex : collider)
+    {
+        tryParseFloat(vertex.x, vertex.xVal);
+        tryParseFloat(vertex.y, vertex.yVal);
+        floatToString(vertex.xVal, vertex.x, 2);
+        floatToString(vertex.yVal, vertex.y, 2);
+        rmlModel_.DirtyVariable("collider");
+    }
+    auto partType =
+        magic_enum::enum_cast<gobj::StationPartType>(stationPartInfo.partType);
+    if (partType.has_value())
+    {
+        stationPartInfo.partTypeVal = partType.value();
+    }
+    tryParseFloat(stationPartInfo.storageVolume,
+                  stationPartInfo.storageVolumeVal);
+    floatToString(
+        stationPartInfo.storageVolumeVal, stationPartInfo.storageVolume, 2);
+    for (auto& connector : connectors)
+    {
+        tryParseFloat(connector.posX, connector.posXVal);
+        tryParseFloat(connector.posY, connector.posYVal);
+        tryParseFloat(connector.rot, connector.rotDegVal);
+        floatToString(connector.posXVal, connector.posX, 2);
+        floatToString(connector.posYVal, connector.posY, 2);
+        floatToString(connector.rotDegVal, connector.rot, 2);
+    }
+    rmlModel_.DirtyVariable("connectors");
+    rmlModel_.DirtyVariable("stationPart");
+    rmlModel_.DirtyVariable("hull");
 }
 
 void ModdingTools::draw(gfx::RenderEngine& renderer)
@@ -331,10 +567,30 @@ void ModdingTools::draw(gfx::RenderEngine& renderer)
         renderer.drawBlueprintGridBackground(
             0, blueprintGrid, kGridCellWorld, kMajorEveryCells);
     }
+    switch (activeMode)
+    {
+        case ModdingToolsMode::Hull:
+            drawTextures(renderer);
+            drawSlots(renderer);
+            drawColliders(renderer);
+            break;
+        case ModdingToolsMode::StationPart:
+            drawTextures(renderer);
+            drawColliders(renderer);
+            drawConnectors(renderer);
+            break;
+        default:
+            // No drawing for other modes
+            break;
+    }
+}
 
+void ModdingTools::drawTextures(gfx::RenderEngine& renderer)
+{
     for (auto& texture : textures)
     {
-        auto texHandle = renderer.getTextureHandle(texture.name);
+        const gfx::TextureHandle texHandle =
+            renderer.getTextureHandle(texture.name);
         renderer.drawTexRect(glm::vec2(texture.posXVal, texture.posYVal),
                              glm::vec2(texture.sizeXVal, texture.sizeYVal),
                              texHandle,
@@ -343,6 +599,10 @@ void ModdingTools::draw(gfx::RenderEngine& renderer)
                              texture.zIndexVal / 100.0f,
                              0);
     }
+}
+
+void ModdingTools::drawSlots(gfx::RenderEngine& renderer)
+{
     for (auto& slot : slots)
     {
         switch (slot.slotTypeVal)
@@ -375,6 +635,73 @@ void ModdingTools::draw(gfx::RenderEngine& renderer)
             default:
                 break;
         }
+    }
+}
+
+void ModdingTools::drawColliders(gfx::RenderEngine& renderer)
+{
+    const float zoom = renderer.getWorldZoom();
+    const glm::vec2 dotRadius(3.0f / zoom, 3.0f / zoom);
+    const float lineWidth = 1.0f / zoom;
+
+    const ColliderVertex* lastVertex = nullptr;
+    if(collider.size() >= 2)
+    {
+        lastVertex = &collider.back();
+    }
+    for (const auto& vertex : collider)
+    {
+        renderer.drawEllipse(glm::vec2(vertex.xVal, vertex.yVal),
+                             dotRadius,
+                             0xffffffff,
+                             0.0f,
+                             0.0f,
+                             0.0f,
+                             0);
+        if (lastVertex != nullptr)
+        {
+            renderer.drawLine(glm::vec2(lastVertex->xVal, lastVertex->yVal),
+                              glm::vec2(vertex.xVal, vertex.yVal),
+                              0xffffffff,
+                              lineWidth,
+                              0.0f,
+                              0);
+        }
+        lastVertex = &vertex;
+    }
+}
+
+void ModdingTools::drawConnectors(gfx::RenderEngine& renderer)
+{
+    const float zoom = renderer.getWorldZoom();
+    const glm::vec2 dotR(4.0f / zoom, 4.0f / zoom);
+    const float lineLen = 14.0f / zoom;
+    const float lineW = 1.0f / zoom;
+    int zIndex = 41;
+    if(!textures.empty())
+    {
+        zIndex = textures[0].zIndexVal + 1;
+    }
+    for (const auto& c : connectors)
+    {
+        const glm::vec2 p(c.posXVal, c.posYVal);
+        renderer.drawEllipse(p, dotR, 0xffffff00, 0.0f, 0.0f, 0.0f, 0);
+
+        const float rad = smath::degToRad(c.rotDegVal);
+        const vec2 offset =
+            -smath::rotateVec2(vec2(0.0f, gobj::kConnectorHeight / 2.0f), rad);
+        const gfx::TextureHandle connectorTex =
+            renderer.getTextureHandle("station-connector");
+        renderer.drawTexRect(
+            p + offset,
+            glm::vec2(gobj::kConnectorWidth, gobj::kConnectorHeight),
+            connectorTex,
+            smath::degToRad(c.rotDegVal),
+            0xffffffff,
+            zIndex / 100.0f,
+            0);
+        renderer.drawLine(
+            p, p - 5.0f * offset, 0xffffff00, lineW, 0.0f, 0);
     }
 }
 
@@ -504,26 +831,32 @@ bool ModdingTools::loadHullDataFromPath(const string& path)
     syncModeToRml();
     textures.clear();
     slots.clear();
-    hull = GeneralInfo{};
+    collider.clear();
+    connectors.clear();
+    stationPartInfo = StationPartInfo{};
+    genInfo.colliderRestitutionVal = 0.1f;
+    genInfo = GeneralInfo{};
+
+    const string hullMapKey = hullIt->first.as<string>();
 
     try
     {
         if (hullNode["name"])
         {
-            hull.name = hullNode["name"].as<string>();
+            genInfo.name = hullNode["name"].as<string>();
         }
-        if (hull.name.empty())
+        if (genInfo.name.empty())
         {
-            hull.name = hullIt->first.as<string>();
+            genInfo.name = hullIt->first.as<string>();
         }
         if (hullNode["hullpoints"])
         {
             hpVal = hullNode["hullpoints"].as<float>();
-            floatToString(hpVal, hull.hp, 2);
+            floatToString(hpVal, genInfo.hp, 2);
         }
         if (hullNode["map-icon"])
         {
-            hull.mapIcon = hullNode["map-icon"].as<string>();
+            genInfo.mapIcon = hullNode["map-icon"].as<string>();
         }
 
         string texKey;
@@ -532,7 +865,8 @@ bool ModdingTools::loadHullDataFromPath(const string& path)
             texKey = hullNode["textures"].as<string>();
         }
         const YAML::Node texRoot = root["textures"];
-        if (!texKey.empty() && texRoot && texRoot[texKey] && texRoot[texKey]["textures"])
+        if (!texKey.empty() && texRoot && texRoot[texKey]
+            && texRoot[texKey]["textures"])
         {
             for (const auto& texNode : texRoot[texKey]["textures"])
             {
@@ -590,9 +924,11 @@ bool ModdingTools::loadHullDataFromPath(const string& path)
         }
         else if (!texKey.empty())
         {
-            LG_W("Modding tools: hull references textures '{}' but bundle missing in {}",
-                 texKey,
-                 path);
+            LG_W(
+                "Modding tools: hull references textures '{}' but bundle "
+                "missing in {}",
+                texKey,
+                path);
         }
 
         if (hullNode["slots"] && hullNode["slots"].IsSequence())
@@ -606,7 +942,8 @@ bool ModdingTools::loadHullDataFromPath(const string& path)
                     modType = sn["mod-type"].as<string>();
                 }
                 s.slotType = modType;
-                auto st = magic_enum::enum_cast<gobj::ModuleSlotType>(s.slotType);
+                auto st =
+                    magic_enum::enum_cast<gobj::ModuleSlotType>(s.slotType);
                 if (st.has_value())
                 {
                     s.slotTypeVal = st.value();
@@ -649,13 +986,47 @@ bool ModdingTools::loadHullDataFromPath(const string& path)
                 slots.push_back(std::move(s));
             }
         }
+
+        const YAML::Node colliderRoot = root["collider"];
+        if (colliderRoot && colliderRoot[hullMapKey]
+            && colliderRoot[hullMapKey].IsMap())
+        {
+            const YAML::Node colEntry = colliderRoot[hullMapKey];
+            if (colEntry["restitution"])
+            {
+                genInfo.colliderRestitutionVal =
+                    colEntry["restitution"].as<float>();
+            }
+            const YAML::Node vertNode = colEntry["vertices"];
+            if (vertNode && vertNode.IsSequence())
+            {
+                for (const YAML::Node& vn : vertNode)
+                {
+                    if (!vn.IsSequence() || vn.size() < 2)
+                    {
+                        continue;
+                    }
+                    ColliderVertex v;
+                    v.xVal = vn[0].as<float>();
+                    v.yVal = vn[1].as<float>();
+                    floatToString(v.xVal, v.x, 2);
+                    floatToString(v.yVal, v.y, 2);
+                    collider.push_back(std::move(v));
+                }
+            }
+        }
     }
     catch (const YAML::Exception& e)
     {
-        LG_W("Modding tools: error parsing hull data in {}: {}", path, e.what());
+        LG_W(
+            "Modding tools: error parsing hull data in {}: {}", path, e.what());
         textures.clear();
         slots.clear();
-        hull = GeneralInfo{};
+        collider.clear();
+        connectors.clear();
+        stationPartInfo = StationPartInfo{};
+        genInfo.colliderRestitutionVal = 0.1f;
+        genInfo = GeneralInfo{};
         activeMode = ModdingToolsMode::None;
         syncModeToRml();
         return false;
@@ -665,13 +1036,384 @@ bool ModdingTools::loadHullDataFromPath(const string& path)
     return true;
 }
 
+ModdingToolsMode ModdingTools::determineAssetType(const string& path)
+{
+    YAML::Node root;
+    try
+    {
+        root = YAML::LoadFile(path);
+    }
+    catch (const YAML::Exception&)
+    {
+        return ModdingToolsMode::None;
+    }
+    if (!root || !root.IsMap())
+    {
+        return ModdingToolsMode::None;
+    }
+    const YAML::Node hullMap = root["hull"];
+    if (hullMap && hullMap.IsMap() && hullMap.size() > 0)
+    {
+        return ModdingToolsMode::Hull;
+    }
+    const YAML::Node spMap = root["station-part"];
+    if (spMap && spMap.IsMap() && spMap.size() > 0)
+    {
+        return ModdingToolsMode::StationPart;
+    }
+    return ModdingToolsMode::None;
+}
+
+bool ModdingTools::loadStationPartDataFromPath(const string& path)
+{
+    YAML::Node root;
+    try
+    {
+        root = YAML::LoadFile(path);
+    }
+    catch (const YAML::Exception& e)
+    {
+        LG_W("Modding tools: YAML error loading {}: {}", path, e.what());
+        return false;
+    }
+
+    const YAML::Node spMap = root["station-part"];
+    if (!spMap || !spMap.IsMap() || spMap.size() == 0)
+    {
+        LG_W("Modding tools: {} has no station-part map", path);
+        return false;
+    }
+
+    const auto spIt = spMap.begin();
+    const YAML::Node partNode = spIt->second;
+    if (!partNode || !partNode.IsMap())
+    {
+        LG_W("Modding tools: invalid station-part entry in {}", path);
+        return false;
+    }
+
+    activeMode = ModdingToolsMode::StationPart;
+    syncModeToRml();
+    textures.clear();
+    slots.clear();
+    collider.clear();
+    connectors.clear();
+    stationPartInfo = StationPartInfo{};
+    genInfo = GeneralInfo{};
+    genInfo.mapIcon.clear();
+    genInfo.colliderRestitutionVal = 0.1f;
+
+    const string partMapKey = spIt->first.as<string>();
+
+    try
+    {
+        if (partNode["name"])
+        {
+            genInfo.name = partNode["name"].as<string>();
+        }
+        if (genInfo.name.empty())
+        {
+            genInfo.name = partMapKey;
+        }
+        if (partNode["hp"])
+        {
+            hpVal = partNode["hp"].as<float>();
+            floatToString(hpVal, genInfo.hp, 2);
+        }
+        string typeStr = "Structural";
+        if (partNode["type"])
+        {
+            typeStr = partNode["type"].as<string>();
+        }
+        stationPartInfo.partType = typeStr;
+        const auto pt = magic_enum::enum_cast<gobj::StationPartType>(
+            stationPartInfo.partType);
+        if (pt.has_value())
+        {
+            stationPartInfo.partTypeVal = pt.value();
+        }
+        else
+        {
+            stationPartInfo.partType = "Structural";
+            stationPartInfo.partTypeVal = gobj::StationPartType::Structural;
+        }
+
+        stationPartInfo.storageVolumeVal = 0.0f;
+        stationPartInfo.storageVolume = "0";
+        const YAML::Node dataNode = partNode["data"];
+        if (dataNode && dataNode.IsMap() && dataNode["volume"])
+        {
+            stationPartInfo.storageVolumeVal = dataNode["volume"].as<float>();
+            floatToString(stationPartInfo.storageVolumeVal,
+                          stationPartInfo.storageVolume,
+                          2);
+        }
+
+        string texKey;
+        if (partNode["textures"])
+        {
+            texKey = partNode["textures"].as<string>();
+        }
+        string colKey;
+        if (partNode["collider"])
+        {
+            colKey = partNode["collider"].as<string>();
+        }
+        if (colKey.empty())
+        {
+            colKey = partMapKey;
+        }
+
+        const YAML::Node texRoot = root["textures"];
+        if (!texKey.empty() && texRoot && texRoot[texKey]
+            && texRoot[texKey]["textures"])
+        {
+            for (const auto& texNode : texRoot[texKey]["textures"])
+            {
+                TextureInfo t;
+                if (texNode["name"])
+                {
+                    t.name = texNode["name"].as<string>();
+                }
+                float px = 0.0f;
+                float py = 0.0f;
+                float sx = 100.0f;
+                float sy = 100.0f;
+                const YAML::Node b = texNode["bounds"];
+                if (b && b.IsSequence() && b.size() >= 4)
+                {
+                    px = b[0].as<float>();
+                    py = b[1].as<float>();
+                    sx = b[2].as<float>();
+                    sy = b[3].as<float>();
+                }
+                t.posXVal = px;
+                t.posYVal = py;
+                t.sizeXVal = sx;
+                t.sizeYVal = sy;
+                floatToString(t.posXVal, t.posX, 2);
+                floatToString(t.posYVal, t.posY, 2);
+                floatToString(t.sizeXVal, t.sizeX, 2);
+                floatToString(t.sizeYVal, t.sizeY, 2);
+
+                float rotDeg = 0.0f;
+                if (texNode["rot"])
+                {
+                    rotDeg = texNode["rot"].as<float>();
+                }
+                t.rotVal = rotDeg;
+                floatToString(t.rotVal, t.rot, 2);
+
+                int z = 0;
+                if (texNode["zIndex"])
+                {
+                    z = texNode["zIndex"].as<int>();
+                }
+                t.zIndexVal = static_cast<int8_t>(z);
+                intToString(static_cast<int>(t.zIndexVal), t.zIndex);
+
+                int flagsInt = 0;
+                if (texNode["flags"])
+                {
+                    flagsInt = texNode["flags"].as<int>();
+                }
+                t.flags = static_cast<gobj::TextureFlags>(flagsInt);
+
+                textures.push_back(std::move(t));
+            }
+        }
+        else if (!texKey.empty())
+        {
+            LG_W(
+                "Modding tools: station-part references textures '{}' but "
+                "bundle "
+                "missing in {}",
+                texKey,
+                path);
+        }
+
+        const YAML::Node colliderRoot = root["collider"];
+        if (colliderRoot && colliderRoot[colKey]
+            && colliderRoot[colKey].IsMap())
+        {
+            const YAML::Node colEntry = colliderRoot[colKey];
+            if (colEntry["restitution"])
+            {
+                genInfo.colliderRestitutionVal =
+                    colEntry["restitution"].as<float>();
+            }
+            const YAML::Node vertNode = colEntry["vertices"];
+            if (vertNode && vertNode.IsSequence())
+            {
+                for (const YAML::Node& vn : vertNode)
+                {
+                    if (!vn.IsSequence() || vn.size() < 2)
+                    {
+                        continue;
+                    }
+                    ColliderVertex v;
+                    v.xVal = vn[0].as<float>();
+                    v.yVal = vn[1].as<float>();
+                    floatToString(v.xVal, v.x, 2);
+                    floatToString(v.yVal, v.y, 2);
+                    collider.push_back(std::move(v));
+                }
+            }
+        }
+
+        if (partNode["connectors"] && partNode["connectors"].IsSequence())
+        {
+            for (const auto& cn : partNode["connectors"])
+            {
+                ConnectorInfo c;
+                float px = 0.0f;
+                float py = 0.0f;
+                const YAML::Node p = cn["pos"];
+                if (p && p.IsSequence() && p.size() >= 2)
+                {
+                    px = p[0].as<float>();
+                    py = p[1].as<float>();
+                }
+                c.posXVal = px;
+                c.posYVal = py;
+                floatToString(c.posXVal, c.posX, 2);
+                floatToString(c.posYVal, c.posY, 2);
+
+                float rotDeg = 0.0f;
+                if (cn["rot"])
+                {
+                    rotDeg = cn["rot"].as<float>();
+                }
+                c.rotDegVal = rotDeg;
+                floatToString(c.rotDegVal, c.rot, 2);
+
+                connectors.push_back(std::move(c));
+            }
+        }
+    }
+    catch (const YAML::Exception& e)
+    {
+        LG_W("Modding tools: error parsing station-part in {}: {}",
+             path,
+             e.what());
+        textures.clear();
+        collider.clear();
+        connectors.clear();
+        stationPartInfo = StationPartInfo{};
+        genInfo = GeneralInfo{};
+        activeMode = ModdingToolsMode::None;
+        syncModeToRml();
+        return false;
+    }
+
+    parseEditorNumericFields();
+    return true;
+}
+
+bool ModdingTools::saveStationPartDataToPath(const string& path)
+{
+    parseEditorNumericFields();
+
+    const string key =
+        sanitizeHullKey(genInfo.name.empty() ? string("part") : genInfo.name);
+    const string displayName = genInfo.name.empty() ? key : genInfo.name;
+
+    YAML::Node texBundle;
+    YAML::Node texList(YAML::NodeType::Sequence);
+    for (const auto& t : textures)
+    {
+        YAML::Node entry;
+        entry["name"] = t.name;
+        entry["bounds"] = YAML::Node(YAML::NodeType::Sequence);
+        entry["bounds"].push_back(t.posXVal);
+        entry["bounds"].push_back(t.posYVal);
+        entry["bounds"].push_back(t.sizeXVal);
+        entry["bounds"].push_back(t.sizeYVal);
+        entry["zIndex"] = t.zIndexVal;
+        entry["flags"] = static_cast<int>(t.flags);
+        entry["rot"] = t.rotVal;
+        texList.push_back(entry);
+    }
+    texBundle["textures"] = texList;
+
+    YAML::Node colEntry;
+    if (!collider.empty())
+    {
+        colEntry["restitution"] = genInfo.colliderRestitutionVal;
+        YAML::Node vertSeq(YAML::NodeType::Sequence);
+        for (const auto& v : collider)
+        {
+            YAML::Node pair(YAML::NodeType::Sequence);
+            pair.push_back(v.xVal);
+            pair.push_back(v.yVal);
+            vertSeq.push_back(pair);
+        }
+        colEntry["vertices"] = vertSeq;
+    }
+
+    YAML::Node partNode;
+    partNode["name"] = displayName;
+    partNode["type"] = stationPartInfo.partType;
+    partNode["textures"] = key;
+    partNode["collider"] = key;
+    partNode["hp"] = hpVal;
+
+    YAML::Node connSeq(YAML::NodeType::Sequence);
+    for (const auto& c : connectors)
+    {
+        YAML::Node cn;
+        cn["pos"] = YAML::Node(YAML::NodeType::Sequence);
+        cn["pos"].push_back(c.posXVal);
+        cn["pos"].push_back(c.posYVal);
+        cn["rot"] = c.rotDegVal;
+        connSeq.push_back(cn);
+    }
+    if (!connectors.empty())
+    {
+        partNode["connectors"] = connSeq;
+    }
+
+    YAML::Node dataNode(YAML::NodeType::Map);
+    switch (stationPartInfo.partTypeVal)
+    {
+        case gobj::StationPartType::Structural:
+            dataNode["dummy"] = std::string("nodata");
+            break;
+        case gobj::StationPartType::Storage:
+            dataNode["volume"] = stationPartInfo.storageVolumeVal;
+            break;
+        default:
+            break;
+    }
+    if (dataNode.size() > 0)
+    {
+        partNode["data"] = dataNode;
+    }
+
+    YAML::Node root;
+    root["textures"] = YAML::Node(YAML::NodeType::Map);
+    root["textures"][key] = texBundle;
+    root["collider"] = YAML::Node(YAML::NodeType::Map);
+    root["collider"][key] = colEntry;
+    root["station-part"] = YAML::Node(YAML::NodeType::Map);
+    root["station-part"][key] = partNode;
+
+    std::ofstream out(path);
+    if (!out)
+    {
+        return false;
+    }
+    out << root;
+    return out.good();
+}
+
 bool ModdingTools::saveHullDataToPath(const string& path)
 {
     parseEditorNumericFields();
 
     const string key =
-        sanitizeHullKey(hull.name.empty() ? string("hull") : hull.name);
-    const string displayName = hull.name.empty() ? key : hull.name;
+        sanitizeHullKey(genInfo.name.empty() ? string("hull") : genInfo.name);
+    const string displayName = genInfo.name.empty() ? key : genInfo.name;
 
     YAML::Node texBundle;
     YAML::Node texList(YAML::NodeType::Sequence);
@@ -694,10 +1436,11 @@ bool ModdingTools::saveHullDataToPath(const string& path)
     YAML::Node hullNode;
     hullNode["name"] = displayName;
     hullNode["hullpoints"] = hpVal;
+    hullNode["collider"] = key;
     hullNode["textures"] = key;
-    if (!hull.mapIcon.empty())
+    if (!genInfo.mapIcon.empty())
     {
-        hullNode["map-icon"] = hull.mapIcon;
+        hullNode["map-icon"] = genInfo.mapIcon;
     }
 
     YAML::Node slotSeq(YAML::NodeType::Sequence);
@@ -717,9 +1460,26 @@ bool ModdingTools::saveHullDataToPath(const string& path)
         hullNode["slots"] = slotSeq;
     }
 
+    YAML::Node colEntry;
+    if (!collider.empty())
+    {
+        colEntry["restitution"] = genInfo.colliderRestitutionVal;
+        YAML::Node vertSeq(YAML::NodeType::Sequence);
+        for (const auto& v : collider)
+        {
+            YAML::Node pair(YAML::NodeType::Sequence);
+            pair.push_back(v.xVal);
+            pair.push_back(v.yVal);
+            vertSeq.push_back(pair);
+        }
+        colEntry["vertices"] = vertSeq;
+    }
+
     YAML::Node root;
     root["textures"] = YAML::Node(YAML::NodeType::Map);
     root["textures"][key] = texBundle;
+    root["collider"] = YAML::Node(YAML::NodeType::Map);
+    root["collider"][key] = colEntry;
     root["hull"] = YAML::Node(YAML::NodeType::Map);
     root["hull"][key] = hullNode;
 

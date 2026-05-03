@@ -1142,7 +1142,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 8000; ++i)
+    for (int i = 0; i < 80; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1189,9 +1189,9 @@ void Engine::testSpawn()
     }
 
 
-    static constexpr const char* kStationParts[] = {"strut-1", "tank-1"};
+    static constexpr const char* kStationParts[] = {"strut-1"};
 
-    for (int i = 0; i < 40; i++)
+    for (int i = 0; i < 10; i++)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);

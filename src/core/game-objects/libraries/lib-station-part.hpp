@@ -8,6 +8,9 @@
 namespace gobj
 {
 
+constexpr float kConnectorWidth = 60.0f;
+constexpr float kConnectorHeight = 2.63f;
+
 enum class StationPartType : uint8_t
 {
     Structural,

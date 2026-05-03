@@ -10,10 +10,54 @@ textures:
         zIndex: 50
         flags: 0
         rot: 0
+collider:
+  mace:
+    restitution: 0.1
+    vertices:
+      -
+        - -14
+        - 29
+      -
+        - -14
+        - -20
+      -
+        - -9
+        - -23
+      -
+        - -9
+        - -31
+      -
+        - -4.5
+        - -36.7
+      -
+        - 4.5
+        - -36.7
+      -
+        - 9
+        - -31
+      -
+        - 9
+        - -23
+      -
+        - 14
+        - -20
+      -
+        - 14
+        - 29
+      -
+        - 10
+        - 34
+      -
+        - 0
+        - 36.5
+      -
+        - -10
+        - 34
 hull:
   mace:
     name: mace
     hullpoints: 1000
+    collider: mace
     textures: mace
     map-icon: frigate
     slots:

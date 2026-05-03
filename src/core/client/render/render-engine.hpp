@@ -157,11 +157,17 @@ class RenderEngine
                        float rotation,
                        TextureHandle textureHandle,
                        bgfx::ViewId viewId = 0);
+    void drawLine(const glm::vec2& start,
+                  const glm::vec2& end,
+                  uint32_t colorABGR,
+                  float thickness,
+                  float zIndex = 0.0f,
+                  bgfx::ViewId viewId = 0);
     void drawFullScreenTriangles(bgfx::ViewId viewId,
                                  ShaderHandle shaderHandle);
-    /// Fullscreen blueprint-style grid in world space (same `u_myproj` / inverse
-    /// as texrect). `cellWorld` = u_grid.x (world units per cell); `majorEveryCells`
-    /// = u_grid.y (integer >= 1).
+    /// Fullscreen blueprint-style grid in world space (same `u_myproj` /
+    /// inverse as texrect). `cellWorld` = u_grid.x (world units per cell);
+    /// `majorEveryCells` = u_grid.y (integer >= 1).
     void drawBlueprintGridBackground(bgfx::ViewId viewId,
                                      ShaderHandle shaderHandle,
                                      float cellWorld,

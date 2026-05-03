@@ -25,10 +25,16 @@
                             <input type="text" data-value="hull.mapIcon" />
                         </label>
                     </div>
+                    <div class="flex-row">
+                        <label class="form-row">
+                            <span>Collider Restitution</span>
+                            <input type="number" step="0.01" data-value="hull.colliderRestitution" />
+                        </label>
+                    </div>
                 </div>
                 <div class="border-box">
-                    <div class="flex-row" data-event-click="extendTextures = !extendTextures">
-                        <span>Textures</span>
+                    <div class="flex-row">
+                        <span data-event-click="extendTextures = !extendTextures">Textures</span>
                         <button class="small-btn" data-event-click="onAddTexture()">Add</button>
                         <button class="small-btn" data-event-click="onClearTextures()">Clear</button>
                     </div>
@@ -43,6 +49,7 @@
                                     <span>z-Index</span>
                                     <input type="number" step="1" data-value="texture.zIndex" />
                                 </label>
+                                <button class="small-btn" data-event-click="removeTexture(it_index)">X</button>
                             </div>
                             <div class="flex-row">
                                 <label class="form-row">
@@ -70,8 +77,8 @@
                     </div>
                 </div>
                 <div class="border-box">
-                    <div class="flex-row" data-event-click="extendSlots = !extendSlots">
-                        <span>Slots</span>
+                    <div class="flex-row">
+                        <span data-event-click="extendSlots = !extendSlots">Slots</span>
                         <button class="small-btn" data-event-click="onAddSlot()">Add</button>
                         <button class="small-btn" data-event-click="onClearSlots()">Clear</button>
                     </div>
@@ -121,12 +128,163 @@
                         </div>
                     </div>
                 </div>
+                <div class="border-box">
+                    <div class="flex-row">
+                        <span data-event-click="extendCollider = !extendCollider">Collider</span>
+                        <button class="small-btn" data-event-click="onAddColliderVertex()">Add</button>
+                        <button class="small-btn" data-event-click="onClearColliderVertices()">Clear</button>
+                    </div>
+                    <div data-for="vertex : collider" data-if="extendCollider">
+                        <div class="separator-box-top">
+                            <div class="flex-row">
+                                <label class="form-row">
+                                    <span>X</span>
+                                    <input type="number" step="0.01" data-value="vertex.x" />
+                                </label>
+                                <label class="form-row">
+                                    <span>Y</span>
+                                    <input type="number" step="0.01" data-value="vertex.y" />
+                                </label>
+                                <button class="small-btn" data-event-click="onRemoveColliderVertex(it_index)">X</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="modding-tools-mode-panel" data-if="mode == 'Module'">
                 <h3 class="modding-tools-mode-title">{{mode}}</h3>
             </div>
             <div class="modding-tools-mode-panel" data-if="mode == 'StationPart'">
                 <h3 class="modding-tools-mode-title">{{mode}}</h3>
+                <div class="border-box">
+                    <div class="multiline-label">{{openFilepath}}</div>
+                    <div class="flex-row">
+                        <label class="form-row">
+                            <span>Name</span>
+                            <input type="text" data-value="hull.name" />
+                        </label>
+                        <label class="form-row">
+                            <span>HP</span>
+                            <input type="number" step="1" data-value="hull.hp" />
+                        </label>
+                    </div>
+                    <div class="flex-row">
+                        <label class="form-row">
+                            <span>Part Type</span>
+                            <select data-value="stationPart.partType">
+                                <option value="Structural">Structural</option>
+                                <option value="Storage">Storage</option>
+                                <option value="Docking">Docking</option>
+                                <option value="Habitat">Habitat</option>
+                                <option value="Defense">Defense</option>
+                                <option value="Production">Production</option>
+                                <option value="LifeSupport">LifeSupport</option>
+                            </select>
+                        </label>
+                        <label class="form-row">
+                            <span>Collider Restitution</span>
+                            <input type="number" step="0.01" data-value="hull.colliderRestitution" />
+                        </label>
+                    </div>
+                    <div class="flex-row" data-if="stationPart.partType == 'Storage'">
+                        <label class="form-row">
+                            <span>Storage volume</span>
+                            <input type="number" step="0.01" data-value="stationPart.storageVolume" />
+                        </label>
+                    </div>
+                </div>
+                <div class="border-box">
+                    <div class="flex-row">
+                        <span data-event-click="extendTextures = !extendTextures">Textures</span>
+                        <button class="small-btn" data-event-click="onAddTexture()">Add</button>
+                        <button class="small-btn" data-event-click="onClearTextures()">Clear</button>
+                    </div>
+                    <div data-for="texture : textures" data-if="extendTextures">
+                        <div class="separator-box-top">
+                            <div class="flex-row">
+                                <label class="form-row">
+                                    <span>Name</span>
+                                    <input type="text" data-value="texture.name" />
+                                </label>
+                                <label class="form-row">
+                                    <span>z-Index</span>
+                                    <input type="number" step="1" data-value="texture.zIndex" />
+                                </label>
+                                <button class="small-btn" data-event-click="removeTexture(it_index)">X</button>
+                            </div>
+                            <div class="flex-row">
+                                <label class="form-row">
+                                    <span>X</span>
+                                    <input type="number" step="0.01" data-value="texture.posX" />
+                                </label>
+                                <label class="form-row">
+                                    <span>Y</span>
+                                    <input type="number" step="0.01" data-value="texture.posY" />
+                                </label>
+                                <label class="form-row">
+                                    <span>W</span>
+                                    <input type="number" step="0.01" data-value="texture.sizeX" />
+                                </label>
+                                <label class="form-row">
+                                    <span>H</span>
+                                    <input type="number" step="0.01" data-value="texture.sizeY" />
+                                </label>
+                                <label class="form-row">
+                                    <span>Rot</span>
+                                    <input type="number" step="0.01" data-value="texture.rot" />
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="border-box">
+                    <div class="flex-row">
+                        <span data-event-click="extendCollider = !extendCollider">Collider</span>
+                        <button class="small-btn" data-event-click="onAddColliderVertex()">Add</button>
+                        <button class="small-btn" data-event-click="onClearColliderVertices()">Clear</button>
+                    </div>
+                    <div data-for="vertex : collider" data-if="extendCollider">
+                        <div class="separator-box-top">
+                            <div class="flex-row">
+                                <label class="form-row">
+                                    <span>X</span>
+                                    <input type="number" step="0.01" data-value="vertex.x" />
+                                </label>
+                                <label class="form-row">
+                                    <span>Y</span>
+                                    <input type="number" step="0.01" data-value="vertex.y" />
+                                </label>
+                                <button class="small-btn" data-event-click="onRemoveColliderVertex(it_index)">X</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="border-box">
+                    <div class="flex-row">
+                        <span data-event-click="extendConnectors = !extendConnectors">Connectors</span>
+                        <button class="small-btn" data-event-click="onAddConnector()">Add</button>
+                        <button class="small-btn" data-event-click="onClearConnectors()">Clear</button>
+                    </div>
+                    <div data-for="connector : connectors" data-if="extendConnectors">
+                        <div class="separator-box-top">
+                            <div class="flex-row">
+                                <label class="form-row">
+                                    <span>X</span>
+                                    <input type="number" step="0.01" data-value="connector.posX" />
+                                </label>
+                                <label class="form-row">
+                                    <span>Y</span>
+                                    <input type="number" step="0.01" data-value="connector.posY" />
+                                </label>
+                                <label class="form-row">
+                                    <span>Rot (deg)</span>
+                                    <input type="number" step="0.01" data-value="connector.rot" />
+                                </label>
+                                <button class="small-btn" data-event-click="onRemoveConnector(it_index)">X</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </body>

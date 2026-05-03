@@ -10,13 +10,13 @@ namespace gfx
 {
 
 // Atlas sampling: full POINT (MIN|MAG|MIP) makes texels snap hard to the grid.
-// With fractional screen positions (camera zoom/pan), that shows up as shimmer /
-// crawl. MIN_ANISOTROPIC + MAG_POINT is a common 2D tradeoff: sharper when
+// With fractional screen positions (camera zoom/pan), that shows up as shimmer
+// / crawl. MIN_ANISOTROPIC + MAG_POINT is a common 2D tradeoff: sharper when
 // zoomed in, smoother minification when zoomed out. For pixel-perfect art at
 // integer scales only, use BGFX_SAMPLER_POINT + UVW_CLAMP instead.
 static constexpr uint32_t kSpriteSamplerFlags =
-    BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
-    | BGFX_SAMPLER_MIN_ANISOTROPIC | BGFX_SAMPLER_MAG_POINT;
+    BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP | BGFX_SAMPLER_MIN_ANISOTROPIC
+    | BGFX_SAMPLER_MAG_POINT;
 
 static_assert(
     sizeof(TexRectData) % 16 == 0,
@@ -255,10 +255,8 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
         }
     }
 
-    bgfx::setTexture(0,
-                     u_texArray,
-                     texture->getTexIdent().texHandle,
-                     kSpriteSamplerFlags);
+    bgfx::setTexture(
+        0, u_texArray, texture->getTexIdent().texHandle, kSpriteSamplerFlags);
 
     float layerArr[] = {
         static_cast<float>(texture->getTexIdent().layerIdx), 0.0f, 0.0f, 0.0f};
@@ -762,6 +760,20 @@ void RenderEngine::drawRectangle(const glm::vec2& pos,
                  viewId);
 }
 
+void RenderEngine::drawLine(const glm::vec2& start,
+                            const glm::vec2& end,
+                            uint32_t colorABGR,
+                            float thickness,
+                            float zIndex,
+                            bgfx::ViewId viewId)
+{
+    float rot = atan2f(end.y - start.y, end.x - start.x);
+    float len = glm::length(end - start);
+    vec2 size = vec2(len, thickness);
+    drawRectangle(
+        (start + end) / 2.0f, size, colorABGR, thickness, rot, zIndex, viewId);
+}
+
 tim::Timepoint RenderEngine::getStartTime() const
 {
     return startTime;
@@ -788,10 +800,11 @@ void RenderEngine::submitShapes()
             shaderHandleShapes = getShaderHandle("sdf-shapes");
             return;
         }
-        uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
-                         | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS
-                         | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
-                                                 BGFX_STATE_BLEND_INV_SRC_ALPHA);
+        uint64_t state =
+            BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z
+            | BGFX_STATE_DEPTH_TEST_LESS
+            | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
+                                    BGFX_STATE_BLEND_INV_SRC_ALPHA);
 
         const float* projForView =
             (currentViewId == kWorldView) ? worldViewProj : ortho;
@@ -887,10 +900,7 @@ void RenderEngine::submitTexRects()
         return;
     }
 
-    bgfx::setTexture(0,
-                     u_texArray,
-                     texRectBatchArray,
-                     kSpriteSamplerFlags);
+    bgfx::setTexture(0, u_texArray, texRectBatchArray, kSpriteSamplerFlags);
 
     uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
                      | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS
