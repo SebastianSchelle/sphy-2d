@@ -338,6 +338,23 @@ con::ItemLib<Texture>& TextureLoader::getTextureLib()
     return textureLib;
 }
 
+std::vector<std::string> TextureLoader::getTextureNames() const
+{
+    std::vector<std::string> names;
+    const auto items = textureLib.getItems();
+    names.reserve(items.size());
+    for (const Texture* texture : items)
+    {
+        if (texture != nullptr)
+        {
+            names.push_back(texture->getName());
+        }
+    }
+    std::sort(names.begin(), names.end());
+    names.erase(std::unique(names.begin(), names.end()), names.end());
+    return names;
+}
+
 TextureHandle TextureLoader::getTextureHandle(const std::string& name)
 {
     return textureLib.getHandle(name);

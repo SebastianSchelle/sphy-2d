@@ -43,13 +43,23 @@
                             <div class="flex-row">
                                 <label class="form-row">
                                     <span>Name</span>
-                                    <input type="text" data-value="texture.name" />
+                                    <input type="text" data-value="texture.name"
+                                           data-event-focus="onTextureNameFocus(it_index)"
+                                           data-event-click="onTextureNameFocus(it_index)" />
                                 </label>
                                 <label class="form-row">
                                     <span>z-Index</span>
                                     <input type="number" step="1" data-value="texture.zIndex" />
                                 </label>
                                 <button class="small-btn" data-event-click="removeTexture(it_index)">X</button>
+                            </div>
+                            <div class="flex-row">
+                                <div class="texture-name-suggestions"
+                                     data-if="showTextureSuggestions && activeTextureIndex == it_index">
+                                    <button class="texture-suggestion-btn"
+                                            data-for="textureName : filteredTextureNames"
+                                            data-event-click="onPickTextureName(textureName)">{{textureName}}</button>
+                                </div>
                             </div>
                             <div class="flex-row">
                                 <label class="form-row">
@@ -204,13 +214,23 @@
                             <div class="flex-row">
                                 <label class="form-row">
                                     <span>Name</span>
-                                    <input type="text" data-value="texture.name" />
+                                    <input type="text" data-value="texture.name"
+                                           data-event-focus="onTextureNameFocus(it_index)"
+                                           data-event-click="onTextureNameFocus(it_index)" />
                                 </label>
                                 <label class="form-row">
                                     <span>z-Index</span>
                                     <input type="number" step="1" data-value="texture.zIndex" />
                                 </label>
                                 <button class="small-btn" data-event-click="removeTexture(it_index)">X</button>
+                            </div>
+                            <div class="flex-row">
+                                <div class="texture-name-suggestions"
+                                     data-if="showTextureSuggestions && activeTextureIndex == it_index">
+                                    <button class="texture-suggestion-btn"
+                                            data-for="textureName : filteredTextureNames"
+                                            data-event-click="onPickTextureName(textureName)">{{textureName}}</button>
+                                </div>
                             </div>
                             <div class="flex-row">
                                 <label class="form-row">

@@ -683,3 +683,25 @@ body.modding-tools-obj-doc {
     word-break: break-all;
     white-space: normal;
 }
+
+.texture-name-suggestions {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-height: 140px;
+    overflow-y: auto;
+    border: 1px #7784ff55;
+    border-radius: 4px;
+    background: #0b0625d9;
+    padding: 2px;
+    box-sizing: border-box;
+}
+
+.texture-suggestion-btn {
+    width: 100%;
+    text-align: left;
+    margin: 0px;
+    border: 0px;
+    border-radius: 2px;
+    padding: 3px 6px;
+}

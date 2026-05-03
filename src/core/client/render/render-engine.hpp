@@ -227,6 +227,7 @@ class RenderEngine
     void relScreenToWorldCoords(const vec2& screenPosRel, vec2& worldPos) const;
     void getViewportRect(Rect& rect) const;
     TextureHandle getTextureHandle(const std::string& name);
+    std::vector<std::string> getTextureNames() const;
 
     TextureHandle getFallbackTextureHandle() const
     {

@@ -128,6 +128,7 @@ class TextureLoader
                                   const std::string& path = "");
     void unloadTexture(uint32_t handle);
     con::ItemLib<Texture>& getTextureLib();
+    std::vector<std::string> getTextureNames() const;
     TextureHandle getTextureHandle(const std::string& name);
 
   private:

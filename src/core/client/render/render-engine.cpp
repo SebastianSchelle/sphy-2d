@@ -9,14 +9,11 @@
 namespace gfx
 {
 
-// Atlas sampling: full POINT (MIN|MAG|MIP) makes texels snap hard to the grid.
-// With fractional screen positions (camera zoom/pan), that shows up as shimmer
-// / crawl. MIN_ANISOTROPIC + MAG_POINT is a common 2D tradeoff: sharper when
-// zoomed in, smoother minification when zoomed out. For pixel-perfect art at
-// integer scales only, use BGFX_SAMPLER_POINT + UVW_CLAMP instead.
+// Sprite sampling: use linear min/mag filtering to reduce grainy shimmer on
+// camera pans and non-integer zoom factors. For strict pixel-art rendering at
+// integer scales, switch to point sampling instead.
 static constexpr uint32_t kSpriteSamplerFlags =
-    BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP | BGFX_SAMPLER_MIN_ANISOTROPIC
-    | BGFX_SAMPLER_MAG_POINT;
+    BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
 
 static_assert(
     sizeof(TexRectData) % 16 == 0,
@@ -1057,6 +1054,11 @@ void RenderEngine::getViewportRect(Rect& rect) const
 TextureHandle RenderEngine::getTextureHandle(const std::string& name)
 {
     return textureLoader.getTextureHandle(name);
+}
+
+std::vector<std::string> RenderEngine::getTextureNames() const
+{
+    return textureLoader.getTextureNames();
 }
 
 void RenderEngine::panWorldTo(const def::SectorCoords& sectorCoords)

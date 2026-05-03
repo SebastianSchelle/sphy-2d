@@ -1,6 +1,7 @@
 #ifndef ENGINE_IMPL_HPP
 #define ENGINE_IMPL_HPP
 
+#include "comp-tag.hpp"
 #include "engine.hpp"
 #include "protocol.hpp"
 
@@ -51,7 +52,10 @@ template <typename Component> void Engine::registerSlowDumpComponent()
                     {
                         auto component =
                             ptrHandle->registry->try_get<Component>(entity);
-                        if (component)
+                        bool selectable =
+                            ptrHandle->registry->all_of<ecs::tag::Selectable>(
+                                entity);
+                        if (component && selectable)
                         {
                             mcomp.ser->object(entityId);
                             mcomp.ser->object(*component);
@@ -151,7 +155,10 @@ template <typename Component> void Engine::registerActiveSectorDumpComponent()
                 {
                     auto component =
                         ptrHandle->registry->try_get<Component>(entity);
-                    if (component)
+                    bool selectable =
+                        ptrHandle->registry->all_of<ecs::tag::Selectable>(
+                            entity);
+                    if (component && selectable)
                     {
                         mcomp.ser->object(entityId);
                         mcomp.ser->object(*component);

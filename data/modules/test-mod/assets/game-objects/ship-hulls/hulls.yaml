@@ -64,13 +64,13 @@ module:
     type: ManeuverThruster
     textures: thrust-maneuver-common-s
     data:
-      max-thrust: 5000.0
+      max-thrust: 10000.0
   thrust-main-common-s:
     slot-type: ThrusterMainS_Common
     type: MainThruster
     textures: thrust-main-common-s
     data:
-      max-thrust: 100000.0
+      max-thrust: 500000.0
   cargo-common-s:
     slot-type: BayS_Common
     type: Storage

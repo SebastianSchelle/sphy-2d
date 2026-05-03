@@ -164,6 +164,12 @@ class ModdingTools
     void onRemoveConnector(Rml::DataModelHandle handle,
                            Rml::Event& event,
                            const Rml::VariantList& args);
+    void onTextureNameFocus(Rml::DataModelHandle handle,
+                            Rml::Event& event,
+                            const Rml::VariantList& args);
+    void onPickTextureName(Rml::DataModelHandle handle,
+                           Rml::Event& event,
+                           const Rml::VariantList& args);
     void syncModeToRml();
 
     void drawRoofSlot(gfx::RenderEngine& renderer, const SlotInfo& slot);
@@ -181,6 +187,7 @@ class ModdingTools
     bool saveStationPartDataToPath(const string& path);
     bool loadStationPartDataFromPath(const string& path);
     void parseEditorNumericFields();
+    void refreshTextureNameSuggestions();
     ModdingToolsMode determineAssetType(const string& path);
 
     Rml::DataModelHandle rmlModel_;
@@ -192,6 +199,8 @@ class ModdingTools
     StationPartInfo stationPartInfo;
     float hpVal = 0.0f;
     vector<TextureInfo> textures;
+    vector<string> renderTextureNames;
+    vector<string> filteredTextureNames;
     vector<SlotInfo> slots;
     vector<ColliderVertex> collider;
     vector<ConnectorInfo> connectors;
@@ -200,6 +209,8 @@ class ModdingTools
     bool extendSlots = true;
     bool extendCollider = true;
     bool extendConnectors = true;
+    int activeTextureIndex = -1;
+    bool showTextureSuggestions = false;
 };
 
 }  // namespace modding

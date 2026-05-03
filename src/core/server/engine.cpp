@@ -1142,7 +1142,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 80; ++i)
+    for (int i = 0; i < 100000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1189,9 +1189,9 @@ void Engine::testSpawn()
     }
 
 
-    static constexpr const char* kStationParts[] = {"strut-1"};
+    static constexpr const char* kStationParts[] = {"strut-1", "solar-panel"};
 
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 40; i++)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1603,10 +1603,10 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
     if (!makeMoveCtrl(
             entt,
             ecs::PhyThrust{.maxTorque = 1000.0f,
-                           .maxRotVel = 1.0f,
+                           .maxRotVel = 3.0f,
                            .thrustMainMax = 10000.0f,
                            .thrustManeuverMax = 1000.0f,
-                           .maxSpd = 100.0f},
+                           .maxSpd = 1000.0f},
             ecs::MoveCtrl{.active = true,
                           .faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward,
                           .spPos = {0, 0},

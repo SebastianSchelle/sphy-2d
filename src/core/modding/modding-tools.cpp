@@ -40,6 +40,15 @@ string sanitizeHullKey(string s)
     return o;
 }
 
+string toLowerCopy(const string& input)
+{
+    string out = input;
+    std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return out;
+}
+
 }  // namespace
 
 void ModdingTools::syncModeToRml()
@@ -99,6 +108,10 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
         "onClearConnectors", &ModdingTools::onClearConnectors, this);
     moddingToolsConstructor.BindEventCallback(
         "onRemoveConnector", &ModdingTools::onRemoveConnector, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onTextureNameFocus", &ModdingTools::onTextureNameFocus, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onPickTextureName", &ModdingTools::onPickTextureName, this);
     if (auto hullHandle = moddingToolsConstructor.RegisterStruct<GeneralInfo>())
     {
         hullHandle.RegisterMember("name", &GeneralInfo::name);
@@ -133,6 +146,13 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     }
     moddingToolsConstructor.RegisterArray<std::vector<TextureInfo>>();
     moddingToolsConstructor.Bind("textures", &textures);
+    moddingToolsConstructor.RegisterArray<std::vector<string>>();
+    moddingToolsConstructor.Bind("renderTextureNames", &renderTextureNames);
+    moddingToolsConstructor.Bind("activeTextureIndex", &activeTextureIndex);
+    moddingToolsConstructor.Bind("showTextureSuggestions",
+                                 &showTextureSuggestions);
+    moddingToolsConstructor.RegisterArray<std::vector<string>>();
+    moddingToolsConstructor.Bind("filteredTextureNames", &filteredTextureNames);
     if (auto slotHandle = moddingToolsConstructor.RegisterStruct<SlotInfo>())
     {
         slotHandle.RegisterMember("slotType", &SlotInfo::slotType);
@@ -191,6 +211,9 @@ void ModdingTools::onModdingNewHull(Rml::DataModelHandle handle,
     genInfo = GeneralInfo{};
     stationPartInfo = StationPartInfo{};
     textures.clear();
+    filteredTextureNames.clear();
+    activeTextureIndex = -1;
+    showTextureSuggestions = false;
     slots.clear();
     collider.clear();
     connectors.clear();
@@ -227,6 +250,9 @@ void ModdingTools::onModdingNewStationPart(Rml::DataModelHandle handle,
     genInfo.mapIcon.clear();
     stationPartInfo = StationPartInfo{};
     textures.clear();
+    filteredTextureNames.clear();
+    activeTextureIndex = -1;
+    showTextureSuggestions = false;
     slots.clear();
     collider.clear();
     connectors.clear();
@@ -351,7 +377,13 @@ void ModdingTools::onAddTexture(Rml::DataModelHandle handle,
                                 const Rml::VariantList& args)
 {
     textures.push_back(TextureInfo{});
+    activeTextureIndex = static_cast<int>(textures.size()) - 1;
+    showTextureSuggestions = true;
+    refreshTextureNameSuggestions();
     rmlModel_.DirtyVariable("textures");
+    rmlModel_.DirtyVariable("activeTextureIndex");
+    rmlModel_.DirtyVariable("showTextureSuggestions");
+    rmlModel_.DirtyVariable("filteredTextureNames");
 }
 
 void ModdingTools::onClearTextures(Rml::DataModelHandle handle,
@@ -359,7 +391,13 @@ void ModdingTools::onClearTextures(Rml::DataModelHandle handle,
                                    const Rml::VariantList& args)
 {
     textures.clear();
+    filteredTextureNames.clear();
+    activeTextureIndex = -1;
+    showTextureSuggestions = false;
     rmlModel_.DirtyVariable("textures");
+    rmlModel_.DirtyVariable("activeTextureIndex");
+    rmlModel_.DirtyVariable("showTextureSuggestions");
+    rmlModel_.DirtyVariable("filteredTextureNames");
 }
 
 void ModdingTools::onRemoveTexture(Rml::DataModelHandle handle,
@@ -375,8 +413,67 @@ void ModdingTools::onRemoveTexture(Rml::DataModelHandle handle,
     if (i >= 0 && i < static_cast<int>(textures.size()))
     {
         textures.erase(textures.begin() + static_cast<size_t>(i));
+        if (activeTextureIndex == i)
+        {
+            activeTextureIndex = -1;
+            showTextureSuggestions = false;
+            filteredTextureNames.clear();
+        }
+        else if (activeTextureIndex > i)
+        {
+            activeTextureIndex--;
+        }
+        refreshTextureNameSuggestions();
         handle.DirtyVariable("textures");
+        handle.DirtyVariable("activeTextureIndex");
+        handle.DirtyVariable("showTextureSuggestions");
+        handle.DirtyVariable("filteredTextureNames");
     }
+}
+
+void ModdingTools::onTextureNameFocus(Rml::DataModelHandle handle,
+                                      Rml::Event& event,
+                                      const Rml::VariantList& args)
+{
+    (void)event;
+    if (args.size() != 1)
+    {
+        return;
+    }
+    const int i = args[0].Get<int>(-1);
+    if (i < 0 || i >= static_cast<int>(textures.size()))
+    {
+        return;
+    }
+    activeTextureIndex = i;
+    showTextureSuggestions = true;
+    refreshTextureNameSuggestions();
+    handle.DirtyVariable("activeTextureIndex");
+    handle.DirtyVariable("showTextureSuggestions");
+    handle.DirtyVariable("filteredTextureNames");
+}
+
+void ModdingTools::onPickTextureName(Rml::DataModelHandle handle,
+                                     Rml::Event& event,
+                                     const Rml::VariantList& args)
+{
+    (void)event;
+    if (args.size() != 1 || activeTextureIndex < 0
+        || activeTextureIndex >= static_cast<int>(textures.size()))
+    {
+        return;
+    }
+    const string picked = args[0].Get<string>("");
+    if (picked.empty())
+    {
+        return;
+    }
+    textures[static_cast<size_t>(activeTextureIndex)].name = picked;
+    showTextureSuggestions = false;
+    filteredTextureNames.clear();
+    handle.DirtyVariable("textures");
+    handle.DirtyVariable("showTextureSuggestions");
+    handle.DirtyVariable("filteredTextureNames");
 }
 
 void ModdingTools::onAddSlot(Rml::DataModelHandle handle,
@@ -463,18 +560,6 @@ void ModdingTools::onClearConnectors(Rml::DataModelHandle handle,
     (void)args;
     connectors.clear();
     handle.DirtyVariable("connectors");
-}
-
-void ModdingTools::onRemoveConnector(Rml::DataModelHandle handle,
-                                     Rml::Event& event,
-                                     const Rml::VariantList& args)
-{
-    (void)event;
-    if (args.size() != 1)
-    {
-        return;
-    }
-    const int i = args[0].Get<int>(-1);
     if (i >= 0 && i < static_cast<int>(connectors.size()))
     {
         connectors.erase(connectors.begin() + static_cast<size_t>(i));
@@ -554,8 +639,52 @@ void ModdingTools::parseEditorNumericFields()
     rmlModel_.DirtyVariable("hull");
 }
 
+void ModdingTools::refreshTextureNameSuggestions()
+{
+    if (!showTextureSuggestions || activeTextureIndex < 0
+        || activeTextureIndex >= static_cast<int>(textures.size()))
+    {
+        if (!filteredTextureNames.empty())
+        {
+            filteredTextureNames.clear();
+            rmlModel_.DirtyVariable("filteredTextureNames");
+        }
+        return;
+    }
+
+    const string query =
+        toLowerCopy(textures[static_cast<size_t>(activeTextureIndex)].name);
+    std::vector<string> filtered;
+    filtered.reserve(renderTextureNames.size());
+    for (const string& textureName : renderTextureNames)
+    {
+        const string lowerName = toLowerCopy(textureName);
+        if (query.empty() || lowerName.find(query) != string::npos)
+        {
+            filtered.push_back(textureName);
+        }
+    }
+    if (filtered.size() > 20)
+    {
+        filtered.resize(20);
+    }
+    if (filteredTextureNames != filtered)
+    {
+        filteredTextureNames = std::move(filtered);
+        rmlModel_.DirtyVariable("filteredTextureNames");
+    }
+}
+
 void ModdingTools::draw(gfx::RenderEngine& renderer)
 {
+    const std::vector<string> currentTextureNames = renderer.getTextureNames();
+    if (renderTextureNames != currentTextureNames)
+    {
+        renderTextureNames = currentTextureNames;
+        rmlModel_.DirtyVariable("renderTextureNames");
+    }
+    refreshTextureNameSuggestions();
+
     parseEditorNumericFields();
 
     const gfx::ShaderHandle blueprintGrid =
