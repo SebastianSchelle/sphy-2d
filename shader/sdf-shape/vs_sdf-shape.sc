@@ -7,10 +7,11 @@ void main()
 {
     vec2 center = a_texcoord3.xy;
     float rot = a_texcoord3.z;
+    float zShape = a_texcoord3.w;
     float c = cos(rot), s = sin(rot);
     vec2 offset = a_position;
     vec2 worldPos = center + vec2(offset.x * c - offset.y * s, offset.x * s + offset.y * c);
-    gl_Position = mul(u_modelViewProj, vec4(worldPos, 0.0, 1.0));
+    gl_Position = mul(u_modelViewProj, vec4(worldPos, zShape, 1.0));
     v_uv = a_texcoord0;
     v_color = a_color0;
     v_shape = a_texcoord1;

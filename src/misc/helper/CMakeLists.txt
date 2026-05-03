@@ -10,6 +10,7 @@ set(HELPER_INC_PUBLIC
 set(HELPER_SOURCES
     sphy-2d.cpp
     os-helper.cpp
+    save-file-dialog.cpp
     config-manager/config-manager.cpp
     config-manager/config-node.cpp
     command-node.cpp
@@ -26,3 +27,6 @@ add_library(helper INTERFACE)
 target_sources(helper INTERFACE ${HELPER_SOURCES})
 target_include_directories(helper INTERFACE ${HELPER_INC_PUBLIC})
 target_link_libraries(helper INTERFACE ${LIBS_PUB})
+if(WIN32)
+    target_link_libraries(helper INTERFACE comdlg32)
+endif()

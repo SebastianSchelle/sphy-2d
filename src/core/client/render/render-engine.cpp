@@ -173,6 +173,11 @@ bool RenderEngine::initPre()
         u_time = bgfx::createUniform("u_time", bgfx::UniformType::Vec4);
     }
 
+    if (!bgfx::isValid(u_grid))
+    {
+        u_grid = bgfx::createUniform("u_grid", bgfx::UniformType::Vec4);
+    }
+
     if (!bgfx::isValid(u_transform))
     {
         u_transform =
@@ -497,6 +502,11 @@ void RenderEngine::cleanUpAll()
         bgfx::destroy(u_time);
         u_time = BGFX_INVALID_HANDLE;
     }
+    if (bgfx::isValid(u_grid))
+    {
+        bgfx::destroy(u_grid);
+        u_grid = BGFX_INVALID_HANDLE;
+    }
     if (bgfx::isValid(u_transform))
     {
         bgfx::destroy(u_transform);
@@ -610,6 +620,22 @@ void RenderEngine::drawFullScreenTriangles(bgfx::ViewId viewId,
     }
 }
 
+void RenderEngine::drawBlueprintGridBackground(bgfx::ViewId viewId,
+                                               ShaderHandle shaderHandle,
+                                               float cellWorld,
+                                               float majorEveryCells)
+{
+    if (!shaderHandle.isValid() || !bgfx::isValid(u_grid))
+    {
+        return;
+    }
+    const float cell = cellWorld < 0.25f ? 0.25f : cellWorld;
+    const float major = majorEveryCells < 1.0f ? 1.0f : majorEveryCells;
+    const float gridParams[4] = {cell, major, 0.0f, 0.0f};
+    bgfx::setUniform(u_grid, gridParams);
+    drawFullScreenTriangles(viewId, shaderHandle);
+}
+
 ShaderHandle RenderEngine::getShaderHandle(const std::string& name)
 {
     return compiledShaderLib.getHandle(name);
@@ -621,6 +647,7 @@ void RenderEngine::drawBoxShape(float shapeType,
                                 uint32_t colorRGBA,
                                 float thickness,
                                 float rotationRad,
+                                float zIndex,
                                 bgfx::ViewId viewId)
 {
     changeRenderState(RenderState::DrawShapes);
@@ -651,7 +678,8 @@ void RenderEngine::drawBoxShape(float shapeType,
                                                            thicknessY,
                                                            cx,
                                                            cy,
-                                                           rotationRad};
+                                                           rotationRad,
+                                                           zIndex};
     vertices[currentShapeVertices++] = PosColorShapeVertex{hs.x,
                                                            -hs.y,
                                                            1.0f,
@@ -662,7 +690,8 @@ void RenderEngine::drawBoxShape(float shapeType,
                                                            thicknessY,
                                                            cx,
                                                            cy,
-                                                           rotationRad};
+                                                           rotationRad,
+                                                           zIndex};
     vertices[currentShapeVertices++] = PosColorShapeVertex{-hs.x,
                                                            hs.y,
                                                            -1.0f,
@@ -673,7 +702,8 @@ void RenderEngine::drawBoxShape(float shapeType,
                                                            thicknessY,
                                                            cx,
                                                            cy,
-                                                           rotationRad};
+                                                           rotationRad,
+                                                           zIndex};
     vertices[currentShapeVertices++] = PosColorShapeVertex{hs.x,
                                                            hs.y,
                                                            1.0f,
@@ -684,7 +714,8 @@ void RenderEngine::drawBoxShape(float shapeType,
                                                            thicknessY,
                                                            cx,
                                                            cy,
-                                                           rotationRad};
+                                                           rotationRad,
+                                                           zIndex};
     uint16_t* indices = (uint16_t*)tibSdf.data;
     indices[currentShapeIndices++] = currentShapeVertices - 4;
     indices[currentShapeIndices++] = currentShapeVertices - 3;
@@ -700,6 +731,7 @@ void RenderEngine::drawEllipse(const glm::vec2& pos,
                                uint32_t colorRGBA,
                                float thickness,
                                float rotationRad,
+                               float zIndex,
                                bgfx::ViewId viewId)
 {
     drawBoxShape(SHAPE_TYPE_CIRCLE,
@@ -708,6 +740,7 @@ void RenderEngine::drawEllipse(const glm::vec2& pos,
                  colorRGBA,
                  thickness,
                  rotationRad,
+                 zIndex,
                  viewId);
 }
 
@@ -716,6 +749,7 @@ void RenderEngine::drawRectangle(const glm::vec2& pos,
                                  uint32_t colorRGBA,
                                  float thickness,
                                  float rotationRad,
+                                 float zIndex,
                                  bgfx::ViewId viewId)
 {
     drawBoxShape(SHAPE_TYPE_RECTANGLE,
@@ -724,6 +758,7 @@ void RenderEngine::drawRectangle(const glm::vec2& pos,
                  colorRGBA,
                  thickness,
                  rotationRad,
+                 zIndex,
                  viewId);
 }
 
@@ -753,10 +788,10 @@ void RenderEngine::submitShapes()
             shaderHandleShapes = getShaderHandle("sdf-shapes");
             return;
         }
-        uint64_t state =
-            BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
-            | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
-                                    BGFX_STATE_BLEND_INV_SRC_ALPHA);
+        uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
+                         | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS
+                         | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
+                                                 BGFX_STATE_BLEND_INV_SRC_ALPHA);
 
         const float* projForView =
             (currentViewId == kWorldView) ? worldViewProj : ortho;

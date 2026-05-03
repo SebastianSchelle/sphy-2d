@@ -68,6 +68,7 @@ struct PosColorShapeVertex
     float thicknessY;        // outline thickness for rect Y (local); separate attr so .z is reliable
     float centerX, centerY;  // Shape center (world)
     float rotationRad;       // Rotation in radians (applied on GPU)
+    float zIndex;            // Depth ordering (clip Z, same convention as drawTexRect)
 
     static void init()
     {
@@ -77,7 +78,7 @@ struct PosColorShapeVertex
             .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
             .add(bgfx::Attrib::TexCoord1, 2, bgfx::AttribType::Float)
             .add(bgfx::Attrib::TexCoord2, 1, bgfx::AttribType::Float)
-            .add(bgfx::Attrib::TexCoord3, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::TexCoord3, 4, bgfx::AttribType::Float)
             .end();
     };
 

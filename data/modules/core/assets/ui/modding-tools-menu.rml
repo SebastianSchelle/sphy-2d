@@ -3,15 +3,9 @@
     <head>
         <link type="text/css" href="style.rcss" />
         <title>Modding Tools — Menu</title>
-        <style>
-            body {
-                width: 100%;
-                height: auto;
-            }
-        </style>
     </head>
 
-    <body class="modding-tools-chrome modding-tools-menu-doc" data-model="modding-tools">
+    <body class="mod-menu-window" data-model="modding-tools">
         <div class="menubar">
             <div class="menubar-root">
                 <span class="menubar-top-label">File</span>

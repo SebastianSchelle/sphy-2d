@@ -159,18 +159,27 @@ class RenderEngine
                        bgfx::ViewId viewId = 0);
     void drawFullScreenTriangles(bgfx::ViewId viewId,
                                  ShaderHandle shaderHandle);
+    /// Fullscreen blueprint-style grid in world space (same `u_myproj` / inverse
+    /// as texrect). `cellWorld` = u_grid.x (world units per cell); `majorEveryCells`
+    /// = u_grid.y (integer >= 1).
+    void drawBlueprintGridBackground(bgfx::ViewId viewId,
+                                     ShaderHandle shaderHandle,
+                                     float cellWorld,
+                                     float majorEveryCells = 5.0f);
     ShaderHandle getShaderHandle(const std::string& name);
     void drawRectangle(const glm::vec2& pos,
                        const glm::vec2& size,
                        uint32_t colorABGR,
                        float thickness,
                        float rotationRad = 0.0f,
+                       float zIndex = 0.0f,
                        bgfx::ViewId viewId = 0);
     void drawEllipse(const glm::vec2& pos,
                      const glm::vec2& size,
                      uint32_t colorABGR,
                      float thickness,
                      float rotationRad = 0.0f,
+                     float zIndex = 0.0f,
                      bgfx::ViewId viewId = 0);
     void drawTexRect(const glm::vec2& pos,
                      const glm::vec2& size,
@@ -235,6 +244,7 @@ class RenderEngine
                       uint32_t colorABGR,
                       float thickness,
                       float rotationRad = 0.0f,
+                      float zIndex = 0.0f,
                       bgfx::ViewId viewId = 0);
     void updatePosWithSectorOffset();
 
@@ -256,6 +266,7 @@ class RenderEngine
     bgfx::UniformHandle u_texLayer = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_atlasPos = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_time = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_grid = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_transform = BGFX_INVALID_HANDLE;
 
     ShaderHandle shaderHandleRml = ShaderHandle::Invalid();

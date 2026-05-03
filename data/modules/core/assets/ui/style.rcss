@@ -1,15 +1,17 @@
 body {
     font-size: 12px;
-    background: #080075c9;
+    background: #050018e8;
+    color: #dce2ff;
 }
 
 body.menu-window {
     font-family: Roboto;
     font-weight: normal;
     font-style: normal;
-    border: 1px #7784ffc0;
+    border: 1px #7784ff55;
     border-radius: 5px;
-    color: #e0e0e0;
+    background: #050018e8;
+    color: #dce2ff;
     padding: 20px 20px;
 }
 
@@ -17,14 +19,55 @@ body.chat-window {
     font-family: Roboto;
     font-weight: normal;
     font-style: normal;
-    border: 1px #7784ffc0;
+    border: 1px #7784ff55;
     border-radius: 5px 5px 0px 0px;
-    background: #08007567;
-    color: #e0e0e0;
+    background: #050018e8;
+    color: #dce2ff;
     padding: 5px 5px;
 }
 
+
+body.mod-menu-window {
+    font-family: Roboto;
+    font-weight: normal;
+    font-style: normal;
+    height: 25px;
+    width: 100%;
+    background: #050018e8;
+    color: #dce2ff;
+    margin: 0px  0px 0px;
+    border-bottom: 1px #7784ff55;
+}
+
 body.mod-obj-window {
+    font-family: Roboto;
+    font-weight: normal;
+    font-style: normal;
+    position: absolute;
+    top: 26px;
+    right: 0px;
+    bottom: 0px;
+    width: 450px;
+    margin: 0px;
+    padding: 6px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    min-height: 0px;
+    border-left: 1px #7784ff55;
+    background: #050018e8;
+    color: #dce2ff;
+    font-size: 12px;
+}
+
+body.mod-obj-window > .scrollbox {
+    flex: 1 1 auto;
+    min-height: 0px;
+    height: auto;
+    width: 100%;
+}
+
+body.debug-window {
     font-family: Roboto;
     font-weight: normal;
     font-style: normal;
@@ -44,40 +87,84 @@ body.mod-obj-window {
     font-size: 12px;
 }
 
+.dbg-section {
+    font-weight: bold;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #6a7ad0;
+}
+
+.dbg-row {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    line-height: 1.35;
+    padding: 1px 0px;
+}
+
+.dbg-k {
+    flex: 0 0 108px;
+    color: #8b9bd0;
+    font-size: 11px;
+}
+
+.dbg-v {
+    flex: 1 1 auto;
+    min-width: 0px;
+    font-size: 11px;
+    color: #a8e8ff;
+    word-break: break-all;
+}
+
+.dbg-note {
+    font-size: 10px;
+    color: #5a6588;
+    margin-top: 6px;
+    line-height: 1.3;
+}
+
 /******************************************************************************
  * Headings
  */
 
 h1 {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: bold;
-    padding-bottom: 8px;
-    padding-top: 16px;
+    padding-bottom: 6px;
+    padding-top: 12px;
     display: block;
+    color: #dce2ff;
 }
 
 h2 {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: bold;
-    padding-bottom: 8px;
-    padding-top: 16px;
+    padding-bottom: 6px;
+    padding-top: 12px;
     display: block;
+    color: #dce2ff;
 }
 
 h3 {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: bold;
-    padding-bottom: 8px;
-    padding-top: 16px;
+    padding-bottom: 6px;
+    padding-top: 10px;
     display: block;
+    color: #8b9bd0;
 }
 
 h4 {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: bold;
-    padding-bottom: 8px;
-    padding-top: 16px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding-bottom: 5px;
+    padding-top: 10px;
     display: block;
+    color: #6a7ad0;
 }
 
 /******************************************************************************
@@ -85,35 +172,34 @@ h4 {
  */
 
 input {
-    padding: 4px 4px;
-    margin: 4px;
-    min-height: 20px;
-    line-height: 1.2;
-    border: 1px;
-    border-color: #a1a1a1;
-    border-radius: 4px;
-    color: white;
-    background: #2222227e;
+    padding: 4px 6px;
+    margin: 2px;
+    min-height: 22px;
+    line-height: 16px;
+    border-bottom: 1px;
+    border-color: #7784ff55;
+    color: #dce2ff;
+    background: #0b0625d9;
     box-sizing: border-box;
 }
 
 input:focus {
-    background: #3a3a3a7e;
+    background: #131038d9;
 }
 
 input:hover {
-    background: #3a3a3a7e;
+    background: #131038d9;
 }
 
 input:checked {
-    background: #dbdbdbd0;
+    background: #1d1a45d9;
 }
 
 input.checkbox {
     width: 20px;
     height: 20px;
     max-height: 20px;
-    border-color: #a1a1a1;
+    border-color: #7784ff55;
     border-radius: 4px;
     margin: 0px;
     padding: 0px;
@@ -123,7 +209,7 @@ input.checkbox {
 
 input.text {
     flex: 1;
-    border-color: #a1a1a1;
+    border-color: #7784ff55;
     margin: 0px;
     vertical-align: middle;
     box-sizing: border-box;
@@ -131,7 +217,7 @@ input.text {
 
 input.password {
     flex: 1;
-    border-color: #a1a1a1;
+    border-color: #7784ff55;
     margin: 0px;
     vertical-align: middle;
     box-sizing: border-box;
@@ -139,7 +225,7 @@ input.password {
 
 input.range {
     flex: 1;
-    border-color: #a1a1a1;
+    border-color: #7784ff55;
     margin: 0px;
     padding: 0px;
     height: 19px;
@@ -147,14 +233,14 @@ input.range {
 }
 
 input.range sliderbar {
-    background: #1f45697e;
+    background: #0f0b2ed9;
     width: 20%;
     margin-top: 2px;
     height: 16px;
 }
 
 input.range sliderarrowdec {
-    background: #1f45697e;
+    background: #0f0b2ed9;
     width: 16px;
     height: 16px;
     margin-top: 2px;
@@ -163,7 +249,7 @@ input.range sliderarrowdec {
 }
 
 input.range sliderarrowinc {
-    background: #1f45697e;
+    background: #0f0b2ed9;
     width: 16px;
     height: 16px;
     margin-top: 2px;
@@ -171,27 +257,37 @@ input.range sliderarrowinc {
 }
 
 input.range sliderarrowdec:active {
-    background: #3a82c54f;
+    background: #2b2b58d9;
 }
 
 input.range sliderarrowinc:active {
-    background: #3a82c54f;
+    background: #2b2b58d9;
 }
 
 input.range sliderarrowdec:hover {
-    background: #40709e7e;
+    background: #1d1a45d9;
 }
 
 input.range sliderarrowinc:hover {
-    background: #40709e7e;
+    background: #1d1a45d9;
 }
 
 input.range sliderbar:hover {
-    background: #40709e7e;
+    background: #1d1a45d9;
 }
 
 input.range sliderbar:active {
-    background: #3a82c54f;
+    background: #2b2b58d9;
+}
+
+input.input-short {
+    min-width: 0px;
+    width: 52px;
+    max-width: 52px;
+    flex: none;
+    flex-grow: 0;
+    flex-shrink: 0;
+    margin: 0px;
 }
 
 /******************************************************************************
@@ -200,35 +296,34 @@ input.range sliderbar:active {
 
 select {
     flex: 1;
-    border-color: #a1a1a1;
-    margin: 0px;
+    border-color: #7784ff55;
+    margin: 2px;
     vertical-align: middle;
     box-sizing: border-box;
     padding: 4px 6px;
-    min-height: 20px;
     border: 1px;
-    border-color: #a1a1a1;
+    border-color: #7784ff55;
     border-radius: 4px;
-    background: #2222227e;
-    color: #e0e0e0;
+    background: #0b0625d9;
+    color: #dce2ff;
     box-sizing: border-box;
 }
 
 select:hover {
-    background: #3a3a3a7e;
+    background: #131038d9;
 }
 
 select:focus {
-    background: #3a3a3a7e;
+    background: #131038d9;
 }
 
 select option {
-    background: #2222227e;
-    color: #e0e0e0;
+    background: #0b0625d9;
+    color: #dce2ff;
 }
 
 select option:hover {
-    background: #3a3a3a7e;
+    background: #131038d9;
 }
 
 
@@ -236,13 +331,14 @@ select option:hover {
  * Flex Row
  */
 
-div.flex_row {
+div.flex-row {
     display: flex;
     flex-direction: row;
+    align-items: center;
     margin: 4px;
 }
 
-div.flex_row>* {
+div.flex-row>* {
     flex: 1;
     margin-top: 0px;
     margin-left: 0px;
@@ -250,8 +346,15 @@ div.flex_row>* {
     margin-right: 4px;
 }
 
-div.flex_row>*:last-child {
+div.flex-row>*:last-child {
     margin-right: 0px;
+}
+
+/* Wrapper around a control: flex-row>* uses flex:1; without this the span steals half the row */
+div.flex-row > span.flex-hug {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0px;
 }
 
 
@@ -260,46 +363,60 @@ div.flex_row>*:last-child {
  */
 
 button {
-    padding: 4px;
-    margin: 4px;
+    padding: 4px 6px;
+    margin: 2px;
     border: 1px;
-    border-color: #a1a1a1;
+    border-color: #7784ff55;
     border-radius: 4px;
-    background: #1f45697e;
+    color: #dce2ff;
+    background: #0b0625d9;
+    /* RmlUi: <button> is a generic element; display:flex hides/breaks text child layout */
+    text-align: center;
     display: block;
+    box-sizing: border-box;
 }
 
 button:hover {
-    background: #40709e7e;
+    background: #1d1a45d9;
 }
 
 button:active {
     background: #3a82c54f;
 }
 
+/* Hug content; div.flex-row>* uses flex:1 which would stretch the control */
+div.flex-row button.small-btn {
+    flex: 0 0 auto;
+    align-self: center;
+    width: auto;
+    min-width: 0px;
+    padding: 2px 6px;
+    line-height: 14px;
+    font-size: 11px;
+}
 
 /******************************************************************************
  * Form Row
  */
 
-.form_row {
+.form-row {
     display: flex;
     flex-direction: row;
-    color: #e0e0e0;
+    color: #dce2ff;
     align-items: center;
     margin: 4px;
 }
 
-.form_row span {
+.form-row span {
     vertical-align: middle;
     margin-right: 8px;
 }
 
-.form_row .sl_val {
+.form-row .sl_val {
     margin-left: 8px;
     margin-right: 0px;
     font-size: 12px;
-    color: #e0e0e0;
+    color: #a8e8ff;
 }
 
 /******************************************************************************
@@ -324,17 +441,17 @@ button:active {
 }
 
 .scrollbox scrollbarvertical slidertrack {
-    background: #2a2a2a;
+    background: #0b0625d9;
     border-radius: 4px;
 }
 
 .scrollbox scrollbarvertical sliderbar {
-    background: #a1a1a1;
+    background: #6a7ad0;
     border-radius: 4px;
 }
 
 .scrollbox scrollbarvertical sliderbar:hover {
-    background: #dbdbdbd0;
+    background: #a8b7ea;
 }
 
 .scrollbox::after {
@@ -373,7 +490,7 @@ tab {
     font-size: 11px;
     letter-spacing: 0.5px;
     cursor: pointer;
-    background: #12122a98;
+    background: #12122ad9;
     border-radius: 4px 4px 0px 0px;
     border: 1px #7784ff35;
     color: #7a8cc8;
@@ -381,13 +498,13 @@ tab {
 
 tab:hover {
     color: #b8c8ff;
-    background: #1c1c3a98;
+    background: #1c1c3ad9;
 }
 
 tab:active,
 tab:selected {
     color: #eef2ff;
-    background: #252548c0;
+    background: #252548d9;
     border-color: #8899ff55;
 }
 
@@ -397,7 +514,7 @@ panels {
     min-height: 0px;
     border: 1px #7784ff40;
     border-radius: 0px 4px 4px 4px;
-    background: #08001a85;
+    background: #08001ad9;
     overflow: hidden;
 }
 
@@ -413,38 +530,13 @@ panel {
  * Modding tools / menu bar
  */
 
-body.modding-tools-chrome {
-    font-family: Roboto;
-    font-weight: normal;
-    font-style: normal;
-    color: #e0e0e0;
-    background: #080075c9;
-    border: 1px #7784ffc0;
-    border-radius: 5px;
-    padding: 0px;
-    margin: 0px;
-    box-sizing: border-box;
-}
-
-/* Stacked modding documents: menu (top) + obj (rest). Keep top in sync with .modding-tools-obj-doc top. */
-body.modding-tools-menu-doc {
-    position: absolute;
-    top: 0px;
-    left: 0px;
-    right: 0px;
-    width: auto;
-    z-index: 200;
-    border-radius: 5px 5px 0px 0px;
-    min-height: 32px;
-}
-
 body.modding-tools-obj-doc {
     position: absolute;
     top: 32px;
     left: 0px;
     right: 0px;
     bottom: 0px;
-    width: auto;
+    width: 100%;
     z-index: 100;
     border-radius: 0px 0px 5px 5px;
     display: flex;
@@ -460,8 +552,6 @@ body.modding-tools-obj-doc {
     gap: 0px;
     width: 100%;
     box-sizing: border-box;
-    background: #12122a98;
-    border-bottom: 1px #7784ff35;
 }
 
 .menubar-root {
@@ -473,18 +563,19 @@ body.modding-tools-obj-doc {
 .menubar-top-label {
     display: block;
     padding: 6px 14px;
-    font-size: 12px;
-    letter-spacing: 0.3px;
+    font-size: 11px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
     cursor: pointer;
-    color: #b8c8ff;
+    color: #8b9bd0;
     background: transparent;
     border: none;
     box-sizing: border-box;
 }
 
 .menubar-root:hover .menubar-top-label {
-    color: #eef2ff;
-    background: #1c1c3a98;
+    color: #dce2ff;
+    background: #131038d9;
 }
 
 .menubar-panel {
@@ -494,7 +585,7 @@ body.modding-tools-obj-doc {
     top: 100%;
     min-width: 160px;
     padding: 4px 0px;
-    background: #08001aee;
+    background: #050018d9;
     border: 1px #7784ff55;
     border-radius: 0px 4px 4px 4px;
     box-sizing: border-box;
@@ -520,25 +611,25 @@ body.modding-tools-obj-doc {
     align-items: center;
     justify-content: space-between;
     padding: 5px 12px;
-    font-size: 12px;
-    color: #e0e0e0;
+    font-size: 11px;
+    color: #dce2ff;
     cursor: pointer;
     box-sizing: border-box;
 }
 
 .menubar-row--submenu:hover {
-    background: #252548c0;
+    background: #1d1a45d9;
     color: #eef2ff;
 }
 
 .menubar-row--submenu .menubar-submenu-hint {
     margin-left: 12px;
     font-size: 10px;
-    color: #7a8cc8;
+    color: #6a7ad0;
 }
 
 .menubar-row--submenu:hover .menubar-submenu-hint {
-    color: #b8c8ff;
+    color: #a8b7ea;
 }
 
 .menubar-panel.menubar-panel--sub {
@@ -556,13 +647,13 @@ body.modding-tools-obj-doc {
     padding: 5px 12px;
     text-align: left;
     background: transparent;
-    color: #e0e0e0;
-    font-size: 12px;
+    color: #dce2ff;
+    font-size: 11px;
     border: 0px;
 }
 
 .menubar button.menubar-cmd:hover {
-    background: #252548c0;
+    background: #1d1a45d9;
     color: #eef2ff;
 }
 
@@ -570,38 +661,25 @@ body.modding-tools-obj-doc {
     background: #3a82c54f;
 }
 
-.modding-tools-side-panel {
-    flex: none;
-    width: 220px;
-    box-sizing: border-box;
-    background: #08001a85;
-    border-left: 1px #7784ff40;
-    padding: 8px 10px;
-}
-
-.modding-tools-main {
-    flex: 1 1 auto;
-    min-width: 0px;
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
-}
-
-.modding-tools-mode-panel {
+.border-box {
     display: block;
-    padding: 6px 4px;
-    margin-bottom: 6px;
-    border-radius: 4px;
-    background: #12122a60;
-    border: 1px #7784ff25;
-    box-sizing: border-box;
+    border: 1px #7784ff55;
+    border-radius: 5px;
+    padding: 6px;
+    margin: 6px 2px;
 }
 
-.modding-tools-mode-title {
-    font-size: 14px;
-    font-weight: bold;
-    color: #eef2ff;
-    margin: 0px;
-    padding: 0px;
+.separator-box-top {
     display: block;
+    border-top: 1px #7784ff55;
+}
+
+.multiline-label {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    line-height: 1.35;
+    word-break: break-all;
+    white-space: normal;
 }

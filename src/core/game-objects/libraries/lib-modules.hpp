@@ -26,6 +26,27 @@ enum class ModuleSlotType : uint8_t
     BayS_Common,
     BayM_Common,
     BayL_Common,
+    NumSlotTypes
+};
+
+
+/* Order must match ModuleSlotType (excluding NumSlotTypes). S/M/L -> 2/5/10. */
+constexpr float SlotSize[static_cast<size_t>(ModuleSlotType::NumSlotTypes)] = {
+    5.0f,   // ThrusterMainS_Common
+    10.0f,  // ThrusterMainM_Common
+    20.0f,  // ThrusterMainL_Common
+    5.0f,   // ThrusterManeuverS_Common
+    10.0f,   // ThrusterManeuverM_Common
+    20.0f,  // ThrusterManeuverL_Common
+    2.0f,   // InternalS_Common
+    5.0f,   // InternalM_Common
+    10.0f,  // InternalL_Common
+    2.0f,   // RoofS_Common
+    5.0f,   // RoofM_Common
+    10.0f,  // RoofL_Common
+    20.0f,   // BayS_Common
+    5.0f,   // BayM_Common
+    10.0f,  // BayL_Common
 };
 
 struct ModuleSlot

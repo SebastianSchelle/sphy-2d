@@ -1,11 +1,4 @@
 textures:
-  mace:
-    textures:
-      - name: mace
-        bounds: [ 0.0, 0.0, 29.6, 72.9 ]
-        zIndex: 2
-        flags: 0
-        rot: 0.0
   thrust-main-common-s:
     textures:
       - name: thrust-main-common-s
@@ -16,14 +9,14 @@ textures:
   thrust-maneuver-common-s:
     textures:
       - name: thrust-maneuver-common-s
-        bounds: [ 0.0, 0.0, 1.9, 4.5 ]
+        bounds: [ 0.0, 0.0, 4.5, 1.9 ]
         zIndex: 3
         flags: 0
         rot: 0.0
   cargo-common-s:
     textures:
       - name: cargo-common-s
-        bounds: [ 0.0, 0.0, 4.6, 21.0 ]
+        bounds: [ 0.0, 0.0, 21.0, 4.6 ]
         zIndex: 3
         flags: 0
         rot: 0.0
@@ -93,47 +86,6 @@ module:
     textures: drone-hatch-common-s  
     data:
       dummy: nodata
-
-hull:
-  mace:
-    name: mace
-    hullpoints: 1000.0
-    textures: mace
-    collider: mace
-    map-icon: frigate
-    slots:
-      - mod-type: ThrusterMainS_Common
-        pos: [ 0.0, -36.0 ]
-        rot: 0.0
-        z: 3
-      - mod-type: ThrusterManeuverS_Common
-        pos: [ 6.0, -26.5 ]
-        rot: 0.0
-        z: 3
-      - mod-type: ThrusterManeuverS_Common
-        pos: [ -6.0, -26.5 ]
-        rot: 180.0
-        z: 3
-      - mod-type: BayS_Common
-        pos: [ 12, 17.0 ]
-        rot: 0.0
-        z: 3
-      - mod-type: BayS_Common
-        pos: [ -12, 17.0 ]
-        rot: 180.0
-        z: 3
-      - mod-type: BayS_Common
-        pos: [ 12, -9 ]
-        rot: 180.0
-        z: 3
-      - mod-type: BayS_Common
-        pos: [ -12, -9 ]
-        rot: 180.0
-        z: 3
-      - mod-type: RoofM_Common
-        pos: [ 0, -26.85 ]
-        rot: 0.0
-        z: 1
 
 station-part:
   strut-1:

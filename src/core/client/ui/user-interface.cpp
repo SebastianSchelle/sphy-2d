@@ -155,8 +155,19 @@ bool UserInterface::processMouseButtonDown(int button, int keyMod)
         LG_E("Button index out of range");
         return false;
     }
-    mouseDownInteract[button] =
-        !rmlContext->ProcessMouseButtonDown(button, keyMod);
+    // Rml: true = mouse not interacting with any element (e.g. click missed UI).
+    const bool mouse_not_on_ui =
+        rmlContext->ProcessMouseButtonDown(button, keyMod);
+    mouseDownInteract[button] = !mouse_not_on_ui;
+
+    if (button == 0 && mouse_not_on_ui && rmlContext)
+    {
+        if (Rml::Element* focused = rmlContext->GetFocusElement())
+        {
+            focused->Blur();
+        }
+    }
+
     return mouseDownInteract[button];
 }
 

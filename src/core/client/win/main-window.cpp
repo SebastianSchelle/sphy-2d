@@ -330,6 +330,7 @@ void MainWindow::winLoop()
                 renderGame();
                 break;
             case ClientGameState::ModdingTools:
+                renderModdingTools();
                 break;
             default:
                 break;
@@ -348,14 +349,6 @@ void MainWindow::renderMenu()
 {
     renderEngine.drawFullScreenTriangles(
         0, renderEngine.getShaderHandle("distantstars"));
-
-    static float rot = 0.0f;
-    renderEngine.drawTexRect(glm::vec2(0.0f, 0.0f),
-                             glm::vec2(100.0f, 10.0f),
-                             renderEngine.getTextureHandle("test"),
-                             rot,
-                             0);
-    rot += 0.01f;
 }
 
 void MainWindow::renderGame()
@@ -388,6 +381,8 @@ void MainWindow::renderGame()
 
 void MainWindow::renderModdingTools()
 {
+    moddingTools.draw(renderEngine);
+    renderEngine.panWorld(panX, panY);
 }
 
 void MainWindow::processMouseTactical(float zoom)

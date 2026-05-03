@@ -15,8 +15,9 @@ namespace gobj
 
 enum class TextureFlags : uint8_t
 {
-    FlipX = 0,
-    FlipY = 1,
+    None = 0x00,
+    FlipX = 0x01,
+    FlipY = 0x02,
 };
 
 struct Texture

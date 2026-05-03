@@ -137,3 +137,45 @@ float pdCompute(PD* pd, float dt, float error)
 }
 
 }  // namespace ctrl
+
+bool tryParseFloat(const string& text, float& outValue)
+{
+    if (text.empty())
+    {
+        return false;
+    }
+    char* end = nullptr;
+    const float value = std::strtof(text.c_str(), &end);
+    if (end == text.c_str() || *end != '\0')
+    {
+        return false;
+    }
+    outValue = value;
+    return true;
+}
+
+bool tryParseInt(const string& text, int& outValue)
+{
+    if (text.empty())
+    {
+        return false;
+    }
+    char* end = nullptr;
+    const int value = std::strtol(text.c_str(), &end, 10);
+    if (end == text.c_str() || *end != '\0')
+    {
+        return false;
+    }
+    outValue = value;
+    return true;
+}
+
+void floatToString(float value, string& outText, int precision)
+{
+    outText = fmt::format("{:.{}f}", value, precision);
+}
+
+void intToString(int value, string& outText)
+{
+    outText = fmt::format("{}", value);
+}

@@ -490,7 +490,7 @@ const System sysAnchorFixed = {
                                           parentTransformCache.s,
                                           parentTransformCache.c);
                     transform->pos = parentTransform.pos + anchorFixedPos;
-                    transform->rot = parentTransform.rot - anchorFixed->rot;
+                    transform->rot = parentTransform.rot + anchorFixed->rot;
                     if (parentSectorId.id != sectorId->id)
                     {
                         ptrHandle->world->addSectorMoveRequest(

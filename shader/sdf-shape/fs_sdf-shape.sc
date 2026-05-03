@@ -38,7 +38,7 @@ void main()
         float ty = max(thicknessY, 0.001);
         float radialScale = length(vec2(v_uv.x / tx, v_uv.y / ty)) / max(dist, 0.001);
         float distToInnerEdge = distToBoundary * 2.0 * radialScale;
-        if (dist < 1.0 && distToInnerEdge < 1.0)
+        if (dist < 1.0 && (distToInnerEdge < 1.0 || thicknessX < 0.0001 && thicknessY < 0.0001))
         {
             alpha = 1.0;
         }
