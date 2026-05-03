@@ -560,6 +560,18 @@ void ModdingTools::onClearConnectors(Rml::DataModelHandle handle,
     (void)args;
     connectors.clear();
     handle.DirtyVariable("connectors");
+}
+
+void ModdingTools::onRemoveConnector(Rml::DataModelHandle handle,
+                                     Rml::Event& event,
+                                     const Rml::VariantList& args)
+{
+    (void)event;
+    if (args.size() != 1)
+    {
+        return;
+    }
+    const int i = args[0].Get<int>(-1);
     if (i >= 0 && i < static_cast<int>(connectors.size()))
     {
         connectors.erase(connectors.begin() + static_cast<size_t>(i));
