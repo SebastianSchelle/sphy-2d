@@ -1,5 +1,0 @@
-loglevel: 1
-connection:
-  serv-port-tcp: 29200
-  serv-port-udp: 29201
-engine: engine.yaml
