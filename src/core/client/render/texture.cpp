@@ -3,9 +3,133 @@
 #include <bimg/bimg.h>
 #include <bx/bx.h>
 #include <bx/readerwriter.h>
+#include <vector>
 
 namespace gfx
 {
+
+constexpr uint16_t kTexturePadding = 8;
+
+namespace
+{
+struct MipLevelData
+{
+    std::vector<uint8_t> pixels;
+    uint16_t width;
+    uint16_t height;
+};
+
+std::vector<uint8_t> makePaddedImage(const uint8_t* rgbaData,
+                                     uint16_t srcWidth,
+                                     uint16_t srcHeight,
+                                     uint16_t padding)
+{
+    const uint16_t paddedWidth = srcWidth + padding * 2;
+    const uint16_t paddedHeight = srcHeight + padding * 2;
+    std::vector<uint8_t> padded(paddedWidth * paddedHeight * 4);
+
+    for (uint16_t y = 0; y < paddedHeight; ++y)
+    {
+        const uint16_t srcY = (y < padding)
+                                  ? 0
+                                  : (y >= padding + srcHeight ? srcHeight - 1
+                                                              : y - padding);
+        for (uint16_t x = 0; x < paddedWidth; ++x)
+        {
+            const uint16_t srcX =
+                (x < padding)
+                    ? 0
+                    : (x >= padding + srcWidth ? srcWidth - 1 : x - padding);
+
+            const uint32_t srcIdx = (srcY * srcWidth + srcX) * 4;
+            const uint32_t dstIdx = (y * paddedWidth + x) * 4;
+            padded[dstIdx + 0] = rgbaData[srcIdx + 0];
+            padded[dstIdx + 1] = rgbaData[srcIdx + 1];
+            padded[dstIdx + 2] = rgbaData[srcIdx + 2];
+            padded[dstIdx + 3] = rgbaData[srcIdx + 3];
+        }
+    }
+
+    return padded;
+}
+
+std::vector<MipLevelData> buildMipChain(const uint8_t* rgbaData,
+                                        uint16_t width,
+                                        uint16_t height)
+{
+    std::vector<MipLevelData> chain;
+    chain.push_back({std::vector<uint8_t>(rgbaData, rgbaData + width * height * 4),
+                     width,
+                     height});
+
+    while (chain.back().width > 1 || chain.back().height > 1)
+    {
+        const MipLevelData& src = chain.back();
+        const uint16_t dstWidth = std::max<uint16_t>(1, src.width / 2);
+        const uint16_t dstHeight = std::max<uint16_t>(1, src.height / 2);
+        std::vector<uint8_t> dstPixels(dstWidth * dstHeight * 4);
+
+        for (uint16_t y = 0; y < dstHeight; ++y)
+        {
+            for (uint16_t x = 0; x < dstWidth; ++x)
+            {
+                const uint16_t sx0 = std::min<uint16_t>(src.width - 1, uint16_t(x * 2));
+                const uint16_t sy0 =
+                    std::min<uint16_t>(src.height - 1, uint16_t(y * 2));
+                const uint16_t sx1 =
+                    std::min<uint16_t>(src.width - 1, uint16_t(sx0 + 1));
+                const uint16_t sy1 =
+                    std::min<uint16_t>(src.height - 1, uint16_t(sy0 + 1));
+
+                const uint32_t i00 = (sy0 * src.width + sx0) * 4;
+                const uint32_t i10 = (sy0 * src.width + sx1) * 4;
+                const uint32_t i01 = (sy1 * src.width + sx0) * 4;
+                const uint32_t i11 = (sy1 * src.width + sx1) * 4;
+                const uint32_t di = (y * dstWidth + x) * 4;
+                const uint32_t a00 = src.pixels[i00 + 3];
+                const uint32_t a10 = src.pixels[i10 + 3];
+                const uint32_t a01 = src.pixels[i01 + 3];
+                const uint32_t a11 = src.pixels[i11 + 3];
+                const uint32_t alphaSum = a00 + a10 + a01 + a11;
+                const uint32_t alphaAvg = (alphaSum + 2) / 4;
+                const uint32_t alphaMax = std::max(
+                    std::max(a00, a10), std::max(a01, a11));
+
+                // Alpha-weighted RGB keeps transparent edge mattes from bleeding
+                // into lower mips (common source of white halos).
+                for (uint8_t c = 0; c < 3; ++c)
+                {
+                    if (alphaSum > 0)
+                    {
+                        const uint32_t weighted =
+                            uint32_t(src.pixels[i00 + c]) * a00 +
+                            uint32_t(src.pixels[i10 + c]) * a10 +
+                            uint32_t(src.pixels[i01 + c]) * a01 +
+                            uint32_t(src.pixels[i11 + c]) * a11;
+                        dstPixels[di + c] =
+                            static_cast<uint8_t>((weighted + alphaSum / 2) / alphaSum);
+                    }
+                    else
+                    {
+                        dstPixels[di + c] = 0;
+                    }
+                }
+
+                // Preserve edge coverage to avoid jagged silhouette shrink in
+                // lower mips. Bias alpha slightly toward the max sample alpha.
+                const uint32_t alphaCoverage =
+                    alphaAvg + ((alphaMax - alphaAvg) * 3) / 8;
+                dstPixels[di + 3] =
+                    static_cast<uint8_t>(std::min<uint32_t>(255, alphaCoverage));
+            }
+        }
+
+        chain.push_back({std::move(dstPixels), dstWidth, dstHeight});
+    }
+
+    return chain;
+}
+}  // namespace
 
 Texture::Texture(const std::string& name,
                  const std::string& path,
@@ -67,7 +191,7 @@ bool TextureArray::init()
     {
         handle = bgfx::createTexture2D((uint16_t)width,
                                        (uint16_t)height,
-                                       false,  // No mips for now
+                                       true,
                                        (uint16_t)maxLayerCnt,
                                        bgfx::TextureFormat::BGRA8,
                                        BGFX_TEXTURE_NONE);
@@ -176,8 +300,8 @@ TextureHandle TextureLoader::generateTexture(const std::string& name,
                                              const std::string& path)
 {
     StoragePtr storagePtr;
-    storagePtr.rect.width = width;
-    storagePtr.rect.height = height;
+    storagePtr.rect.width = width + kTexturePadding * 2;
+    storagePtr.rect.height = height + kTexturePadding * 2;
     TextureHandle handle =
         insertIntoAtlas(name, path, type, width, height, storagePtr, data);
 
@@ -231,6 +355,7 @@ TextureHandle TextureLoader::insertIntoAtlas(const std::string& name,
                 {
                     TextureAtlasHandle atlasHandle =
                         textureAtlasLib.getHandle(entry);
+                    
                     return makeTexture(name,
                                        path,
                                        storagePtr,
@@ -251,18 +376,39 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
                                          TextureAtlasHandle atlasHandle,
                                          const void* rgbaData)
 {
-    // Update texture in VRAM
-    const bgfx::Memory* mem = bgfx::copy(
-        rgbaData, storagePtr.rect.width * storagePtr.rect.height * 4);
+    const uint16_t outerX = storagePtr.rect.x;
+    const uint16_t outerY = storagePtr.rect.y;
+    const uint16_t outerWidth = storagePtr.rect.width;
+    const uint16_t outerHeight = storagePtr.rect.height;
 
-    bgfx::updateTexture2D(texIdent.texHandle,
-                          texIdent.layerIdx,
-                          0,
-                          storagePtr.rect.x,
-                          storagePtr.rect.y,
-                          storagePtr.rect.width,
-                          storagePtr.rect.height,
-                          mem);
+    storagePtr.rect.x += kTexturePadding;
+    storagePtr.rect.y += kTexturePadding;
+    storagePtr.rect.width -= kTexturePadding * 2;
+    storagePtr.rect.height -= kTexturePadding * 2;
+
+    const uint8_t* srcPixels = static_cast<const uint8_t*>(rgbaData);
+    const std::vector<uint8_t> paddedPixels = makePaddedImage(
+        srcPixels, storagePtr.rect.width, storagePtr.rect.height, kTexturePadding);
+    const std::vector<MipLevelData> mipChain =
+        buildMipChain(paddedPixels.data(), outerWidth, outerHeight);
+
+    for (uint8_t mip = 0; mip < mipChain.size(); ++mip)
+    {
+        const MipLevelData& level = mipChain[mip];
+        const uint16_t dstX = outerX >> mip;
+        const uint16_t dstY = outerY >> mip;
+        const bgfx::Memory* mem =
+            bgfx::copy(level.pixels.data(), uint32_t(level.pixels.size()));
+
+        bgfx::updateTexture2D(texIdent.texHandle,
+                              texIdent.layerIdx,
+                              mip,
+                              dstX,
+                              dstY,
+                              level.width,
+                              level.height,
+                              mem);
+    }
 
     glm::vec4 relBounds = {(float)storagePtr.rect.x / (float)texWidth,
                            (float)storagePtr.rect.y / (float)texHeight,

@@ -550,6 +550,8 @@ void ModdingTools::onAddConnector(Rml::DataModelHandle handle,
     (void)args;
     connectors.push_back(ConnectorInfo{});
     handle.DirtyVariable("connectors");
+    syncStationPartConnectorTextures();
+    handle.DirtyVariable("textures");
 }
 
 void ModdingTools::onClearConnectors(Rml::DataModelHandle handle,
@@ -560,6 +562,8 @@ void ModdingTools::onClearConnectors(Rml::DataModelHandle handle,
     (void)args;
     connectors.clear();
     handle.DirtyVariable("connectors");
+    syncStationPartConnectorTextures();
+    handle.DirtyVariable("textures");
 }
 
 void ModdingTools::onRemoveConnector(Rml::DataModelHandle handle,
@@ -576,6 +580,61 @@ void ModdingTools::onRemoveConnector(Rml::DataModelHandle handle,
     {
         connectors.erase(connectors.begin() + static_cast<size_t>(i));
         handle.DirtyVariable("connectors");
+        syncStationPartConnectorTextures();
+        handle.DirtyVariable("textures");
+    }
+}
+
+void ModdingTools::syncStationPartConnectorTextures()
+{
+    if (activeMode != ModdingToolsMode::StationPart)
+    {
+        return;
+    }
+    textures.erase(std::remove_if(textures.begin(),
+                                   textures.end(),
+                                   [](const TextureInfo& t) {
+                                       return toLowerCopy(t.name)
+                                           == "station-connector";
+                                   }),
+                     textures.end());
+
+    int maxZ = 0;
+    for (const auto& t : textures)
+    {
+        maxZ = std::max(maxZ, t.zIndexVal);
+    }
+    const int connectorZ = textures.empty() ? 41 : maxZ + 1;
+
+    for (const auto& c : connectors)
+    {
+        const vec2 p(c.posXVal, c.posYVal);
+        const float rad = smath::degToRad(c.rotDegVal);
+        const vec2 offset =
+            -smath::rotateVec2(vec2(0.0f, gobj::kConnectorHeight / 2.0f), rad);
+        const vec2 corner = p + offset;
+        TextureInfo t;
+        t.name = "station-connector";
+        t.posXVal = corner.x;
+        t.posYVal = corner.y;
+        t.sizeXVal = gobj::kConnectorWidth;
+        t.sizeYVal = gobj::kConnectorHeight;
+        t.rotVal = c.rotDegVal;
+        t.zIndexVal = connectorZ;
+        t.flags = gobj::TextureFlags::None;
+        floatToString(t.posXVal, t.posX, 2);
+        floatToString(t.posYVal, t.posY, 2);
+        floatToString(t.sizeXVal, t.sizeX, 2);
+        floatToString(t.sizeYVal, t.sizeY, 2);
+        floatToString(t.rotVal, t.rot, 2);
+        intToString(static_cast<int>(t.zIndexVal), t.zIndex);
+        textures.push_back(std::move(t));
+    }
+
+    if (activeTextureIndex >= static_cast<int>(textures.size()))
+    {
+        activeTextureIndex =
+            textures.empty() ? -1 : static_cast<int>(textures.size()) - 1;
     }
 }
 
@@ -649,6 +708,11 @@ void ModdingTools::parseEditorNumericFields()
     rmlModel_.DirtyVariable("connectors");
     rmlModel_.DirtyVariable("stationPart");
     rmlModel_.DirtyVariable("hull");
+    if (activeMode == ModdingToolsMode::StationPart)
+    {
+        syncStationPartConnectorTextures();
+        rmlModel_.DirtyVariable("textures");
+    }
 }
 
 void ModdingTools::refreshTextureNameSuggestions()
@@ -816,13 +880,7 @@ void ModdingTools::drawConnectors(gfx::RenderEngine& renderer)
 {
     const float zoom = renderer.getWorldZoom();
     const glm::vec2 dotR(4.0f / zoom, 4.0f / zoom);
-    const float lineLen = 14.0f / zoom;
     const float lineW = 1.0f / zoom;
-    int zIndex = 41;
-    if(!textures.empty())
-    {
-        zIndex = textures[0].zIndexVal + 1;
-    }
     for (const auto& c : connectors)
     {
         const glm::vec2 p(c.posXVal, c.posYVal);
@@ -831,16 +889,6 @@ void ModdingTools::drawConnectors(gfx::RenderEngine& renderer)
         const float rad = smath::degToRad(c.rotDegVal);
         const vec2 offset =
             -smath::rotateVec2(vec2(0.0f, gobj::kConnectorHeight / 2.0f), rad);
-        const gfx::TextureHandle connectorTex =
-            renderer.getTextureHandle("station-connector");
-        renderer.drawTexRect(
-            p + offset,
-            glm::vec2(gobj::kConnectorWidth, gobj::kConnectorHeight),
-            connectorTex,
-            smath::degToRad(c.rotDegVal),
-            0xffffffff,
-            zIndex / 100.0f,
-            0);
         renderer.drawLine(
             p, p - 5.0f * offset, 0xffffff00, lineW, 0.0f, 0);
     }
@@ -1315,6 +1363,10 @@ bool ModdingTools::loadStationPartDataFromPath(const string& path)
                 if (texNode["name"])
                 {
                     t.name = texNode["name"].as<string>();
+                }
+                if (toLowerCopy(t.name) == "station-connector")
+                {
+                    continue;
                 }
                 float px = 0.0f;
                 float py = 0.0f;

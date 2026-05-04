@@ -186,6 +186,8 @@ class ModdingTools
     bool loadHullDataFromPath(const string& path);
     bool saveStationPartDataToPath(const string& path);
     bool loadStationPartDataFromPath(const string& path);
+    /** Drops any station-connector rows and appends one per connector (StationPart mode). */
+    void syncStationPartConnectorTextures();
     void parseEditorNumericFields();
     void refreshTextureNameSuggestions();
     ModdingToolsMode determineAssetType(const string& path);

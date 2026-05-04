@@ -8,6 +8,13 @@
 #include <std-inc.hpp>
 #include <world.hpp>
 
+namespace ecs
+{
+struct Textures;
+struct Hull;
+struct Station;
+}  // namespace ecs
+
 namespace mod
 {
 class ModManager;
@@ -65,7 +72,9 @@ class Model
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
 
     ecs::EntityId selectEntityAtWorldPos(const def::SectorCoords& sectorCoords);
-    ecs::EntityId selectEntityAtWorldPosFast(const def::SectorCoords& sectorCoords, float dist2);
+    ecs::EntityId
+    selectEntityAtWorldPosFast(const def::SectorCoords& sectorCoords,
+                               float dist2);
     void selectEntitiesInsideRect(const def::SectorCoords& start,
                                   const def::SectorCoords& end);
     void clearSelectedEntities();
@@ -127,7 +136,7 @@ class Model
     void handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
                         uint16_t posNextCmdOrEof);
     void handleActiveSectorDump(bitsery::Deserializer<InputAdapter>& cmddes,
-                                  uint16_t posNextCmdOrEof);
+                                uint16_t posNextCmdOrEof);
     void reqAllComponents(ecs::EntityId entity);
     void handleReqAllComponentsResp(bitsery::Deserializer<InputAdapter>& cmddes,
                                     uint16_t posNextCmdOrEof);
@@ -137,9 +146,21 @@ class Model
     void handleActiveEntitySwitched(bitsery::Deserializer<InputAdapter>& cmddes,
                                     uint16_t posNextCmdOrEof);
     void drawOverlayAABBs(gfx::RenderEngine& renderer, float zoom);
+    void drawObjects(gfx::RenderEngine& renderer,
+                     const glm::vec4& viewRect,
+                     float zoom);
     void drawTextures(gfx::RenderEngine& renderer,
-                      const glm::vec4& viewRect,
-                      float zoom);
+                      const ecs::Textures& textures,
+                      float rot,
+                      const glm::vec2& worldPos);
+    void drawModuleTextures(gfx::RenderEngine& renderer,
+                            const ecs::Transform& parentTransform,
+                            ecs::Hull& hull,
+                            const glm::vec2& worldPos);
+    void drawStationTextures(gfx::RenderEngine& renderer,
+                             const ecs::Transform& parentTransform,
+                             ecs::Station& station,
+                             const glm::vec2& worldPos);
     void registerConnectSequence();
 
     cfg::ConfigManager& config;

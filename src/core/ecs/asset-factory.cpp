@@ -54,6 +54,8 @@ void ComponentFactory::registerAllComponents()
     registerComponent<ecs::tag::mod::MainThruster>();
     registerComponent<ecs::tag::mod::ManeuverThruster>();
     registerComponent<ecs::Ai>();
+    registerComponent<ecs::Station>();
+    registerComponent<ecs::StationPart>();
 }
 
 AssetFactory::AssetFactory() {}

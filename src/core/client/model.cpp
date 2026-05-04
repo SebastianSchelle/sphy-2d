@@ -445,7 +445,7 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
                             float zoom)
 {
     world.drawTacticalMap(renderer, viewRect, zoom);
-    drawTextures(renderer, viewRect, zoom);
+    drawObjects(renderer, viewRect, zoom);
     auto& reg = ecs.getRegistry();
     for (const auto& entityId : selectedEntities)
     {
@@ -611,60 +611,141 @@ void Model::drawThirdPerson(gfx::RenderEngine& renderer,
                             float zoom)
 {
     world.drawThirdPerson(renderer, viewRect, zoom);
-    drawTextures(renderer, viewRect, zoom);
+    drawObjects(renderer, viewRect, zoom);
 }
 
-void Model::drawTextures(gfx::RenderEngine& renderer,
-                         const glm::vec4& viewRect,
-                         float zoom)
+void Model::drawObjects(gfx::RenderEngine& renderer,
+                        const glm::vec4& viewRect,
+                        float zoom)
 {
     auto& reg = ecs.getRegistry();
-    reg.view<ecs::Transform, ecs::SectorId, ecs::Textures>().each(
-        [this, &renderer, &viewRect](ecs::Transform& transform,
-                                     ecs::SectorId& sectorId,
-                                     ecs::Textures& textures)
-        {
-            glm::vec2 worldPos =
-                world.getWorldPosSectorOffset(sectorId.id,
-                                              renderer.getSectorOffsetX(),
-                                              renderer.getSectorOffsetY())
-                + transform.pos;
-            if (smath::pointInsideRect(worldPos, viewRect))
+    reg.view<ecs::Transform,
+             ecs::SectorId,
+             ecs::Textures,
+             ecs::tag::Selectable>()
+        .each(
+            [this, &renderer, &viewRect, &reg](entt::entity entity,
+                                               ecs::Transform& transform,
+                                               ecs::SectorId& sectorId,
+                                               ecs::Textures& textures)
             {
-                auto* texturesItem = modManager->getTexturesLib().getItem(
-                    gobj::TexturesHandle(textures.texturesHandle));
-                if (texturesItem)
+                glm::vec2 worldPos =
+                    world.getWorldPosSectorOffset(sectorId.id,
+                                                  renderer.getSectorOffsetX(),
+                                                  renderer.getSectorOffsetY())
+                    + transform.pos;
+                if (smath::pointInsideRect(worldPos, viewRect))
                 {
-                    for (const auto& texture : texturesItem->textures)
+                    drawTextures(renderer, textures, transform.rot, worldPos);
+                    auto* hull = reg.try_get<ecs::Hull>(entity);
+                    if (hull)
                     {
-                        mod::MappedTextureHandle mTexHandle =
-                            *(mod::MappedTextureHandle*)&texture.texHandle;
-                        const mod::MappedTexture* mappedTexture =
-                            modManager->getResourceMap().getMappedTexture(
-                                mTexHandle);
-                        gfx::TextureHandle texHandleGFX =
-                            gfx::TextureHandle::Invalid();
-                        if (mappedTexture)
-                        {
-                            texHandleGFX = mappedTexture->texHandle;
-                        }
-                        // Offset is in body space; rotate by +rot (CW, Y-down)
-                        // to world.
-                        vec2 texOffset = smath::rotateVec2(
-                            vec2(texture.bounds.x, texture.bounds.y),
-                            transform.rot);
-                        renderer.drawTexRect(
-                            worldPos + texOffset,
-                            glm::vec2(texture.bounds.z, texture.bounds.w),
-                            texHandleGFX,
-                            transform.rot - texture.rot,
-                            0xffffffff,
-                            texture.zIndex / 100.0f,
-                            0);
+                        drawModuleTextures(
+                            renderer, transform, *hull, worldPos);
                     }
                 }
+            });
+    reg.view<ecs::Transform, ecs::SectorId, ecs::Station>().each(
+        [this, &renderer, &viewRect, &reg](ecs::Transform& transform,
+                                           ecs::SectorId& sectorId,
+                                           ecs::Station& station)
+        {
+            glm::vec2 sectorOffset =
+                world.getWorldPosSectorOffset(sectorId.id,
+                                              renderer.getSectorOffsetX(),
+                                              renderer.getSectorOffsetY());
+            if (smath::pointInsideRect(sectorOffset + transform.pos, viewRect))
+            {
+                drawStationTextures(renderer, transform, station, sectorOffset);
             }
         });
+}
+
+void Model::drawStationTextures(gfx::RenderEngine& renderer,
+                                const ecs::Transform& parentTransform,
+                                ecs::Station& station,
+                                const glm::vec2& sectorOffset)
+{
+    auto& reg = ecs.getRegistry();
+    for (auto& stationPartRef : station.stationParts)
+    {
+        entt::entity stationPartEntity = ecs.getEntity(stationPartRef.entityId);
+        if (stationPartEntity != entt::null)
+        {
+            auto* stationPartTextures =
+                reg.try_get<ecs::Textures>(stationPartEntity);
+            auto* stationPartTransform =
+                reg.try_get<ecs::Transform>(stationPartEntity);
+            if (stationPartTextures && stationPartTransform)
+            {
+                drawTextures(renderer,
+                             *stationPartTextures,
+                             stationPartTransform->rot,
+                             sectorOffset + stationPartTransform->pos);
+            }
+        }
+    }
+}
+
+void Model::drawModuleTextures(gfx::RenderEngine& renderer,
+                               const ecs::Transform& parentTransform,
+                               ecs::Hull& hull,
+                               const glm::vec2& worldPos)
+{
+    auto& reg = ecs.getRegistry();
+    for (auto& modRef : hull.modules)
+    {
+        entt::entity moduleEntity = ecs.getEntity(modRef.entityId);
+        if (moduleEntity != entt::null)
+        {
+            auto* anchorFixed = reg.try_get<ecs::AnchorFixed>(moduleEntity);
+            auto* moduleTextures = reg.try_get<ecs::Textures>(moduleEntity);
+            if (anchorFixed && moduleTextures)
+            {
+                const vec2 anchorFixedPos =
+                    smath::rotateVec2(anchorFixed->pos, parentTransform.rot);
+                drawTextures(renderer,
+                             *moduleTextures,
+                             parentTransform.rot + anchorFixed->rot,
+                             parentTransform.pos + anchorFixedPos);
+            }
+        }
+    }
+}  // namespace sphyc
+
+void Model::drawTextures(gfx::RenderEngine& renderer,
+                         const ecs::Textures& textures,
+                         float rot,
+                         const glm::vec2& worldPos)
+{
+    auto* texturesItem = modManager->getTexturesLib().getItem(
+        gobj::TexturesHandle(textures.texturesHandle));
+    if (texturesItem)
+    {
+        for (const auto& texture : texturesItem->textures)
+        {
+            mod::MappedTextureHandle mTexHandle =
+                *(mod::MappedTextureHandle*)&texture.texHandle;
+            const mod::MappedTexture* mappedTexture =
+                modManager->getResourceMap().getMappedTexture(mTexHandle);
+            gfx::TextureHandle texHandleGFX = gfx::TextureHandle::Invalid();
+            if (mappedTexture)
+            {
+                texHandleGFX = mappedTexture->texHandle;
+            }
+            // Offset is in body space; rotate by +rot (CW, Y-down)
+            // to world.
+            vec2 texOffset = smath::rotateVec2(
+                vec2(texture.bounds.x, texture.bounds.y), rot);
+            renderer.drawTexRect(worldPos + texOffset,
+                                 glm::vec2(texture.bounds.z, texture.bounds.w),
+                                 texHandleGFX,
+                                 rot - texture.rot,
+                                 0xffffffff,
+                                 texture.zIndex / 100.0f,
+                                 0);
+        }
+    }
 }
 
 void Model::setOverlayEnabled(const std::string& overlay, bool enabled)
@@ -923,9 +1004,8 @@ void Model::selectEntitiesInsideRect(const def::SectorCoords& start,
              ecs::EntityId,
              ecs::tag::Selectable>()
         .each(
-            [this, &xMin, &xMax, &yMin, &yMax](ecs::SectorId& sid,
-                                               ecs::Transform& tr,
-                                               ecs::EntityId& eid)
+            [this, &xMin, &xMax, &yMin, &yMax](
+                ecs::SectorId& sid, ecs::Transform& tr, ecs::EntityId& eid)
             {
                 bool xMinBool =
                     sid.x > xMin.pos.x
