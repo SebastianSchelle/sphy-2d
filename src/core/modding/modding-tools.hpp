@@ -21,6 +21,15 @@ class UserInterface;
 namespace modding
 {
 
+enum class SelectableObjectType
+{
+    None,
+    Texture,
+    Slot,
+    ColliderVertex,
+    Connector,
+};
+
 enum class ModdingToolsMode
 {
     None,
@@ -46,6 +55,8 @@ struct TextureInfo
     float rotVal = 0.0f;
     gobj::TextureFlags flags;
     int zIndexVal = 0;
+    /** UI only: name picker list for this row (not saved to YAML). */
+    vector<string> nameSuggestions;
 };
 
 struct SlotInfo
@@ -107,6 +118,27 @@ class ModdingTools
     void openToolsUi(ui::UserInterface& userInterface);
     void draw(gfx::RenderEngine& renderer);
 
+    void onSingleClick(const glm::vec2& worldPos,
+                       float worldZoom,
+                       gfx::RenderEngine* renderer = nullptr,
+                       bool shiftAlignTextures = false);
+    void onLeftMouseDown(const glm::vec2& worldPos,
+                         float worldZoom,
+                         float dragThresholdWorld,
+                         gfx::RenderEngine* renderer = nullptr,
+                         bool shiftAlignTextures = false);
+    /** While LMB held; uses ui::MouseState::dragActive[0] plus world-space deadzone (same as MouseState). */
+    void onLeftMouseDrag(const glm::vec2& worldPos,
+                         float worldZoom,
+                         bool mouseDragActiveLmb);
+    void onLeftMouseUp();
+
+    void onRightMouseDown(const glm::vec2& worldPos, float dragThresholdWorld);
+    void onRightMouseDrag(const glm::vec2& worldPos,
+                          float worldZoom,
+                          bool mouseDragActiveRmb);
+    void onRightMouseUp();
+
     Rml::DataModelHandle dataModel() const
     {
         return rmlModel_;
@@ -167,16 +199,41 @@ class ModdingTools
     void onTextureNameFocus(Rml::DataModelHandle handle,
                             Rml::Event& event,
                             const Rml::VariantList& args);
+    void onGlobalNewTexturePickerFocus(Rml::DataModelHandle handle,
+                                       Rml::Event& event,
+                                       const Rml::VariantList& args);
+    /** Hides per-row name suggestions (focus moved off the name field). */
+    void onTextureRowNonNameFocus(Rml::DataModelHandle handle,
+                                  Rml::Event& event,
+                                  const Rml::VariantList& args);
     void onPickTextureName(Rml::DataModelHandle handle,
                            Rml::Event& event,
                            const Rml::VariantList& args);
+    void onPickNewTextureNameFromPicker(Rml::DataModelHandle handle,
+                                        Rml::Event& event,
+                                        const Rml::VariantList& args);
+    void onModdingSelectListRow(Rml::DataModelHandle handle,
+                                Rml::Event& event,
+                                const Rml::VariantList& args);
     void syncModeToRml();
+    void syncListSelectionToRml();
+    void fixSelectionAfterErase(SelectableObjectType listKind, int erasedIndex);
 
-    void drawRoofSlot(gfx::RenderEngine& renderer, const SlotInfo& slot);
-    void drawThrusterMainSlot(gfx::RenderEngine& renderer, const SlotInfo& slot);
-    void drawThrusterManeuverSlot(gfx::RenderEngine& renderer, const SlotInfo& slot);
-    void drawInternalSlot(gfx::RenderEngine& renderer, const SlotInfo& slot);
-    void drawBaySlot(gfx::RenderEngine& renderer, const SlotInfo& slot);
+    void drawRoofSlot(gfx::RenderEngine& renderer,
+                      const SlotInfo& slot,
+                      bool selected);
+    void drawThrusterMainSlot(gfx::RenderEngine& renderer,
+                              const SlotInfo& slot,
+                              bool selected);
+    void drawThrusterManeuverSlot(gfx::RenderEngine& renderer,
+                                 const SlotInfo& slot,
+                                 bool selected);
+    void drawInternalSlot(gfx::RenderEngine& renderer,
+                          const SlotInfo& slot,
+                          bool selected);
+    void drawBaySlot(gfx::RenderEngine& renderer,
+                     const SlotInfo& slot,
+                     bool selected);
     void drawColliders(gfx::RenderEngine& renderer);
     void drawSlots(gfx::RenderEngine& renderer);
     void drawTextures(gfx::RenderEngine& renderer);
@@ -189,7 +246,11 @@ class ModdingTools
     /** Drops any station-connector rows and appends one per connector (StationPart mode). */
     void syncStationPartConnectorTextures();
     void parseEditorNumericFields();
-    void refreshTextureNameSuggestions();
+    void refreshPerRowTextureNameSuggestions();
+    void refreshNewTexturePickerSuggestions();
+    void syncTextureSizesFromNames(gfx::RenderEngine& renderer);
+    void resetNewTexturePickerState();
+    TextureInfo makeNewTextureEntry();
     ModdingToolsMode determineAssetType(const string& path);
 
     Rml::DataModelHandle rmlModel_;
@@ -202,7 +263,11 @@ class ModdingTools
     float hpVal = 0.0f;
     vector<TextureInfo> textures;
     vector<string> renderTextureNames;
-    vector<string> filteredTextureNames;
+    /** Add-texture row: filter field and suggestion list (Hull / StationPart). */
+    string newTexturePickerName;
+    vector<string> filteredNewTexturePickerNames;
+    /** Last texture.name value we applied pixel-size scaling for (per texture index). */
+    vector<string> textureSizeAppliedForName;
     vector<SlotInfo> slots;
     vector<ColliderVertex> collider;
     vector<ConnectorInfo> connectors;
@@ -212,7 +277,29 @@ class ModdingTools
     bool extendCollider = true;
     bool extendConnectors = true;
     int activeTextureIndex = -1;
-    bool showTextureSuggestions = false;
+    /** For RML row highlight / expressions (`magic_enum::enum_name`). */
+    string selectedListKind = "None";
+    int selectedListIndex = -1;
+    /** Per-row texture name field focus; controls visibility of that row's name
+     * suggestions (-1 = none). Global "Add by name" list is unaffected. */
+    int textureRowNameFocusIndex = -1;
+
+    SelectableObjectType selectedObjectType = SelectableObjectType::None;
+    int selectedObjectIndex = -1;
+    bool dragSelectedObject = false;
+    /** Set when shift+texture align runs so LMB drag does not move selection. */
+    bool suppressDragAfterClick = false;
+
+    glm::vec2 lmbDragPressWorld{};
+    float lmbDragThresholdCfg = 300.f;
+    bool lmbPastDragDeadzone = false;
+
+    bool rmbRotateGesture = false;
+    glm::vec2 rmbDragPressWorld{};
+    glm::vec2 rmbRotatePrevWorld{};
+    float rmbDragThresholdCfg = 300.f;
+    bool rmbPastDragDeadzone = false;
+
 };
 
 }  // namespace modding

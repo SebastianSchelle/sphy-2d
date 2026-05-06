@@ -244,7 +244,7 @@ class MainWindow
     static Rml::Input::KeyIdentifier glfwToRmlKey(int key);
     void renderMenu();
     void renderGame();
-    void renderModdingTools();
+    void renderModdingTools(bool mouseOverUi);
     void processMouseTactical(float zoom);
 
     GLFWwindow* window;

@@ -324,6 +324,11 @@ inline float degToRad(float deg)
     return deg * M_PI / 180.0f;
 }
 
+inline float radToDeg(float rad)
+{
+    return rad * 180.0f / M_PI;
+}
+
 inline float between(float d, float min, float max)
 {
     return d >= min && d <= max;

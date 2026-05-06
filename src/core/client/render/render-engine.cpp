@@ -1056,6 +1056,23 @@ TextureHandle RenderEngine::getTextureHandle(const std::string& name)
     return textureLoader.getTextureHandle(name);
 }
 
+bool RenderEngine::getTexturePixelSize(const std::string& name, glm::vec2& sizePx)
+{
+    const TextureHandle handle = textureLoader.getTextureHandle(name);
+    if (!handle.isValid())
+    {
+        return false;
+    }
+    Texture* texture = textureLoader.getTextureLib().getItem(handle);
+    if (texture == nullptr)
+    {
+        return false;
+    }
+    const StoragePtr storage = texture->getStoragePtr();
+    sizePx = glm::vec2(storage.rect.width, storage.rect.height);
+    return true;
+}
+
 std::vector<std::string> RenderEngine::getTextureNames() const
 {
     return textureLoader.getTextureNames();

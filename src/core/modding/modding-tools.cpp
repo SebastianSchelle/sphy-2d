@@ -1,6 +1,8 @@
 #include "modding-tools.hpp"
 #include "texture.hpp"
+#include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <fstream>
 #include <magic_enum/magic_enum.hpp>
 #include <render-engine.hpp>
@@ -13,6 +15,344 @@ namespace modding
 {
 namespace
 {
+
+constexpr uint32_t kSelectionTintAbgr = 0xff50ff80u;
+constexpr float kTexturePixelToWorld = 0.1f;
+constexpr int kHullTextureDefaultZ = 50;
+constexpr int kStationPartTextureDefaultZ = 40;
+constexpr int kRoofSlotDefaultZ = 49;
+constexpr int kNonRoofSlotDefaultZ = 51;
+/** Extra size on each axis: fractional + world add (matches ~0.25/zoom at
+ * default zoom 2). */
+constexpr float kModdingTexDrawOverlapFrac = 0.004f;
+constexpr float kModdingTexDrawOverlapAddWorld = 0.125f;
+/** Shift-snap: align selected rotation to nearest multiple of this (degrees).
+ */
+constexpr float kTextureShiftSnapAngleStepDeg = 90.f;
+/** When true, texture bounds[2:4] in YAML include bleed; editor keeps logical
+ * sizes. */
+constexpr const char* kYamlTextureBoundsBleedKey = "texture-bounds-bleed";
+
+/** Quantize `targetDeg` to nearest `stepDeg` multiple, then pick the
+ * 360°-equivalent closest to `selectedDeg`. */
+float snapAlignedTextureRotationDeg(float targetDeg,
+                                    float selectedDeg,
+                                    float stepDeg)
+{
+    float selDeg = fmodf(selectedDeg, 360.f);
+    float tarDeg = fmodf(targetDeg, 360.f);
+    float angleError = smath::radToDeg(
+        smath::angleError(smath::degToRad(tarDeg), smath::degToRad(selDeg)));
+    float angleErr = fmodf(angleError, 90.0f);
+    if(angleErr > 45.0f)
+    {
+        angleErr -= 90.0f;
+    }
+    else if(angleErr < -45.0f)
+    {
+        angleErr += 90.0f;
+    }
+    return selectedDeg + angleErr;
+}
+/** RMB drag: degrees added per world unit of tangential cursor motion, before
+ * /zoom. */
+constexpr float kModdingRightDragRotate = 5.f;
+
+bool pastDragDeadzone(glm::vec2 pressWorld,
+                      glm::vec2 nowWorld,
+                      float zoom,
+                      float dragThresholdCfg,
+                      bool mouseSaysDragActive)
+{
+    if (mouseSaysDragActive)
+    {
+        return true;
+    }
+    const float zz = zoom * zoom;
+    if (zz < 1e-12f)
+    {
+        return true;
+    }
+    const glm::vec2 w = nowWorld - pressWorld;
+    return glm::dot(w, w) >= dragThresholdCfg / zz;
+}
+
+int defaultTextureZForMode(ModdingToolsMode mode)
+{
+    switch (mode)
+    {
+        case ModdingToolsMode::Hull:
+            return kHullTextureDefaultZ;
+        case ModdingToolsMode::StationPart:
+            return kStationPartTextureDefaultZ;
+        default:
+            return 0;
+    }
+}
+
+int defaultSlotZForType(gobj::ModuleSlotType slotType)
+{
+    switch (slotType)
+    {
+        case gobj::ModuleSlotType::RoofS_Common:
+        case gobj::ModuleSlotType::RoofM_Common:
+        case gobj::ModuleSlotType::RoofL_Common:
+            return kRoofSlotDefaultZ;
+        case gobj::ModuleSlotType::ThrusterMainS_Common:
+        case gobj::ModuleSlotType::ThrusterMainM_Common:
+        case gobj::ModuleSlotType::ThrusterMainL_Common:
+        case gobj::ModuleSlotType::ThrusterManeuverS_Common:
+        case gobj::ModuleSlotType::ThrusterManeuverM_Common:
+        case gobj::ModuleSlotType::ThrusterManeuverL_Common:
+        case gobj::ModuleSlotType::BayS_Common:
+        case gobj::ModuleSlotType::BayM_Common:
+        case gobj::ModuleSlotType::BayL_Common:
+        case gobj::ModuleSlotType::InternalS_Common:
+        case gobj::ModuleSlotType::InternalM_Common:
+        case gobj::ModuleSlotType::InternalL_Common:
+            return kNonRoofSlotDefaultZ;
+        default:
+            return 0;
+    }
+}
+
+uint32_t tintIfSelected(uint32_t baseAbgr, bool selected)
+{
+    if (!selected)
+    {
+        return baseAbgr;
+    }
+    const uint8_t a = static_cast<uint8_t>((baseAbgr >> 24) & 0xffu);
+    return (static_cast<uint32_t>(a) << 24u)
+           | (kSelectionTintAbgr & 0x00ffffffu);
+}
+
+bool hitRotatedRect(const glm::vec2& p,
+                    const glm::vec2& center,
+                    const glm::vec2& size,
+                    float rotRad)
+{
+    const glm::vec2 d = p - center;
+    const float c = std::cos(rotRad);
+    const float s = std::sin(rotRad);
+    const float lx = d.x * c + d.y * s;
+    const float ly = -d.x * s + d.y * c;
+    return std::fabs(lx) <= size.x * 0.5f && std::fabs(ly) <= size.y * 0.5f;
+}
+
+bool hitRotatedEllipse(const glm::vec2& p,
+                       const glm::vec2& center,
+                       const glm::vec2& size,
+                       float rotRad)
+{
+    const float rx = size.x * 0.5f;
+    const float ry = size.y * 0.5f;
+    if (rx <= 1e-6f || ry <= 1e-6f)
+    {
+        return false;
+    }
+    const glm::vec2 d = p - center;
+    const float co = std::cos(rotRad);
+    const float si = std::sin(rotRad);
+    const float lx = d.x * co + d.y * si;
+    const float ly = -d.x * si + d.y * co;
+    const float nx = lx / rx;
+    const float ny = ly / ry;
+    return nx * nx + ny * ny <= 1.0f;
+}
+
+bool hitDisc(const glm::vec2& p, const glm::vec2& center, float radius)
+{
+    const glm::vec2 d = p - center;
+    return glm::dot(d, d) <= radius * radius;
+}
+
+bool hitRoofLikeSlot(const glm::vec2& p, const SlotInfo& slot)
+{
+    const float rot = smath::degToRad(slot.rotVal);
+    const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
+    const glm::vec2 center(slot.posXVal, slot.posYVal);
+    if (hitRotatedEllipse(p, center, glm::vec2(s, s), rot))
+    {
+        return true;
+    }
+    const glm::vec2 offs = smath::rotateVec2(glm::vec2(0.0f, s), rot);
+    return hitRotatedRect(p, center + offs, glm::vec2(s * 0.3f, s), rot);
+}
+
+bool hitThrusterMainSlot(const glm::vec2& p, const SlotInfo& slot)
+{
+    const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
+    const float rot = smath::degToRad(slot.rotVal);
+    const glm::vec2 center(slot.posXVal, slot.posYVal);
+    if (hitRotatedRect(p, center, glm::vec2(s, s * 2.0f), rot))
+    {
+        return true;
+    }
+    const glm::vec2 offs = smath::rotateVec2(glm::vec2(0.0f, s * 2.0f), rot);
+    return hitRotatedRect(p, center - offs, glm::vec2(s * 0.6f, s * 2.0f), rot);
+}
+
+bool hitThrusterManeuverSlot(const glm::vec2& p, const SlotInfo& slot)
+{
+    const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
+    const float rot = smath::degToRad(slot.rotVal);
+    const glm::vec2 center(slot.posXVal, slot.posYVal);
+    if (hitRotatedRect(p, center, glm::vec2(s, s * 0.5f), rot))
+    {
+        return true;
+    }
+    const glm::vec2 offs = smath::rotateVec2(glm::vec2(0.0f, s * 0.5f), rot);
+    return hitRotatedRect(p, center - offs, glm::vec2(s * 0.6f, s * 0.5f), rot);
+}
+
+bool hitInternalSlot(const glm::vec2& p, const SlotInfo& slot)
+{
+    const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
+    const float rot = smath::degToRad(slot.rotVal);
+    return hitRotatedRect(
+        p, glm::vec2(slot.posXVal, slot.posYVal), glm::vec2(s, s), rot);
+}
+
+bool hitBaySlot(const glm::vec2& p, const SlotInfo& slot)
+{
+    const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
+    const float rot = smath::degToRad(slot.rotVal);
+    return hitRotatedRect(
+        p, glm::vec2(slot.posXVal, slot.posYVal), glm::vec2(s, s * 0.2f), rot);
+}
+
+bool hitSlot(const glm::vec2& p, const SlotInfo& slot)
+{
+    switch (slot.slotTypeVal)
+    {
+        case gobj::ModuleSlotType::RoofS_Common:
+        case gobj::ModuleSlotType::RoofM_Common:
+        case gobj::ModuleSlotType::RoofL_Common:
+            return hitRoofLikeSlot(p, slot);
+        case gobj::ModuleSlotType::ThrusterMainS_Common:
+        case gobj::ModuleSlotType::ThrusterMainM_Common:
+        case gobj::ModuleSlotType::ThrusterMainL_Common:
+            return hitThrusterMainSlot(p, slot);
+        case gobj::ModuleSlotType::ThrusterManeuverS_Common:
+        case gobj::ModuleSlotType::ThrusterManeuverM_Common:
+        case gobj::ModuleSlotType::ThrusterManeuverL_Common:
+            return hitThrusterManeuverSlot(p, slot);
+        case gobj::ModuleSlotType::InternalS_Common:
+        case gobj::ModuleSlotType::InternalM_Common:
+        case gobj::ModuleSlotType::InternalL_Common:
+            return hitInternalSlot(p, slot);
+        case gobj::ModuleSlotType::BayS_Common:
+        case gobj::ModuleSlotType::BayM_Common:
+        case gobj::ModuleSlotType::BayL_Common:
+            return hitBaySlot(p, slot);
+        default:
+            return false;
+    }
+}
+
+bool hitTexture(const glm::vec2& p, const TextureInfo& tex)
+{
+    return hitRotatedRect(p,
+                          glm::vec2(tex.posXVal, tex.posYVal),
+                          glm::vec2(tex.sizeXVal, tex.sizeYVal),
+                          smath::degToRad(tex.rotVal));
+}
+
+enum class TextureRectEdge
+{
+    Right,
+    Left,
+    Top,
+    Bottom,
+};
+
+/** Closest edge of anchor texture (in anchor local space) to worldPos; must be
+ * inside rect. */
+TextureRectEdge closestTextureEdgeLocal(const glm::vec2& worldPos,
+                                        const TextureInfo& anchor)
+{
+    const float theta = smath::degToRad(anchor.rotVal);
+    const float c = std::cos(theta);
+    const float s = std::sin(theta);
+    const glm::vec2 d(worldPos.x - anchor.posXVal, worldPos.y - anchor.posYVal);
+    const float lx = d.x * c + d.y * s;
+    const float ly = -d.x * s + d.y * c;
+    const float hw = anchor.sizeXVal * 0.5f;
+    const float hh = anchor.sizeYVal * 0.5f;
+    const float distLeft = lx + hw;
+    const float distRight = hw - lx;
+    const float distBottom = ly + hh;
+    const float distTop = hh - ly;
+    struct
+    {
+        float dist;
+        TextureRectEdge edge;
+    } cands[] = {{distRight, TextureRectEdge::Right},
+                 {distLeft, TextureRectEdge::Left},
+                 {distTop, TextureRectEdge::Top},
+                 {distBottom, TextureRectEdge::Bottom}};
+    size_t best = 0;
+    for (size_t i = 1; i < 4; ++i)
+    {
+        if (cands[i].dist < cands[best].dist)
+        {
+            best = i;
+        }
+    }
+    return cands[best].edge;
+}
+
+void shiftAlignSelectedTextureToAnchor(TextureInfo& selected,
+                                       const TextureInfo& anchor,
+                                       const glm::vec2& worldPos)
+{
+    const float prevRotDeg = selected.rotVal;
+    const float snappedRotDeg = snapAlignedTextureRotationDeg(
+        anchor.rotVal, prevRotDeg, kTextureShiftSnapAngleStepDeg);
+    const TextureRectEdge edge = closestTextureEdgeLocal(worldPos, anchor);
+    const float theta = smath::degToRad(anchor.rotVal);
+    const float c = std::cos(theta);
+    const float s = std::sin(theta);
+    const float w1 = selected.sizeXVal;
+    const float h1 = selected.sizeYVal;
+    const float w2 = anchor.sizeXVal;
+    const float h2 = anchor.sizeYVal;
+    /** Relative rotation (snapped selected − anchor): projects selected W/H onto
+     *  anchor local axes for edge–edge separation (OBB half-extent along axis). */
+    const float ds = smath::degToRad(snappedRotDeg - anchor.rotVal);
+    const float cRel = std::fabs(std::cos(ds));
+    const float sRel = std::fabs(std::sin(ds));
+    const float halfProjAlongAnchorX = 0.5f * (w1 * cRel + h1 * sRel);
+    const float halfProjAlongAnchorY = 0.5f * (w1 * sRel + h1 * cRel);
+    const float halfW2 = 0.5f * w2;
+    const float halfH2 = 0.5f * h2;
+    float olx = 0.0f;
+    float oly = 0.0f;
+    switch (edge)
+    {
+        case TextureRectEdge::Right:
+            olx = halfW2 + halfProjAlongAnchorX;
+            break;
+        case TextureRectEdge::Left:
+            olx = -(halfW2 + halfProjAlongAnchorX);
+            break;
+        case TextureRectEdge::Top:
+            oly = halfH2 + halfProjAlongAnchorY;
+            break;
+        case TextureRectEdge::Bottom:
+            oly = -(halfH2 + halfProjAlongAnchorY);
+            break;
+    }
+    const float dx = c * olx - s * oly;
+    const float dy = s * olx + c * oly;
+    selected.posXVal = anchor.posXVal + dx;
+    selected.posYVal = anchor.posYVal + dy;
+    selected.rotVal = snappedRotDeg;
+    floatToString(selected.posXVal, selected.posX, 2);
+    floatToString(selected.posYVal, selected.posY, 2);
+    floatToString(selected.rotVal, selected.rot, 2);
+}
 
 string sanitizeHullKey(string s)
 {
@@ -43,10 +383,41 @@ string sanitizeHullKey(string s)
 string toLowerCopy(const string& input)
 {
     string out = input;
-    std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
+    std::transform(out.begin(),
+                   out.end(),
+                   out.begin(),
+                   [](unsigned char c)
+                   { return static_cast<char>(std::tolower(c)); });
     return out;
+}
+
+bool textureNameUsesBoundsBleed(const string& name)
+{
+    return toLowerCopy(name) != "station-connector";
+}
+
+glm::vec2 moddingTextureLogicalSizeToAsset(float sx, float sy, bool applyBleed)
+{
+    if (!applyBleed || sx <= 0.0f || sy <= 0.0f)
+    {
+        return {sx, sy};
+    }
+    return {sx * (1.0f + kModdingTexDrawOverlapFrac)
+                + kModdingTexDrawOverlapAddWorld,
+            sy * (1.0f + kModdingTexDrawOverlapFrac)
+                + kModdingTexDrawOverlapAddWorld};
+}
+
+glm::vec2 moddingTextureAssetSizeToLogical(float sx, float sy, bool applyBleed)
+{
+    if (!applyBleed || sx <= 0.0f || sy <= 0.0f)
+    {
+        return {sx, sy};
+    }
+    const float denom = 1.0f + kModdingTexDrawOverlapFrac;
+    const float lx = (sx - kModdingTexDrawOverlapAddWorld) / denom;
+    const float ly = (sy - kModdingTexDrawOverlapAddWorld) / denom;
+    return {std::max(lx, 1e-6f), std::max(ly, 1e-6f)};
 }
 
 }  // namespace
@@ -58,6 +429,642 @@ void ModdingTools::syncModeToRml()
     {
         rmlModel_.DirtyVariable("mode");
     }
+}
+
+void ModdingTools::syncListSelectionToRml()
+{
+    if (!rmlModel_)
+    {
+        return;
+    }
+    if (selectedObjectType == SelectableObjectType::None
+        || selectedObjectIndex < 0)
+    {
+        selectedListKind = "None";
+        selectedListIndex = -1;
+        activeTextureIndex = -1;
+    }
+    else
+    {
+        selectedListKind =
+            std::string(magic_enum::enum_name(selectedObjectType));
+        selectedListIndex = selectedObjectIndex;
+        activeTextureIndex =
+            selectedObjectType == SelectableObjectType::Texture
+                ? selectedObjectIndex
+                : -1;
+        switch (selectedObjectType)
+        {
+            case SelectableObjectType::Texture:
+                extendTextures = true;
+                break;
+            case SelectableObjectType::Slot:
+                extendSlots = true;
+                break;
+            case SelectableObjectType::ColliderVertex:
+                extendCollider = true;
+                break;
+            case SelectableObjectType::Connector:
+                extendConnectors = true;
+                break;
+            default:
+                break;
+        }
+    }
+    if (selectedObjectType != SelectableObjectType::Texture
+        || selectedObjectIndex < 0)
+    {
+        textureRowNameFocusIndex = -1;
+    }
+    else if (textureRowNameFocusIndex >= 0
+             && textureRowNameFocusIndex != selectedObjectIndex)
+    {
+        textureRowNameFocusIndex = -1;
+    }
+    rmlModel_.DirtyVariable("selectedListKind");
+    rmlModel_.DirtyVariable("selectedListIndex");
+    rmlModel_.DirtyVariable("activeTextureIndex");
+    rmlModel_.DirtyVariable("textureRowNameFocusIndex");
+    rmlModel_.DirtyVariable("extendTextures");
+    rmlModel_.DirtyVariable("extendSlots");
+    rmlModel_.DirtyVariable("extendCollider");
+    rmlModel_.DirtyVariable("extendConnectors");
+}
+
+void ModdingTools::fixSelectionAfterErase(SelectableObjectType listKind,
+                                            int erasedIndex)
+{
+    if (selectedObjectType != listKind)
+    {
+        return;
+    }
+    if (selectedObjectIndex == erasedIndex)
+    {
+        selectedObjectType = SelectableObjectType::None;
+        selectedObjectIndex = -1;
+    }
+    else if (selectedObjectIndex > erasedIndex)
+    {
+        selectedObjectIndex--;
+    }
+}
+
+void ModdingTools::onModdingSelectListRow(Rml::DataModelHandle handle,
+                                          Rml::Event& event,
+                                          const Rml::VariantList& args)
+{
+    (void)event;
+    if (args.size() != 2)
+    {
+        return;
+    }
+    const string kindStr = args[0].Get<string>("");
+    const int idx = args[1].Get<int>(-1);
+    const auto kind = magic_enum::enum_cast<SelectableObjectType>(kindStr);
+    if (!kind || *kind == SelectableObjectType::None)
+    {
+        selectedObjectType = SelectableObjectType::None;
+        selectedObjectIndex = -1;
+        syncListSelectionToRml();
+        return;
+    }
+    switch (*kind)
+    {
+        case SelectableObjectType::Texture:
+            if (activeMode != ModdingToolsMode::Hull
+                && activeMode != ModdingToolsMode::StationPart)
+            {
+                return;
+            }
+            if (idx < 0 || idx >= static_cast<int>(textures.size()))
+            {
+                return;
+            }
+            break;
+        case SelectableObjectType::Slot:
+            if (activeMode != ModdingToolsMode::Hull)
+            {
+                return;
+            }
+            if (idx < 0 || idx >= static_cast<int>(slots.size()))
+            {
+                return;
+            }
+            break;
+        case SelectableObjectType::ColliderVertex:
+            if (activeMode != ModdingToolsMode::Hull
+                && activeMode != ModdingToolsMode::StationPart)
+            {
+                return;
+            }
+            if (idx < 0 || idx >= static_cast<int>(collider.size()))
+            {
+                return;
+            }
+            break;
+        case SelectableObjectType::Connector:
+            if (activeMode != ModdingToolsMode::StationPart)
+            {
+                return;
+            }
+            if (idx < 0 || idx >= static_cast<int>(connectors.size()))
+            {
+                return;
+            }
+            break;
+        default:
+            return;
+    }
+    selectedObjectType = *kind;
+    selectedObjectIndex = idx;
+    syncListSelectionToRml();
+}
+
+void ModdingTools::onSingleClick(const glm::vec2& worldPos,
+                                 float worldZoom,
+                                 gfx::RenderEngine* renderer,
+                                 bool shiftAlignTextures)
+{
+    suppressDragAfterClick = false;
+
+    if (activeMode != ModdingToolsMode::Hull
+        && activeMode != ModdingToolsMode::StationPart)
+    {
+        return;
+    }
+
+    const float colliderPickR = 3.0f / worldZoom;
+    const float connectorPickR = 4.0f / worldZoom;
+
+    auto clearSelection = [this]()
+    {
+        selectedObjectType = SelectableObjectType::None;
+        selectedObjectIndex = -1;
+        syncListSelectionToRml();
+    };
+
+    /** Lower `z` = foreground. When `z` matches, higher `layerTie` wins (later
+     * in draw order). Then lower `index` for stability. */
+    struct PickCandidate
+    {
+        SelectableObjectType type = SelectableObjectType::None;
+        int index = -1;
+        int z = 0;
+        int layerTie = 0;
+    };
+    auto betterForeground = [](const PickCandidate& a,
+                               const PickCandidate& b) -> bool
+    {
+        if (a.z != b.z)
+        {
+            return a.z < b.z;
+        }
+        if (a.layerTie != b.layerTie)
+        {
+            return a.layerTie > b.layerTie;
+        }
+        return a.index < b.index;
+    };
+    PickCandidate bestPick{};
+    bestPick.index = -1;
+    auto consider = [&](SelectableObjectType type,
+                        int index,
+                        int z,
+                        int layerTie)
+    {
+        PickCandidate c{type, index, z, layerTie};
+        if (bestPick.index < 0 || betterForeground(c, bestPick))
+        {
+            bestPick = c;
+        }
+    };
+
+    /** Implicit z for collider dots / connectors (no zIndex field); competes
+     * with texture/slot zIndexVal==0. */
+    constexpr int kPickImplicitZ = 0;
+    constexpr int kPickHullLayerTex = 0;
+    constexpr int kPickHullLayerSlot = 1;
+    constexpr int kPickHullLayerCollider = 2;
+    constexpr int kPickPartLayerTex = 0;
+    constexpr int kPickPartLayerCollider = 1;
+    constexpr int kPickPartLayerConnector = 2;
+
+    if (activeMode == ModdingToolsMode::Hull)
+    {
+        for (int i = 0; i < static_cast<int>(collider.size()); ++i)
+        {
+            const glm::vec2 v(collider[static_cast<size_t>(i)].xVal,
+                              collider[static_cast<size_t>(i)].yVal);
+            if (hitDisc(worldPos, v, colliderPickR))
+            {
+                consider(SelectableObjectType::ColliderVertex,
+                         i,
+                         kPickImplicitZ,
+                         kPickHullLayerCollider);
+            }
+        }
+        for (int i = 0; i < static_cast<int>(slots.size()); ++i)
+        {
+            if (hitSlot(worldPos, slots[static_cast<size_t>(i)]))
+            {
+                consider(SelectableObjectType::Slot,
+                         i,
+                         slots[static_cast<size_t>(i)].zIndexVal,
+                         kPickHullLayerSlot);
+            }
+        }
+    }
+    else if (activeMode == ModdingToolsMode::StationPart)
+    {
+        for (int i = 0; i < static_cast<int>(connectors.size()); ++i)
+        {
+            const glm::vec2 c(connectors[static_cast<size_t>(i)].posXVal,
+                              connectors[static_cast<size_t>(i)].posYVal);
+            if (hitDisc(worldPos, c, connectorPickR))
+            {
+                consider(SelectableObjectType::Connector,
+                         i,
+                         kPickImplicitZ,
+                         kPickPartLayerConnector);
+            }
+        }
+        for (int i = 0; i < static_cast<int>(collider.size()); ++i)
+        {
+            const glm::vec2 v(collider[static_cast<size_t>(i)].xVal,
+                              collider[static_cast<size_t>(i)].yVal);
+            if (hitDisc(worldPos, v, colliderPickR))
+            {
+                consider(SelectableObjectType::ColliderVertex,
+                         i,
+                         kPickImplicitZ,
+                         kPickPartLayerCollider);
+            }
+        }
+    }
+
+    for (int i = 0; i < static_cast<int>(textures.size()); ++i)
+    {
+        if (hitTexture(worldPos, textures[static_cast<size_t>(i)]))
+        {
+            const int layer = activeMode == ModdingToolsMode::Hull
+                                  ? kPickHullLayerTex
+                                  : kPickPartLayerTex;
+            consider(SelectableObjectType::Texture,
+                     i,
+                     textures[static_cast<size_t>(i)].zIndexVal,
+                     layer);
+        }
+    }
+
+    auto applyPick = [this](const PickCandidate& p)
+    {
+        selectedObjectType = p.type;
+        selectedObjectIndex = p.index;
+        syncListSelectionToRml();
+    };
+
+    if (shiftAlignTextures
+        && selectedObjectType == SelectableObjectType::Texture
+        && selectedObjectIndex >= 0
+        && selectedObjectIndex < static_cast<int>(textures.size()))
+    {
+        int anchorIdx = -1;
+        int bestZ = 0;
+        for (int i = 0; i < static_cast<int>(textures.size()); ++i)
+        {
+            if (i == selectedObjectIndex)
+            {
+                continue;
+            }
+            if (!hitTexture(worldPos, textures[static_cast<size_t>(i)]))
+            {
+                continue;
+            }
+            const int zi = textures[static_cast<size_t>(i)].zIndexVal;
+            if (anchorIdx < 0 || zi < bestZ
+                || (zi == bestZ && i < anchorIdx))
+            {
+                anchorIdx = i;
+                bestZ = zi;
+            }
+        }
+        if (anchorIdx >= 0)
+        {
+            shiftAlignSelectedTextureToAnchor(
+                textures[static_cast<size_t>(selectedObjectIndex)],
+                textures[static_cast<size_t>(anchorIdx)],
+                worldPos);
+            suppressDragAfterClick = true;
+            if (rmlModel_)
+            {
+                rmlModel_.DirtyVariable("textures");
+            }
+            return;
+        }
+    }
+
+    if (bestPick.index >= 0)
+    {
+        applyPick(bestPick);
+        return;
+    }
+
+    clearSelection();
+}
+
+void ModdingTools::onLeftMouseDown(const glm::vec2& worldPos,
+                                   float worldZoom,
+                                   float dragThresholdWorld,
+                                   gfx::RenderEngine* renderer,
+                                   bool shiftAlignTextures)
+{
+    (void)worldZoom;
+    lmbDragPressWorld = worldPos;
+    lmbDragThresholdCfg = dragThresholdWorld;
+    lmbPastDragDeadzone = false;
+    onSingleClick(worldPos, worldZoom, renderer, shiftAlignTextures);
+    dragSelectedObject = selectedObjectType != SelectableObjectType::None
+                         && !suppressDragAfterClick;
+}
+
+void ModdingTools::onLeftMouseDrag(const glm::vec2& worldPos,
+                                   float worldZoom,
+                                   bool mouseDragActiveLmb)
+{
+    if (!dragSelectedObject || selectedObjectIndex < 0)
+    {
+        return;
+    }
+    if (!lmbPastDragDeadzone)
+    {
+        if (!pastDragDeadzone(lmbDragPressWorld,
+                              worldPos,
+                              worldZoom,
+                              lmbDragThresholdCfg,
+                              mouseDragActiveLmb))
+        {
+            return;
+        }
+        lmbPastDragDeadzone = true;
+    }
+
+    switch (selectedObjectType)
+    {
+        case SelectableObjectType::Texture:
+            if (selectedObjectIndex >= static_cast<int>(textures.size()))
+            {
+                return;
+            }
+            textures[static_cast<size_t>(selectedObjectIndex)].posXVal =
+                worldPos.x;
+            textures[static_cast<size_t>(selectedObjectIndex)].posYVal =
+                worldPos.y;
+            floatToString(
+                textures[static_cast<size_t>(selectedObjectIndex)].posXVal,
+                textures[static_cast<size_t>(selectedObjectIndex)].posX,
+                2);
+            floatToString(
+                textures[static_cast<size_t>(selectedObjectIndex)].posYVal,
+                textures[static_cast<size_t>(selectedObjectIndex)].posY,
+                2);
+            rmlModel_.DirtyVariable("textures");
+            break;
+        case SelectableObjectType::Slot:
+            if (selectedObjectIndex >= static_cast<int>(slots.size()))
+            {
+                return;
+            }
+            slots[static_cast<size_t>(selectedObjectIndex)].posXVal =
+                worldPos.x;
+            slots[static_cast<size_t>(selectedObjectIndex)].posYVal =
+                worldPos.y;
+            floatToString(
+                slots[static_cast<size_t>(selectedObjectIndex)].posXVal,
+                slots[static_cast<size_t>(selectedObjectIndex)].posX,
+                2);
+            floatToString(
+                slots[static_cast<size_t>(selectedObjectIndex)].posYVal,
+                slots[static_cast<size_t>(selectedObjectIndex)].posY,
+                2);
+            rmlModel_.DirtyVariable("slots");
+            break;
+        case SelectableObjectType::ColliderVertex:
+            if (selectedObjectIndex >= static_cast<int>(collider.size()))
+            {
+                return;
+            }
+            collider[static_cast<size_t>(selectedObjectIndex)].xVal =
+                worldPos.x;
+            collider[static_cast<size_t>(selectedObjectIndex)].yVal =
+                worldPos.y;
+            floatToString(
+                collider[static_cast<size_t>(selectedObjectIndex)].xVal,
+                collider[static_cast<size_t>(selectedObjectIndex)].x,
+                2);
+            floatToString(
+                collider[static_cast<size_t>(selectedObjectIndex)].yVal,
+                collider[static_cast<size_t>(selectedObjectIndex)].y,
+                2);
+            rmlModel_.DirtyVariable("collider");
+            break;
+        case SelectableObjectType::Connector:
+            if (selectedObjectIndex >= static_cast<int>(connectors.size()))
+            {
+                return;
+            }
+            connectors[static_cast<size_t>(selectedObjectIndex)].posXVal =
+                worldPos.x;
+            connectors[static_cast<size_t>(selectedObjectIndex)].posYVal =
+                worldPos.y;
+            floatToString(
+                connectors[static_cast<size_t>(selectedObjectIndex)].posXVal,
+                connectors[static_cast<size_t>(selectedObjectIndex)].posX,
+                2);
+            floatToString(
+                connectors[static_cast<size_t>(selectedObjectIndex)].posYVal,
+                connectors[static_cast<size_t>(selectedObjectIndex)].posY,
+                2);
+            rmlModel_.DirtyVariable("connectors");
+            if (activeMode == ModdingToolsMode::StationPart)
+            {
+                syncStationPartConnectorTextures();
+                rmlModel_.DirtyVariable("textures");
+            }
+            break;
+        case SelectableObjectType::None:
+        default:
+            break;
+    }
+}
+
+void ModdingTools::onLeftMouseUp()
+{
+    dragSelectedObject = false;
+    lmbPastDragDeadzone = false;
+}
+
+void ModdingTools::onRightMouseDown(const glm::vec2& worldPos,
+                                    float dragThresholdWorld)
+{
+    rmbDragPressWorld = worldPos;
+    rmbDragThresholdCfg = dragThresholdWorld;
+    rmbPastDragDeadzone = false;
+    rmbRotatePrevWorld = worldPos;
+    rmbRotateGesture = false;
+    if (activeMode != ModdingToolsMode::Hull
+        && activeMode != ModdingToolsMode::StationPart)
+    {
+        return;
+    }
+    switch (selectedObjectType)
+    {
+        case SelectableObjectType::Texture:
+            if (selectedObjectIndex >= 0
+                && selectedObjectIndex < static_cast<int>(textures.size()))
+            {
+                rmbRotateGesture = true;
+            }
+            break;
+        case SelectableObjectType::Slot:
+            if (selectedObjectIndex >= 0
+                && selectedObjectIndex < static_cast<int>(slots.size()))
+            {
+                rmbRotateGesture = true;
+            }
+            break;
+        case SelectableObjectType::Connector:
+            if (activeMode == ModdingToolsMode::StationPart
+                && selectedObjectIndex >= 0
+                && selectedObjectIndex < static_cast<int>(connectors.size()))
+            {
+                rmbRotateGesture = true;
+            }
+            break;
+        default:
+            break;
+    }
+}
+
+void ModdingTools::onRightMouseDrag(const glm::vec2& worldPos,
+                                    float worldZoom,
+                                    bool mouseDragActiveRmb)
+{
+    if (!rmbRotateGesture || worldZoom < 1e-6f)
+    {
+        return;
+    }
+    if (!rmbPastDragDeadzone)
+    {
+        if (!pastDragDeadzone(rmbDragPressWorld,
+                              worldPos,
+                              worldZoom,
+                              rmbDragThresholdCfg,
+                              mouseDragActiveRmb))
+        {
+            return;
+        }
+        rmbPastDragDeadzone = true;
+    }
+
+    glm::vec2 pivot{};
+    float* rotDeg = nullptr;
+    switch (selectedObjectType)
+    {
+        case SelectableObjectType::Texture:
+        {
+            if (selectedObjectIndex < 0
+                || selectedObjectIndex >= static_cast<int>(textures.size()))
+            {
+                return;
+            }
+            TextureInfo& t = textures[static_cast<size_t>(selectedObjectIndex)];
+            pivot = {t.posXVal, t.posYVal};
+            rotDeg = &t.rotVal;
+            break;
+        }
+        case SelectableObjectType::Slot:
+        {
+            if (selectedObjectIndex < 0
+                || selectedObjectIndex >= static_cast<int>(slots.size()))
+            {
+                return;
+            }
+            SlotInfo& s = slots[static_cast<size_t>(selectedObjectIndex)];
+            pivot = {s.posXVal, s.posYVal};
+            rotDeg = &s.rotVal;
+            break;
+        }
+        case SelectableObjectType::Connector:
+        {
+            if (selectedObjectIndex < 0
+                || selectedObjectIndex >= static_cast<int>(connectors.size()))
+            {
+                return;
+            }
+            ConnectorInfo& c =
+                connectors[static_cast<size_t>(selectedObjectIndex)];
+            pivot = {c.posXVal, c.posYVal};
+            rotDeg = &c.rotDegVal;
+            break;
+        }
+        default:
+            return;
+    }
+
+    const glm::vec2 d = worldPos - rmbRotatePrevWorld;
+    if (glm::dot(d, d) < 1e-12f)
+    {
+        return;
+    }
+    const glm::vec2 toM = worldPos - pivot;
+    if (glm::dot(toM, toM) < 1e-8f)
+    {
+        rmbRotatePrevWorld = worldPos;
+        return;
+    }
+    const glm::vec2 radial = glm::normalize(toM);
+    const float tangential = d.x * (-radial.y) + d.y * radial.x;
+    *rotDeg += kModdingRightDragRotate * tangential / worldZoom;
+    rmbRotatePrevWorld = worldPos;
+
+    switch (selectedObjectType)
+    {
+        case SelectableObjectType::Texture:
+        {
+            TextureInfo& t = textures[static_cast<size_t>(selectedObjectIndex)];
+            floatToString(t.rotVal, t.rot, 2);
+            rmlModel_.DirtyVariable("textures");
+            break;
+        }
+        case SelectableObjectType::Slot:
+        {
+            SlotInfo& s = slots[static_cast<size_t>(selectedObjectIndex)];
+            floatToString(s.rotVal, s.rot, 2);
+            rmlModel_.DirtyVariable("slots");
+            break;
+        }
+        case SelectableObjectType::Connector:
+        {
+            ConnectorInfo& c =
+                connectors[static_cast<size_t>(selectedObjectIndex)];
+            floatToString(c.rotDegVal, c.rot, 2);
+            rmlModel_.DirtyVariable("connectors");
+            if (activeMode == ModdingToolsMode::StationPart)
+            {
+                syncStationPartConnectorTextures();
+                rmlModel_.DirtyVariable("textures");
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+void ModdingTools::onRightMouseUp()
+{
+    rmbRotateGesture = false;
+    rmbPastDragDeadzone = false;
 }
 
 void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
@@ -111,7 +1118,19 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     moddingToolsConstructor.BindEventCallback(
         "onTextureNameFocus", &ModdingTools::onTextureNameFocus, this);
     moddingToolsConstructor.BindEventCallback(
+        "onGlobalNewTexturePickerFocus",
+        &ModdingTools::onGlobalNewTexturePickerFocus,
+        this);
+    moddingToolsConstructor.BindEventCallback(
+        "onTextureRowNonNameFocus", &ModdingTools::onTextureRowNonNameFocus, this);
+    moddingToolsConstructor.BindEventCallback(
         "onPickTextureName", &ModdingTools::onPickTextureName, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onPickNewTextureNameFromPicker",
+        &ModdingTools::onPickNewTextureNameFromPicker,
+        this);
+    moddingToolsConstructor.BindEventCallback(
+        "onModdingSelectListRow", &ModdingTools::onModdingSelectListRow, this);
     if (auto hullHandle = moddingToolsConstructor.RegisterStruct<GeneralInfo>())
     {
         hullHandle.RegisterMember("name", &GeneralInfo::name);
@@ -130,6 +1149,7 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
                                          &StationPartInfo::storageVolume);
     }
     moddingToolsConstructor.Bind("stationPart", &stationPartInfo);
+    moddingToolsConstructor.RegisterArray<std::vector<string>>();
     if (auto textureHandle =
             moddingToolsConstructor.RegisterStruct<TextureInfo>())
     {
@@ -143,16 +1163,20 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
         textureHandle.RegisterMember("rot", &TextureInfo::rot);
         textureHandle.RegisterMember("flags", &TextureInfo::flags);
         textureHandle.RegisterMember("zIndex", &TextureInfo::zIndex);
+        textureHandle.RegisterMember("nameSuggestions",
+                                     &TextureInfo::nameSuggestions);
     }
     moddingToolsConstructor.RegisterArray<std::vector<TextureInfo>>();
     moddingToolsConstructor.Bind("textures", &textures);
-    moddingToolsConstructor.RegisterArray<std::vector<string>>();
     moddingToolsConstructor.Bind("renderTextureNames", &renderTextureNames);
     moddingToolsConstructor.Bind("activeTextureIndex", &activeTextureIndex);
-    moddingToolsConstructor.Bind("showTextureSuggestions",
-                                 &showTextureSuggestions);
-    moddingToolsConstructor.RegisterArray<std::vector<string>>();
-    moddingToolsConstructor.Bind("filteredTextureNames", &filteredTextureNames);
+    moddingToolsConstructor.Bind("selectedListKind", &selectedListKind);
+    moddingToolsConstructor.Bind("selectedListIndex", &selectedListIndex);
+    moddingToolsConstructor.Bind("textureRowNameFocusIndex",
+                                 &textureRowNameFocusIndex);
+    moddingToolsConstructor.Bind("newTexturePickerName", &newTexturePickerName);
+    moddingToolsConstructor.Bind("filteredNewTexturePickerNames",
+                                 &filteredNewTexturePickerNames);
     if (auto slotHandle = moddingToolsConstructor.RegisterStruct<SlotInfo>())
     {
         slotHandle.RegisterMember("slotType", &SlotInfo::slotType);
@@ -211,13 +1235,15 @@ void ModdingTools::onModdingNewHull(Rml::DataModelHandle handle,
     genInfo = GeneralInfo{};
     stationPartInfo = StationPartInfo{};
     textures.clear();
-    filteredTextureNames.clear();
-    activeTextureIndex = -1;
-    showTextureSuggestions = false;
+    textureSizeAppliedForName.clear();
+    resetNewTexturePickerState();
     slots.clear();
     collider.clear();
     connectors.clear();
     genInfo.colliderRestitutionVal = 0.1f;
+    selectedObjectType = SelectableObjectType::None;
+    selectedObjectIndex = -1;
+    textureRowNameFocusIndex = -1;
     syncModeToRml();
     handle.DirtyVariable("openFilepath");
     handle.DirtyVariable("hull");
@@ -226,6 +1252,7 @@ void ModdingTools::onModdingNewHull(Rml::DataModelHandle handle,
     handle.DirtyVariable("slots");
     handle.DirtyVariable("collider");
     handle.DirtyVariable("connectors");
+    syncListSelectionToRml();
     LG_D("Modding tools: new hull");
 }
 
@@ -250,15 +1277,17 @@ void ModdingTools::onModdingNewStationPart(Rml::DataModelHandle handle,
     genInfo.mapIcon.clear();
     stationPartInfo = StationPartInfo{};
     textures.clear();
-    filteredTextureNames.clear();
-    activeTextureIndex = -1;
-    showTextureSuggestions = false;
+    textureSizeAppliedForName.clear();
+    resetNewTexturePickerState();
     slots.clear();
     collider.clear();
     connectors.clear();
     genInfo.colliderRestitutionVal = 0.1f;
     hpVal = 1000.0f;
     floatToString(hpVal, genInfo.hp, 2);
+    selectedObjectType = SelectableObjectType::None;
+    selectedObjectIndex = -1;
+    textureRowNameFocusIndex = -1;
     syncModeToRml();
     handle.DirtyVariable("openFilepath");
     handle.DirtyVariable("hull");
@@ -266,6 +1295,7 @@ void ModdingTools::onModdingNewStationPart(Rml::DataModelHandle handle,
     handle.DirtyVariable("textures");
     handle.DirtyVariable("collider");
     handle.DirtyVariable("connectors");
+    syncListSelectionToRml();
     LG_D("Modding tools: new station part");
 }
 
@@ -370,20 +1400,32 @@ void ModdingTools::onModdingFileLoad(Rml::DataModelHandle handle,
     handle.DirtyVariable("connectors");
     handle.DirtyVariable("stationPart");
     handle.DirtyVariable("mode");
+    textureSizeAppliedForName.resize(textures.size());
+    for (size_t i = 0; i < textures.size(); ++i)
+    {
+        textureSizeAppliedForName[i] = textures[i].name;
+    }
+    resetNewTexturePickerState();
+    handle.DirtyVariable("newTexturePickerName");
+    handle.DirtyVariable("filteredNewTexturePickerNames");
+    selectedObjectType = SelectableObjectType::None;
+    selectedObjectIndex = -1;
+    textureRowNameFocusIndex = -1;
+    syncListSelectionToRml();
 }
 
 void ModdingTools::onAddTexture(Rml::DataModelHandle handle,
                                 Rml::Event& event,
                                 const Rml::VariantList& args)
 {
-    textures.push_back(TextureInfo{});
-    activeTextureIndex = static_cast<int>(textures.size()) - 1;
-    showTextureSuggestions = true;
-    refreshTextureNameSuggestions();
+    (void)event;
+    (void)args;
+    textures.push_back(makeNewTextureEntry());
+    textureSizeAppliedForName.push_back(string());
+    selectedObjectType = SelectableObjectType::Texture;
+    selectedObjectIndex = static_cast<int>(textures.size()) - 1;
     rmlModel_.DirtyVariable("textures");
-    rmlModel_.DirtyVariable("activeTextureIndex");
-    rmlModel_.DirtyVariable("showTextureSuggestions");
-    rmlModel_.DirtyVariable("filteredTextureNames");
+    syncListSelectionToRml();
 }
 
 void ModdingTools::onClearTextures(Rml::DataModelHandle handle,
@@ -391,13 +1433,16 @@ void ModdingTools::onClearTextures(Rml::DataModelHandle handle,
                                    const Rml::VariantList& args)
 {
     textures.clear();
-    filteredTextureNames.clear();
-    activeTextureIndex = -1;
-    showTextureSuggestions = false;
+    textureSizeAppliedForName.clear();
+    textureRowNameFocusIndex = -1;
+    resetNewTexturePickerState();
+    if (selectedObjectType == SelectableObjectType::Texture)
+    {
+        selectedObjectType = SelectableObjectType::None;
+        selectedObjectIndex = -1;
+    }
     rmlModel_.DirtyVariable("textures");
-    rmlModel_.DirtyVariable("activeTextureIndex");
-    rmlModel_.DirtyVariable("showTextureSuggestions");
-    rmlModel_.DirtyVariable("filteredTextureNames");
+    syncListSelectionToRml();
 }
 
 void ModdingTools::onRemoveTexture(Rml::DataModelHandle handle,
@@ -413,21 +1458,22 @@ void ModdingTools::onRemoveTexture(Rml::DataModelHandle handle,
     if (i >= 0 && i < static_cast<int>(textures.size()))
     {
         textures.erase(textures.begin() + static_cast<size_t>(i));
-        if (activeTextureIndex == i)
+        if (i < static_cast<int>(textureSizeAppliedForName.size()))
         {
-            activeTextureIndex = -1;
-            showTextureSuggestions = false;
-            filteredTextureNames.clear();
+            textureSizeAppliedForName.erase(textureSizeAppliedForName.begin()
+                                            + static_cast<size_t>(i));
         }
-        else if (activeTextureIndex > i)
+        fixSelectionAfterErase(SelectableObjectType::Texture, i);
+        if (textureRowNameFocusIndex == i)
         {
-            activeTextureIndex--;
+            textureRowNameFocusIndex = -1;
         }
-        refreshTextureNameSuggestions();
+        else if (textureRowNameFocusIndex > i)
+        {
+            textureRowNameFocusIndex--;
+        }
         handle.DirtyVariable("textures");
-        handle.DirtyVariable("activeTextureIndex");
-        handle.DirtyVariable("showTextureSuggestions");
-        handle.DirtyVariable("filteredTextureNames");
+        syncListSelectionToRml();
     }
 }
 
@@ -436,6 +1482,7 @@ void ModdingTools::onTextureNameFocus(Rml::DataModelHandle handle,
                                       const Rml::VariantList& args)
 {
     (void)event;
+    (void)handle;
     if (args.size() != 1)
     {
         return;
@@ -445,21 +1492,51 @@ void ModdingTools::onTextureNameFocus(Rml::DataModelHandle handle,
     {
         return;
     }
-    activeTextureIndex = i;
-    showTextureSuggestions = true;
-    refreshTextureNameSuggestions();
-    handle.DirtyVariable("activeTextureIndex");
-    handle.DirtyVariable("showTextureSuggestions");
-    handle.DirtyVariable("filteredTextureNames");
+    textureRowNameFocusIndex = i;
+    selectedObjectType = SelectableObjectType::Texture;
+    selectedObjectIndex = i;
+    syncListSelectionToRml();
 }
 
-void ModdingTools::onPickTextureName(Rml::DataModelHandle handle,
-                                     Rml::Event& event,
-                                     const Rml::VariantList& args)
+void ModdingTools::onGlobalNewTexturePickerFocus(Rml::DataModelHandle handle,
+                                                 Rml::Event& event,
+                                                 const Rml::VariantList& args)
 {
     (void)event;
-    if (args.size() != 1 || activeTextureIndex < 0
-        || activeTextureIndex >= static_cast<int>(textures.size()))
+    (void)handle;
+    (void)args;
+    textureRowNameFocusIndex = -1;
+    if (rmlModel_)
+    {
+        rmlModel_.DirtyVariable("textureRowNameFocusIndex");
+    }
+}
+
+void ModdingTools::onTextureRowNonNameFocus(Rml::DataModelHandle handle,
+                                            Rml::Event& event,
+                                            const Rml::VariantList& args)
+{
+    (void)handle;
+    (void)event;
+    (void)args;
+    textureRowNameFocusIndex = -1;
+    if (rmlModel_)
+    {
+        rmlModel_.DirtyVariable("textureRowNameFocusIndex");
+    }
+}
+
+void ModdingTools::onPickNewTextureNameFromPicker(Rml::DataModelHandle handle,
+                                                  Rml::Event& event,
+                                                  const Rml::VariantList& args)
+{
+    (void)event;
+    if (args.size() != 1)
+    {
+        return;
+    }
+    if (activeMode != ModdingToolsMode::Hull
+        && activeMode != ModdingToolsMode::StationPart)
     {
         return;
     }
@@ -468,19 +1545,45 @@ void ModdingTools::onPickTextureName(Rml::DataModelHandle handle,
     {
         return;
     }
-    textures[static_cast<size_t>(activeTextureIndex)].name = picked;
-    showTextureSuggestions = false;
-    filteredTextureNames.clear();
+    TextureInfo texture = makeNewTextureEntry();
+    texture.name = picked;
+    textures.push_back(std::move(texture));
+    textureSizeAppliedForName.push_back(string());
+    selectedObjectType = SelectableObjectType::Texture;
+    selectedObjectIndex = static_cast<int>(textures.size()) - 1;
     handle.DirtyVariable("textures");
-    handle.DirtyVariable("showTextureSuggestions");
-    handle.DirtyVariable("filteredTextureNames");
+    syncListSelectionToRml();
+}
+
+void ModdingTools::onPickTextureName(Rml::DataModelHandle handle,
+                                     Rml::Event& event,
+                                     const Rml::VariantList& args)
+{
+    (void)event;
+    if (args.size() != 2)
+    {
+        return;
+    }
+    const int i = args[0].Get<int>(-1);
+    const string picked = args[1].Get<string>("");
+    if (i < 0 || i >= static_cast<int>(textures.size()) || picked.empty())
+    {
+        return;
+    }
+    textures[static_cast<size_t>(i)].name = picked;
+    handle.DirtyVariable("textures");
 }
 
 void ModdingTools::onAddSlot(Rml::DataModelHandle handle,
                              Rml::Event& event,
                              const Rml::VariantList& args)
 {
-    slots.push_back(SlotInfo{});
+    (void)event;
+    (void)args;
+    SlotInfo slot;
+    slot.zIndexVal = defaultSlotZForType(slot.slotTypeVal);
+    intToString(slot.zIndexVal, slot.zIndex);
+    slots.push_back(std::move(slot));
     rmlModel_.DirtyVariable("slots");
 }
 
@@ -489,7 +1592,13 @@ void ModdingTools::onClearSlots(Rml::DataModelHandle handle,
                                 const Rml::VariantList& args)
 {
     slots.clear();
-    rmlModel_.DirtyVariable("slots");
+    if (selectedObjectType == SelectableObjectType::Slot)
+    {
+        selectedObjectType = SelectableObjectType::None;
+        selectedObjectIndex = -1;
+    }
+    handle.DirtyVariable("slots");
+    syncListSelectionToRml();
 }
 
 void ModdingTools::onRemoveSlot(Rml::DataModelHandle handle,
@@ -505,7 +1614,9 @@ void ModdingTools::onRemoveSlot(Rml::DataModelHandle handle,
     if (i >= 0 && i < static_cast<int>(slots.size()))
     {
         slots.erase(slots.begin() + static_cast<size_t>(i));
+        fixSelectionAfterErase(SelectableObjectType::Slot, i);
         handle.DirtyVariable("slots");
+        syncListSelectionToRml();
     }
 }
 
@@ -523,7 +1634,13 @@ void ModdingTools::onClearColliderVertices(Rml::DataModelHandle handle,
                                            const Rml::VariantList& args)
 {
     collider.clear();
+    if (selectedObjectType == SelectableObjectType::ColliderVertex)
+    {
+        selectedObjectType = SelectableObjectType::None;
+        selectedObjectIndex = -1;
+    }
     rmlModel_.DirtyVariable("collider");
+    syncListSelectionToRml();
 }
 
 void ModdingTools::onRemoveColliderVertex(Rml::DataModelHandle handle,
@@ -538,7 +1655,9 @@ void ModdingTools::onRemoveColliderVertex(Rml::DataModelHandle handle,
     if (i >= 0 && i < static_cast<int>(collider.size()))
     {
         collider.erase(collider.begin() + static_cast<size_t>(i));
+        fixSelectionAfterErase(SelectableObjectType::ColliderVertex, i);
         handle.DirtyVariable("collider");
+        syncListSelectionToRml();
     }
 }
 
@@ -561,9 +1680,15 @@ void ModdingTools::onClearConnectors(Rml::DataModelHandle handle,
     (void)event;
     (void)args;
     connectors.clear();
+    if (selectedObjectType == SelectableObjectType::Connector)
+    {
+        selectedObjectType = SelectableObjectType::None;
+        selectedObjectIndex = -1;
+    }
     handle.DirtyVariable("connectors");
     syncStationPartConnectorTextures();
     handle.DirtyVariable("textures");
+    syncListSelectionToRml();
 }
 
 void ModdingTools::onRemoveConnector(Rml::DataModelHandle handle,
@@ -579,9 +1704,11 @@ void ModdingTools::onRemoveConnector(Rml::DataModelHandle handle,
     if (i >= 0 && i < static_cast<int>(connectors.size()))
     {
         connectors.erase(connectors.begin() + static_cast<size_t>(i));
+        fixSelectionAfterErase(SelectableObjectType::Connector, i);
         handle.DirtyVariable("connectors");
         syncStationPartConnectorTextures();
         handle.DirtyVariable("textures");
+        syncListSelectionToRml();
     }
 }
 
@@ -591,13 +1718,12 @@ void ModdingTools::syncStationPartConnectorTextures()
     {
         return;
     }
-    textures.erase(std::remove_if(textures.begin(),
-                                   textures.end(),
-                                   [](const TextureInfo& t) {
-                                       return toLowerCopy(t.name)
-                                           == "station-connector";
-                                   }),
-                     textures.end());
+    textures.erase(
+        std::remove_if(textures.begin(),
+                       textures.end(),
+                       [](const TextureInfo& t)
+                       { return toLowerCopy(t.name) == "station-connector"; }),
+        textures.end());
 
     int maxZ = 0;
     for (const auto& t : textures)
@@ -631,11 +1757,15 @@ void ModdingTools::syncStationPartConnectorTextures()
         textures.push_back(std::move(t));
     }
 
-    if (activeTextureIndex >= static_cast<int>(textures.size()))
+    if (selectedObjectType == SelectableObjectType::Texture
+        && (selectedObjectIndex < 0
+            || selectedObjectIndex >= static_cast<int>(textures.size())))
     {
-        activeTextureIndex =
-            textures.empty() ? -1 : static_cast<int>(textures.size()) - 1;
+        selectedObjectType = SelectableObjectType::None;
+        selectedObjectIndex = -1;
     }
+    textureSizeAppliedForName.resize(textures.size());
+    syncListSelectionToRml();
 }
 
 void ModdingTools::parseEditorNumericFields()
@@ -715,21 +1845,58 @@ void ModdingTools::parseEditorNumericFields()
     }
 }
 
-void ModdingTools::refreshTextureNameSuggestions()
+void ModdingTools::refreshPerRowTextureNameSuggestions()
 {
-    if (!showTextureSuggestions || activeTextureIndex < 0
-        || activeTextureIndex >= static_cast<int>(textures.size()))
+    if (activeMode != ModdingToolsMode::Hull
+        && activeMode != ModdingToolsMode::StationPart)
     {
-        if (!filteredTextureNames.empty())
-        {
-            filteredTextureNames.clear();
-            rmlModel_.DirtyVariable("filteredTextureNames");
-        }
         return;
     }
+    bool anyChange = false;
+    for (size_t i = 0; i < textures.size(); ++i)
+    {
+        TextureInfo& tex = textures[i];
+        if (!textureNameUsesBoundsBleed(tex.name))
+        {
+            if (!tex.nameSuggestions.empty())
+            {
+                tex.nameSuggestions.clear();
+                anyChange = true;
+            }
+            continue;
+        }
+        const string query = toLowerCopy(tex.name);
+        std::vector<string> filtered;
+        filtered.reserve(renderTextureNames.size());
+        for (const string& textureName : renderTextureNames)
+        {
+            const string lowerName = toLowerCopy(textureName);
+            if (query.empty() || lowerName.find(query) != string::npos)
+            {
+                filtered.push_back(textureName);
+            }
+        }
+        if (filtered.size() > 20)
+        {
+            filtered.resize(20);
+        }
+        if (filtered.size() != tex.nameSuggestions.size()
+            || !std::equal(
+                filtered.begin(), filtered.end(), tex.nameSuggestions.begin()))
+        {
+            tex.nameSuggestions = std::move(filtered);
+            anyChange = true;
+        }
+    }
+    if (anyChange && rmlModel_)
+    {
+        rmlModel_.DirtyVariable("textures");
+    }
+}
 
-    const string query =
-        toLowerCopy(textures[static_cast<size_t>(activeTextureIndex)].name);
+void ModdingTools::refreshNewTexturePickerSuggestions()
+{
+    const string query = toLowerCopy(newTexturePickerName);
     std::vector<string> filtered;
     filtered.reserve(renderTextureNames.size());
     for (const string& textureName : renderTextureNames)
@@ -744,11 +1911,97 @@ void ModdingTools::refreshTextureNameSuggestions()
     {
         filtered.resize(20);
     }
-    if (filteredTextureNames != filtered)
+    if (filteredNewTexturePickerNames != filtered)
     {
-        filteredTextureNames = std::move(filtered);
-        rmlModel_.DirtyVariable("filteredTextureNames");
+        filteredNewTexturePickerNames = std::move(filtered);
+        rmlModel_.DirtyVariable("filteredNewTexturePickerNames");
     }
+}
+
+void ModdingTools::resetNewTexturePickerState()
+{
+    newTexturePickerName.clear();
+    filteredNewTexturePickerNames.clear();
+    if (rmlModel_)
+    {
+        rmlModel_.DirtyVariable("newTexturePickerName");
+        rmlModel_.DirtyVariable("filteredNewTexturePickerNames");
+    }
+}
+
+void ModdingTools::syncTextureSizesFromNames(gfx::RenderEngine& renderer)
+{
+    if (activeMode != ModdingToolsMode::Hull
+        && activeMode != ModdingToolsMode::StationPart)
+    {
+        return;
+    }
+    while (textureSizeAppliedForName.size() < textures.size())
+    {
+        textureSizeAppliedForName.push_back(string());
+    }
+    if (textureSizeAppliedForName.size() > textures.size())
+    {
+        textureSizeAppliedForName.resize(textures.size());
+    }
+    bool dirty = false;
+    for (size_t i = 0; i < textures.size(); ++i)
+    {
+        TextureInfo& tex = textures[i];
+        if (!textureNameUsesBoundsBleed(tex.name))
+        {
+            textureSizeAppliedForName[i] = tex.name;
+            continue;
+        }
+        if (tex.name == textureSizeAppliedForName[i])
+        {
+            continue;
+        }
+        textureSizeAppliedForName[i] = tex.name;
+        if (tex.name.empty())
+        {
+            continue;
+        }
+        glm::vec2 texSizePx;
+        if (renderer.getTexturePixelSize(tex.name, texSizePx))
+        {
+            tex.sizeXVal = kTexturePixelToWorld * texSizePx.x;
+            tex.sizeYVal = kTexturePixelToWorld * texSizePx.y;
+            floatToString(tex.sizeXVal, tex.sizeX, 2);
+            floatToString(tex.sizeYVal, tex.sizeY, 2);
+            dirty = true;
+        }
+    }
+    if (dirty && rmlModel_)
+    {
+        rmlModel_.DirtyVariable("textures");
+    }
+}
+
+TextureInfo ModdingTools::makeNewTextureEntry()
+{
+    TextureInfo texture;
+    texture.zIndexVal = defaultTextureZForMode(activeMode);
+    intToString(texture.zIndexVal, texture.zIndex);
+    if ((activeMode == ModdingToolsMode::Hull
+         || activeMode == ModdingToolsMode::StationPart)
+        && !textures.empty())
+    {
+        const TextureInfo* lowest = &textures.front();
+        for (const auto& t : textures)
+        {
+            if (t.posYVal > lowest->posYVal)
+            {
+                lowest = &t;
+            }
+        }
+        texture.posXVal = lowest->posXVal;
+        texture.posYVal =
+            lowest->posYVal + 0.5f * (lowest->sizeYVal + texture.sizeYVal);
+        floatToString(texture.posXVal, texture.posX, 2);
+        floatToString(texture.posYVal, texture.posY, 2);
+    }
+    return texture;
 }
 
 void ModdingTools::draw(gfx::RenderEngine& renderer)
@@ -759,9 +2012,11 @@ void ModdingTools::draw(gfx::RenderEngine& renderer)
         renderTextureNames = currentTextureNames;
         rmlModel_.DirtyVariable("renderTextureNames");
     }
-    refreshTextureNameSuggestions();
 
     parseEditorNumericFields();
+    refreshPerRowTextureNameSuggestions();
+    refreshNewTexturePickerSuggestions();
+    syncTextureSizesFromNames(renderer);
 
     const gfx::ShaderHandle blueprintGrid =
         renderer.getShaderHandle("blueprintgrid");
@@ -771,6 +2026,30 @@ void ModdingTools::draw(gfx::RenderEngine& renderer)
         constexpr float kMajorEveryCells = 5.0f;
         renderer.drawBlueprintGridBackground(
             0, blueprintGrid, kGridCellWorld, kMajorEveryCells);
+    }
+    if (activeMode == ModdingToolsMode::Hull
+        || activeMode == ModdingToolsMode::StationPart)
+    {
+        constexpr float kWorldAxesHalfExtent = 10000.0f;
+        constexpr float kWorldAxesZ = 100.0f;
+        const float zoom = renderer.getWorldZoom();
+        const float axisThickness =
+            zoom > 1e-6f ? (2.0f / zoom) : 2.0f;
+        /** 0.5 alpha (A=0x80). X axis y=0 green; Y axis x=0 red; ABGR. */
+        constexpr uint32_t kAxisGreenAbgr = 0x8000ff00u;
+        constexpr uint32_t kAxisRedAbgr = 0x800000ffu;
+        renderer.drawLine(glm::vec2(-kWorldAxesHalfExtent, 0.0f),
+                            glm::vec2(kWorldAxesHalfExtent, 0.0f),
+                            kAxisGreenAbgr,
+                            axisThickness,
+                            kWorldAxesZ,
+                            0);
+        renderer.drawLine(glm::vec2(0.0f, -kWorldAxesHalfExtent),
+                            glm::vec2(0.0f, kWorldAxesHalfExtent),
+                            kAxisRedAbgr,
+                            axisThickness,
+                            kWorldAxesZ,
+                            0);
     }
     switch (activeMode)
     {
@@ -792,15 +2071,22 @@ void ModdingTools::draw(gfx::RenderEngine& renderer)
 
 void ModdingTools::drawTextures(gfx::RenderEngine& renderer)
 {
-    for (auto& texture : textures)
+    for (size_t i = 0; i < textures.size(); ++i)
     {
+        auto& texture = textures[i];
         const gfx::TextureHandle texHandle =
             renderer.getTextureHandle(texture.name);
+        const bool sel = selectedObjectType == SelectableObjectType::Texture
+                         && selectedObjectIndex == static_cast<int>(i);
+        const glm::vec2 drawSize = moddingTextureLogicalSizeToAsset(
+            texture.sizeXVal,
+            texture.sizeYVal,
+            textureNameUsesBoundsBleed(texture.name));
         renderer.drawTexRect(glm::vec2(texture.posXVal, texture.posYVal),
-                             glm::vec2(texture.sizeXVal, texture.sizeYVal),
+                             drawSize,
                              texHandle,
                              smath::degToRad(texture.rotVal),
-                             0xffffffff,
+                             tintIfSelected(0xffffffff, sel),
                              texture.zIndexVal / 100.0f,
                              0);
     }
@@ -808,34 +2094,37 @@ void ModdingTools::drawTextures(gfx::RenderEngine& renderer)
 
 void ModdingTools::drawSlots(gfx::RenderEngine& renderer)
 {
-    for (auto& slot : slots)
+    for (size_t i = 0; i < slots.size(); ++i)
     {
+        const SlotInfo& slot = slots[i];
+        const bool sel = selectedObjectType == SelectableObjectType::Slot
+                         && selectedObjectIndex == static_cast<int>(i);
         switch (slot.slotTypeVal)
         {
             case gobj::ModuleSlotType::RoofS_Common:
             case gobj::ModuleSlotType::RoofM_Common:
             case gobj::ModuleSlotType::RoofL_Common:
-                drawRoofSlot(renderer, slot);
+                drawRoofSlot(renderer, slot, sel);
                 break;
             case gobj::ModuleSlotType::ThrusterMainS_Common:
             case gobj::ModuleSlotType::ThrusterMainM_Common:
             case gobj::ModuleSlotType::ThrusterMainL_Common:
-                drawThrusterMainSlot(renderer, slot);
+                drawThrusterMainSlot(renderer, slot, sel);
                 break;
             case gobj::ModuleSlotType::ThrusterManeuverS_Common:
             case gobj::ModuleSlotType::ThrusterManeuverM_Common:
             case gobj::ModuleSlotType::ThrusterManeuverL_Common:
-                drawThrusterManeuverSlot(renderer, slot);
+                drawThrusterManeuverSlot(renderer, slot, sel);
                 break;
             case gobj::ModuleSlotType::InternalS_Common:
             case gobj::ModuleSlotType::InternalM_Common:
             case gobj::ModuleSlotType::InternalL_Common:
-                drawInternalSlot(renderer, slot);
+                drawInternalSlot(renderer, slot, sel);
                 break;
             case gobj::ModuleSlotType::BayS_Common:
             case gobj::ModuleSlotType::BayM_Common:
             case gobj::ModuleSlotType::BayL_Common:
-                drawBaySlot(renderer, slot);
+                drawBaySlot(renderer, slot, sel);
                 break;
             default:
                 break;
@@ -849,30 +2138,32 @@ void ModdingTools::drawColliders(gfx::RenderEngine& renderer)
     const glm::vec2 dotRadius(3.0f / zoom, 3.0f / zoom);
     const float lineWidth = 1.0f / zoom;
 
-    const ColliderVertex* lastVertex = nullptr;
-    if(collider.size() >= 2)
+    for (size_t i = 0; i < collider.size(); ++i)
     {
-        lastVertex = &collider.back();
-    }
-    for (const auto& vertex : collider)
-    {
+        const auto& vertex = collider[i];
+        const bool sel =
+            selectedObjectType == SelectableObjectType::ColliderVertex
+            && selectedObjectIndex == static_cast<int>(i);
         renderer.drawEllipse(glm::vec2(vertex.xVal, vertex.yVal),
                              dotRadius,
-                             0xffffffff,
+                             tintIfSelected(0xffffffff, sel),
                              0.0f,
                              0.0f,
                              0.0f,
                              0);
-        if (lastVertex != nullptr)
-        {
-            renderer.drawLine(glm::vec2(lastVertex->xVal, lastVertex->yVal),
-                              glm::vec2(vertex.xVal, vertex.yVal),
-                              0xffffffff,
-                              lineWidth,
-                              0.0f,
-                              0);
-        }
-        lastVertex = &vertex;
+    }
+    for (size_t i = 1; i < collider.size(); ++i)
+    {
+        const bool selSeg =
+            selectedObjectType == SelectableObjectType::ColliderVertex
+            && (selectedObjectIndex == static_cast<int>(i)
+                || selectedObjectIndex == static_cast<int>(i - 1));
+        renderer.drawLine(glm::vec2(collider[i - 1].xVal, collider[i - 1].yVal),
+                          glm::vec2(collider[i].xVal, collider[i].yVal),
+                          tintIfSelected(0xffffffff, selSeg),
+                          lineWidth,
+                          0.0f,
+                          0);
     }
 }
 
@@ -881,27 +2172,37 @@ void ModdingTools::drawConnectors(gfx::RenderEngine& renderer)
     const float zoom = renderer.getWorldZoom();
     const glm::vec2 dotR(4.0f / zoom, 4.0f / zoom);
     const float lineW = 1.0f / zoom;
-    for (const auto& c : connectors)
+    for (size_t i = 0; i < connectors.size(); ++i)
     {
+        const auto& c = connectors[i];
+        const bool sel = selectedObjectType == SelectableObjectType::Connector
+                         && selectedObjectIndex == static_cast<int>(i);
         const glm::vec2 p(c.posXVal, c.posYVal);
-        renderer.drawEllipse(p, dotR, 0xffffff00, 0.0f, 0.0f, 0.0f, 0);
+        renderer.drawEllipse(
+            p, dotR, tintIfSelected(0xffffff00, sel), 0.0f, 0.0f, 0.0f, 0);
 
         const float rad = smath::degToRad(c.rotDegVal);
         const vec2 offset =
             -smath::rotateVec2(vec2(0.0f, gobj::kConnectorHeight / 2.0f), rad);
-        renderer.drawLine(
-            p, p - 5.0f * offset, 0xffffff00, lineW, 0.0f, 0);
+        renderer.drawLine(p,
+                          p - 5.0f * offset,
+                          tintIfSelected(0xffffff00, sel),
+                          lineW,
+                          0.0f,
+                          0);
     }
 }
 
 void ModdingTools::drawRoofSlot(gfx::RenderEngine& renderer,
-                                const SlotInfo& slot)
+                                const SlotInfo& slot,
+                                bool selected)
 {
     float rot = smath::degToRad(slot.rotVal);
     const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
+    const uint32_t col = tintIfSelected(0x800000ff, selected);
     renderer.drawEllipse(glm::vec2(slot.posXVal, slot.posYVal),
                          glm::vec2(s, s),
-                         0x800000ff,
+                         col,
                          0.0f,
                          rot,
                          slot.zIndexVal / 100.0f,
@@ -909,7 +2210,7 @@ void ModdingTools::drawRoofSlot(gfx::RenderEngine& renderer,
     vec2 offs = smath::rotateVec2(glm::vec2(0.0f, s), rot);
     renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal) + offs,
                            glm::vec2(s * 0.3f, s),
-                           0x800000ff,
+                           col,
                            0.0f,
                            rot,
                            slot.zIndexVal / 100.0f,
@@ -917,13 +2218,16 @@ void ModdingTools::drawRoofSlot(gfx::RenderEngine& renderer,
 }
 
 void ModdingTools::drawThrusterMainSlot(gfx::RenderEngine& renderer,
-                                        const SlotInfo& slot)
+                                        const SlotInfo& slot,
+                                        bool selected)
 {
     const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
     float rot = smath::degToRad(slot.rotVal);
+    const uint32_t colMain = tintIfSelected(0xff100000, selected);
+    const uint32_t colSub = tintIfSelected(0x300000ff, selected);
     renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal),
                            glm::vec2(s, s * 2.0f),
-                           0xff100000,
+                           colMain,
                            0.0f,
                            rot,
                            slot.zIndexVal / 100.0f,
@@ -931,7 +2235,7 @@ void ModdingTools::drawThrusterMainSlot(gfx::RenderEngine& renderer,
     vec2 offs = smath::rotateVec2(glm::vec2(0.0f, s * 2.0f), rot);
     renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal) - offs,
                            glm::vec2(s * 0.6f, s * 2.0f),
-                           0x300000ff,
+                           colSub,
                            0.0f,
                            rot,
                            slot.zIndexVal / 100.0f,
@@ -939,13 +2243,16 @@ void ModdingTools::drawThrusterMainSlot(gfx::RenderEngine& renderer,
 }
 
 void ModdingTools::drawThrusterManeuverSlot(gfx::RenderEngine& renderer,
-                                            const SlotInfo& slot)
+                                            const SlotInfo& slot,
+                                            bool selected)
 {
     const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
     float rot = smath::degToRad(slot.rotVal);
+    const uint32_t colMain = tintIfSelected(0xff100000, selected);
+    const uint32_t colSub = tintIfSelected(0x300000ff, selected);
     renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal),
                            glm::vec2(s, s * 0.5f),
-                           0xff100000,
+                           colMain,
                            0.0f,
                            rot,
                            slot.zIndexVal / 100.0f,
@@ -953,7 +2260,7 @@ void ModdingTools::drawThrusterManeuverSlot(gfx::RenderEngine& renderer,
     vec2 offs = smath::rotateVec2(glm::vec2(0.0f, s * 0.5f), rot);
     renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal) - offs,
                            glm::vec2(s * 0.6f, s * 0.5f),
-                           0x300000ff,
+                           colSub,
                            0.0f,
                            rot,
                            slot.zIndexVal / 100.0f,
@@ -961,13 +2268,14 @@ void ModdingTools::drawThrusterManeuverSlot(gfx::RenderEngine& renderer,
 }
 
 void ModdingTools::drawInternalSlot(gfx::RenderEngine& renderer,
-                                    const SlotInfo& slot)
+                                    const SlotInfo& slot,
+                                    bool selected)
 {
     const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
     float rot = smath::degToRad(slot.rotVal);
     renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal),
                            glm::vec2(s, s),
-                           0xff44ff44,
+                           tintIfSelected(0xff44ff44, selected),
                            0.0f,
                            rot,
                            slot.zIndexVal / 100.0f,
@@ -975,13 +2283,14 @@ void ModdingTools::drawInternalSlot(gfx::RenderEngine& renderer,
 }
 
 void ModdingTools::drawBaySlot(gfx::RenderEngine& renderer,
-                               const SlotInfo& slot)
+                               const SlotInfo& slot,
+                               bool selected)
 {
     const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
     float rot = smath::degToRad(slot.rotVal);
     renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal),
                            glm::vec2(s, s * 0.2f),
-                           0xffff8800,
+                           tintIfSelected(0xffff8800, selected),
                            0.0f,
                            rot,
                            slot.zIndexVal / 100.0f,
@@ -1030,6 +2339,10 @@ bool ModdingTools::loadHullDataFromPath(const string& path)
 
     try
     {
+        const bool yamlTextureBoundsBleed =
+            root[kYamlTextureBoundsBleedKey].IsDefined()
+            && root[kYamlTextureBoundsBleedKey].as<bool>();
+
         if (hullNode["name"])
         {
             genInfo.name = hullNode["name"].as<string>();
@@ -1078,8 +2391,12 @@ bool ModdingTools::loadHullDataFromPath(const string& path)
                 }
                 t.posXVal = px;
                 t.posYVal = py;
-                t.sizeXVal = sx;
-                t.sizeYVal = sy;
+                const bool bleedThis = yamlTextureBoundsBleed
+                                       && textureNameUsesBoundsBleed(t.name);
+                const glm::vec2 logical =
+                    moddingTextureAssetSizeToLogical(sx, sy, bleedThis);
+                t.sizeXVal = logical.x;
+                t.sizeYVal = logical.y;
                 floatToString(t.posXVal, t.posX, 2);
                 floatToString(t.posYVal, t.posY, 2);
                 floatToString(t.sizeXVal, t.sizeX, 2);
@@ -1221,6 +2538,7 @@ bool ModdingTools::loadHullDataFromPath(const string& path)
         return false;
     }
 
+    resetNewTexturePickerState();
     parseEditorNumericFields();
     return true;
 }
@@ -1296,6 +2614,10 @@ bool ModdingTools::loadStationPartDataFromPath(const string& path)
 
     try
     {
+        const bool yamlTextureBoundsBleed =
+            root[kYamlTextureBoundsBleedKey].IsDefined()
+            && root[kYamlTextureBoundsBleedKey].as<bool>();
+
         if (partNode["name"])
         {
             genInfo.name = partNode["name"].as<string>();
@@ -1382,8 +2704,12 @@ bool ModdingTools::loadStationPartDataFromPath(const string& path)
                 }
                 t.posXVal = px;
                 t.posYVal = py;
-                t.sizeXVal = sx;
-                t.sizeYVal = sy;
+                const bool bleedThis = yamlTextureBoundsBleed
+                                       && textureNameUsesBoundsBleed(t.name);
+                const glm::vec2 logical =
+                    moddingTextureAssetSizeToLogical(sx, sy, bleedThis);
+                t.sizeXVal = logical.x;
+                t.sizeYVal = logical.y;
                 floatToString(t.posXVal, t.posX, 2);
                 floatToString(t.posYVal, t.posY, 2);
                 floatToString(t.sizeXVal, t.sizeX, 2);
@@ -1499,6 +2825,7 @@ bool ModdingTools::loadStationPartDataFromPath(const string& path)
         return false;
     }
 
+    resetNewTexturePickerState();
     parseEditorNumericFields();
     return true;
 }
@@ -1518,10 +2845,12 @@ bool ModdingTools::saveStationPartDataToPath(const string& path)
         YAML::Node entry;
         entry["name"] = t.name;
         entry["bounds"] = YAML::Node(YAML::NodeType::Sequence);
+        const glm::vec2 assetSize = moddingTextureLogicalSizeToAsset(
+            t.sizeXVal, t.sizeYVal, textureNameUsesBoundsBleed(t.name));
         entry["bounds"].push_back(t.posXVal);
         entry["bounds"].push_back(t.posYVal);
-        entry["bounds"].push_back(t.sizeXVal);
-        entry["bounds"].push_back(t.sizeYVal);
+        entry["bounds"].push_back(assetSize.x);
+        entry["bounds"].push_back(assetSize.y);
         entry["zIndex"] = t.zIndexVal;
         entry["flags"] = static_cast<int>(t.flags);
         entry["rot"] = t.rotVal;
@@ -1584,6 +2913,7 @@ bool ModdingTools::saveStationPartDataToPath(const string& path)
     }
 
     YAML::Node root;
+    root[kYamlTextureBoundsBleedKey] = true;
     root["textures"] = YAML::Node(YAML::NodeType::Map);
     root["textures"][key] = texBundle;
     root["collider"] = YAML::Node(YAML::NodeType::Map);
@@ -1615,10 +2945,12 @@ bool ModdingTools::saveHullDataToPath(const string& path)
         YAML::Node entry;
         entry["name"] = t.name;
         entry["bounds"] = YAML::Node(YAML::NodeType::Sequence);
+        const glm::vec2 assetSize = moddingTextureLogicalSizeToAsset(
+            t.sizeXVal, t.sizeYVal, textureNameUsesBoundsBleed(t.name));
         entry["bounds"].push_back(t.posXVal);
         entry["bounds"].push_back(t.posYVal);
-        entry["bounds"].push_back(t.sizeXVal);
-        entry["bounds"].push_back(t.sizeYVal);
+        entry["bounds"].push_back(assetSize.x);
+        entry["bounds"].push_back(assetSize.y);
         entry["zIndex"] = t.zIndexVal;
         entry["flags"] = static_cast<int>(t.flags);
         entry["rot"] = t.rotVal;
@@ -1669,6 +3001,7 @@ bool ModdingTools::saveHullDataToPath(const string& path)
     }
 
     YAML::Node root;
+    root[kYamlTextureBoundsBleedKey] = true;
     root["textures"] = YAML::Node(YAML::NodeType::Map);
     root["textures"][key] = texBundle;
     root["collider"] = YAML::Node(YAML::NodeType::Map);

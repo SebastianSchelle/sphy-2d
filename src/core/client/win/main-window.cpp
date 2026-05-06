@@ -87,7 +87,7 @@ void MouseState::processMouseButton(uint8_t i, float zoom, float dragThreshold)
 
 MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
     : options(options),
-      config(options.workingdir + "/modules/core/defs/client.yaml"),
+      config(options.workingdir + "/modules/core/config/client.yaml"),
       renderEngine(config), rmlUiRenderInterface(&renderEngine),
       client(config, model.sendQueue, model.receiveQueue), modManager(),
       modLoadingHandle(UiDocHandle::Invalid()),
@@ -330,7 +330,7 @@ void MainWindow::winLoop()
                 renderGame();
                 break;
             case ClientGameState::ModdingTools:
-                renderModdingTools();
+                renderModdingTools(mouseOverUi);
                 break;
             default:
                 break;
@@ -379,8 +379,40 @@ void MainWindow::renderGame()
     }
 }
 
-void MainWindow::renderModdingTools()
+void MainWindow::renderModdingTools(bool mouseOverUi)
 {
+    const glm::vec2 world = renderEngine.screenToWorldPixel(mouseState.mousePos);
+    const float zoom = renderEngine.getWorldZoom();
+    const bool shiftTextureAlign =
+        glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS
+        || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
+
+    if (!mouseOverUi && mouseState.buttonPressed[0])
+    {
+        moddingTools.onLeftMouseDown(
+            world, zoom, dragThreshold, &renderEngine, shiftTextureAlign);
+    }
+    if (!mouseOverUi && mouseState.buttons[0])
+    {
+        moddingTools.onLeftMouseDrag(world, zoom, mouseState.dragActive[0]);
+    }
+    if (mouseState.buttonReleased[0])
+    {
+        moddingTools.onLeftMouseUp();
+    }
+
+    if (!mouseOverUi && mouseState.buttonPressed[1])
+    {
+        moddingTools.onRightMouseDown(world, dragThreshold);
+    }
+    if (!mouseOverUi && mouseState.buttons[1])
+    {
+        moddingTools.onRightMouseDrag(world, zoom, mouseState.dragActive[1]);
+    }
+    if (mouseState.buttonReleased[1])
+    {
+        moddingTools.onRightMouseUp();
+    }
     moddingTools.draw(renderEngine);
     renderEngine.panWorld(panX, panY);
 }
