@@ -1189,9 +1189,16 @@ void Engine::testSpawn()
     }
 
 
-    static constexpr const char* kStationParts[] = {"ter-strut-4", "ter-strut-3", "ter-solar-s"};
+    static constexpr const char* kStationParts[] = {"ter-strut-4",
+                                                    "ter-strut-3",
+                                                    "ter-habitat-1"};
+    static constexpr const char* kStationParts2[] = {
+                                                    "ter-solar-s",
+                                                    "ter-cont-s"};
     static constexpr size_t kStationPartsCount =
         sizeof(kStationParts) / sizeof(kStationParts[0]);
+    static constexpr size_t kStationParts2Count =
+        sizeof(kStationParts2) / sizeof(kStationParts2[0]);
 
     for (int i = 0; i < 40; i++)
     {
@@ -1221,7 +1228,7 @@ void Engine::testSpawn()
 
         for (int j = 0; j < part1->connectors.size(); j++)
         {
-            const char* partName2 = kStationParts[rand() % kStationPartsCount];
+            const char* partName2 = kStationParts2[rand() % kStationParts2Count];
             gobj::StationPartHandle partHandle2 =
                 modManager.getStationPartLib().getHandle(partName2);
             gobj::StationPart* part2 =
