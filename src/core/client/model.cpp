@@ -707,7 +707,7 @@ void Model::drawModuleTextures(gfx::RenderEngine& renderer,
                 drawTextures(renderer,
                              *moduleTextures,
                              parentTransform.rot + anchorFixed->rot,
-                             parentTransform.pos + anchorFixedPos);
+                             worldPos + anchorFixedPos);
             }
         }
     }
@@ -733,8 +733,8 @@ void Model::drawTextures(gfx::RenderEngine& renderer,
             {
                 texHandleGFX = mappedTexture->texHandle;
             }
-            // Offset is in body space; rotate by +rot (CW, Y-down)
-            // to world.
+            // Offset is in body space; rotate by +rot (CW, Y-down). drawTexRect
+            // uses (rot - texture.rot), same convention as ModdingTools::drawTextures.
             vec2 texOffset = smath::rotateVec2(
                 vec2(texture.bounds.x, texture.bounds.y), rot);
             renderer.drawTexRect(worldPos + texOffset,

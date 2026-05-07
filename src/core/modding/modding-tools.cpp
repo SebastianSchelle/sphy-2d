@@ -1745,7 +1745,7 @@ void ModdingTools::syncStationPartConnectorTextures()
         t.posYVal = corner.y;
         t.sizeXVal = gobj::kConnectorWidth;
         t.sizeYVal = gobj::kConnectorHeight;
-        t.rotVal = c.rotDegVal;
+        t.rotVal = -c.rotDegVal;
         t.zIndexVal = connectorZ;
         t.flags = gobj::TextureFlags::None;
         floatToString(t.posXVal, t.posX, 2);
@@ -2082,10 +2082,11 @@ void ModdingTools::drawTextures(gfx::RenderEngine& renderer)
             texture.sizeXVal,
             texture.sizeYVal,
             textureNameUsesBoundsBleed(texture.name));
+        // Match Model::drawTextures / drawTexRect: body rot 0 → pass -texture.rot
         renderer.drawTexRect(glm::vec2(texture.posXVal, texture.posYVal),
                              drawSize,
                              texHandle,
-                             smath::degToRad(texture.rotVal),
+                             -smath::degToRad(texture.rotVal),
                              tintIfSelected(0xffffffff, sel),
                              texture.zIndexVal / 100.0f,
                              0);

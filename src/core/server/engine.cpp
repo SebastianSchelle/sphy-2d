@@ -1142,7 +1142,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 80; ++i)
+    for (int i = 0; i < 0; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1189,9 +1189,11 @@ void Engine::testSpawn()
     }
 
 
-    static constexpr const char* kStationParts[] = {"strut-1", "solar-panel"};
+    static constexpr const char* kStationParts[] = {"ter-strut-4", "ter-strut-3", "ter-solar-s"};
+    static constexpr size_t kStationPartsCount =
+        sizeof(kStationParts) / sizeof(kStationParts[0]);
 
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < 40; i++)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1199,20 +1201,35 @@ void Engine::testSpawn()
         ecs::EntityId stationId =
             spawnStation(sectorId, ecs::Transform{pos, rot});
 
+        const char* partName1 = kStationParts[rand() % kStationPartsCount];
         gobj::StationPartHandle partHandle1 =
-            modManager.getStationPartLib().getHandle(kStationParts[rand() % 2]);
+            modManager.getStationPartLib().getHandle(partName1);
 
         gobj::StationPart* part1 =
             modManager.getStationPartLib().getItem(partHandle1);
+        if (!part1)
+        {
+            LG_E("Spawn test station: station part '{}' not in library; skip",
+                 partName1);
+            continue;
+        }
         ecs::EntityId partId = addFirstStationPart(stationId, partHandle1, rot);
+        if (partId == ecs::EntityId::Invalid())
+        {
+            continue;
+        }
 
         for (int j = 0; j < part1->connectors.size(); j++)
         {
+            const char* partName2 = kStationParts[rand() % kStationPartsCount];
             gobj::StationPartHandle partHandle2 =
-                modManager.getStationPartLib().getHandle(
-                    kStationParts[rand() % 2]);
+                modManager.getStationPartLib().getHandle(partName2);
             gobj::StationPart* part2 =
                 modManager.getStationPartLib().getItem(partHandle2);
+            if (!part2 || part2->connectors.empty())
+            {
+                continue;
+            }
             addStationPart(stationId,
                            partId,
                            partHandle2,
@@ -1679,16 +1696,19 @@ Engine::addFirstStationPart(ecs::EntityId stationId,
     if (entt == entt::null)
     {
         LG_E("Failed to create entity for station part");
+        ecs.destroyEntity(ent);
         return ecs::EntityId::Invalid();
     }
     if (!makeStationPart(entt, partHandle))
     {
         LG_E("Failed to make station part component");
+        ecs.destroyEntity(ent);
         return ecs::EntityId::Invalid();
     }
     if (!makeTextures(entt, part->textures))
     {
         LG_E("Failed to make textures component");
+        ecs.destroyEntity(ent);
         return ecs::EntityId::Invalid();
     }
     if (!makeCollider(entt, part->collider))
@@ -1700,6 +1720,7 @@ Engine::addFirstStationPart(ecs::EntityId stationId,
     if (!placeInSector(ent, entt, stationSectorId->id, {stationTr->pos, rot}))
     {
         LG_E("Failed to place in sector");
+        ecs.destroyEntity(ent);
         return ecs::EntityId::Invalid();
     }
     station->stationParts.push_back(ecs::StationPartRef{ent, part->type});

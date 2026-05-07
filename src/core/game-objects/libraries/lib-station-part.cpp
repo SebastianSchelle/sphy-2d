@@ -74,9 +74,12 @@ StationPart StationPart::fromYaml(const YAML::Node& node,
     {
         stationPart.collider = colliderLib.getHandle(colliderName);
     }
+    TRY_YAML_DICT(stationPart.hp, node["hp"], 100.0f);
     string typeStr = "";
     TRY_YAML_DICT(typeStr, node["type"], "");
-    stationPart.type = magic_enum::enum_cast<StationPartType>(typeStr).value();
+    stationPart.type =
+        magic_enum::enum_cast<StationPartType>(typeStr).value_or(
+            StationPartType::Structural);
     if (node["connectors"])
     {
         for (const auto& connectorNode : node["connectors"])
