@@ -149,6 +149,31 @@ class RenderEngine
     void enableScissorRegion(bool enable);
     void setTransform(const glm::mat4& transform);
     glm::ivec2 getTextureSize() const;
+    glm::ivec2 getWindowPixelSize() const
+    {
+        return {winWidth, winHeight};
+    }
+    size_t getGpuTextureArrayCount() const;
+    bool getGpuTextureArrayInfo(size_t index, GpuTextureArrayInfo& out) const;
+    /// Letterboxed inside pixel rect [px, py, px+pw, py+ph] (top-left origin).
+    void drawAtlasDebugLayer(bgfx::ViewId viewId,
+                             bgfx::TextureHandle texArray,
+                             uint8_t layer,
+                             uint8_t mipLevel,
+                             uint16_t texWidthFull,
+                             uint16_t texHeightFull,
+                             int previewX,
+                             int previewY,
+                             int previewW,
+                             int previewH);
+    std::string getAtlasRegistrySummary() const;
+    void fillAtlasDebugGpuArrayOptions(
+        std::vector<AtlasDebugSelectOption>& out) const;
+    void fillAtlasDebugLayerOptions(int gpuArrayIndex,
+                                   std::vector<AtlasDebugSelectOption>& out) const;
+    void fillAtlasDebugMipOptions(int gpuArrayIndex,
+                                  std::vector<AtlasDebugSelectOption>& out) const;
+    void fillAtlasDebugKindPickRows(std::vector<AtlasDebugKindPickRow>& out);
     ShaderHandle loadShader(const std::string& name,
                             const std::string& vsPath,
                             const std::string& fsPath);
@@ -272,6 +297,7 @@ class RenderEngine
     bgfx::UniformHandle u_proj = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_texArray = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_texLayer = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_atlasDbgView = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_atlasPos = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_time = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_grid = BGFX_INVALID_HANDLE;

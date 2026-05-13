@@ -173,6 +173,7 @@ enum class ClientGameState
     NotifyServerReady,
     GameLoop,
     ModdingTools,
+    AtlasDebug,
 };
 
 namespace tim

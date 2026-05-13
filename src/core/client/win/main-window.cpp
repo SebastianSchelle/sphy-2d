@@ -179,6 +179,8 @@ bool MainWindow::initPre()
     setupDataModelDebug();
     setupDataModelMenu();
     moddingTools.setupDataModel(userInterface);
+    atlasDebug.bind(&userInterface, &model, &renderEngine);
+    atlasDebug.setupDataModel(userInterface);
 
     return true;
 }
@@ -279,7 +281,8 @@ void MainWindow::winLoop()
 
         ProcessMouseStateNoui();
 
-        if (!mouseOverUi && !mouseWheelInteract)
+        if (!mouseOverUi && !mouseWheelInteract
+            && model.getGameState() != ClientGameState::AtlasDebug)
         {
             if (mouseState.mz != 0)
             {
@@ -332,6 +335,9 @@ void MainWindow::winLoop()
             case ClientGameState::ModdingTools:
                 renderModdingTools(mouseOverUi);
                 break;
+            case ClientGameState::AtlasDebug:
+                renderAtlasDebug(mouseOverUi);
+                break;
             default:
                 break;
         }
@@ -377,6 +383,13 @@ void MainWindow::renderGame()
         default:
             break;
     }
+}
+
+void MainWindow::renderAtlasDebug(bool /*mouseOverUi*/)
+{
+    renderEngine.drawFullScreenTriangles(
+        0, renderEngine.getShaderHandle("distantstars"));
+    atlasDebug.draw();
 }
 
 void MainWindow::renderModdingTools(bool mouseOverUi)
@@ -685,6 +698,27 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         return;
     }
 
+    if (model.getGameState() == ClientGameState::AtlasDebug)
+    {
+        if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE)
+        {
+            atlasDebug.closeUi(userInterface, model);
+            return;
+        }
+        if ((action == GLFW_PRESS || action == GLFW_REPEAT)
+            && key == GLFW_KEY_LEFT)
+        {
+            atlasDebug.onKeyPrevMip();
+            return;
+        }
+        if ((action == GLFW_PRESS || action == GLFW_REPEAT)
+            && key == GLFW_KEY_RIGHT)
+        {
+            atlasDebug.onKeyNextMip();
+            return;
+        }
+    }
+
     if (action == GLFW_PRESS
         && !userInterface.processKeyDown(glfwToRmlKey(key)))
     {
@@ -708,7 +742,7 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         return;
     }
 
-    if (key == GLFW_KEY_W)
+    if (model.getGameState() != ClientGameState::AtlasDebug && key == GLFW_KEY_W)
     {
         if (action == GLFW_PRESS)
         {
@@ -720,7 +754,7 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         }
         return;
     }
-    if (key == GLFW_KEY_S)
+    if (model.getGameState() != ClientGameState::AtlasDebug && key == GLFW_KEY_S)
     {
         if (action == GLFW_PRESS)
         {
@@ -732,7 +766,7 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         }
         return;
     }
-    if (key == GLFW_KEY_A)
+    if (model.getGameState() != ClientGameState::AtlasDebug && key == GLFW_KEY_A)
     {
         if (action == GLFW_PRESS)
         {
@@ -744,7 +778,7 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         }
         return;
     }
-    if (key == GLFW_KEY_D)
+    if (model.getGameState() != ClientGameState::AtlasDebug && key == GLFW_KEY_D)
     {
         if (action == GLFW_PRESS)
         {
@@ -1106,6 +1140,8 @@ void MainWindow::setupDataModelMenu()
         menuConstructor.BindEventCallback(
             "onStartModdingTools", &MainWindow::onStartModdingTools, this);
         menuConstructor.BindEventCallback(
+            "onStartAtlasDebug", &MainWindow::onStartAtlasDebug, this);
+        menuConstructor.BindEventCallback(
             "connectToServer", &MainWindow::onConnectToServer, this);
 
         if (auto md_handle = menuConstructor.RegisterStruct<mod::MenuDataMod>())
@@ -1166,6 +1202,18 @@ void MainWindow::onStartModdingTools(Rml::DataModelHandle handle,
 {
     moddingTools.openToolsUi(userInterface);
     model.startModdingTools();
+}
+
+void MainWindow::onStartAtlasDebug(Rml::DataModelHandle handle,
+                                   Rml::Event& event,
+                                   const Rml::VariantList& args)
+{
+    (void)handle;
+    (void)event;
+    (void)args;
+    model.startAtlasDebug();
+    atlasDebug.openUi(userInterface);
+    atlasDebug.refreshAfterGpuArraysChange();
 }
 
 void MainWindow::stopServer()

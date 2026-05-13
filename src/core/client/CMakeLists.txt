@@ -24,6 +24,7 @@ set(CLIENT_SOURCES
     model.cpp
     main.cpp
     win/main-window.cpp
+    win/atlas-debug-view.cpp
     ${MISC_DIR}/networking/exchange-sequence.cpp
 )
 

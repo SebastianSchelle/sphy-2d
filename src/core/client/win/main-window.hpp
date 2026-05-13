@@ -13,6 +13,7 @@
 #include <future>
 #include <mod-manager.hpp>
 #include <modding-tools.hpp>
+#include "atlas-debug-view.hpp"
 #include <model.hpp>
 #include <mutex>
 #include <render/render-engine.hpp>
@@ -218,6 +219,10 @@ class MainWindow
                              Rml::Event& event,
                              const Rml::VariantList& args);
 
+    void onStartAtlasDebug(Rml::DataModelHandle handle,
+                           Rml::Event& event,
+                           const Rml::VariantList& args);
+
     void onConnectToServer(Rml::DataModelHandle handle,
                            Rml::Event& event,
                            const Rml::VariantList& args);
@@ -245,6 +250,7 @@ class MainWindow
     void renderMenu();
     void renderGame();
     void renderModdingTools(bool mouseOverUi);
+    void renderAtlasDebug(bool mouseOverUi);
     void processMouseTactical(float zoom);
 
     GLFWwindow* window;
@@ -258,6 +264,7 @@ class MainWindow
     mod::ModManager modManager;
     ui::UserInterface userInterface;
     modding::ModdingTools moddingTools;
+    AtlasDebugView atlasDebug;
     sphyc::Model model;
 
     tim::Timepoint lastLoopTime;

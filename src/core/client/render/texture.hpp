@@ -87,6 +87,31 @@ class Texture
 
 using TextureHandle = typename con::ItemLib<Texture>::Handle;
 
+/// One GPU texture2DArray backing packed atlases (debug / inspector).
+struct GpuTextureArrayInfo
+{
+    bgfx::TextureHandle handle = BGFX_INVALID_HANDLE;
+    uint16_t width = 0;
+    uint16_t height = 0;
+    uint8_t layersUsed = 0;
+    uint8_t layersCapacity = 0;
+};
+
+/// Label + integer value for RmlUi &lt;select data-value&gt; options (atlas debug).
+struct AtlasDebugSelectOption
+{
+    int value = 0;
+    std::string label;
+};
+
+/// One row per `atlasRegistry` type (first atlas page) for debug UI routing.
+struct AtlasDebugKindPickRow
+{
+    std::string label;
+    int gpuArrayIndex = -1;
+    int layerIndex = 0;
+};
+
 class TextureArray
 {
   public:
@@ -94,6 +119,7 @@ class TextureArray
     ~TextureArray();
     bool init();
     TextureIdentifier getFreeTexture();
+    void getGpuInfo(GpuTextureArrayInfo& out) const;
 
   private:
     bgfx::TextureHandle handle;
@@ -130,6 +156,16 @@ class TextureLoader
     con::ItemLib<Texture>& getTextureLib();
     std::vector<std::string> getTextureNames() const;
     TextureHandle getTextureHandle(const std::string& name);
+    size_t getGpuTextureArrayCount() const;
+    bool getGpuTextureArrayInfo(size_t index, GpuTextureArrayInfo& out) const;
+    /// Sorted `atlasRegistry` keys (comma-separated) for debug UI.
+    std::string getAtlasRegistrySummary() const;
+    void fillAtlasDebugGpuArrayOptions(std::vector<AtlasDebugSelectOption>& out) const;
+    void fillAtlasDebugLayerOptions(int gpuArrayIndex,
+                                   std::vector<AtlasDebugSelectOption>& out) const;
+    void fillAtlasDebugMipOptions(int gpuArrayIndex,
+                                  std::vector<AtlasDebugSelectOption>& out) const;
+    void fillAtlasDebugKindPickRows(std::vector<AtlasDebugKindPickRow>& out);
 
   private:
     TextureHandle insertIntoAtlas(const std::string& name,
@@ -146,6 +182,8 @@ class TextureLoader
                               TextureIdentifier texIdent,
                               TextureAtlasHandle atlasHandle,
                               const void* rgbaData);
+    int gpuArrayIndexOfHandle(bgfx::TextureHandle h) const;
+
     std::unordered_map<std::string, std::vector<int>> atlasRegistry;
     con::ItemLib<TextureAtlas> textureAtlasLib;
     con::ItemLib<Texture> textureLib;

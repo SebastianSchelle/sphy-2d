@@ -9,11 +9,12 @@
 namespace gfx
 {
 
-// Sprite sampling: use linear min/mag filtering to reduce grainy shimmer on
-// camera pans and non-integer zoom factors. For strict pixel-art rendering at
-// integer scales, switch to point sampling instead.
-static constexpr uint32_t kSpriteSamplerFlags =
-    BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
+// UI / Rml: linear filtering + clamp (smooth pans / fractional zoom).
+static constexpr uint32_t kSpriteSamplerFlags = BGFX_SAMPLER_UVW_CLAMP;
+
+// Tex rects: point sampling avoids bilinear pulling atlas neighbors (black fringe).
+static constexpr uint32_t kTexRectSamplerFlags =
+    BGFX_SAMPLER_UVW_CLAMP | BGFX_SAMPLER_POINT;
 
 static_assert(
     sizeof(TexRectData) % 16 == 0,
@@ -158,6 +159,12 @@ bool RenderEngine::initPre()
     if (!bgfx::isValid(u_texLayer))
     {
         u_texLayer = bgfx::createUniform("u_texLayer", bgfx::UniformType::Vec4);
+    }
+
+    if (!bgfx::isValid(u_atlasDbgView))
+    {
+        u_atlasDbgView =
+            bgfx::createUniform("u_atlasDbgView", bgfx::UniformType::Vec4);
     }
 
     if (!bgfx::isValid(u_proj))
@@ -440,6 +447,106 @@ glm::ivec2 RenderEngine::getTextureSize() const
     return glm::ivec2(texWidth, texHeight);
 }
 
+size_t RenderEngine::getGpuTextureArrayCount() const
+{
+    return textureLoader.getGpuTextureArrayCount();
+}
+
+bool RenderEngine::getGpuTextureArrayInfo(size_t index,
+                                          GpuTextureArrayInfo& out) const
+{
+    return textureLoader.getGpuTextureArrayInfo(index, out);
+}
+
+void RenderEngine::drawAtlasDebugLayer(bgfx::ViewId viewId,
+                                       bgfx::TextureHandle texArray,
+                                       uint8_t layer,
+                                       uint8_t mipLevel,
+                                       uint16_t texWidthFull,
+                                       uint16_t texHeightFull,
+                                       int previewX,
+                                       int previewY,
+                                       int previewW,
+                                       int previewH)
+{
+    ShaderHandle sh = getShaderHandle("atlas-debug");
+    if (!sh.isValid() || !bgfx::isValid(texArray) || !bgfx::isValid(u_texArray)
+        || !bgfx::isValid(u_texLayer) || !bgfx::isValid(u_atlasDbgView))
+    {
+        return;
+    }
+    changeRenderState(RenderState::DrawFullScreenTriangles);
+    const float layerMip[] = {float(layer), float(mipLevel), 0.0f, 0.0f};
+    bgfx::setUniform(u_texLayer, layerMip);
+
+    const float wf = std::max(1.0f, float(winWidth));
+    const float hf = std::max(1.0f, float(winHeight));
+    float ndcHalfW = 1.0f;
+    float ndcHalfH = 1.0f;
+    float ndcCx = 0.0f;
+    float ndcCy = 0.0f;
+    if (previewW > 0 && previewH > 0)
+    {
+        const uint32_t mipW =
+            std::max(1u, uint32_t(texWidthFull) >> mipLevel);
+        const uint32_t mipH =
+            std::max(1u, uint32_t(texHeightFull) >> mipLevel);
+        const float ax = float(previewW);
+        const float ay = float(previewH);
+        const float scale = std::min(ax / float(mipW), ay / float(mipH));
+        const float qw = float(mipW) * scale;
+        const float qh = float(mipH) * scale;
+        const float cx = float(previewX) + ax * 0.5f;
+        const float cyTop = float(previewY) + ay * 0.5f;
+        ndcCx = (cx / wf) * 2.0f - 1.0f;
+        ndcCy = 1.0f - (cyTop / hf) * 2.0f;
+        ndcHalfW = qw / wf;
+        ndcHalfH = qh / hf;
+    }
+    const float atlasDbgView[] = {ndcHalfW, ndcHalfH, ndcCx, ndcCy};
+    bgfx::setUniform(u_atlasDbgView, atlasDbgView);
+    bgfx::setTexture(0,
+                     u_texArray,
+                     texArray,
+                     BGFX_SAMPLER_UVW_CLAMP | BGFX_SAMPLER_MIN_POINT
+                         | BGFX_SAMPLER_MAG_POINT);
+    bgfx::setVertexBuffer(0, vbhFullScreenTriangles);
+    bgfx::setIndexBuffer(ibhFullScreenTriangles);
+    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A);
+    bgfx::submit(viewId, compiledShaderLib.getItem(sh)->getHandle());
+}
+
+std::string RenderEngine::getAtlasRegistrySummary() const
+{
+    return textureLoader.getAtlasRegistrySummary();
+}
+
+void RenderEngine::fillAtlasDebugGpuArrayOptions(
+    std::vector<AtlasDebugSelectOption>& out) const
+{
+    textureLoader.fillAtlasDebugGpuArrayOptions(out);
+}
+
+void RenderEngine::fillAtlasDebugLayerOptions(
+    int gpuArrayIndex,
+    std::vector<AtlasDebugSelectOption>& out) const
+{
+    textureLoader.fillAtlasDebugLayerOptions(gpuArrayIndex, out);
+}
+
+void RenderEngine::fillAtlasDebugMipOptions(
+    int gpuArrayIndex,
+    std::vector<AtlasDebugSelectOption>& out) const
+{
+    textureLoader.fillAtlasDebugMipOptions(gpuArrayIndex, out);
+}
+
+void RenderEngine::fillAtlasDebugKindPickRows(
+    std::vector<AtlasDebugKindPickRow>& out)
+{
+    textureLoader.fillAtlasDebugKindPickRows(out);
+}
+
 void RenderEngine::cleanUpAll()
 {
     cleanUpTextures();
@@ -486,6 +593,11 @@ void RenderEngine::cleanUpAll()
     {
         bgfx::destroy(u_texLayer);
         u_texLayer = BGFX_INVALID_HANDLE;
+    }
+    if (bgfx::isValid(u_atlasDbgView))
+    {
+        bgfx::destroy(u_atlasDbgView);
+        u_atlasDbgView = BGFX_INVALID_HANDLE;
     }
     if (bgfx::isValid(u_atlasPos))
     {
@@ -897,11 +1009,12 @@ void RenderEngine::submitTexRects()
         return;
     }
 
-    bgfx::setTexture(0, u_texArray, texRectBatchArray, kSpriteSamplerFlags);
+    bgfx::setTexture(0, u_texArray, texRectBatchArray, kTexRectSamplerFlags);
 
+    // Premultiplied fragment output (fs_texrect.sc); same blend as Rml geometry.
     uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
                      | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS
-                     | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
+                     | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,
                                              BGFX_STATE_BLEND_INV_SRC_ALPHA);
 
     const float* projForView =

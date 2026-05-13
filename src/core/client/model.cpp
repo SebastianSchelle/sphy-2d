@@ -69,6 +69,9 @@ void Model::modelLoop(float dt)
         case ClientGameState::GameLoop:
             modelLoopGame(dt);
             break;
+        case ClientGameState::ModdingTools:
+        case ClientGameState::AtlasDebug:
+            break;
         default:
             break;
     }
@@ -920,6 +923,16 @@ void Model::handleReqAllComponentsResp(
 void Model::startModdingTools()
 {
     gameState = ClientGameState::ModdingTools;
+}
+
+void Model::startAtlasDebug()
+{
+    gameState = ClientGameState::AtlasDebug;
+}
+
+void Model::endAtlasDebug()
+{
+    gameState = ClientGameState::MainMenu;
 }
 
 void Model::reqAllComponents(ecs::EntityId entityId)
