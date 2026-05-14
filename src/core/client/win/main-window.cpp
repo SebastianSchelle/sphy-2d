@@ -360,7 +360,7 @@ void MainWindow::renderMenu()
 void MainWindow::renderGame()
 {
     float zoom = renderEngine.getWorldZoom();
-    Rect viewportRect;
+    smath::Rect viewportRect;
     renderEngine.getViewportRect(viewportRect);
     renderEngine.drawFullScreenTriangles(
         0, renderEngine.getShaderHandle("distantstars"));

@@ -1154,7 +1154,7 @@ void RenderEngine::screenToSectorCoords(const vec2& screenPx,
         std::clamp(worldPos.y - cy, -sectorSizeHalf, sectorSizeHalf)};
 }
 
-void RenderEngine::getViewportRect(Rect& rect) const
+void RenderEngine::getViewportRect(smath::Rect& rect) const
 {
     const vec2 tl = screenToWorldRel(vec2(-1.0f, 1.0f));
     const vec2 br = screenToWorldRel(vec2(1.0f, -1.0f));

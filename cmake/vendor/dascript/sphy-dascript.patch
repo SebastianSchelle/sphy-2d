@@ -1,0 +1,75 @@
+diff --git a/CMakeCommon.txt b/CMakeCommon.txt
+index 2b6ce1c44..208ace246 100644
+--- a/CMakeCommon.txt
++++ b/CMakeCommon.txt
+@@ -296,7 +296,9 @@ ENDMACRO(FIND_FLEX_AND_BISON)
+ 
+ 
+ MACRO(FLEX input)
+-	IF(NOT(FLEX_FOUND AND ((FLEX_VERSION MATCHES "2\.*"))))
++	# Use VERSION_GREATER_EQUAL: plain MATCHES "2\.*" is a substring match, so e.g. "1.2"
++	# incorrectly satisfies "2\.*" (the trailing "2"), and the wrong flex would run.
++	IF(NOT(FLEX_FOUND AND FLEX_VERSION VERSION_GREATER_EQUAL "2.0"))
+ 		MESSAGE(STATUS "FLEX not found or version is less than 2.x; pre-generated files will be used." )
+ 	ELSE()
+ 		MESSAGE(STATUS "FLEX `${FLEX_VERSION}` found" )
+@@ -314,7 +316,9 @@ MACRO(FLEX input)
+ ENDMACRO()
+ 
+ MACRO(BISON input)
+-	IF(NOT(BISON_FOUND AND ((BISON_VERSION MATCHES "3\.*"))))
++	# Use VERSION_GREATER_EQUAL: plain MATCHES "3\.*" is a substring match, so "2.3"
++	# incorrectly satisfies "3\.*" (the trailing "3"), and macOS system bison 2.3 runs.
++	IF(NOT(BISON_FOUND AND BISON_VERSION VERSION_GREATER_EQUAL "3.0"))
+ 		MESSAGE(STATUS "BISON not found, or version is less than 3.x; pre-generated files will be used." )
+ 	ELSE()
+ 		MESSAGE(STATUS "BISON `${BISON_VERSION}` found" )
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 423eb61be..88de83edf 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -83,6 +83,17 @@ if (CMAKE_HOST_SYSTEM_NAME MATCHES "Darwin")
+ endif()
+ 
+     FIND_FLEX_AND_BISON()
++    # Parser .cpp files are not vendored; Bison 3+ is required. (CMake MATCHES is
++    # substring-based, so an old check accidentally treated "2.3" as matching "3.*".)
++    if(BISON_FOUND AND BISON_VERSION VERSION_LESS "3.0")
++        message(FATAL_ERROR
++            "GNU Bison 3.0 or newer is required to generate daScript parsers (found ${BISON_VERSION}).\n"
++            "On macOS: brew install bison flex\n"
++            "Then wipe and reconfigure your build tree so CMake can use Homebrew's bison "
++            "(this project sets BISON_EXECUTABLE from brew --prefix when the keg exists).\n"
++            "On Linux: use your package manager (e.g. apt install bison flex) or pass "
++            "-DBISON_EXECUTABLE=/path/to/bison to CMake.")
++    endif()
+ ENDIF()
+ 
+ SETUP_COMPILER()
+diff --git a/include/daScript/das_config.h b/include/daScript/das_config.h
+index f9059f5ad..795dbc97f 100644
+--- a/include/daScript/das_config.h
++++ b/include/daScript/das_config.h
+@@ -17,6 +17,7 @@
+ #include <initializer_list>
+ #include <functional>
+ #include <algorithm>
++#include <cmath>
+ #include <functional>
+ #include <climits>
+ 
+@@ -25,7 +26,13 @@
+ 
+ #include <mutex>
+ 
+-namespace das {using namespace std;}
++namespace das
++{
++using namespace std;
++// Qualified `das::ceil` in ska::flat_hash_map needs a member of `das`; `using namespace std`
++// does not introduce one. `<cmath>` is required; `<math.h>` alone only guarantees `::ceil`.
++using std::ceil;
++}
+ 
+ 
+ #if (!defined(DAS_ENABLE_EXCEPTIONS)) || (!DAS_ENABLE_EXCEPTIONS)

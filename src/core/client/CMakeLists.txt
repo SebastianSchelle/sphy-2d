@@ -122,3 +122,13 @@ target_include_directories(${EXEC_NAME} PUBLIC ${CLIENT_INC_PUBLIC})
 target_link_libraries(${EXEC_NAME} PUBLIC ${LIBS_PUB})
 target_link_libraries(${EXEC_NAME} PRIVATE ${LIBS_PRIV})
 
+# bgfx static lib contains renderer_mtl.mm; Metal APIs are not pulled in transitively.
+if(APPLE)
+    target_link_libraries(
+        ${EXEC_NAME}
+        PRIVATE
+        "-framework Metal"
+        "-framework MetalKit"
+        "-framework QuartzCore")
+endif()
+

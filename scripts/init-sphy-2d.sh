@@ -1,3 +1,5 @@
+mkdir build
+ln -s build/compile_commands.json compile_commands.json
 cd "$(dirname "$0")"/.. &&
 echo "Initializing bgfx repository..." &&
 cd thirdparty/bgfx &&

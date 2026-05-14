@@ -250,7 +250,7 @@ class RenderEngine
     void screenToSectorCoords(const glm::vec2& screenPx,
                               def::SectorCoords& sectorCoords) const;
     void relScreenToWorldCoords(const vec2& screenPosRel, vec2& worldPos) const;
-    void getViewportRect(Rect& rect) const;
+    void getViewportRect(smath::Rect& rect) const;
     TextureHandle getTextureHandle(const std::string& name);
     bool getTexturePixelSize(const std::string& name, glm::vec2& sizePx);
     std::vector<std::string> getTextureNames() const;

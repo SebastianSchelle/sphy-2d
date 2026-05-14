@@ -593,7 +593,7 @@ void World::handleSectorMoveRequests(ecs::PtrHandle* ptrHandle)
     }
 }
 
-bool World::sectorIntersectsRect(uint32_t sectorId, const Rect& rect) const
+bool World::sectorIntersectsRect(uint32_t sectorId, const glm::vec4& rect) const
 {
     auto [sectorX, sectorY] = idToSectorCoords(sectorId);
     return sectorIntersectsRect(sectorX, sectorY, rect);
@@ -603,11 +603,11 @@ bool World::sectorIntersectsRect(int32_t sectorX,
                                  int32_t sectorY,
                                  const glm::vec4& rect) const
 {
-    Rect sectorRect =
-        Rect((float)sectorX * worldShape.sectorSize - halfSectorSize,
-             (float)sectorY * worldShape.sectorSize - halfSectorSize,
-             (float)sectorX * worldShape.sectorSize + halfSectorSize,
-             (float)sectorY * worldShape.sectorSize + halfSectorSize);
+    glm::vec4 sectorRect(
+        (float)sectorX * worldShape.sectorSize - halfSectorSize,
+        (float)sectorY * worldShape.sectorSize - halfSectorSize,
+        (float)sectorX * worldShape.sectorSize + halfSectorSize,
+        (float)sectorY * worldShape.sectorSize + halfSectorSize);
     return smath::intersectsRect(sectorRect, rect);
 }
 
@@ -624,13 +624,13 @@ void World::drawDebug(gfx::RenderEngine& renderer, float zoom)
 }
 
 void World::drawTacticalMap(gfx::RenderEngine& renderer,
-                            const Rect& viewRect,
+                            const glm::vec4& viewRect,
                             float zoom)
 {
 }
 
 void World::drawStrategicMap(gfx::RenderEngine& renderer,
-                             const Rect& viewRect,
+                             const glm::vec4& viewRect,
                              float zoom)
 {
     // todo: Could just get min/max sector coords from viewRect and then loop
@@ -651,7 +651,7 @@ void World::drawStrategicMap(gfx::RenderEngine& renderer,
 }
 
 void World::drawThirdPerson(gfx::RenderEngine& renderer,
-                            const Rect& viewRect,
+                            const glm::vec4& viewRect,
                             float zoom)
 {
 }

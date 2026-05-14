@@ -21,7 +21,16 @@
 #include <filesystem>
 #include <fstream>
 #include <glm/glm.hpp>
+#include <cmath>
 #include <limits>
+
+// cmath / POSIX do not guarantee M_PI; M_PIf is non-standard (GNU extension).
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+#ifndef M_PIf
+#define M_PIf static_cast<float>(M_PI)
+#endif
 #include <logging.hpp>
 #include <optional>
 #include <memory.h>
@@ -692,6 +701,7 @@ EXT_DES(GenericHandle, SER_GENERIC_HANDLE)
 
 EXT_FMT(GenericHandle, "({}, {})", o.idx, o.gen);
 
-using smath::Rect;
+// Do not `using smath::Rect` at file scope: macOS SDK (MacTypes.h) defines a
+// global `struct Rect`; a using-declaration would collide with Carbon's type.
 
 #endif

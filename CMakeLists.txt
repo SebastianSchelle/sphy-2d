@@ -62,6 +62,8 @@ set(DAS_STBIMAGE_DISABLED ON CACHE BOOL "" FORCE)
 set(DAS_TOOLS_DISABLED OFF CACHE BOOL "" FORCE)
 set(DAS_TUTORIAL_DISABLED ON CACHE BOOL "" FORCE)
 set(DAS_TESTS_DISABLED ON CACHE BOOL "" FORCE)
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/DascriptVendor.cmake")
+sphy_apply_dascript_patches()
 add_subdirectory(thirdparty/dascript)
 add_subdirectory(src)
 
