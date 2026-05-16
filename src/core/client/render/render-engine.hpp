@@ -66,7 +66,8 @@ struct TexRectData
     vec4 atlasUv;  // packed atlas rect: .xy origin, .zw size in UV space
     vec4 rotLayZ;  // .x = rotation (rad), .y = layer index as float, .z =
                    // z-index as float
-    vec4 colorAbgr;
+    vec4 uvOffScale; // i_data3 — .xy tile offset, .zw tile repeat count
+    vec4 colorAbgr;  // i_data4
 };
 
 struct ZoomPanCfg
@@ -218,7 +219,9 @@ class RenderEngine
                      float rotationRad = 0.0f,
                      uint32_t colorABGR = 0xffffffff,
                      float zIndex = 0.0f,
-                     bgfx::ViewId viewId = 0);
+                     bgfx::ViewId viewId = 0,
+                     const glm::vec2& uvOffset = glm::vec2(0.0f),
+                     const glm::vec2& uvScale = glm::vec2(1.0f));
     tim::Timepoint getStartTime() const;
     float getWorldZoom() const
     {

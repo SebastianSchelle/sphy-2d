@@ -35,6 +35,18 @@ Textures Textures::fromYaml(const YAML::Node& node, mod::ResourceMap& resourceMa
         texture.flags = static_cast<TextureFlags>(flags);
         TRY_YAML_DICT(texture.rot, texNode["rot"], 0.0f);
         texture.rot = smath::degToRad(texture.rot);
+        if (texNode["tileCount"] && texNode["tileCount"].IsSequence()
+            && texNode["tileCount"].size() >= 2)
+        {
+            texture.tileCount.x = texNode["tileCount"][0].as<float>();
+            texture.tileCount.y = texNode["tileCount"][1].as<float>();
+        }
+        if (texNode["tileOffset"] && texNode["tileOffset"].IsSequence()
+            && texNode["tileOffset"].size() >= 2)
+        {
+            texture.tileOffset.x = texNode["tileOffset"][0].as<float>();
+            texture.tileOffset.y = texNode["tileOffset"][1].as<float>();
+        }
         textures.textures.push_back(texture);
     }
     return textures;

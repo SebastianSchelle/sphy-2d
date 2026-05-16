@@ -743,6 +743,28 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         return;
     }
 
+    if (action == GLFW_PRESS
+        && model.getGameState() == ClientGameState::ModdingTools)
+    {
+        const bool accel =
+            (mods & GLFW_MOD_CONTROL) != 0 || (mods & GLFW_MOD_SUPER) != 0;
+        if (accel && key == GLFW_KEY_C
+            && moddingTools.onEditorKey(modding::ModdingEditorKey::Copy))
+        {
+            return;
+        }
+        if (accel && key == GLFW_KEY_V
+            && moddingTools.onEditorKey(modding::ModdingEditorKey::Paste))
+        {
+            return;
+        }
+        if (key == GLFW_KEY_DELETE
+            && moddingTools.onEditorKey(modding::ModdingEditorKey::Delete))
+        {
+            return;
+        }
+    }
+
     if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE)
     {
         userInterface.processEsc(model.getGameState()

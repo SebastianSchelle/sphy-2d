@@ -9,8 +9,12 @@
 namespace gfx
 {
 
-// UI / Rml: linear filtering + clamp (smooth pans / fractional zoom).
+// UI images (Rml LoadTexture): linear filtering + mips.
 static constexpr uint32_t kSpriteSamplerFlags = BGFX_SAMPLER_UVW_CLAMP;
+
+// Rml glyph sheets: mip 0 only, point sampling for crisp text.
+static constexpr uint32_t kFontSamplerFlags =
+    BGFX_SAMPLER_UVW_CLAMP | BGFX_SAMPLER_POINT;
 
 // Tex rects: point sampling avoids bilinear pulling atlas neighbors (black fringe).
 static constexpr uint32_t kTexRectSamplerFlags =
@@ -259,8 +263,10 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
         }
     }
 
+    const uint32_t samplerFlags = texture->usesPointSampling() ? kFontSamplerFlags
+                                                             : kSpriteSamplerFlags;
     bgfx::setTexture(
-        0, u_texArray, texture->getTexIdent().texHandle, kSpriteSamplerFlags);
+        0, u_texArray, texture->getTexIdent().texHandle, samplerFlags);
 
     float layerArr[] = {
         static_cast<float>(texture->getTexIdent().layerIdx), 0.0f, 0.0f, 0.0f};
@@ -936,7 +942,9 @@ void RenderEngine::drawTexRect(const glm::vec2& pos,
                                float rotationRad,
                                uint32_t colorABGR,
                                float zIndex,
-                               bgfx::ViewId viewId)
+                               bgfx::ViewId viewId,
+                               const glm::vec2& uvOffset,
+                               const glm::vec2& uvScale)
 {
     changeRenderState(RenderState::DrawTexRects);
     currentViewId = viewId;
@@ -982,12 +990,13 @@ void RenderEngine::drawTexRect(const glm::vec2& pos,
     TexRectData* inst =
         reinterpret_cast<TexRectData*>(idbTex.data) + currentTexRectCount;
     inst->rect = vec4(pos.x, pos.y, size.x, size.y);
-    inst->colorAbgr = vec4(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
     inst->atlasUv = glm::vec4(texture->getRelBounds());
     inst->rotLayZ = vec4(rotationRad,
                          static_cast<float>(texture->getTexIdent().layerIdx),
                          zIndex,
                          0.0f);
+    inst->uvOffScale = vec4(uvOffset.x, uvOffset.y, uvScale.x, uvScale.y);
+    inst->colorAbgr = vec4(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
     currentTexRectCount++;
 }
 

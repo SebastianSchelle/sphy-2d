@@ -38,6 +38,13 @@ enum class ModdingToolsMode
     StationPart,
 };
 
+enum class ModdingEditorKey
+{
+    Copy,
+    Paste,
+    Delete,
+};
+
 struct TextureInfo
 {
     string name;
@@ -47,16 +54,26 @@ struct TextureInfo
     string sizeY = "100.0";
     string rot = "0.0";
     string zIndex = "0";
+    string tileCntX = "1";
+    string tileCntY = "1";
+    string tileOffX = "0";
+    string tileOffY = "0";
 
     float posXVal = 0.0f;
     float posYVal = 0.0f;
     float sizeXVal = 100.0f;
     float sizeYVal = 100.0f;
     float rotVal = 0.0f;
+    float tileCntXVal = 1.0f;
+    float tileCntYVal = 1.0f;
+    float tileOffXVal = 0.0f;
+    float tileOffYVal = 0.0f;
     gobj::TextureFlags flags;
     int zIndexVal = 0;
     /** UI only: name picker list for this row (not saved to YAML). */
     vector<string> nameSuggestions;
+    /** UI only: compact tile repeat/offset summary for list rows. */
+    string tileModifiers;
 };
 
 struct SlotInfo
@@ -139,6 +156,9 @@ class ModdingTools
                           bool mouseDragActiveRmb);
     void onRightMouseUp();
 
+    /** Copy/paste/delete when the key was not consumed by RmlUI (e.g. not typing in a field). */
+    bool onEditorKey(ModdingEditorKey editorKey);
+
     Rml::DataModelHandle dataModel() const
     {
         return rmlModel_;
@@ -218,6 +238,10 @@ class ModdingTools
     void syncModeToRml();
     void syncListSelectionToRml();
     void fixSelectionAfterErase(SelectableObjectType listKind, int erasedIndex);
+    bool canEditObjectType(SelectableObjectType type) const;
+    void copySelectedToClipboard();
+    bool pasteFromClipboard();
+    bool deleteSelectedObject();
 
     void drawRoofSlot(gfx::RenderEngine& renderer,
                       const SlotInfo& slot,
@@ -266,7 +290,7 @@ class ModdingTools
     /** Add-texture row: filter field and suggestion list (Hull / StationPart). */
     string newTexturePickerName;
     vector<string> filteredNewTexturePickerNames;
-    /** Last texture.name value we applied pixel-size scaling for (per texture index). */
+    /** Last name|tileCnt sync key we applied auto pixel-size scaling for. */
     vector<string> textureSizeAppliedForName;
     vector<SlotInfo> slots;
     vector<ColliderVertex> collider;
@@ -299,6 +323,17 @@ class ModdingTools
     glm::vec2 rmbRotatePrevWorld{};
     float rmbDragThresholdCfg = 300.f;
     bool rmbPastDragDeadzone = false;
+
+    struct ModdingClipboard
+    {
+        bool valid = false;
+        SelectableObjectType type = SelectableObjectType::None;
+        TextureInfo texture;
+        SlotInfo slot;
+        ColliderVertex colliderVertex;
+        ConnectorInfo connector;
+    };
+    ModdingClipboard clipboard_;
 
 };
 

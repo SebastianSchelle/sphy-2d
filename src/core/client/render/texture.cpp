@@ -28,6 +28,11 @@ constexpr int atlasEdgeReplicaRing()
     return int(kTexturePadding) + int(kAtlasEdgeReplicaGutterPx);
 }
 
+constexpr int fontAtlasReplicaRing()
+{
+    return int(kTexturePadding);
+}
+
 namespace
 {
 struct MipLevelData
@@ -334,9 +339,15 @@ Texture::Texture(const std::string& name,
                  const TextureIdentifier& texIdent,
                  const StoragePtr& storagePtr,
                  TextureAtlasHandle atlasHandle,
-                 glm::vec4 relBounds)
-    : name(name), path(path), texIdent(texIdent), storagePtr(storagePtr),
-      atlasHandle(atlasHandle), relBounds(relBounds)
+                 glm::vec4 relBounds,
+                 bool pointSample)
+    : name(name),
+      path(path),
+      texIdent(texIdent),
+      storagePtr(storagePtr),
+      atlasHandle(atlasHandle),
+      relBounds(relBounds),
+      pointSample(pointSample)
 {
 }
 
@@ -371,13 +382,17 @@ const TextureIdentifier TextureAtlas::getTexIdent() const
     return texIdent;
 }
 
-TextureArray::TextureArray(uint16_t width, uint16_t height, uint8_t layerCnt)
+TextureArray::TextureArray(uint16_t width,
+                           uint16_t height,
+                           uint8_t layerCnt,
+                           bool generateMipmaps)
 {
     this->width = width;
     this->height = height;
     this->layerCnt = 0;
     this->maxLayerCnt = layerCnt;
     this->handle = BGFX_INVALID_HANDLE;
+    this->generateMipmaps = generateMipmaps;
 }
 
 TextureArray::~TextureArray() {}
@@ -389,7 +404,7 @@ bool TextureArray::init()
     {
         handle = bgfx::createTexture2D((uint16_t)width,
                                        (uint16_t)height,
-                                       true,
+                                       generateMipmaps,
                                        (uint16_t)maxLayerCnt,
                                        bgfx::TextureFormat::BGRA8,
                                        BGFX_TEXTURE_NONE);
@@ -416,6 +431,7 @@ void TextureArray::getGpuInfo(GpuTextureArrayInfo& out) const
     out.height = height;
     out.layersUsed = layerCnt;
     out.layersCapacity = maxLayerCnt;
+    out.hasMipmaps = generateMipmaps;
 }
 
 TextureLoader::TextureLoader() {}
@@ -499,6 +515,11 @@ TextureHandle TextureLoader::loadTexture(const std::string& name,
     return loadTexture(name, type, path, dimensions);
 }
 
+bool TextureLoader::isFontAtlasType(const std::string& type)
+{
+    return type == kAtlasTypeRmlUiFont;
+}
+
 TextureHandle TextureLoader::generateTexture(const std::string& name,
                                              const std::string& type,
                                              const void* data,
@@ -507,9 +528,12 @@ TextureHandle TextureLoader::generateTexture(const std::string& name,
                                              const std::string& path)
 {
     StoragePtr storagePtr;
-    const int ring = atlasEdgeReplicaRing();
-    storagePtr.rect.width = width + ring * 2 + kAtlasMipExtrusionPx;
-    storagePtr.rect.height = height + ring * 2 + kAtlasMipExtrusionPx;
+    const bool fontGlyph = isFontAtlasType(type);
+    const int ring = fontGlyph ? fontAtlasReplicaRing() : atlasEdgeReplicaRing();
+    storagePtr.rect.width =
+        uint16_t(width + ring * 2 + (fontGlyph ? 0 : kAtlasMipExtrusionPx));
+    storagePtr.rect.height =
+        uint16_t(height + ring * 2 + (fontGlyph ? 0 : kAtlasMipExtrusionPx));
     TextureHandle handle =
         insertIntoAtlas(name, path, type, width, height, storagePtr, data);
 
@@ -532,7 +556,8 @@ TextureHandle TextureLoader::generateTexture(const std::string& name,
                                        storagePtr,
                                        atlas->getTexIdent(),
                                        atlasHandle,
-                                       data);
+                                       data,
+                                       fontGlyph);
                 }
             }
         }
@@ -569,7 +594,8 @@ TextureHandle TextureLoader::insertIntoAtlas(const std::string& name,
                                        storagePtr,
                                        atlas->getTexIdent(),
                                        atlasHandle,
-                                       rgbaData);
+                                       rgbaData,
+                                       isFontAtlasType(type));
                 }
             }
         }
@@ -582,18 +608,19 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
                                          StoragePtr& storagePtr,
                                          TextureIdentifier texIdent,
                                          TextureAtlasHandle atlasHandle,
-                                         const void* rgbaData)
+                                         const void* rgbaData,
+                                         bool fontGlyph)
 {
     const uint16_t outerX = storagePtr.rect.x;
     const uint16_t outerY = storagePtr.rect.y;
-    const uint16_t outerWidth = storagePtr.rect.width;
-    const uint16_t outerHeight = storagePtr.rect.height;
 
-    const int ring = atlasEdgeReplicaRing();
+    const int ring =
+        fontGlyph ? fontAtlasReplicaRing() : atlasEdgeReplicaRing();
+    const int gutter = fontGlyph ? 0 : kAtlasMipExtrusionPx;
     storagePtr.rect.x += ring;
     storagePtr.rect.y += ring;
-    storagePtr.rect.width -= ring * 2 + kAtlasMipExtrusionPx;
-    storagePtr.rect.height -= ring * 2 + kAtlasMipExtrusionPx;
+    storagePtr.rect.width -= ring * 2 + gutter;
+    storagePtr.rect.height -= ring * 2 + gutter;
 
     const uint8_t* srcPixels = static_cast<const uint8_t*>(rgbaData);
     std::vector<uint8_t> paddedPixels = makePaddedImage(
@@ -608,18 +635,27 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
              paddedPixels.size());
         return TextureHandle::Invalid();
     }
-    std::vector<MipLevelData> mipChain =
-        buildMipChainStraightAlphaAware(paddedPixels.data(), tileW, tileH);
+    std::vector<MipLevelData> mipChain;
+    if (fontGlyph)
+    {
+        mipChain.push_back({std::move(paddedPixels), tileW, tileH});
+    }
+    else
+    {
+        mipChain =
+            buildMipChainStraightAlphaAware(paddedPixels.data(), tileW, tileH);
+    }
     for (MipLevelData& level : mipChain)
     {
         premultiplyRgba8InPlace(level.pixels);
     }
 
-    for (uint8_t mip = 0; mip < mipChain.size(); ++mip)
+    const uint8_t mipCount = fontGlyph ? 1u : static_cast<uint8_t>(mipChain.size());
+    for (uint8_t mip = 0; mip < mipCount; ++mip)
     {
         const MipLevelData& level = mipChain[mip];
-        const uint16_t dstX = outerX >> mip;
-        const uint16_t dstY = outerY >> mip;
+        const uint16_t dstX = fontGlyph ? outerX : uint16_t(outerX >> mip);
+        const uint16_t dstY = fontGlyph ? outerY : uint16_t(outerY >> mip);
         const uint32_t mipW = textureMipDimension(texWidth, mip);
         const uint32_t mipH = textureMipDimension(texHeight, mip);
 
@@ -668,37 +704,40 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
                               static_cast<uint16_t>(upH),
                               mem);
 
-        const uint16_t gapX =
-            static_cast<uint16_t>(dstX + static_cast<uint16_t>(upW));
-        const uint16_t edgeCol =
-            static_cast<uint16_t>(upW >= 1u ? upW - 1u : 0u);
-        const uint16_t rightWritten = uploadMipRightExtrusion(
-            texIdent.texHandle,
-            texIdent.layerIdx,
-            mip,
-            gapX,
-            dstY,
-            level,
-            edgeCol,
-            static_cast<uint16_t>(upH),
-            kAtlasMipExtrusionPx,
-            mipW);
+        if (!fontGlyph)
+        {
+            const uint16_t gapX =
+                static_cast<uint16_t>(dstX + static_cast<uint16_t>(upW));
+            const uint16_t edgeCol =
+                static_cast<uint16_t>(upW >= 1u ? upW - 1u : 0u);
+            const uint16_t rightWritten = uploadMipRightExtrusion(
+                texIdent.texHandle,
+                texIdent.layerIdx,
+                mip,
+                gapX,
+                dstY,
+                level,
+                edgeCol,
+                static_cast<uint16_t>(upH),
+                kAtlasMipExtrusionPx,
+                mipW);
 
-        const uint16_t gapY =
-            static_cast<uint16_t>(dstY + static_cast<uint16_t>(upH));
-        const uint16_t edgeRow =
-            static_cast<uint16_t>(upH >= 1u ? upH - 1u : 0u);
-        uploadMipBottomExtrusion(texIdent.texHandle,
-                                 texIdent.layerIdx,
-                                 mip,
-                                 dstX,
-                                 gapY,
-                                 level,
-                                 rightWritten,
-                                 edgeRow,
-                                 kAtlasMipExtrusionPx,
-                                 mipW,
-                                 mipH);
+            const uint16_t gapY =
+                static_cast<uint16_t>(dstY + static_cast<uint16_t>(upH));
+            const uint16_t edgeRow =
+                static_cast<uint16_t>(upH >= 1u ? upH - 1u : 0u);
+            uploadMipBottomExtrusion(texIdent.texHandle,
+                                     texIdent.layerIdx,
+                                     mip,
+                                     dstX,
+                                     gapY,
+                                     level,
+                                     rightWritten,
+                                     edgeRow,
+                                     kAtlasMipExtrusionPx,
+                                     mipW,
+                                     mipH);
+        }
     }
 
     glm::vec4 relBounds = atlasUvOriginSpan(storagePtr.rect.x,
@@ -707,7 +746,8 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
                                             storagePtr.rect.height,
                                             int(texWidth),
                                             int(texHeight));
-    Texture texture(name, path, texIdent, storagePtr, atlasHandle, relBounds);
+    Texture texture(
+        name, path, texIdent, storagePtr, atlasHandle, relBounds, fontGlyph);
     TextureHandle handle = textureLib.addItem(name, texture);
     LG_I("Texture has been added to GPU storage");
     LG_I("GPU Texture handle: {}, Layer: {}",
@@ -732,9 +772,14 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
 
 TextureAtlasHandle TextureLoader::createNewAtlas(const std::string& type)
 {
-    // Check if a free layer is available in any texture array
+    const bool mips = !isFontAtlasType(type);
+    // Check if a free layer is available in a matching texture array
     for (auto& textureArray : textureArrays)
     {
+        if (textureArray.hasMipmaps() != mips)
+        {
+            continue;
+        }
         auto texIdent = textureArray.getFreeTexture();
         LG_D("Found free texture array layer {} in texture array {}",
              texIdent.layerIdx,
@@ -761,7 +806,7 @@ TextureAtlasHandle TextureLoader::createNewAtlas(const std::string& type)
     }
     LG_D("No free texture array layer found. Create new texture array...",
          type);
-    TextureArray textureArray(texWidth, texHeight, texLayerCnt);
+    TextureArray textureArray(texWidth, texHeight, texLayerCnt, mips);
     if (!textureArray.init())
     {
         LG_E("Failed to create new texture array");
@@ -907,6 +952,14 @@ void TextureLoader::fillAtlasDebugMipOptions(
     if (gpuArrayIndex < 0
         || !getGpuTextureArrayInfo(static_cast<size_t>(gpuArrayIndex), g))
     {
+        return;
+    }
+    if (!g.hasMipmaps)
+    {
+        AtlasDebugSelectOption o;
+        o.value = 0;
+        o.label = "Mip 0 (no mip chain)";
+        out.push_back(std::move(o));
         return;
     }
     uint32_t mw = g.width;

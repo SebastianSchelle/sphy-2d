@@ -11,6 +11,11 @@ namespace gfx
 
 #define INVALID_TEX_HANDLE 0xFFFF
 
+/// RmlUI glyph sheets (GenerateTexture): no mips, point-sampled when drawn.
+inline constexpr const char* kAtlasTypeRmlUiFont = "rmlui-font";
+/// RmlUI images from files (LoadTexture): full mip chain + linear sampling.
+inline constexpr const char* kAtlasTypeRmlUi = "rmlui";
+
 using StoragePtr = con::alloc::StoragePtr;
 
 struct TextureIdentifier
@@ -49,7 +54,8 @@ class Texture
             const TextureIdentifier& texIdent,
             const StoragePtr& storagePtr,
             TextureAtlasHandle atlasHandle,
-            glm::vec4 relBounds);
+            glm::vec4 relBounds,
+            bool pointSample = false);
     ~Texture();
     const TextureIdentifier getTexIdent() const
     {
@@ -75,6 +81,10 @@ class Texture
     {
         return relBounds;
     }
+    bool usesPointSampling() const
+    {
+        return pointSample;
+    }
 
   private:
     std::string name;
@@ -83,6 +93,7 @@ class Texture
     StoragePtr storagePtr;
     TextureAtlasHandle atlasHandle;
     glm::vec4 relBounds;
+    bool pointSample = false;
 };
 
 using TextureHandle = typename con::ItemLib<Texture>::Handle;
@@ -95,6 +106,7 @@ struct GpuTextureArrayInfo
     uint16_t height = 0;
     uint8_t layersUsed = 0;
     uint8_t layersCapacity = 0;
+    bool hasMipmaps = true;
 };
 
 /// Label + integer value for RmlUi &lt;select data-value&gt; options (atlas debug).
@@ -115,11 +127,15 @@ struct AtlasDebugKindPickRow
 class TextureArray
 {
   public:
-    TextureArray(uint16_t width, uint16_t height, uint8_t layerCnt);
+    TextureArray(uint16_t width, uint16_t height, uint8_t layerCnt, bool generateMipmaps);
     ~TextureArray();
     bool init();
     TextureIdentifier getFreeTexture();
     void getGpuInfo(GpuTextureArrayInfo& out) const;
+    bool hasMipmaps() const
+    {
+        return generateMipmaps;
+    }
 
   private:
     bgfx::TextureHandle handle;
@@ -127,6 +143,7 @@ class TextureArray
     uint16_t height;
     uint8_t layerCnt;
     uint8_t maxLayerCnt;
+    bool generateMipmaps;
 };
 
 class TextureLoader
@@ -181,7 +198,9 @@ class TextureLoader
                               StoragePtr& storagePtr,
                               TextureIdentifier texIdent,
                               TextureAtlasHandle atlasHandle,
-                              const void* rgbaData);
+                              const void* rgbaData,
+                              bool fontGlyph);
+    static bool isFontAtlasType(const std::string& type);
     int gpuArrayIndexOfHandle(bgfx::TextureHandle h) const;
 
     std::unordered_map<std::string, std::vector<int>> atlasRegistry;

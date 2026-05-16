@@ -27,6 +27,8 @@ struct Texture
     float rot;
     TextureFlags flags;
     int8_t zIndex;
+    vec2 tileCount{1.0f, 1.0f};
+    vec2 tileOffset{0.0f, 0.0f};
 };
 
 struct Textures
@@ -59,12 +61,15 @@ using MapIconHandle = typename con::ItemLib<MapIcon>::Handle;
 EXT_FMT(gobj::TextureFlags, "{}", magic_enum::enum_name(o));
 
 EXT_FMT(gobj::Texture,
-        "(texHandle: {}, bounds: {}, rot: {}, flags: {}, zIndex: {})",
+        "(texHandle: {}, bounds: {}, rot: {}, flags: {}, zIndex: {}, tileCount: "
+        "{}, tileOffset: {})",
         o.texHandle,
         o.bounds,
         o.rot,
         o.flags,
-        o.zIndex);
+        o.zIndex,
+        o.tileCount,
+        o.tileOffset);
 
 EXT_FMT(gobj::Textures,
         "(name: {}, description: {}, textures: {})",

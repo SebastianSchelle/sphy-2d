@@ -1,4 +1,5 @@
 #include "rmlui-renderinterface.hpp"
+#include "render/texture.hpp"
 #include "std-inc.hpp"
 #include "vertex-defines.hpp"
 
@@ -92,7 +93,8 @@ RmlUiRenderInterface::LoadTexture(Rml::Vector2i& texture_dimensions,
     LG_D("LoadTexture: source='{}'", source);
     glm::vec2 dimensions;
     TextureHandle textureHandle =
-        renderEngine->loadTexture(sec::uuid(), "rmlui", source, dimensions);
+        renderEngine->loadTexture(
+            sec::uuid(), gfx::kAtlasTypeRmlUi, source, dimensions);
     texture_dimensions.x = dimensions.x;
     texture_dimensions.y = dimensions.y;
     return (Rml::TextureHandle)textureHandle.value();
@@ -104,7 +106,7 @@ RmlUiRenderInterface::GenerateTexture(Rml::Span<const Rml::byte> source,
 {
     TextureHandle textureHandle =
         renderEngine->generateTexture(sec::uuid(),
-                                      "rmlui",
+                                      gfx::kAtlasTypeRmlUiFont,
                                       source.data(),
                                       source_dimensions.x,
                                       source_dimensions.y);

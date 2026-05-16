@@ -746,7 +746,11 @@ void Model::drawTextures(gfx::RenderEngine& renderer,
                                  rot - texture.rot,
                                  0xffffffff,
                                  texture.zIndex / 100.0f,
-                                 0);
+                                 0,
+                                 glm::vec2(texture.tileOffset.x,
+                                           texture.tileOffset.y),
+                                 glm::vec2(texture.tileCount.x,
+                                           texture.tileCount.y));
         }
     }
 }
