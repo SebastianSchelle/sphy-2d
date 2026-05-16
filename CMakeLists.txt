@@ -69,6 +69,7 @@ add_subdirectory(src)
 
 set(DEPLOY_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/deploy.sh)
 set(DEPLOY_DIR ${CMAKE_SOURCE_DIR}/deploy)
+set(RUN_SERVER_SAVE_DIR ${CMAKE_SOURCE_DIR}/saves)
 
 # Find bash
 find_program(BASH_EXECUTABLE bash)
@@ -85,7 +86,7 @@ add_custom_target(deploy
 
 add_custom_target(
     run-server
-    COMMAND ${DEPLOY_DIR}/game-server -w ${DEPLOY_DIR} -s "$ENV{HOME}/Documents/galaxies/test-game-2"
+    COMMAND ${DEPLOY_DIR}/game-server -w ${DEPLOY_DIR} -s "${RUN_SERVER_SAVE_DIR}/test"
     DEPENDS deploy
     COMMENT "Running server (save: ${RUN_SERVER_SAVE_DIR})"
 )
