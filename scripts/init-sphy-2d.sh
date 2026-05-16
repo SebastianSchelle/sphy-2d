@@ -8,9 +8,13 @@ git submodule update &&
 mkdir -p build &&
 cd build &&
 echo "Configuring bgfx build..." &&
-cmake .. &&
+if [ "$(uname -s)" = "Darwin" ]; then
+  cmake .. -DCMAKE_OSX_ARCHITECTURES="$(uname -m)"
+else
+  cmake ..
+fi &&
 echo "Building bgfx..." &&
-make -j16
+cmake --build . -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 8)"
 
 
 # cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release

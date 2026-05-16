@@ -71,35 +71,14 @@ file(GLOB SHADER_SRC CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../shader/**/vs_*.sc"
 )
 
-set(SHADERC "${BGFX_BUILD}/bgfx/shaderc")
 set(SHADER_BIN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../data/modules/engine/shader)
-set(SHADER_PROFILE spirv)
-foreach(SHADER ${SHADER_SRC})   
-    message(STATUS "Add shader compile target: ${SHADER}") 
-    get_filename_component(FILE_NAME ${SHADER} NAME_WE)
-    set(OUTPUT_FILE "${SHADER_BIN_DIR}/${FILE_NAME}.bin")
-    string(SUBSTRING ${FILE_NAME} 0 1 TYPE)
-    message(out file="${OUTPUT_FILE}")
-    add_custom_command(
-        OUTPUT ${OUTPUT_FILE}
-        COMMAND ${SHADERC}
-            -f ${SHADER}
-            -o ${OUTPUT_FILE}
-            --platform linux
-            --type ${TYPE}
-            --profile ${SHADER_PROFILE}
-            -i  ${BGFX_DIR}/bgfx/src
-        DEPENDS ${SHADER}
-        COMMENT "Compiling shader ${FILE_NAME}"
-        VERBATIM
-    )
-
-    list(APPEND SHADER_BINARIES ${OUTPUT_FILE})
-endforeach()
-
-add_custom_target(shaders ALL
-    DEPENDS ${SHADER_BINARIES}
-)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../../cmake/SphyBgfxShaders.cmake")
+sphy_add_bgfx_shaders(
+    shaders
+    BGFX_DIR ${BGFX_DIR}
+    BGFX_BUILD_DIR ${BGFX_BUILD}
+    OUTPUT_DIR ${SHADER_BIN_DIR}
+    SOURCES ${SHADER_SRC})
 
 add_executable(${EXEC_NAME} ${CLIENT_SOURCES})
 add_dependencies(${EXEC_NAME} shaders)
