@@ -1660,6 +1660,11 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
         LG_E("Failed to make ai component");
         success = false;
     }
+    if (!makeMapIcon(entt, modManager.getMapIconLib().getHandle("frigate")))
+    {
+        LG_E("Failed to make map icon component");
+        success = false;
+    }
     if (!placeInSector(ent, entt, sectorId, transform))
     {
         LG_E("Failed to place in sector");
