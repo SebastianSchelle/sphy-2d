@@ -5,62 +5,10 @@
 #include <magic_enum/magic_enum.hpp>
 #include <std-inc.hpp>
 #include <yaml-cpp/yaml.h>
+#include <ship-def.hpp>
 
 namespace gobj
 {
-
-enum class ShipClass : uint8_t
-{
-    Drone,
-    Spark,
-    Echo,
-    Wyrm,
-    Kraken,
-    Leviathan,
-    Behemoth,
-    Colossus,
-    Titan,
-    NumShipClasses,
-};
-
-constexpr float
-    ShipClassMaxLength[static_cast<size_t>(ShipClass::NumShipClasses)] = {
-        3.0f,      // Drone
-        20.0f,     // Spark
-        50.0f,     // Echo
-        10000.0f,  // Wyrm
-        10000.0f,  // Kraken
-        10000.0f,  // Leviathan
-        10000.0f,  // Behemoth
-        10000.0f,  // Colossus
-        10000.0f,  // Titan
-};
-
-constexpr float
-    ShipClassMaxWidth[static_cast<size_t>(ShipClass::NumShipClasses)] = {
-        3.0f,      // Drone
-        20.0f,     // Spark
-        20.0f,     // Echo
-        10000.0f,  // Wyrm
-        10000.0f,  // Kraken
-        10000.0f,  // Leviathan
-        10000.0f,  // Behemoth
-        10000.0f,  // Colossus
-        10000.0f,  // Titan
-};
-
-constexpr float
-    ShipClassHangarSpace[static_cast<size_t>(ShipClass::NumShipClasses)] = {
-        3.0f,      // Drone
-        20.0f,     // Spark
-        50.0f,     // Echo
-        10000.0f,  // Wyrm
-        10000.0f,  // Kraken
-        10000.0f,  // Leviathan
-        10000.0f,  // Behemoth
-        10000.0f,  // Colossus
-        10000.0f,  // Titan
-};
 
 enum class StorageType : uint8_t
 {
@@ -145,7 +93,7 @@ struct Storage
 };
 struct Hangar
 {
-    gobj::ShipClass maxShipClass;
+    def::ShipClass maxShipClass;
     float hangarSpace;
     static Hangar fromYaml(const YAML::Node& node);
 };
@@ -176,7 +124,6 @@ using ModuleHandle = typename con::ItemLib<Module>::Handle;
 
 }  // namespace gobj
 
-EXT_FMT(gobj::ShipClass, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::StorageType, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::ModuleSlotType, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::ModuleSlot,

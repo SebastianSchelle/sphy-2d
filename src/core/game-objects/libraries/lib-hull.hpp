@@ -7,6 +7,7 @@
 #include <lib-textures.hpp>
 #include <magic_enum/magic_enum.hpp>
 #include <std-inc.hpp>
+#include <ship-def.hpp>
 
 namespace gobj
 {
@@ -23,7 +24,7 @@ struct Hull
     float inertia = 1.0f;
     /** (width² + length²) / 12 */
     float inertiaMassFactor = 1.0f;
-    ShipClass shipClass;
+    def::ShipClass shipClass;
     vector<ModuleSlot> slots;
     TexturesHandle textures = TexturesHandle::Invalid();
     ColliderHandle collider = ColliderHandle::Invalid();
@@ -43,11 +44,11 @@ using HullHandle = typename con::ItemLib<Hull>::Handle;
 std::optional<vec2> colliderLocalExtents(const vector<vec2>& vertices);
 
 /** Smallest ship class whose max width/length fit the given extents. */
-ShipClass inferShipClassFromColliderExtents(float width, float length);
+def::ShipClass inferShipClassFromColliderExtents(float width, float length);
 
-ShipClass inferShipClassFromColliderVertices(const vector<vec2>& vertices);
+def::ShipClass inferShipClassFromColliderVertices(const vector<vec2>& vertices);
 
-ShipClass inferShipClassFromCollider(const Collider* collider);
+def::ShipClass inferShipClassFromCollider(const Collider* collider);
 
 /** Inertia/mass factor for a uniform rectangle (width × length). */
 float approximateHullInertiaMassFactor(float width, float length);

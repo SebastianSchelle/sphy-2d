@@ -1448,10 +1448,10 @@ ecs::MapIcon* Engine::makeMapIcon(entt::entity entity)
         {
             switch (hullData->shipClass)
             {
-                case gobj::ShipClass::Spark:
+                case def::ShipClass::Spark:
                     mapIconHandle = modManager.getMapIconLib().getHandle("spark");
                     break;
-                case gobj::ShipClass::Echo:
+                case def::ShipClass::Echo:
                     mapIconHandle = modManager.getMapIconLib().getHandle("echo");
                     break;
                 default:

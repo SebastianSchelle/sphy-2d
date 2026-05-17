@@ -8,6 +8,7 @@
 #include <lib-textures.hpp>
 #include <lib-modules.hpp>
 #include <lib-station-part.hpp>
+#include <ship-def.hpp>
 
 namespace gfx
 {
@@ -129,7 +130,7 @@ struct GeneralInfo
     float massVal = 1000.0f;
     float inertiaVal = 0.0f;
     float internalGyroTorqueVal = 10000.0f;
-    gobj::ShipClass shipClassVal = gobj::ShipClass::Drone;
+    def::ShipClass shipClassVal = def::ShipClass::Drone;
     float colliderRestitutionVal = 0.1f;
     StorageVolumesInfo storageVolumes;
 };
@@ -159,7 +160,7 @@ struct ModuleInfo
     StorageVolumesInfo storageVolumes;
     /** `data.max-ship-class` / `data.hangar-space` for Hangar modules. */
     string hangarMaxShipClass = "Drone";
-    gobj::ShipClass hangarMaxShipClassVal = gobj::ShipClass::Drone;
+    def::ShipClass hangarMaxShipClassVal = def::ShipClass::Drone;
     string hangarSpace = "0";
     float hangarSpaceVal = 0.0f;
 };

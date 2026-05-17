@@ -62,8 +62,8 @@ Hangar Hangar::fromYaml(const YAML::Node& node)
     string shipClassStr = "Drone";
     TRY_YAML_DICT(shipClassStr, node["max-ship-class"], "Drone");
     hangar.maxShipClass =
-        magic_enum::enum_cast<ShipClass>(shipClassStr)
-            .value_or(ShipClass::Drone);
+        magic_enum::enum_cast<def::ShipClass>(shipClassStr)
+            .value_or(def::ShipClass::Drone);
     TRY_YAML_DICT(hangar.hangarSpace, node["hangar-space"], 0.0f);
     return hangar;
 }

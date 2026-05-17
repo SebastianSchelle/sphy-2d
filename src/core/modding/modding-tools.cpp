@@ -851,7 +851,7 @@ void parseModuleInfoNumericFields(ModuleInfo& info)
     formatModdingThrustMNString(info.maxThrustVal, info.maxThrust);
     parseStorageVolumesInfoStrings(info.storageVolumes);
     if (auto shipClass =
-            magic_enum::enum_cast<gobj::ShipClass>(info.hangarMaxShipClass);
+            magic_enum::enum_cast<def::ShipClass>(info.hangarMaxShipClass);
         shipClass.has_value())
     {
         info.hangarMaxShipClassVal = shipClass.value();
@@ -3842,7 +3842,7 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
             {
                 moduleInfo.hangarMaxShipClass =
                     dataNode["max-ship-class"].as<string>();
-                if (auto sc = magic_enum::enum_cast<gobj::ShipClass>(
+                if (auto sc = magic_enum::enum_cast<def::ShipClass>(
                         moduleInfo.hangarMaxShipClass);
                     sc.has_value())
                 {

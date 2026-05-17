@@ -34,33 +34,33 @@ std::optional<vec2> colliderLocalExtents(const vector<vec2>& vertices)
     return upper - lower;
 }
 
-ShipClass inferShipClassFromColliderExtents(float width, float length)
+def::ShipClass inferShipClassFromColliderExtents(float width, float length)
 {
-    for (size_t i = 0; i < static_cast<size_t>(ShipClass::NumShipClasses); ++i)
+    for (size_t i = 0; i < static_cast<size_t>(def::ShipClass::NumShipClasses); ++i)
     {
-        if (width <= ShipClassMaxWidth[i] && length <= ShipClassMaxLength[i])
+        if (width <= def::ShipClassMaxWidth[i] && length <= def::ShipClassMaxLength[i])
         {
-            return static_cast<ShipClass>(i);
+            return static_cast<def::ShipClass>(i);
         }
     }
-    return ShipClass::Titan;
+    return def::ShipClass::Titan;
 }
 
-ShipClass inferShipClassFromColliderVertices(const vector<vec2>& vertices)
+def::ShipClass inferShipClassFromColliderVertices(const vector<vec2>& vertices)
 {
     const std::optional<vec2> ext = colliderLocalExtents(vertices);
     if (!ext.has_value())
     {
-        return ShipClass::Titan;
+        return def::ShipClass::Titan;
     }
     return inferShipClassFromColliderExtents(ext->x, ext->y);
 }
 
-ShipClass inferShipClassFromCollider(const Collider* collider)
+def::ShipClass inferShipClassFromCollider(const Collider* collider)
 {
     if (collider == nullptr)
     {
-        return ShipClass::Titan;
+        return def::ShipClass::Titan;
     }
     return inferShipClassFromColliderVertices(collider->vertices);
 }
