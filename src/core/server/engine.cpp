@@ -1202,7 +1202,7 @@ void Engine::testSpawn()
     static constexpr size_t kStationParts2Count =
         sizeof(kStationParts2) / sizeof(kStationParts2[0]);
 
-    for (int i = 0; i < 40; i++)
+    for (int i = 0; i < 0; i++)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1614,23 +1614,20 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
         LG_E("Failed to make collider component");
         success = false;
     }
-    if (!makeMapIcon(entt, hull->mapIcon))
-    {
-        LG_E("Failed to make map icon component");
-        success = false;
-    }
     if (!makeTextures(entt, hull->textures))
     {
         LG_E("Failed to make textures component");
         success = false;
     }
-    if (!makeStorage(entt, ecs::Storage{}))
+    if (!makeStorage(entt, ecs::Storage{.cargo = {}}))
     {
         LG_E("Failed to make storage component");
         success = false;
     }
     if (!makePhysicsBody(entt,
-                         ecs::PhysicsBody{.mass = 1000.0f,
+                         ecs::PhysicsBody{.mass = hull->mass > 0.0f
+                                              ? hull->mass
+                                              : 1.0f,
                                           .vel = vec2(0.0f, 0.0f),
                                           .acc = vec2(0.0f, 0.0f),
                                           .inertia = 100.0f,

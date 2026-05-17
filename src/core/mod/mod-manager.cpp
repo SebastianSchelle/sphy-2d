@@ -498,7 +498,7 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
         foreachObjectDef(libs["hull"],
                          [&](const std::string& objName, const YAML::Node& node) {
                              const gobj::Hull hull = gobj::Hull::fromYaml(
-                                 node, texturesLib, colliderLib, mapIconLib);
+                                 node, texturesLib, colliderLib);
                              string key = hull.name != "" ? hull.name : objName;
                              hullLib.addItem(key, hull);
                              LG_I("Added hull blueprint: {}: {}", key, hull);

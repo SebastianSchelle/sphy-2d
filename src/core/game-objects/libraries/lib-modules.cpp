@@ -58,8 +58,20 @@ Storage Storage::fromYaml(const YAML::Node& node)
 
 Hangar Hangar::fromYaml(const YAML::Node& node)
 {
-    Hangar hangar;
+    Hangar hangar{};
+    string shipClassStr = "Drone";
+    TRY_YAML_DICT(shipClassStr, node["max-ship-class"], "Drone");
+    hangar.maxShipClass =
+        magic_enum::enum_cast<ShipClass>(shipClassStr)
+            .value_or(ShipClass::Drone);
+    TRY_YAML_DICT(hangar.hangarSpace, node["hangar-space"], 0.0f);
     return hangar;
+}
+
+Turret Turret::fromYaml(const YAML::Node& node)
+{
+    (void)node;
+    return Turret{};
 }
 
 }  // namespace mdata
@@ -83,6 +95,7 @@ Module Module::fromYaml(const YAML::Node& node,
     string typeStr = "";
     TRY_YAML_DICT(typeStr, node["type"], "");
     module.type = magic_enum::enum_cast<ModuleType>(typeStr).value();
+    TRY_YAML_DICT(module.mass, node["mass"], 1.0f);
 
     const auto& dataNode = node["data"];
     if (dataNode && dataNode.IsMap())

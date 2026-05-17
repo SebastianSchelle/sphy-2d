@@ -3,15 +3,35 @@
 namespace gobj
 {
 
+namespace
+{
+
+constexpr const char* kHullVolumeYamlKeys[static_cast<size_t>(
+    StorageType::NumStorageTypes)] = {
+    "volume-container-s",
+    "volume-container-l",
+    "volume-tank",
+    "volume-bulk",
+};
+
+}  // namespace
+
 Hull Hull::fromYaml(const YAML::Node& node,
                     const con::ItemLib<gobj::Textures>& texturesLib,
-                    const con::ItemLib<gobj::Collider>& colliderLib,
-                    const con::ItemLib<gobj::MapIcon>& mapIconLib)
+                    const con::ItemLib<gobj::Collider>& colliderLib)
 {
     Hull hull;
     TRY_YAML_DICT(hull.name, node["name"], "");
     TRY_YAML_DICT(hull.description, node["description"], "");
     TRY_YAML_DICT(hull.hullpoints, node["hullpoints"], 100.0f);
+    TRY_YAML_DICT(hull.mass, node["mass"], 1.0f);
+    TRY_YAML_DICT(hull.size.x, node["size"][0], 0.0f);
+    TRY_YAML_DICT(hull.size.y, node["size"][1], 0.0f);
+    string shipClassStr = "Drone";
+    TRY_YAML_DICT(shipClassStr, node["ship-class"], "Drone");
+    hull.shipClass =
+        magic_enum::enum_cast<ShipClass>(shipClassStr)
+            .value_or(ShipClass::Drone);
     string texturesName = "";
     TRY_YAML_DICT(texturesName, node["textures"], "");
     if (texturesName != "")
@@ -24,11 +44,14 @@ Hull Hull::fromYaml(const YAML::Node& node,
     {
         hull.collider = colliderLib.getHandle(colliderName);
     }
-    string mapIconName = "";
-    TRY_YAML_DICT(mapIconName, node["map-icon"], "");
-    if (mapIconName != "")
+    for (size_t i = 0; i < static_cast<size_t>(StorageType::NumStorageTypes); ++i)
     {
-        hull.mapIcon = mapIconLib.getHandle(mapIconName);
+        if (node[kHullVolumeYamlKeys[i]])
+        {
+            float parsed = 0.0f;
+            TRY_YAML_DICT(parsed, node[kHullVolumeYamlKeys[i]], 0.0f);
+            hull.volume[i] = parsed;
+        }
     }
     if (node["slots"])
     {

@@ -9,6 +9,59 @@
 namespace gobj
 {
 
+enum class ShipClass : uint8_t
+{
+    Drone,
+    Spark,
+    Echo,
+    Wyrm,
+    Kraken,
+    Leviathan,
+    Behemoth,
+    Colossus,
+    Titan,
+    NumShipClasses,
+};
+
+constexpr float
+    ShipClassMaxLength[static_cast<size_t>(ShipClass::NumShipClasses)] = {
+        3.0f,      // Drone
+        20.0f,     // Spark
+        50.0f,     // Echo
+        10000.0f,  // Wyrm
+        10000.0f,  // Kraken
+        10000.0f,  // Leviathan
+        10000.0f,  // Behemoth
+        10000.0f,  // Colossus
+        10000.0f,  // Titan
+};
+
+constexpr float
+    ShipClassMaxWidth[static_cast<size_t>(ShipClass::NumShipClasses)] = {
+        3.0f,      // Drone
+        20.0f,     // Spark
+        20.0f,     // Echo
+        10000.0f,  // Wyrm
+        10000.0f,  // Kraken
+        10000.0f,  // Leviathan
+        10000.0f,  // Behemoth
+        10000.0f,  // Colossus
+        10000.0f,  // Titan
+};
+
+constexpr float
+    ShipClassHangarSpace[static_cast<size_t>(ShipClass::NumShipClasses)] = {
+        3.0f,      // Drone
+        20.0f,     // Spark
+        50.0f,     // Echo
+        10000.0f,  // Wyrm
+        10000.0f,  // Kraken
+        10000.0f,  // Leviathan
+        10000.0f,  // Behemoth
+        10000.0f,  // Colossus
+        10000.0f,  // Titan
+};
+
 enum class StorageType : uint8_t
 {
     ContainerS,
@@ -111,13 +164,17 @@ struct Storage
     float volume[static_cast<size_t>(gobj::StorageType::NumStorageTypes)];
     static Storage fromYaml(const YAML::Node& node);
 };
-
 struct Hangar
 {
+    gobj::ShipClass maxShipClass;
+    float hangarSpace;
     static Hangar fromYaml(const YAML::Node& node);
 };
-
-using Data = std::variant<MainThruster, ManeuverThruster, Storage, Hangar>;
+struct Turret
+{    
+    static Turret fromYaml(const YAML::Node& node);
+};
+using Data = std::variant<MainThruster, ManeuverThruster, Storage, Hangar, Turret>;
 
 }  // namespace mdata
 
@@ -128,6 +185,7 @@ struct Module
     ModuleSlotType slotType;
     TexturesHandle textures = TexturesHandle::Invalid();
     ModuleType type;
+    float mass;
     mdata::Data data;
 
     static Module fromYaml(const YAML::Node& node,
@@ -138,6 +196,7 @@ using ModuleHandle = typename con::ItemLib<Module>::Handle;
 
 }  // namespace gobj
 
+EXT_FMT(gobj::ShipClass, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::StorageType, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::ModuleSlotType, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::ModuleSlot,

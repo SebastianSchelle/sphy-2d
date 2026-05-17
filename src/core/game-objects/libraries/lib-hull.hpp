@@ -16,15 +16,18 @@ struct Hull
     string name;
     string description;
     float hullpoints;
+    vec2 size;
+    float mass;
+    ShipClass shipClass;
     vector<ModuleSlot> slots;
     TexturesHandle textures = TexturesHandle::Invalid();
     ColliderHandle collider = ColliderHandle::Invalid();
-    MapIconHandle mapIcon = MapIconHandle::Invalid();
+    float volume[static_cast<size_t>(gobj::StorageType::NumStorageTypes)] = {
+        0.0f};
 
     static Hull fromYaml(const YAML::Node& node,
                          const con::ItemLib<gobj::Textures>& texturesLib,
-                         const con::ItemLib<gobj::Collider>& colliderLib,
-                         const con::ItemLib<gobj::MapIcon>& mapIconLib);
+                         const con::ItemLib<gobj::Collider>& colliderLib);
 };
 
 using HullHandle = typename con::ItemLib<Hull>::Handle;
@@ -33,13 +36,15 @@ using HullHandle = typename con::ItemLib<Hull>::Handle;
 }  // namespace gobj
 
 EXT_FMT(gobj::Hull,
-        "(hullpoints: {}, name: {}, textures: {}, collider: {}, mapIcon: {}, "
-        "description: {}, slots: {})",
+        "(hullpoints: {}, name: {}, textures: {}, collider: {}, size: {}, "
+        "mass: {}, shipClass: {}, description: {}, slots: {})",
         o.hullpoints,
         o.name,
         o.textures.toString(),
         o.collider.toString(),
-        o.mapIcon.toString(),
+        o.size,
+        o.mass,
+        o.shipClass,
         o.description,
         o.slots);
 

@@ -97,14 +97,6 @@ struct ColliderVertex
     float yVal = 0.0f;
 };
 
-struct GeneralInfo
-{
-    string name = "new";
-    string hp = "1000.0";
-    string mapIcon = "frigate";
-    float colliderRestitutionVal = 0.1f;
-};
-
 /** Editable storage capacities (module `volume-*` / station-part `cap-*` YAML). */
 struct StorageVolumesInfo
 {
@@ -116,6 +108,22 @@ struct StorageVolumesInfo
     float containerLVal = 0.0f;
     float tankVal = 0.0f;
     float bulkVal = 0.0f;
+};
+
+struct GeneralInfo
+{
+    string name = "new";
+    string hp = "1000.0";
+    string sizeX = "0";
+    string sizeY = "0";
+    string mass = "1";
+    string shipClass = "Drone";
+    float sizeXVal = 0.0f;
+    float sizeYVal = 0.0f;
+    float massVal = 1.0f;
+    gobj::ShipClass shipClassVal = gobj::ShipClass::Drone;
+    float colliderRestitutionVal = 0.1f;
+    StorageVolumesInfo storageVolumes;
 };
 
 struct StationPartInfo
@@ -133,11 +141,18 @@ struct ModuleInfo
     string slotType = "ThrusterMainS_Common";
     gobj::ModuleSlotType slotTypeVal = gobj::ModuleSlotType::ThrusterMainS_Common;
     string description;
+    string mass = "1";
+    float massVal = 1.0f;
     /** `data.max-thrust` for MainThruster / ManeuverThruster. */
     string maxThrust = "100000.0";
     float maxThrustVal = 100000.0f;
     /** `data.volume-*` for Storage modules. */
     StorageVolumesInfo storageVolumes;
+    /** `data.max-ship-class` / `data.hangar-space` for Hangar modules. */
+    string hangarMaxShipClass = "Drone";
+    gobj::ShipClass hangarMaxShipClassVal = gobj::ShipClass::Drone;
+    string hangarSpace = "0";
+    float hangarSpaceVal = 0.0f;
 };
 
 struct ConnectorInfo
