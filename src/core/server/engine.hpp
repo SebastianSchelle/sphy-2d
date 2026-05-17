@@ -145,8 +145,7 @@ class Engine
     ecs::Station* makeStation(entt::entity entity);
     ecs::Collider* makeCollider(entt::entity entity,
                                 const gobj::ColliderHandle& colliderHandle);
-    ecs::MapIcon* makeMapIcon(entt::entity entity,
-                              const gobj::MapIconHandle& mapIconHandle);
+    ecs::MapIcon* makeMapIcon(entt::entity entity);
     ecs::Textures* makeTextures(entt::entity entity,
                                 const gobj::TexturesHandle& texturesHandle);
     ecs::PhysicsBody* makePhysicsBody(entt::entity entity,

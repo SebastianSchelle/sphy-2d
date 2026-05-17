@@ -1163,9 +1163,10 @@ void Engine::testSpawn()
         }
         else
         {
-            auto ent = spawnShipHull(modManager.getHullLib().getHandle("Mosquito"),
-                                     sectorId,
-                                     ecs::Transform{pos, rot});
+            auto ent =
+                spawnShipHull(modManager.getHullLib().getHandle("Mosquito"),
+                              sectorId,
+                              ecs::Transform{pos, rot});
             spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 0);
             spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 1);
@@ -1433,18 +1434,44 @@ ecs::Collider* Engine::makeCollider(entt::entity entity,
     return &reg.emplace_or_replace<ecs::Collider>(entity, colliderComp);
 }
 
-ecs::MapIcon* Engine::makeMapIcon(entt::entity entity,
-                                  const gobj::MapIconHandle& mapIconHandle)
+ecs::MapIcon* Engine::makeMapIcon(entt::entity entity)
 {
     auto& reg = ecs.getRegistry();
-    auto mapIcon = modManager.getMapIconLib().getItem(mapIconHandle);
-    if (!mapIcon)
+    auto hull = reg.try_get<ecs::Hull>(entity);
+    auto station = reg.try_get<ecs::Station>(entity);
+
+    gobj::MapIconHandle mapIconHandle = gobj::MapIconHandle::Invalid();
+    if (hull)
     {
-        return nullptr;
+        auto hullData = modManager.getHullLib().getItem(hull->hullHandle);
+        if (hullData)
+        {
+            switch (hullData->shipClass)
+            {
+                case gobj::ShipClass::Spark:
+                    mapIconHandle = modManager.getMapIconLib().getHandle("spark");
+                    break;
+                case gobj::ShipClass::Echo:
+                    mapIconHandle = modManager.getMapIconLib().getHandle("echo");
+                    break;
+                default:
+                    break;
+            }
+        }
     }
-    ecs::MapIcon mapIconComp;
-    mapIconComp.mapIconHandle = mapIconHandle.toGenericHandle();
-    return &reg.emplace_or_replace<ecs::MapIcon>(entity, mapIconComp);
+    else if (station)
+    {
+        mapIconHandle = modManager.getMapIconLib().getHandle("station");
+    }
+    if (mapIconHandle.isValid())
+    {
+        return &reg.emplace_or_replace<ecs::MapIcon>(
+            entity,
+            ecs::MapIcon{.mapIconHandle = mapIconHandle.toGenericHandle()});
+
+    }
+    LG_E("Failed to make map icon component");
+    return nullptr;
 }
 
 ecs::Textures* Engine::makeTextures(entt::entity entity,
@@ -1553,14 +1580,7 @@ ecs::EntityId Engine::spawnStation(uint32_t sectorId,
         LG_E("Failed to make station component");
         success = false;
     }
-    gobj::MapIconHandle mapIconHandle =
-        modManager.getMapIconLib().getHandle("station");
-    if (!mapIconHandle.isValid())
-    {
-        LG_E("Failed to get map icon handle");
-        success = false;
-    }
-    if (!makeMapIcon(entt, mapIconHandle))
+    if (!makeMapIcon(entt))
     {
         LG_E("Failed to make map icon component");
         success = false;
@@ -1660,7 +1680,7 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
         LG_E("Failed to make ai component");
         success = false;
     }
-    if (!makeMapIcon(entt, modManager.getMapIconLib().getHandle("frigate")))
+    if (!makeMapIcon(entt))
     {
         LG_E("Failed to make map icon component");
         success = false;
