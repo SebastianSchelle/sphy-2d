@@ -151,18 +151,26 @@ class Model
     void drawObjects(gfx::RenderEngine& renderer,
                      const glm::vec4& viewRect,
                      float zoom);
+    void drawShips(gfx::RenderEngine& renderer,
+                   const glm::vec4& viewRect,
+                   float zoom);
+    void drawStations(gfx::RenderEngine& renderer,
+                      const glm::vec4& viewRect,
+                      float zoom);
     void drawTextures(gfx::RenderEngine& renderer,
                       const ecs::Textures& textures,
                       float rot,
+                      const int8_t zIndex,
                       const glm::vec2& worldPos);
     void drawModuleTextures(gfx::RenderEngine& renderer,
                             const ecs::Transform& parentTransform,
+                            const int8_t parentZ,
                             ecs::Hull& hull,
                             const glm::vec2& worldPos);
     void drawStationTextures(gfx::RenderEngine& renderer,
                              const ecs::Transform& parentTransform,
                              ecs::Station& station,
-                             const glm::vec2& worldPos);
+                             const glm::vec2& sectorOffset);
     void registerConnectSequence();
 
     cfg::ConfigManager& config;

@@ -36,7 +36,7 @@ constexpr float SlotSize[static_cast<size_t>(ModuleSlotType::NumSlotTypes)] = {
     10.0f,  // ThrusterMainM_Common
     20.0f,  // ThrusterMainL_Common
     5.0f,   // ThrusterManeuverS_Common
-    10.0f,   // ThrusterManeuverM_Common
+    10.0f,  // ThrusterManeuverM_Common
     20.0f,  // ThrusterManeuverL_Common
     2.0f,   // InternalS_Common
     5.0f,   // InternalM_Common
@@ -44,9 +44,28 @@ constexpr float SlotSize[static_cast<size_t>(ModuleSlotType::NumSlotTypes)] = {
     2.0f,   // RoofS_Common
     5.0f,   // RoofM_Common
     10.0f,  // RoofL_Common
-    20.0f,   // BayS_Common
+    20.0f,  // BayS_Common
     5.0f,   // BayM_Common
     10.0f,  // BayL_Common
+};
+
+constexpr int8_t
+    ModuleSlotZOffset[static_cast<size_t>(ModuleSlotType::NumSlotTypes)] = {
+        10,   // ThrusterMainS_Common
+        10,   // ThrusterMainM_Common
+        10,   // ThrusterMainL_Common
+        10,   // ThrusterManeuverS_Common
+        10,   // ThrusterManeuverM_Common
+        10,   // ThrusterManeuverL_Common
+        10,   // InternalS_Common
+        10,   // InternalM_Common
+        10,   // InternalL_Common
+        -10,  // RoofS_Common
+        -10,  // RoofM_Common
+        -10,  // RoofL_Common
+        -10,  // BayS_Common
+        -10,  // BayM_Common
+        -10,  // BayL_Common
 };
 
 struct ModuleSlot
@@ -54,7 +73,6 @@ struct ModuleSlot
     ModuleSlotType type;
     vec2 pos;
     float rot;
-    uint8_t z;
 };
 
 enum class ModuleType : uint8_t
@@ -113,11 +131,10 @@ using ModuleHandle = typename con::ItemLib<Module>::Handle;
 
 EXT_FMT(gobj::ModuleSlotType, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::ModuleSlot,
-        "(modType: {}, pos: {}, rot: {}, z: {})",
+        "(modType: {}, pos: {}, rot: {})",
         o.type,
         o.pos,
-        o.rot,
-        o.z);
+        o.rot);
 EXT_FMT(gobj::ModuleType, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::Module,
         "(name: {}, description: {}, type: {}, slotType: {}, textures: {})",

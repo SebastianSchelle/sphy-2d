@@ -16,7 +16,8 @@ static constexpr uint32_t kSpriteSamplerFlags = BGFX_SAMPLER_UVW_CLAMP;
 static constexpr uint32_t kFontSamplerFlags =
     BGFX_SAMPLER_UVW_CLAMP | BGFX_SAMPLER_POINT;
 
-// Tex rects: point sampling avoids bilinear pulling atlas neighbors (black fringe).
+// Tex rects: point sampling avoids bilinear pulling atlas neighbors (black
+// fringe).
 static constexpr uint32_t kTexRectSamplerFlags =
     BGFX_SAMPLER_UVW_CLAMP | BGFX_SAMPLER_POINT;
 
@@ -263,8 +264,8 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
         }
     }
 
-    const uint32_t samplerFlags = texture->usesPointSampling() ? kFontSamplerFlags
-                                                             : kSpriteSamplerFlags;
+    const uint32_t samplerFlags =
+        texture->usesPointSampling() ? kFontSamplerFlags : kSpriteSamplerFlags;
     bgfx::setTexture(
         0, u_texArray, texture->getTexIdent().texHandle, samplerFlags);
 
@@ -493,10 +494,8 @@ void RenderEngine::drawAtlasDebugLayer(bgfx::ViewId viewId,
     float ndcCy = 0.0f;
     if (previewW > 0 && previewH > 0)
     {
-        const uint32_t mipW =
-            std::max(1u, uint32_t(texWidthFull) >> mipLevel);
-        const uint32_t mipH =
-            std::max(1u, uint32_t(texHeightFull) >> mipLevel);
+        const uint32_t mipW = std::max(1u, uint32_t(texWidthFull) >> mipLevel);
+        const uint32_t mipH = std::max(1u, uint32_t(texHeightFull) >> mipLevel);
         const float ax = float(previewW);
         const float ay = float(previewH);
         const float scale = std::min(ax / float(mipW), ay / float(mipH));
@@ -916,8 +915,7 @@ void RenderEngine::submitShapes()
             return;
         }
         uint64_t state =
-            BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z
-            | BGFX_STATE_DEPTH_TEST_LESS
+            BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
             | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
                                     BGFX_STATE_BLEND_INV_SRC_ALPHA);
 
@@ -936,19 +934,16 @@ void RenderEngine::submitShapes()
     }
 }
 
-void RenderEngine::drawTexRect(const glm::vec2& pos,
-                               const glm::vec2& size,
-                               TextureHandle textureHandle,
-                               float rotationRad,
-                               uint32_t colorABGR,
-                               float zIndex,
-                               bgfx::ViewId viewId,
-                               const glm::vec2& uvOffset,
-                               const glm::vec2& uvScale)
+void RenderEngine::prepTexRectForRendering(const glm::vec2& pos,
+                                           const glm::vec2& size,
+                                           TextureHandle textureHandle,
+                                           float rotationRad,
+                                           int8_t zIndex,
+                                           uint32_t colorABGR,
+                                           bgfx::ViewId viewId,
+                                           const glm::vec2& uvOffset,
+                                           const glm::vec2& uvScale)
 {
-    changeRenderState(RenderState::DrawTexRects);
-    currentViewId = viewId;
-
     auto& texLib = textureLoader.getTextureLib();
     Texture* texture = texLib.getItem(textureHandle);
     if (!texture)
@@ -961,43 +956,37 @@ void RenderEngine::drawTexRect(const glm::vec2& pos,
     }
 
     const bgfx::TextureHandle arrayHandle = texture->getTexIdent().texHandle;
-    if (currentTexRectCount > 0 && bgfx::isValid(texRectBatchArray)
-        && texRectBatchArray.idx != arrayHandle.idx)
-    {
-        submitTexRects();
-    }
+    const uint8_t a = (colorABGR >> 24) & 0xff;
+    const uint8_t b = (colorABGR >> 16) & 0xff;
+    const uint8_t g = (colorABGR >> 8) & 0xff;
+    const uint8_t r = (colorABGR >> 0) & 0xff;
 
-    if (currentTexRectCount >= maxTexPerDrawCall)
-    {
-        submitTexRects();
-    }
-
-    if (currentTexRectCount == 0)
-    {
-        allocateForTexRects();
-        if (idbTex.data == nullptr)
-        {
-            return;
-        }
-        texRectBatchArray = arrayHandle;
-    }
-
-    uint8_t a = (colorABGR >> 24) & 0xff;
-    uint8_t b = (colorABGR >> 16) & 0xff;
-    uint8_t g = (colorABGR >> 8) & 0xff;
-    uint8_t r = (colorABGR >> 0) & 0xff;
-
-    TexRectData* inst =
-        reinterpret_cast<TexRectData*>(idbTex.data) + currentTexRectCount;
-    inst->rect = vec4(pos.x, pos.y, size.x, size.y);
-    inst->atlasUv = glm::vec4(texture->getRelBounds());
-    inst->rotLayZ = vec4(rotationRad,
-                         static_cast<float>(texture->getTexIdent().layerIdx),
-                         zIndex,
-                         0.0f);
-    inst->uvOffScale = vec4(uvOffset.x, uvOffset.y, uvScale.x, uvScale.y);
-    inst->colorAbgr = vec4(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
-    currentTexRectCount++;
+    texRectData.push_back(TexRectDataWrapper{
+        arrayHandle,
+        TexRectData{
+            vec4(pos.x, pos.y, size.x, size.y),
+            glm::vec4(texture->getRelBounds()),
+            vec4(rotationRad,
+                 static_cast<float>(texture->getTexIdent().layerIdx),
+                 0.0f,
+                 0.0f),
+            vec4(uvOffset.x, uvOffset.y, uvScale.x, uvScale.y),
+            vec4(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f),
+        }});
+    insert_sorted(texRectSorted,
+                  ZSortEntry{
+                      static_cast<uint32_t>(texRectData.size() - 1),
+                      zIndex,
+                      static_cast<uint16_t>(arrayHandle.idx),
+                  },
+                  [](const ZSortEntry& a, const ZSortEntry& b)
+                  {
+                      if (a.zIndex != b.zIndex)
+                      {
+                          return a.zIndex > b.zIndex;
+                      }
+                      return a.texArrayIdx > b.texArrayIdx;
+                  });
 }
 
 void RenderEngine::submitTexRects()
@@ -1020,9 +1009,9 @@ void RenderEngine::submitTexRects()
 
     bgfx::setTexture(0, u_texArray, texRectBatchArray, kTexRectSamplerFlags);
 
-    // Premultiplied fragment output (fs_texrect.sc); same blend as Rml geometry.
+    // Premultiplied fragment output (fs_texrect.sc); same blend as Rml
+    // geometry.
     uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
-                     | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS
                      | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,
                                              BGFX_STATE_BLEND_INV_SRC_ALPHA);
 
@@ -1039,6 +1028,61 @@ void RenderEngine::submitTexRects()
 
     currentTexRectCount = 0;
     texRectBatchArray = BGFX_INVALID_HANDLE;
+}
+
+void RenderEngine::drawPreparedTexRect()
+{
+    changeRenderState(RenderState::DrawTexRects);
+
+    if (texRectSorted.empty())
+    {
+        return;
+    }
+    const auto& entry = texRectSorted.back();
+    texRectSorted.pop_back();
+    const auto& wrapper = texRectData[entry.vecIdx];
+
+    const bgfx::TextureHandle arrayHandle =
+        texRectData[entry.vecIdx].arrayHandle;
+    if (currentTexRectCount > 0 && bgfx::isValid(texRectBatchArray)
+        && (texRectBatchArray.idx != arrayHandle.idx
+            || currentViewId != wrapper.viewId))
+    {
+        submitTexRects();
+    }
+
+    if (currentTexRectCount >= maxTexPerDrawCall)
+    {
+        submitTexRects();
+    }
+
+    if (currentTexRectCount == 0)
+    {
+        allocateForTexRects();
+        if (idbTex.data == nullptr)
+        {
+            return;
+        }
+        texRectBatchArray = arrayHandle;
+        currentViewId = wrapper.viewId;
+    }
+
+    TexRectData* inst =
+        reinterpret_cast<TexRectData*>(idbTex.data) + currentTexRectCount;
+    inst->rect = wrapper.texRectData.rect;
+    inst->atlasUv = wrapper.texRectData.atlasUv;
+    inst->rotLay = wrapper.texRectData.rotLay;
+    inst->uvOffScale = wrapper.texRectData.uvOffScale;
+    inst->colorAbgr = wrapper.texRectData.colorAbgr;
+    currentTexRectCount++;
+}
+
+void RenderEngine::drawPrepared()
+{
+    while (!texRectSorted.empty())
+    {
+        drawPreparedTexRect();
+    }
 }
 
 void RenderEngine::allocateForTexRects()
@@ -1178,7 +1222,8 @@ TextureHandle RenderEngine::getTextureHandle(const std::string& name)
     return textureLoader.getTextureHandle(name);
 }
 
-bool RenderEngine::getTexturePixelSize(const std::string& name, glm::vec2& sizePx)
+bool RenderEngine::getTexturePixelSize(const std::string& name,
+                                       glm::vec2& sizePx)
 {
     const TextureHandle handle = textureLoader.getTextureHandle(name);
     if (!handle.isValid())

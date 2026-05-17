@@ -29,7 +29,7 @@ Textures Textures::fromYaml(const YAML::Node& node, mod::ResourceMap& resourceMa
         TRY_YAML_DICT(texture.bounds.y, texNode["bounds"][1], 0.0f);
         TRY_YAML_DICT(texture.bounds.z, texNode["bounds"][2], 1.0f);
         TRY_YAML_DICT(texture.bounds.w, texNode["bounds"][3], 1.0f);
-        TRY_YAML_DICT(texture.zIndex, texNode["zIndex"], 0);
+        TRY_YAML_DICT(texture.zOffset, texNode["zIndex"], 0);
         uint8_t flags = 0;
         TRY_YAML_DICT(flags, texNode["flags"], 0);
         texture.flags = static_cast<TextureFlags>(flags);

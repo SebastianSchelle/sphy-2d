@@ -2582,13 +2582,13 @@ void ModdingTools::drawTextures(gfx::RenderEngine& renderer)
         const glm::vec2 drawSize = moddingTextureDrawSize(texture);
         // Match Model::drawTextures / drawTexRect: body rot 0 → pass
         // -texture.rot
-        renderer.drawTexRect(
+        renderer.prepTexRectForRendering(
             glm::vec2(texture.posXVal, texture.posYVal),
             drawSize,
             texHandle,
             -smath::degToRad(texture.rotVal),
+            texture.zIndexVal,
             tintIfSelected(0xffffffff, sel),
-            texture.zIndexVal / 100.0f,
             0,
             glm::vec2(texture.tileOffXVal, texture.tileOffYVal),
             glm::vec2(texture.tileCntXVal, texture.tileCntYVal));

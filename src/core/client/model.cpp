@@ -559,14 +559,13 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
                     {
                         texHandle = mappedTexture->texHandle;
                     }
-                    renderer.drawTexRect(worldPos,
+                    renderer.prepTexRectForRendering(worldPos,
                                          glm::vec2(mapIconItem->size.x / zoom,
                                                    mapIconItem->size.y / zoom),
                                          texHandle,
                                          transform.rot,
-                                         0xff0010ff,
-                                         0.0f,
-                                         0);
+                                         gfx::RenderEngine::zIdxMapIconHull,
+                                         0xff0010ff);
                 }
             }
         });
@@ -621,33 +620,48 @@ void Model::drawObjects(gfx::RenderEngine& renderer,
                         const glm::vec4& viewRect,
                         float zoom)
 {
+    drawStations(renderer, viewRect, zoom);
+    drawShips(renderer, viewRect, zoom);
+}
+
+void Model::drawShips(gfx::RenderEngine& renderer,
+                      const glm::vec4& viewRect,
+                      float zoom)
+{
     auto& reg = ecs.getRegistry();
-    reg.view<ecs::Transform,
-             ecs::SectorId,
-             ecs::Textures,
-             ecs::tag::Selectable>()
-        .each(
-            [this, &renderer, &viewRect, &reg](entt::entity entity,
-                                               ecs::Transform& transform,
-                                               ecs::SectorId& sectorId,
-                                               ecs::Textures& textures)
+    reg.view<ecs::Transform, ecs::SectorId, ecs::Textures, ecs::Hull>().each(
+        [this, &renderer, &viewRect, &reg](entt::entity entity,
+                                           ecs::Transform& transform,
+                                           ecs::SectorId& sectorId,
+                                           ecs::Textures& textures,
+                                           ecs::Hull& hull)
+        {
+            glm::vec2 worldPos =
+                world.getWorldPosSectorOffset(sectorId.id,
+                                              renderer.getSectorOffsetX(),
+                                              renderer.getSectorOffsetY())
+                + transform.pos;
+            if (smath::pointInsideRect(worldPos, viewRect))
             {
-                glm::vec2 worldPos =
-                    world.getWorldPosSectorOffset(sectorId.id,
-                                                  renderer.getSectorOffsetX(),
-                                                  renderer.getSectorOffsetY())
-                    + transform.pos;
-                if (smath::pointInsideRect(worldPos, viewRect))
-                {
-                    drawTextures(renderer, textures, transform.rot, worldPos);
-                    auto* hull = reg.try_get<ecs::Hull>(entity);
-                    if (hull)
-                    {
-                        drawModuleTextures(
-                            renderer, transform, *hull, worldPos);
-                    }
-                }
-            });
+                drawModuleTextures(renderer,
+                                   transform,
+                                   gfx::RenderEngine::zIdxShipHull,
+                                   hull,
+                                   worldPos);
+                drawTextures(renderer,
+                             textures,
+                             transform.rot,
+                             gfx::RenderEngine::zIdxShipHull,
+                             worldPos);
+            }
+        });
+}
+
+void Model::drawStations(gfx::RenderEngine& renderer,
+                         const glm::vec4& viewRect,
+                         float zoom)
+{
+    auto& reg = ecs.getRegistry();
     reg.view<ecs::Transform, ecs::SectorId, ecs::Station>().each(
         [this, &renderer, &viewRect, &reg](ecs::Transform& transform,
                                            ecs::SectorId& sectorId,
@@ -684,6 +698,7 @@ void Model::drawStationTextures(gfx::RenderEngine& renderer,
                 drawTextures(renderer,
                              *stationPartTextures,
                              stationPartTransform->rot,
+                             gfx::RenderEngine::zIdxStation,
                              sectorOffset + stationPartTransform->pos);
             }
         }
@@ -692,6 +707,7 @@ void Model::drawStationTextures(gfx::RenderEngine& renderer,
 
 void Model::drawModuleTextures(gfx::RenderEngine& renderer,
                                const ecs::Transform& parentTransform,
+                               const int8_t parentZ,
                                ecs::Hull& hull,
                                const glm::vec2& worldPos)
 {
@@ -701,6 +717,8 @@ void Model::drawModuleTextures(gfx::RenderEngine& renderer,
         entt::entity moduleEntity = ecs.getEntity(modRef.entityId);
         if (moduleEntity != entt::null)
         {
+            const int8_t moduleOffset = gobj::ModuleSlotZOffset[static_cast<uint8_t>(modRef.slotType)];
+            const int8_t moduleZ = parentZ + moduleOffset;
             auto* anchorFixed = reg.try_get<ecs::AnchorFixed>(moduleEntity);
             auto* moduleTextures = reg.try_get<ecs::Textures>(moduleEntity);
             if (anchorFixed && moduleTextures)
@@ -710,6 +728,7 @@ void Model::drawModuleTextures(gfx::RenderEngine& renderer,
                 drawTextures(renderer,
                              *moduleTextures,
                              parentTransform.rot + anchorFixed->rot,
+                             moduleZ,
                              worldPos + anchorFixedPos);
             }
         }
@@ -719,6 +738,7 @@ void Model::drawModuleTextures(gfx::RenderEngine& renderer,
 void Model::drawTextures(gfx::RenderEngine& renderer,
                          const ecs::Textures& textures,
                          float rot,
+                         const int8_t parentZ,
                          const glm::vec2& worldPos)
 {
     auto* texturesItem = modManager->getTexturesLib().getItem(
@@ -737,20 +757,20 @@ void Model::drawTextures(gfx::RenderEngine& renderer,
                 texHandleGFX = mappedTexture->texHandle;
             }
             // Offset is in body space; rotate by +rot (CW, Y-down). drawTexRect
-            // uses (rot - texture.rot), same convention as ModdingTools::drawTextures.
+            // uses (rot - texture.rot), same convention as
+            // ModdingTools::drawTextures.
             vec2 texOffset = smath::rotateVec2(
                 vec2(texture.bounds.x, texture.bounds.y), rot);
-            renderer.drawTexRect(worldPos + texOffset,
-                                 glm::vec2(texture.bounds.z, texture.bounds.w),
-                                 texHandleGFX,
-                                 rot - texture.rot,
-                                 0xffffffff,
-                                 texture.zIndex / 100.0f,
-                                 0,
-                                 glm::vec2(texture.tileOffset.x,
-                                           texture.tileOffset.y),
-                                 glm::vec2(texture.tileCount.x,
-                                           texture.tileCount.y));
+            renderer.prepTexRectForRendering(
+                worldPos + texOffset,
+                glm::vec2(texture.bounds.z, texture.bounds.w),
+                texHandleGFX,
+                rot - texture.rot,
+                parentZ + texture.zOffset,
+                0xffffffff,
+                0,
+                glm::vec2(texture.tileOffset.x, texture.tileOffset.y),
+                glm::vec2(texture.tileCount.x, texture.tileCount.y));
         }
     }
 }

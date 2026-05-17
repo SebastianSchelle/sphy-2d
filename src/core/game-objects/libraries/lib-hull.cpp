@@ -44,7 +44,6 @@ Hull Hull::fromYaml(const YAML::Node& node,
             float rotDeg = 0.0f;
             TRY_YAML_DICT(rotDeg, slotNode["rot"], 0.0f);
             slot.rot = smath::degToRad(rotDeg);
-            TRY_YAML_DICT(slot.z, slotNode["z"], uint8_t(0));
             hull.slots.push_back(slot);
         }
     }

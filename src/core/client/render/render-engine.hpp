@@ -62,12 +62,11 @@ using GeometryHandleUuid = typename con::ItemLib<Geometry>::HandleUuid;
 // (origin.xy + local.xy * span.zw).
 struct TexRectData
 {
-    vec4 rect;     // .xy = world-space center, .zw = width and height
-    vec4 atlasUv;  // packed atlas rect: .xy origin, .zw size in UV space
-    vec4 rotLayZ;  // .x = rotation (rad), .y = layer index as float, .z =
-                   // z-index as float
-    vec4 uvOffScale; // i_data3 — .xy tile offset, .zw tile repeat count
-    vec4 colorAbgr;  // i_data4
+    vec4 rect;        // .xy = world-space center, .zw = width and height
+    vec4 atlasUv;     // packed atlas rect: .xy origin, .zw size in UV space
+    vec4 rotLay;      // .x = rotation (rad), .y = layer index as float
+    vec4 uvOffScale;  // i_data3 — .xy tile offset, .zw tile repeat count
+    vec4 colorAbgr;   // i_data4
 };
 
 struct ZoomPanCfg
@@ -87,9 +86,30 @@ enum class PanDirection
     Stop = 0,
 };
 
+struct ZSortEntry
+{
+    uint32_t vecIdx;
+    int8_t zIndex;
+    uint16_t texArrayIdx;
+};
+
+struct TexRectDataWrapper
+{
+    bgfx::TextureHandle arrayHandle;
+    TexRectData texRectData;
+    bgfx::ViewId viewId;
+};
+
 class RenderEngine
 {
   public:
+    constexpr static const int8_t zIdxMapIconHull = 0;
+    constexpr static const int8_t zIdxMapIconStation = 100;
+
+    constexpr static const int8_t zIdxShipHull = 0;
+    constexpr static const int8_t zIdxStation = 50;
+    constexpr static const int8_t zIdxDrone = 100;
+
     enum class RenderState
     {
         Idle,
@@ -170,10 +190,12 @@ class RenderEngine
     std::string getAtlasRegistrySummary() const;
     void fillAtlasDebugGpuArrayOptions(
         std::vector<AtlasDebugSelectOption>& out) const;
-    void fillAtlasDebugLayerOptions(int gpuArrayIndex,
-                                   std::vector<AtlasDebugSelectOption>& out) const;
-    void fillAtlasDebugMipOptions(int gpuArrayIndex,
-                                  std::vector<AtlasDebugSelectOption>& out) const;
+    void
+    fillAtlasDebugLayerOptions(int gpuArrayIndex,
+                               std::vector<AtlasDebugSelectOption>& out) const;
+    void
+    fillAtlasDebugMipOptions(int gpuArrayIndex,
+                             std::vector<AtlasDebugSelectOption>& out) const;
     void fillAtlasDebugKindPickRows(std::vector<AtlasDebugKindPickRow>& out);
     ShaderHandle loadShader(const std::string& name,
                             const std::string& vsPath,
@@ -213,20 +235,22 @@ class RenderEngine
                      float rotationRad = 0.0f,
                      float zIndex = 0.0f,
                      bgfx::ViewId viewId = 0);
-    void drawTexRect(const glm::vec2& pos,
-                     const glm::vec2& size,
-                     TextureHandle textureHandle,
-                     float rotationRad = 0.0f,
-                     uint32_t colorABGR = 0xffffffff,
-                     float zIndex = 0.0f,
-                     bgfx::ViewId viewId = 0,
-                     const glm::vec2& uvOffset = glm::vec2(0.0f),
-                     const glm::vec2& uvScale = glm::vec2(1.0f));
+    void prepTexRectForRendering(const glm::vec2& pos,
+                                 const glm::vec2& size,
+                                 TextureHandle textureHandle,
+                                 float rotationRad,
+                                 int8_t zIndex,
+                                 uint32_t colorABGR = 0xffffffff,
+                                 bgfx::ViewId viewId = 0,
+                                 const glm::vec2& uvOffset = glm::vec2(0.0f),
+                                 const glm::vec2& uvScale = glm::vec2(1.0f));
     tim::Timepoint getStartTime() const;
     float getWorldZoom() const
     {
         return worldZoom;
     }
+    void drawPrepared();
+
     GameViewMode getViewMode() const
     {
         return viewMode;
@@ -283,6 +307,7 @@ class RenderEngine
                       float zIndex = 0.0f,
                       bgfx::ViewId viewId = 0);
     void updatePosWithSectorOffset();
+    void drawPreparedTexRect();
 
 
     TextureLoader textureLoader;
@@ -351,6 +376,8 @@ class RenderEngine
     size_t maxTexPerDrawCall = 1024;
     size_t currentTexRectCount = 0;
     bgfx::TextureHandle texRectBatchArray = BGFX_INVALID_HANDLE;
+    vector<TexRectDataWrapper> texRectData;
+    vector<ZSortEntry> texRectSorted;
 
     float zoomTactical = 0.0f;
     float zoomStrategic = 0.0f;

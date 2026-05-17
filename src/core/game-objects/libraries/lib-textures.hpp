@@ -26,7 +26,7 @@ struct Texture
     vec4 bounds;
     float rot;
     TextureFlags flags;
-    int8_t zIndex;
+    int8_t zOffset;
     vec2 tileCount{1.0f, 1.0f};
     vec2 tileOffset{0.0f, 0.0f};
 };
@@ -67,7 +67,7 @@ EXT_FMT(gobj::Texture,
         o.bounds,
         o.rot,
         o.flags,
-        o.zIndex,
+        o.zOffset,
         o.tileCount,
         o.tileOffset);
 

@@ -391,6 +391,7 @@ void MainWindow::renderGame()
         default:
             break;
     }
+    renderEngine.drawPrepared();
 }
 
 void MainWindow::renderAtlasDebug(bool /*mouseOverUi*/)
@@ -434,8 +435,9 @@ void MainWindow::renderModdingTools(bool mouseOverUi)
     {
         moddingTools.onRightMouseUp();
     }
-    moddingTools.draw(renderEngine);
     renderEngine.panWorld(panX, panY);
+    moddingTools.draw(renderEngine);
+    renderEngine.drawPrepared();
 }
 
 void MainWindow::processMouseTactical(float zoom)

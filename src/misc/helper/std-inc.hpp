@@ -1,6 +1,7 @@
 #ifndef STD_INC_HPP
 #define STD_INC_HPP
 
+#include <algorithm>
 #include <array>
 #include <bitsery/adapter/buffer.h>
 #include <bitsery/adapter/stream.h>
@@ -16,12 +17,11 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
-#include <algorithm>
+#include <cmath>
 #include <concurrentqueue.h>
 #include <filesystem>
 #include <fstream>
 #include <glm/glm.hpp>
-#include <cmath>
 #include <limits>
 
 // cmath / POSIX do not guarantee M_PI; M_PIf is non-standard (GNU extension).
@@ -32,8 +32,8 @@
 #define M_PIf static_cast<float>(M_PI)
 #endif
 #include <logging.hpp>
-#include <optional>
 #include <memory.h>
+#include <optional>
 #include <string>
 #include <variant>
 #include <yaml-cpp/yaml.h>
@@ -700,6 +700,14 @@ EXT_SER(GenericHandle, SER_GENERIC_HANDLE)
 EXT_DES(GenericHandle, SER_GENERIC_HANDLE)
 
 EXT_FMT(GenericHandle, "({}, {})", o.idx, o.gen);
+
+template <typename T, typename Pred>
+typename std::vector<T>::iterator
+insert_sorted(std::vector<T>& vec, T const& item, Pred pred)
+{
+    return vec.insert(std::upper_bound(vec.begin(), vec.end(), item, pred),
+                      item);
+}
 
 // Do not `using smath::Rect` at file scope: macOS SDK (MacTypes.h) defines a
 // global `struct Rect`; a using-declaration would collide with Carbon's type.
