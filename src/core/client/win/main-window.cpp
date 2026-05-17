@@ -105,6 +105,7 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
     debug::createLogger("logs/logClient.txt", logLevel);
     dragThreshold =
         CFG_FLOAT(config, 300.0f, "input", "drag-threshold", "world");
+    dragThreshold *= 0.5f;
     dragBoxColor = CFG_UINT(
         config, (float)0x2085e085, "theme", "input", "drag-box", "color");
     dragBoxThickness =
@@ -420,7 +421,8 @@ void MainWindow::renderModdingTools(bool mouseOverUi)
     }
     if (mouseState.buttonReleased[0])
     {
-        moddingTools.onLeftMouseUp();
+        moddingTools.onLeftMouseUp(
+            world, zoom, &renderEngine, shiftTextureAlign);
     }
 
     if (!mouseOverUi && mouseState.buttonPressed[1])

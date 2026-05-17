@@ -280,6 +280,7 @@ class RenderEngine
     void getViewportRect(smath::Rect& rect) const;
     TextureHandle getTextureHandle(const std::string& name);
     bool getTexturePixelSize(const std::string& name, glm::vec2& sizePx);
+    bool getTextureFilePath(const std::string& name, std::string& pathOut);
     std::vector<std::string> getTextureNames() const;
 
     TextureHandle getFallbackTextureHandle() const

@@ -694,6 +694,11 @@ void RenderEngine::startFrame()
 {
     renderState = RenderState::Idle;
 
+    texRectSorted.clear();
+    texRectData.clear();
+    currentTexRectCount = 0;
+    texRectBatchArray = BGFX_INVALID_HANDLE;
+
     bool showStats = false;
     bgfx::setDebug(showStats ? BGFX_DEBUG_STATS | BGFX_DEBUG_TEXT : 0);
     bgfx::touch(kWorldView);
@@ -1238,6 +1243,23 @@ bool RenderEngine::getTexturePixelSize(const std::string& name,
     const StoragePtr storage = texture->getStoragePtr();
     sizePx = glm::vec2(storage.rect.width, storage.rect.height);
     return true;
+}
+
+bool RenderEngine::getTextureFilePath(const std::string& name,
+                                      std::string& pathOut)
+{
+    const TextureHandle handle = textureLoader.getTextureHandle(name);
+    if (!handle.isValid())
+    {
+        return false;
+    }
+    const Texture* texture = textureLoader.getTextureLib().getItem(handle);
+    if (texture == nullptr)
+    {
+        return false;
+    }
+    pathOut = texture->getPath();
+    return !pathOut.empty();
 }
 
 std::vector<std::string> RenderEngine::getTextureNames() const

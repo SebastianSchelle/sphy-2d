@@ -82,13 +82,11 @@ struct SlotInfo
     string posX = "0.0";
     string posY = "0.0";
     string rot = "0.0";
-    string zIndex = "0";
 
     gobj::ModuleSlotType slotTypeVal = gobj::ModuleSlotType::RoofS_Common;
     float posXVal = 0.0f;
     float posYVal = 0.0f;
     float rotVal = 0.0f;
-    int zIndexVal = 0;
 };
 
 struct ColliderVertex
@@ -148,7 +146,10 @@ class ModdingTools
     void onLeftMouseDrag(const glm::vec2& worldPos,
                          float worldZoom,
                          bool mouseDragActiveLmb);
-    void onLeftMouseUp();
+    void onLeftMouseUp(const glm::vec2& worldPos,
+                       float worldZoom,
+                       gfx::RenderEngine* renderer = nullptr,
+                       bool shiftAlignTextures = false);
 
     void onRightMouseDown(const glm::vec2& worldPos, float dragThresholdWorld);
     void onRightMouseDrag(const glm::vec2& worldPos,
@@ -205,6 +206,9 @@ class ModdingTools
                                  Rml::Event& event,
                                  const Rml::VariantList& args);
     void onRemoveColliderVertex(Rml::DataModelHandle handle,
+                                Rml::Event& event,
+                                const Rml::VariantList& args);
+    void onAutoGenerateCollider(Rml::DataModelHandle handle,
                                 Rml::Event& event,
                                 const Rml::VariantList& args);
     void onAddConnector(Rml::DataModelHandle handle,
@@ -277,8 +281,10 @@ class ModdingTools
     void resetNewTexturePickerState();
     TextureInfo makeNewTextureEntry();
     ModdingToolsMode determineAssetType(const string& path);
+    void generateColliderFromVisibleTextures(gfx::RenderEngine& renderer);
 
     Rml::DataModelHandle rmlModel_;
+    gfx::RenderEngine* drawRenderer_ = nullptr;
     string openFilepath;
     ModdingToolsMode activeMode = ModdingToolsMode::None;
     /** magic_enum::enum_name(activeMode); bound to Rml as "mode" */

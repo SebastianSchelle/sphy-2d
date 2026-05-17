@@ -1,10 +1,15 @@
 #include "modding-tools.hpp"
 #include "texture.hpp"
 #include <algorithm>
+#include <bimg/bimg.h>
+#include <bimg/decode.h>
+#include <bx/allocator.h>
+#include <bx/error.h>
 #include <cctype>
 #include <cmath>
 #include <fstream>
 #include <magic_enum/magic_enum.hpp>
+#include <optional>
 #include <render-engine.hpp>
 #include <save-file-dialog.hpp>
 #include <std-inc.hpp>
@@ -55,9 +60,8 @@ float snapAlignedTextureRotationDeg(float targetDeg,
     }
     return selectedDeg + angleErr;
 }
-/** RMB drag: degrees added per world unit of tangential cursor motion, before
- * /zoom. */
-constexpr float kModdingRightDragRotate = 5.f;
+constexpr uint8_t kColliderAlphaThreshold = 128;
+constexpr int kColliderImageSampleStride = 4;
 
 bool pastDragDeadzone(glm::vec2 pressWorld,
                       glm::vec2 nowWorld,
@@ -115,6 +119,11 @@ int defaultSlotZForType(gobj::ModuleSlotType slotType)
         default:
             return 0;
     }
+}
+
+int slotDrawZ(const SlotInfo& slot)
+{
+    return defaultSlotZForType(slot.slotTypeVal);
 }
 
 uint32_t tintIfSelected(uint32_t baseAbgr, bool selected)
@@ -572,6 +581,173 @@ void setTextureSizeFromBaseTile(TextureInfo& tex, const glm::vec2& baseTile)
     tex.sizeYVal = baseTile.y * tex.tileCntYVal;
     floatToString(tex.sizeXVal, tex.sizeX, 2);
     floatToString(tex.sizeYVal, tex.sizeY, 2);
+}
+
+struct RgbaImage
+{
+    std::vector<uint8_t> pixels;
+    int width = 0;
+    int height = 0;
+};
+
+std::optional<RgbaImage> loadRgbaImageFromPath(const std::string& path)
+{
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
+    if (!file.is_open())
+    {
+        return std::nullopt;
+    }
+    const auto sizef = static_cast<uint32_t>(file.tellg());
+    if (sizef == 0)
+    {
+        return std::nullopt;
+    }
+    file.seekg(0, std::ios::beg);
+    std::vector<uint8_t> buffer(sizef);
+    if (!file.read(reinterpret_cast<char*>(buffer.data()), sizef))
+    {
+        return std::nullopt;
+    }
+
+    bx::DefaultAllocator alloc;
+    bx::Error err;
+    bimg::ImageContainer* image =
+        bimg::imageParse(&alloc, buffer.data(), sizef, bimg::TextureFormat::RGBA8, &err);
+    if (!image || !err.isOk() || image->m_data == nullptr)
+    {
+        if (image)
+        {
+            bimg::imageFree(image);
+        }
+        return std::nullopt;
+    }
+
+    RgbaImage out;
+    out.width = static_cast<int>(image->m_width);
+    out.height = static_cast<int>(image->m_height);
+    const size_t byteCount =
+        static_cast<size_t>(out.width) * static_cast<size_t>(out.height) * 4u;
+    const uint8_t* src = static_cast<const uint8_t*>(image->m_data);
+    out.pixels.assign(src, src + byteCount);
+    bimg::imageFree(image);
+    return out;
+}
+
+glm::vec2 rotateLocalToWorld(const glm::vec2& local, float rotRad)
+{
+    const float c = std::cos(rotRad);
+    const float s = std::sin(rotRad);
+    return {local.x * c - local.y * s, local.x * s + local.y * c};
+}
+
+void appendOpaqueTextureSamples(const TextureInfo& tex,
+                                const RgbaImage& image,
+                                std::vector<glm::vec2>& outWorldPts)
+{
+    if (image.width <= 0 || image.height <= 0 || image.pixels.empty())
+    {
+        return;
+    }
+
+    const glm::vec2 drawSize = moddingTextureDrawSize(tex);
+    const float rotRad = moddingTextureRotRad(tex);
+    const glm::vec2 center(tex.posXVal, tex.posYVal);
+    const int tileCntX = std::max(1, static_cast<int>(std::round(tex.tileCntXVal)));
+    const int tileCntY = std::max(1, static_cast<int>(std::round(tex.tileCntYVal)));
+    const int tileOffX = static_cast<int>(std::round(tex.tileOffXVal));
+    const int tileOffY = static_cast<int>(std::round(tex.tileOffYVal));
+    const int stride = std::max(1, kColliderImageSampleStride);
+
+    for (int py = 0; py < image.height; py += stride)
+    {
+        for (int px = 0; px < image.width; px += stride)
+        {
+            const size_t idx =
+                (static_cast<size_t>(py) * static_cast<size_t>(image.width)
+                 + static_cast<size_t>(px))
+                * 4u;
+            if (image.pixels[idx + 3] < kColliderAlphaThreshold)
+            {
+                continue;
+            }
+            const float u =
+                (static_cast<float>(px) + 0.5f) / static_cast<float>(image.width);
+            const float v =
+                (static_cast<float>(py) + 0.5f) / static_cast<float>(image.height);
+            for (int ty = 0; ty < tileCntY; ++ty)
+            {
+                for (int tx = 0; tx < tileCntX; ++tx)
+                {
+                    const float unitX =
+                        (static_cast<float>(tx) + u - static_cast<float>(tileOffX))
+                        / static_cast<float>(tileCntX);
+                    const float unitY =
+                        (static_cast<float>(ty) + v - static_cast<float>(tileOffY))
+                        / static_cast<float>(tileCntY);
+                    const glm::vec2 local((unitX - 0.5f) * drawSize.x,
+                                          (unitY - 0.5f) * drawSize.y);
+                    outWorldPts.push_back(center + rotateLocalToWorld(local, rotRad));
+                }
+            }
+        }
+    }
+}
+
+float cross2d(const glm::vec2& o, const glm::vec2& a, const glm::vec2& b)
+{
+    return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+}
+
+std::vector<glm::vec2> convexHull(std::vector<glm::vec2> pts)
+{
+    if (pts.size() < 3)
+    {
+        return pts;
+    }
+    std::sort(pts.begin(),
+              pts.end(),
+              [](const glm::vec2& a, const glm::vec2& b)
+              {
+                  if (a.x != b.x)
+                  {
+                      return a.x < b.x;
+                  }
+                  return a.y < b.y;
+              });
+    pts.erase(std::unique(pts.begin(),
+                          pts.end(),
+                          [](const glm::vec2& a, const glm::vec2& b)
+                          { return glm::dot(a - b, a - b) < 1e-8f; }),
+              pts.end());
+    if (pts.size() < 3)
+    {
+        return pts;
+    }
+
+    std::vector<glm::vec2> lower;
+    for (const glm::vec2& p : pts)
+    {
+        while (lower.size() >= 2
+               && cross2d(lower[lower.size() - 2], lower.back(), p) <= 0.0f)
+        {
+            lower.pop_back();
+        }
+        lower.push_back(p);
+    }
+    std::vector<glm::vec2> upper;
+    for (auto it = pts.rbegin(); it != pts.rend(); ++it)
+    {
+        while (upper.size() >= 2
+               && cross2d(upper[upper.size() - 2], upper.back(), *it) <= 0.0f)
+        {
+            upper.pop_back();
+        }
+        upper.push_back(*it);
+    }
+    lower.pop_back();
+    upper.pop_back();
+    lower.insert(lower.end(), upper.begin(), upper.end());
+    return lower;
 }
 
 }  // namespace
@@ -1079,7 +1255,7 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
             {
                 consider(SelectableObjectType::Slot,
                          i,
-                         slots[static_cast<size_t>(i)].zIndexVal,
+                         slotDrawZ(slots[static_cast<size_t>(i)]),
                          kPickHullLayerSlot);
             }
         }
@@ -1204,12 +1380,14 @@ void ModdingTools::onLeftMouseDown(const glm::vec2& worldPos,
                                    bool shiftAlignTextures)
 {
     (void)worldZoom;
+    (void)renderer;
+    (void)shiftAlignTextures;
     lmbDragPressWorld = worldPos;
     lmbDragThresholdCfg = dragThresholdWorld;
     lmbPastDragDeadzone = false;
-    onSingleClick(worldPos, worldZoom, renderer, shiftAlignTextures);
-    dragSelectedObject = selectedObjectType != SelectableObjectType::None
-                         && !suppressDragAfterClick;
+    suppressDragAfterClick = false;
+    dragSelectedObject =
+        selectedObjectType != SelectableObjectType::None;
 }
 
 void ModdingTools::onLeftMouseDrag(const glm::vec2& worldPos,
@@ -1322,8 +1500,15 @@ void ModdingTools::onLeftMouseDrag(const glm::vec2& worldPos,
     }
 }
 
-void ModdingTools::onLeftMouseUp()
+void ModdingTools::onLeftMouseUp(const glm::vec2& worldPos,
+                               float worldZoom,
+                               gfx::RenderEngine* renderer,
+                               bool shiftAlignTextures)
 {
+    if (!lmbPastDragDeadzone)
+    {
+        onSingleClick(worldPos, worldZoom, renderer, shiftAlignTextures);
+    }
     dragSelectedObject = false;
     lmbPastDragDeadzone = false;
 }
@@ -1374,7 +1559,8 @@ void ModdingTools::onRightMouseDrag(const glm::vec2& worldPos,
                                     float worldZoom,
                                     bool mouseDragActiveRmb)
 {
-    if (!rmbRotateGesture || worldZoom < 1e-6f)
+    (void)worldZoom;
+    if (!rmbRotateGesture)
     {
         return;
     }
@@ -1436,20 +1622,26 @@ void ModdingTools::onRightMouseDrag(const glm::vec2& worldPos,
             return;
     }
 
-    const glm::vec2 d = worldPos - rmbRotatePrevWorld;
-    if (glm::dot(d, d) < 1e-12f)
-    {
-        return;
-    }
-    const glm::vec2 toM = worldPos - pivot;
-    if (glm::dot(toM, toM) < 1e-8f)
+    const glm::vec2 fromPrev = rmbRotatePrevWorld - pivot;
+    const glm::vec2 toCur = worldPos - pivot;
+    if (glm::dot(fromPrev, fromPrev) < 1e-8f || glm::dot(toCur, toCur) < 1e-8f)
     {
         rmbRotatePrevWorld = worldPos;
         return;
     }
-    const glm::vec2 radial = glm::normalize(toM);
-    const float tangential = d.x * (-radial.y) + d.y * radial.x;
-    *rotDeg += kModdingRightDragRotate * tangential / worldZoom;
+    const float anglePrev = std::atan2(fromPrev.y, fromPrev.x);
+    const float angleCur = std::atan2(toCur.y, toCur.x);
+    float deltaRad = angleCur - anglePrev;
+    constexpr float kPi = 3.14159265358979323846f;
+    while (deltaRad > kPi)
+    {
+        deltaRad -= 2.0f * kPi;
+    }
+    while (deltaRad < -kPi)
+    {
+        deltaRad += 2.0f * kPi;
+    }
+    *rotDeg += smath::radToDeg(deltaRad);
     rmbRotatePrevWorld = worldPos;
 
     switch (selectedObjectType)
@@ -1535,6 +1727,10 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     moddingToolsConstructor.BindEventCallback(
         "onRemoveColliderVertex", &ModdingTools::onRemoveColliderVertex, this);
     moddingToolsConstructor.BindEventCallback(
+        "onAutoGenerateCollider",
+        &ModdingTools::onAutoGenerateCollider,
+        this);
+    moddingToolsConstructor.BindEventCallback(
         "onAddConnector", &ModdingTools::onAddConnector, this);
     moddingToolsConstructor.BindEventCallback(
         "onClearConnectors", &ModdingTools::onClearConnectors, this);
@@ -1616,7 +1812,6 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
         slotHandle.RegisterMember("posX", &SlotInfo::posX);
         slotHandle.RegisterMember("posY", &SlotInfo::posY);
         slotHandle.RegisterMember("rot", &SlotInfo::rot);
-        slotHandle.RegisterMember("zIndex", &SlotInfo::zIndex);
     }
     moddingToolsConstructor.RegisterArray<std::vector<SlotInfo>>();
     moddingToolsConstructor.Bind("slots", &slots);
@@ -2052,10 +2247,7 @@ void ModdingTools::onAddSlot(Rml::DataModelHandle handle,
 {
     (void)event;
     (void)args;
-    SlotInfo slot;
-    slot.zIndexVal = defaultSlotZForType(slot.slotTypeVal);
-    intToString(slot.zIndexVal, slot.zIndex);
-    slots.push_back(std::move(slot));
+    slots.push_back(SlotInfo{});
     rmlModel_.DirtyVariable("slots");
 }
 
@@ -2113,6 +2305,91 @@ void ModdingTools::onClearColliderVertices(Rml::DataModelHandle handle,
     }
     rmlModel_.DirtyVariable("collider");
     syncListSelectionToRml();
+}
+
+void ModdingTools::generateColliderFromVisibleTextures(
+    gfx::RenderEngine& renderer)
+{
+    if (activeMode != ModdingToolsMode::Hull
+        && activeMode != ModdingToolsMode::StationPart)
+    {
+        return;
+    }
+
+    parseEditorNumericFields();
+
+    std::vector<glm::vec2> samples;
+    samples.reserve(4096);
+    for (const TextureInfo& tex : textures)
+    {
+        if (tex.name.empty())
+        {
+            continue;
+        }
+        std::string path;
+        if (!renderer.getTextureFilePath(tex.name, path))
+        {
+            continue;
+        }
+        const std::optional<RgbaImage> image = loadRgbaImageFromPath(path);
+        if (!image)
+        {
+            LG_W("Modding tools: could not load texture image for collider: {}",
+                 tex.name);
+            continue;
+        }
+        appendOpaqueTextureSamples(tex, *image, samples);
+    }
+
+    collider.clear();
+    selectedObjectType = SelectableObjectType::None;
+    selectedObjectIndex = -1;
+
+    if (samples.size() < 3)
+    {
+        LG_W("Modding tools: not enough opaque texture samples for collider "
+             "(need at least 3)");
+        if (rmlModel_)
+        {
+            rmlModel_.DirtyVariable("collider");
+        }
+        syncListSelectionToRml();
+        return;
+    }
+
+    const std::vector<glm::vec2> hull = convexHull(std::move(samples));
+    collider.reserve(hull.size());
+    for (const glm::vec2& p : hull)
+    {
+        ColliderVertex v;
+        v.xVal = p.x;
+        v.yVal = p.y;
+        floatToString(v.xVal, v.x, 2);
+        floatToString(v.yVal, v.y, 2);
+        collider.push_back(std::move(v));
+    }
+
+    if (rmlModel_)
+    {
+        rmlModel_.DirtyVariable("collider");
+    }
+    syncListSelectionToRml();
+    LG_I("Modding tools: generated collider with {} vertices", collider.size());
+}
+
+void ModdingTools::onAutoGenerateCollider(Rml::DataModelHandle handle,
+                                          Rml::Event& event,
+                                          const Rml::VariantList& args)
+{
+    (void)handle;
+    (void)event;
+    (void)args;
+    if (drawRenderer_ == nullptr)
+    {
+        LG_W("Modding tools: auto collider requires an active render view");
+        return;
+    }
+    generateColliderFromVisibleTextures(*drawRenderer_);
 }
 
 void ModdingTools::onRemoveColliderVertex(Rml::DataModelHandle handle,
@@ -2272,11 +2549,9 @@ void ModdingTools::parseEditorNumericFields()
         tryParseFloat(slot.posX, slot.posXVal);
         tryParseFloat(slot.posY, slot.posYVal);
         tryParseFloat(slot.rot, slot.rotVal);
-        tryParseInt(slot.zIndex, slot.zIndexVal);
         floatToString(slot.posXVal, slot.posX, 2);
         floatToString(slot.posYVal, slot.posY, 2);
         floatToString(slot.rotVal, slot.rot, 2);
-        intToString(slot.zIndexVal, slot.zIndex);
         auto slotType =
             magic_enum::enum_cast<gobj::ModuleSlotType>(slot.slotType);
         if (slotType.has_value())
@@ -2508,6 +2783,7 @@ TextureInfo ModdingTools::makeNewTextureEntry()
 
 void ModdingTools::draw(gfx::RenderEngine& renderer)
 {
+    drawRenderer_ = &renderer;
     const std::vector<string> currentTextureNames = renderer.getTextureNames();
     if (renderTextureNames != currentTextureNames)
     {
@@ -2708,7 +2984,7 @@ void ModdingTools::drawRoofSlot(gfx::RenderEngine& renderer,
                          col,
                          0.0f,
                          rot,
-                         slot.zIndexVal / 100.0f,
+                         slotDrawZ(slot) / 100.0f,
                          0);
     vec2 offs = smath::rotateVec2(glm::vec2(0.0f, s), rot);
     renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal) + offs,
@@ -2716,7 +2992,7 @@ void ModdingTools::drawRoofSlot(gfx::RenderEngine& renderer,
                            col,
                            0.0f,
                            rot,
-                           slot.zIndexVal / 100.0f,
+                           slotDrawZ(slot) / 100.0f,
                            0);
 }
 
@@ -2733,7 +3009,7 @@ void ModdingTools::drawThrusterMainSlot(gfx::RenderEngine& renderer,
                            colMain,
                            0.0f,
                            rot,
-                           slot.zIndexVal / 100.0f,
+                           slotDrawZ(slot) / 100.0f,
                            0);
     vec2 offs = smath::rotateVec2(glm::vec2(0.0f, s * 2.0f), rot);
     renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal) - offs,
@@ -2741,7 +3017,7 @@ void ModdingTools::drawThrusterMainSlot(gfx::RenderEngine& renderer,
                            colSub,
                            0.0f,
                            rot,
-                           slot.zIndexVal / 100.0f,
+                           slotDrawZ(slot) / 100.0f,
                            0);
 }
 
@@ -2758,7 +3034,7 @@ void ModdingTools::drawThrusterManeuverSlot(gfx::RenderEngine& renderer,
                            colMain,
                            0.0f,
                            rot,
-                           slot.zIndexVal / 100.0f,
+                           slotDrawZ(slot) / 100.0f,
                            0);
     vec2 offs = smath::rotateVec2(glm::vec2(0.0f, s * 0.5f), rot);
     renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal) - offs,
@@ -2766,7 +3042,7 @@ void ModdingTools::drawThrusterManeuverSlot(gfx::RenderEngine& renderer,
                            colSub,
                            0.0f,
                            rot,
-                           slot.zIndexVal / 100.0f,
+                           slotDrawZ(slot) / 100.0f,
                            0);
 }
 
@@ -2781,7 +3057,7 @@ void ModdingTools::drawInternalSlot(gfx::RenderEngine& renderer,
                            tintIfSelected(0xff44ff44, selected),
                            0.0f,
                            rot,
-                           slot.zIndexVal / 100.0f,
+                           slotDrawZ(slot) / 100.0f,
                            0);
 }
 
@@ -2796,7 +3072,7 @@ void ModdingTools::drawBaySlot(gfx::RenderEngine& renderer,
                            tintIfSelected(0xffff8800, selected),
                            0.0f,
                            rot,
-                           slot.zIndexVal / 100.0f,
+                           slotDrawZ(slot) / 100.0f,
                            0);
 }
 
@@ -2985,14 +3261,6 @@ bool ModdingTools::loadHullDataFromPath(const string& path)
                 }
                 s.rotVal = rotDeg;
                 floatToString(s.rotVal, s.rot, 2);
-
-                int z = 0;
-                if (sn["z"])
-                {
-                    z = sn["z"].as<int>();
-                }
-                s.zIndexVal = static_cast<int8_t>(z);
-                intToString(static_cast<int>(s.zIndexVal), s.zIndex);
 
                 slots.push_back(std::move(s));
             }
@@ -3486,7 +3754,7 @@ bool ModdingTools::saveHullDataToPath(const string& path)
         sn["pos"].push_back(s.posXVal);
         sn["pos"].push_back(s.posYVal);
         sn["rot"] = s.rotVal;
-        sn["z"] = static_cast<int>(s.zIndexVal);
+        sn["z"] = defaultSlotZForType(s.slotTypeVal);
         slotSeq.push_back(sn);
     }
     if (!slots.empty())
