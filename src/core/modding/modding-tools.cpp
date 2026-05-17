@@ -17,7 +17,7 @@ namespace
 {
 
 constexpr uint32_t kSelectionTintAbgr = 0xff50ff80u;
-constexpr float kTexturePixelToWorld = 0.1f;
+constexpr float kTexturePixelToWorld = 0.15f;
 constexpr float kModdingPasteNudgeWorld = 0.5f;
 constexpr int kHullTextureDefaultZ = 50;
 constexpr int kStationPartTextureDefaultZ = 40;
@@ -1928,6 +1928,7 @@ void ModdingTools::onTextureNameFocus(Rml::DataModelHandle handle,
     textureRowNameFocusIndex = i;
     selectedObjectType = SelectableObjectType::Texture;
     selectedObjectIndex = i;
+    refreshPerRowTextureNameSuggestions();
     syncListSelectionToRml();
 }
 
@@ -1988,23 +1989,61 @@ void ModdingTools::onPickNewTextureNameFromPicker(Rml::DataModelHandle handle,
     syncListSelectionToRml();
 }
 
+void ModdingTools::applyTextureNameToRow(int rowIndex, const string& pickedName)
+{
+    if (rowIndex < 0 || rowIndex >= static_cast<int>(textures.size())
+        || pickedName.empty())
+    {
+        return;
+    }
+    TextureInfo& tex = textures[static_cast<size_t>(rowIndex)];
+    if (tex.name == pickedName)
+    {
+        return;
+    }
+    tex.name = pickedName;
+    if (rowIndex < static_cast<int>(textureSizeAppliedForName.size()))
+    {
+        textureSizeAppliedForName[static_cast<size_t>(rowIndex)].clear();
+    }
+    syncTextureTileStrings(tex);
+    if (rmlModel_)
+    {
+        rmlModel_.DirtyVariable("textures");
+    }
+}
+
 void ModdingTools::onPickTextureName(Rml::DataModelHandle handle,
                                      Rml::Event& event,
                                      const Rml::VariantList& args)
 {
     (void)event;
+    (void)handle;
     if (args.size() != 2)
     {
         return;
     }
-    const int i = args[0].Get<int>(-1);
+    const int rowFromUi = args[0].Get<int>(-1);
     const string picked = args[1].Get<string>("");
-    if (i < 0 || i >= static_cast<int>(textures.size()) || picked.empty())
+    if (picked.empty())
     {
         return;
     }
-    textures[static_cast<size_t>(i)].name = picked;
-    handle.DirtyVariable("textures");
+    int row = rowFromUi;
+    if (row < 0 || row >= static_cast<int>(textures.size()))
+    {
+        row = textureRowNameFocusIndex;
+    }
+    if (row < 0 || row >= static_cast<int>(textures.size()))
+    {
+        return;
+    }
+    applyTextureNameToRow(row, picked);
+    textureRowNameFocusIndex = row;
+    selectedObjectType = SelectableObjectType::Texture;
+    selectedObjectIndex = row;
+    refreshPerRowTextureNameSuggestions();
+    syncListSelectionToRml();
 }
 
 void ModdingTools::onAddSlot(Rml::DataModelHandle handle,
@@ -2293,16 +2332,35 @@ void ModdingTools::refreshPerRowTextureNameSuggestions()
     bool anyChange = false;
     for (size_t i = 0; i < textures.size(); ++i)
     {
-        TextureInfo& tex = textures[i];
-        if (!textureNameUsesBoundsBleed(tex.name))
+        if (static_cast<int>(i) != textureRowNameFocusIndex
+            && !textures[i].nameSuggestions.empty())
         {
-            if (!tex.nameSuggestions.empty())
-            {
-                tex.nameSuggestions.clear();
-                anyChange = true;
-            }
-            continue;
+            textures[i].nameSuggestions.clear();
+            anyChange = true;
         }
+    }
+    if (textureRowNameFocusIndex < 0
+        || textureRowNameFocusIndex >= static_cast<int>(textures.size()))
+    {
+        if (anyChange && rmlModel_)
+        {
+            rmlModel_.DirtyVariable("textures");
+        }
+        return;
+    }
+
+    TextureInfo& tex =
+        textures[static_cast<size_t>(textureRowNameFocusIndex)];
+    if (!textureNameUsesBoundsBleed(tex.name))
+    {
+        if (!tex.nameSuggestions.empty())
+        {
+            tex.nameSuggestions.clear();
+            anyChange = true;
+        }
+    }
+    else
+    {
         const string query = toLowerCopy(tex.name);
         std::vector<string> filtered;
         filtered.reserve(renderTextureNames.size());
@@ -2319,8 +2377,9 @@ void ModdingTools::refreshPerRowTextureNameSuggestions()
             filtered.resize(20);
         }
         if (filtered.size() != tex.nameSuggestions.size()
-            || !std::equal(
-                filtered.begin(), filtered.end(), tex.nameSuggestions.begin()))
+            || !std::equal(filtered.begin(),
+                           filtered.end(),
+                           tex.nameSuggestions.begin()))
         {
             tex.nameSuggestions = std::move(filtered);
             anyChange = true;

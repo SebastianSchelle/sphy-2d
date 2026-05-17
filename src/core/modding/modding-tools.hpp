@@ -271,6 +271,7 @@ class ModdingTools
     void syncStationPartConnectorTextures();
     void parseEditorNumericFields();
     void refreshPerRowTextureNameSuggestions();
+    void applyTextureNameToRow(int rowIndex, const string& pickedName);
     void refreshNewTexturePickerSuggestions();
     void syncTextureSizesFromNames(gfx::RenderEngine& renderer);
     void resetNewTexturePickerState();
