@@ -14,8 +14,17 @@ void PhyThrust::updateStatsFromEntity(entt::entity entity,
     auto* hull = reg->try_get<Hull>(entity);
     if (hull)
     {
-        thrustMainMax = 0.0f;
-        thrustManeuverMax = 0.0f;
+        auto hullData =
+            ptrHandle->modManager->getHullLib().getItem(hull->hullHandle);
+        if (hullData)
+        {
+            maxTorque = hullData->internalGyroTorque;
+        }
+        else
+        {
+            LG_E("Hull data not found for entity: {}", entity);
+            maxTorque = 100000.0f;
+        }
         for (const auto& module : hull->modules)
         {
             entt::entity moduleEntity =
@@ -52,6 +61,13 @@ void PhyThrust::updateStatsFromEntity(entt::entity entity,
                 }
             }
         }
+    }
+    else
+    {
+        LG_E("Hull not found for entity: {}", entity);
+        maxTorque = 0.0f;
+        thrustMainMax = 0.0f;
+        thrustManeuverMax = 0.0f;
     }
 }
 

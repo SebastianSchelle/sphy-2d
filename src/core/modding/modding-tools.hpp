@@ -4,6 +4,7 @@
 #include "std-inc.hpp"
 #include <RmlUi/Core/DataModelHandle.h>
 #include <RmlUi/Core/Event.h>
+#include <lib-hull.hpp>
 #include <lib-textures.hpp>
 #include <lib-modules.hpp>
 #include <lib-station-part.hpp>
@@ -114,13 +115,20 @@ struct GeneralInfo
 {
     string name = "new";
     string hp = "1000.0";
-    string sizeX = "0";
-    string sizeY = "0";
+    string width = "0";
+    string length = "0";
+    /** Display: metric tons (game mass = tons × 1000). */
     string mass = "1";
+    /** Display: k(t·m²) (game inertia = value × 1000). */
+    string inertia = "0";
+    /** Display: kN·m (game torque N·m = value × 1000). Hull only. */
+    string internalGyroTorque = "10";
     string shipClass = "Drone";
-    float sizeXVal = 0.0f;
-    float sizeYVal = 0.0f;
-    float massVal = 1.0f;
+    float widthVal = 0.0f;
+    float lengthVal = 0.0f;
+    float massVal = 1000.0f;
+    float inertiaVal = 0.0f;
+    float internalGyroTorqueVal = 10000.0f;
     gobj::ShipClass shipClassVal = gobj::ShipClass::Drone;
     float colliderRestitutionVal = 0.1f;
     StorageVolumesInfo storageVolumes;
@@ -141,10 +149,11 @@ struct ModuleInfo
     string slotType = "ThrusterMainS_Common";
     gobj::ModuleSlotType slotTypeVal = gobj::ModuleSlotType::ThrusterMainS_Common;
     string description;
+    /** Display: metric tons (game mass = tons × 1000). */
     string mass = "1";
-    float massVal = 1.0f;
-    /** `data.max-thrust` for MainThruster / ManeuverThruster. */
-    string maxThrust = "100000.0";
+    float massVal = 1000.0f;
+    /** Display: MN (game max-thrust in N = MN × 1e6). */
+    string maxThrust = "0.10";
     float maxThrustVal = 100000.0f;
     /** `data.volume-*` for Storage modules. */
     StorageVolumesInfo storageVolumes;
@@ -305,7 +314,7 @@ class ModdingTools
                      bool selected);
     void drawColliders(gfx::RenderEngine& renderer);
     void drawSlots(gfx::RenderEngine& renderer);
-    void drawTextures(gfx::RenderEngine& renderer);
+    void drawTextures(gfx::RenderEngine& renderer, int8_t zParent = 0);
     void drawConnectors(gfx::RenderEngine& renderer);
 
     bool saveHullDataToPath(const string& path);
@@ -317,6 +326,7 @@ class ModdingTools
     /** Drops any station-connector rows and appends one per connector (StationPart mode). */
     void syncStationPartConnectorTextures();
     void parseEditorNumericFields();
+    void updateHullDerivedFromCollider();
     void refreshPerRowTextureNameSuggestions();
     void applyTextureNameToRow(int rowIndex, const string& pickedName);
     void refreshNewTexturePickerSuggestions();

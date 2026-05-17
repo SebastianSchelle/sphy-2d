@@ -91,43 +91,22 @@ enum class ModuleSlotType : uint8_t
     NumSlotTypes
 };
 
-
-/* Order must match ModuleSlotType (excluding NumSlotTypes). S/M/L -> 2/5/10. */
-constexpr float SlotSize[static_cast<size_t>(ModuleSlotType::NumSlotTypes)] = {
-    5.0f,   // ThrusterMainS_Common
-    10.0f,  // ThrusterMainM_Common
-    20.0f,  // ThrusterMainL_Common
-    5.0f,   // ThrusterManeuverS_Common
-    10.0f,  // ThrusterManeuverM_Common
-    20.0f,  // ThrusterManeuverL_Common
-    2.0f,   // InternalS_Common
-    5.0f,   // InternalM_Common
-    10.0f,  // InternalL_Common
-    2.0f,   // RoofS_Common
-    5.0f,   // RoofM_Common
-    10.0f,  // RoofL_Common
-    20.0f,  // BayS_Common
-    5.0f,   // BayM_Common
-    10.0f,  // BayL_Common
-};
-
 constexpr int8_t
     ModuleSlotZOffset[static_cast<size_t>(ModuleSlotType::NumSlotTypes)] = {
-        10,   // ThrusterMainS_Common
-        10,   // ThrusterMainM_Common
-        10,   // ThrusterMainL_Common
-        10,   // ThrusterManeuverS_Common
-        10,   // ThrusterManeuverM_Common
-        10,   // ThrusterManeuverL_Common
-        10,   // InternalS_Common
-        10,   // InternalM_Common
-        10,   // InternalL_Common
-        -10,  // RoofS_Common
-        -10,  // RoofM_Common
-        -10,  // RoofL_Common
-        -10,  // BayS_Common
-        -10,  // BayM_Common
-        -10,  // BayL_Common
+        -5,  // ThrusterMainM_Common
+        -5,  // ThrusterMainL_Common
+        -5,  // ThrusterManeuverS_Common
+        -5,  // ThrusterManeuverM_Common
+        -5,  // ThrusterManeuverL_Common
+        -5,  // InternalS_Common
+        -5,  // InternalM_Common
+        -5,  // InternalL_Common
+        5,   // RoofS_Common
+        5,   // RoofM_Common
+        5,   // RoofL_Common
+        -5,  // BayS_Common
+        -5,  // BayM_Common
+        -5,  // BayL_Common
 };
 
 struct ModuleSlot
@@ -171,10 +150,11 @@ struct Hangar
     static Hangar fromYaml(const YAML::Node& node);
 };
 struct Turret
-{    
+{
     static Turret fromYaml(const YAML::Node& node);
 };
-using Data = std::variant<MainThruster, ManeuverThruster, Storage, Hangar, Turret>;
+using Data =
+    std::variant<MainThruster, ManeuverThruster, Storage, Hangar, Turret>;
 
 }  // namespace mdata
 

@@ -16,22 +16,97 @@ constexpr const char* kHullVolumeYamlKeys[static_cast<size_t>(
 
 }  // namespace
 
+std::optional<vec2> colliderLocalExtents(const vector<vec2>& vertices)
+{
+    if (vertices.empty())
+    {
+        return std::nullopt;
+    }
+    vec2 lower = vertices.front();
+    vec2 upper = vertices.front();
+    for (const vec2& v : vertices)
+    {
+        lower.x = std::min(lower.x, v.x);
+        lower.y = std::min(lower.y, v.y);
+        upper.x = std::max(upper.x, v.x);
+        upper.y = std::max(upper.y, v.y);
+    }
+    return upper - lower;
+}
+
+ShipClass inferShipClassFromColliderExtents(float width, float length)
+{
+    for (size_t i = 0; i < static_cast<size_t>(ShipClass::NumShipClasses); ++i)
+    {
+        if (width <= ShipClassMaxWidth[i] && length <= ShipClassMaxLength[i])
+        {
+            return static_cast<ShipClass>(i);
+        }
+    }
+    return ShipClass::Titan;
+}
+
+ShipClass inferShipClassFromColliderVertices(const vector<vec2>& vertices)
+{
+    const std::optional<vec2> ext = colliderLocalExtents(vertices);
+    if (!ext.has_value())
+    {
+        return ShipClass::Titan;
+    }
+    return inferShipClassFromColliderExtents(ext->x, ext->y);
+}
+
+ShipClass inferShipClassFromCollider(const Collider* collider)
+{
+    if (collider == nullptr)
+    {
+        return ShipClass::Titan;
+    }
+    return inferShipClassFromColliderVertices(collider->vertices);
+}
+
+float approximateHullInertiaMassFactor(float width, float length)
+{
+    const float w = std::max(width, 1e-6f);
+    const float l = std::max(length, 1e-6f);
+    return (w * w + l * l) / 12.0f;
+}
+
+float approximateHullInertia(float mass, float width, float length)
+{
+    const float m = std::max(mass, 1e-6f);
+    return m * approximateHullInertiaMassFactor(width, length);
+}
+
+void applyColliderDerivedHullStats(Hull& hull, const Collider* collider)
+{
+    const std::optional<vec2> ext =
+        collider != nullptr ? colliderLocalExtents(collider->vertices)
+                            : std::nullopt;
+    if (ext.has_value())
+    {
+        hull.size = ext.value();
+    }
+    else
+    {
+        hull.size = vec2(0.0f);
+    }
+    hull.shipClass = inferShipClassFromCollider(collider);
+    hull.inertiaMassFactor =
+        approximateHullInertiaMassFactor(hull.size.x, hull.size.y);
+    hull.inertia = approximateHullInertia(hull.mass, hull.size.x, hull.size.y);
+}
+
 Hull Hull::fromYaml(const YAML::Node& node,
                     const con::ItemLib<gobj::Textures>& texturesLib,
-                    const con::ItemLib<gobj::Collider>& colliderLib)
+                    con::ItemLib<gobj::Collider>& colliderLib)
 {
     Hull hull;
     TRY_YAML_DICT(hull.name, node["name"], "");
     TRY_YAML_DICT(hull.description, node["description"], "");
     TRY_YAML_DICT(hull.hullpoints, node["hullpoints"], 100.0f);
     TRY_YAML_DICT(hull.mass, node["mass"], 1.0f);
-    TRY_YAML_DICT(hull.size.x, node["size"][0], 0.0f);
-    TRY_YAML_DICT(hull.size.y, node["size"][1], 0.0f);
-    string shipClassStr = "Drone";
-    TRY_YAML_DICT(shipClassStr, node["ship-class"], "Drone");
-    hull.shipClass =
-        magic_enum::enum_cast<ShipClass>(shipClassStr)
-            .value_or(ShipClass::Drone);
+    TRY_YAML_DICT(hull.internalGyroTorque, node["internal-gyro-torque"], 10000.0f);
     string texturesName = "";
     TRY_YAML_DICT(texturesName, node["textures"], "");
     if (texturesName != "")
@@ -44,6 +119,9 @@ Hull Hull::fromYaml(const YAML::Node& node,
     {
         hull.collider = colliderLib.getHandle(colliderName);
     }
+    applyColliderDerivedHullStats(
+        hull,
+        hull.collider.isValid() ? colliderLib.getItem(hull.collider) : nullptr);
     for (size_t i = 0; i < static_cast<size_t>(StorageType::NumStorageTypes); ++i)
     {
         if (node[kHullVolumeYamlKeys[i]])

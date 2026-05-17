@@ -1142,36 +1142,36 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 0; ++i)
+    for (int i = 0; i < 500; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
         uint32_t sectorId = sectorPick(gen);
-        auto ent = spawnShipHull(modManager.getHullLib().getHandle("mace"),
-                                 sectorId,
-                                 ecs::Transform{pos, rot});
-        spawnModule(ent,
-                    modManager.getModuleLib().getHandle("thrust-main-common-s"),
-                    0);
-        spawnModule(
-            ent,
-            modManager.getModuleLib().getHandle("thrust-maneuver-common-s"),
-            1);
-        spawnModule(
-            ent,
-            modManager.getModuleLib().getHandle("thrust-maneuver-common-s"),
-            2);
-        spawnModule(
-            ent, modManager.getModuleLib().getHandle("cargo-common-s"), 3);
-        spawnModule(
-            ent, modManager.getModuleLib().getHandle("cargo-common-s"), 4);
-        spawnModule(
-            ent, modManager.getModuleLib().getHandle("cargo-common-s"), 5);
-        spawnModule(
-            ent, modManager.getModuleLib().getHandle("cargo-common-s"), 6);
-        spawnModule(ent,
-                    modManager.getModuleLib().getHandle("drone-hatch-common-s"),
-                    7);
+        ecs::EntityId ent;
+        if (i % 2 == 0)
+        {
+            ent = spawnShipHull(modManager.getHullLib().getHandle("Bee"),
+                                sectorId,
+                                ecs::Transform{pos, rot});
+            spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 0);
+            spawnModule(
+                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 1);
+            spawnModule(
+                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
+            spawnModule(
+                ent, modManager.getModuleLib().getHandle("Terran Tank S"), 5);
+        }
+        else
+        {
+            auto ent = spawnShipHull(modManager.getHullLib().getHandle("Mosquito"),
+                                     sectorId,
+                                     ecs::Transform{pos, rot});
+            spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 0);
+            spawnModule(
+                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 1);
+            spawnModule(
+                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
+        }
         auto* moveCtrl = reg.try_get<ecs::MoveCtrl>(ecs.getEntity(ent));
         if (moveCtrl)
         {
@@ -1624,15 +1624,15 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
         LG_E("Failed to make storage component");
         success = false;
     }
-    if (!makePhysicsBody(entt,
-                         ecs::PhysicsBody{.mass = hull->mass > 0.0f
-                                              ? hull->mass
-                                              : 1.0f,
-                                          .vel = vec2(0.0f, 0.0f),
-                                          .acc = vec2(0.0f, 0.0f),
-                                          .inertia = 100.0f,
-                                          .rotVel = 0.0f,
-                                          .rotAcc = 0.0f}))
+    if (!makePhysicsBody(
+            entt,
+            ecs::PhysicsBody{.mass = hull->mass > 0.0f ? hull->mass : 1.0f,
+                             .vel = vec2(0.0f, 0.0f),
+                             .acc = vec2(0.0f, 0.0f),
+                             .inertia =
+                                 hull->inertia > 0.0f ? hull->inertia : 1.0f,
+                             .rotVel = 0.0f,
+                             .rotAcc = 0.0f}))
     {
         LG_E("Failed to make physics body component");
         success = false;
@@ -1878,7 +1878,7 @@ ecs::EntityId Engine::spawnModule(ecs::EntityId parent,
     gobj::Module* module = modManager.getModuleLib().getItem(moduleHandle);
     if (!module)
     {
-        LG_E("Module not found");
+        LG_E("Module with handle {} not found", moduleHandle.toGenericHandle());
         return ecs::EntityId::Invalid();
     }
     auto hull = reg.try_get<ecs::Hull>(parentEntt);

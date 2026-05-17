@@ -14,10 +14,22 @@ void Storage::updateStatsFromEntity(entt::entity entity,
     auto* hull = reg->try_get<Hull>(entity);
     if (hull)
     {
-        for (size_t i = 0; i < static_cast<size_t>(gobj::StorageType::NumStorageTypes); i++)
+        auto hullData =
+            ptrHandle->modManager->getHullLib().getItem(hull->hullHandle);
+        if (hullData)
         {
-            cargo[i].capacity = 0.0f;
-            cargo[i].used = 0.0f;
+            for (size_t i = 0; i < static_cast<size_t>(gobj::StorageType::NumStorageTypes); i++)
+            {
+                cargo[i].capacity = hullData->volume[i];
+            }
+        }
+        else
+        {
+            LG_E("Hull data not found for entity: {}", entity);
+            for (size_t i = 0; i < static_cast<size_t>(gobj::StorageType::NumStorageTypes); i++)
+            {
+                cargo[i].capacity = 0.0f;
+            }
         }
         for (const auto& module : hull->modules)
         {

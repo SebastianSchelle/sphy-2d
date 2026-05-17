@@ -16,34 +16,58 @@ struct Hull
     string name;
     string description;
     float hullpoints;
+    /** Collider AABB width (x) and length (y); not authored in YAML. */
     vec2 size;
     float mass;
+    /** I = mass * inertiaMassFactor; uniform rectangle approximation. */
+    float inertia = 1.0f;
+    /** (width² + length²) / 12 */
+    float inertiaMassFactor = 1.0f;
     ShipClass shipClass;
     vector<ModuleSlot> slots;
     TexturesHandle textures = TexturesHandle::Invalid();
     ColliderHandle collider = ColliderHandle::Invalid();
     float volume[static_cast<size_t>(gobj::StorageType::NumStorageTypes)] = {
         0.0f};
+    /** Built-in attitude torque limit (N·m); `internal-gyro-torque` in YAML. */
+    float internalGyroTorque = 10000.0f;
 
     static Hull fromYaml(const YAML::Node& node,
                          const con::ItemLib<gobj::Textures>& texturesLib,
-                         const con::ItemLib<gobj::Collider>& colliderLib);
+                         con::ItemLib<gobj::Collider>& colliderLib);
 };
 
 using HullHandle = typename con::ItemLib<Hull>::Handle;
 
+/** Local-space AABB extents from collider vertices (width = x, length = y). */
+std::optional<vec2> colliderLocalExtents(const vector<vec2>& vertices);
+
+/** Smallest ship class whose max width/length fit the given extents. */
+ShipClass inferShipClassFromColliderExtents(float width, float length);
+
+ShipClass inferShipClassFromColliderVertices(const vector<vec2>& vertices);
+
+ShipClass inferShipClassFromCollider(const Collider* collider);
+
+/** Inertia/mass factor for a uniform rectangle (width × length). */
+float approximateHullInertiaMassFactor(float width, float length);
+
+float approximateHullInertia(float mass, float width, float length);
+
+void applyColliderDerivedHullStats(Hull& hull, const Collider* collider);
 
 }  // namespace gobj
 
 EXT_FMT(gobj::Hull,
         "(hullpoints: {}, name: {}, textures: {}, collider: {}, size: {}, "
-        "mass: {}, shipClass: {}, description: {}, slots: {})",
+        "mass: {}, inertia: {}, shipClass: {}, description: {}, slots: {})",
         o.hullpoints,
         o.name,
         o.textures.toString(),
         o.collider.toString(),
         o.size,
         o.mass,
+        o.inertia,
         o.shipClass,
         o.description,
         o.slots);

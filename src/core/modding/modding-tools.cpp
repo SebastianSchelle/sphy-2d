@@ -24,11 +24,6 @@ namespace
 constexpr uint32_t kSelectionTintAbgr = 0xff50ff80u;
 constexpr float kTexturePixelToWorld = 0.15f;
 constexpr float kModdingPasteNudgeWorld = 0.5f;
-constexpr int kHullTextureDefaultZ = 50;
-constexpr int kModuleTextureDefaultZ = 51;
-constexpr int kStationPartTextureDefaultZ = 40;
-constexpr int kRoofSlotDefaultZ = 49;
-constexpr int kNonRoofSlotDefaultZ = 51;
 /** Extra size on each axis: fractional + world add (matches ~0.25/zoom at
  * default zoom 2). */
 constexpr float kModdingTexDrawOverlapFrac = 0.004f;
@@ -39,6 +34,64 @@ constexpr float kTextureShiftSnapAngleStepDeg = 90.f;
 /** When true, texture bounds[2:4] in YAML include bleed; editor keeps logical
  * sizes. */
 constexpr const char* kYamlTextureBoundsBleedKey = "texture-bounds-bleed";
+
+/** Editor displays metric tons; game/libs store mass × this factor. */
+constexpr float kModdingGameMassPerTon = 1000.0f;
+/** Editor displays k(t·m²); game/libs store inertia × this factor. */
+constexpr float kModdingGameInertiaPerK = 1000.0f;
+/** Editor displays MN; game/libs store thrust (N) × this factor. */
+constexpr float kModdingGameThrustPerMN = 1.0e6f;
+/** Editor displays kN·m; game/libs store torque (N·m) × this factor. */
+constexpr float kModdingGameTorquePerKNm = 1000.0f;
+
+void parseModdingMassTonsString(const string& tonsStr, float& gameMassOut)
+{
+    float tons = 0.0f;
+    tryParseFloat(tonsStr, tons);
+    gameMassOut = tons * kModdingGameMassPerTon;
+}
+
+void formatModdingMassTonsString(float gameMass, string& tonsStr)
+{
+    floatToString(gameMass / kModdingGameMassPerTon, tonsStr, 2);
+}
+
+void parseModdingInertiaKString(const string& inertiaKStr,
+                                float& gameInertiaOut)
+{
+    float inertiaK = 0.0f;
+    tryParseFloat(inertiaKStr, inertiaK);
+    gameInertiaOut = inertiaK * kModdingGameInertiaPerK;
+}
+
+void formatModdingInertiaKString(float gameInertia, string& inertiaKStr)
+{
+    floatToString(gameInertia / kModdingGameInertiaPerK, inertiaKStr, 2);
+}
+
+void parseModdingThrustMNString(const string& thrustMNStr, float& gameThrustOut)
+{
+    float thrustMN = 0.0f;
+    tryParseFloat(thrustMNStr, thrustMN);
+    gameThrustOut = thrustMN * kModdingGameThrustPerMN;
+}
+
+void formatModdingThrustMNString(float gameThrust, string& thrustMNStr)
+{
+    floatToString(gameThrust / kModdingGameThrustPerMN, thrustMNStr, 2);
+}
+
+void parseModdingTorqueKNmString(const string& torqueKNmStr, float& gameTorqueOut)
+{
+    float torqueKNm = 0.0f;
+    tryParseFloat(torqueKNmStr, torqueKNm);
+    gameTorqueOut = torqueKNm * kModdingGameTorquePerKNm;
+}
+
+void formatModdingTorqueKNmString(float gameTorque, string& torqueKNmStr)
+{
+    floatToString(gameTorque / kModdingGameTorquePerKNm, torqueKNmStr, 2);
+}
 
 constexpr const char* kModuleStorageVolumeYamlKeys[static_cast<size_t>(
     gobj::StorageType::NumStorageTypes)] = {
@@ -81,13 +134,12 @@ void loadModuleStorageVolumesFromYaml(const YAML::Node& dataNode,
                      &volumes.containerLVal,
                      &volumes.tankVal,
                      &volumes.bulkVal};
-    string* strs[] = {&volumes.containerS,
-                      &volumes.containerL,
-                      &volumes.tank,
-                      &volumes.bulk};
+    string* strs[] = {
+        &volumes.containerS, &volumes.containerL, &volumes.tank, &volumes.bulk};
 
     bool anyPerType = false;
-    for (size_t i = 0; i < static_cast<size_t>(gobj::StorageType::NumStorageTypes);
+    for (size_t i = 0;
+         i < static_cast<size_t>(gobj::StorageType::NumStorageTypes);
          ++i)
     {
         if (dataNode[kModuleStorageVolumeYamlKeys[i]])
@@ -133,13 +185,12 @@ void loadStationStorageVolumesFromYaml(const YAML::Node& dataNode,
                      &volumes.containerLVal,
                      &volumes.tankVal,
                      &volumes.bulkVal};
-    string* strs[] = {&volumes.containerS,
-                      &volumes.containerL,
-                      &volumes.tank,
-                      &volumes.bulk};
+    string* strs[] = {
+        &volumes.containerS, &volumes.containerL, &volumes.tank, &volumes.bulk};
 
     bool anyPerType = false;
-    for (size_t i = 0; i < static_cast<size_t>(gobj::StorageType::NumStorageTypes);
+    for (size_t i = 0;
+         i < static_cast<size_t>(gobj::StorageType::NumStorageTypes);
          ++i)
     {
         if (dataNode[kStationStorageCapYamlKeys[i]])
@@ -220,34 +271,14 @@ bool pastDragDeadzone(glm::vec2 pressWorld,
     return glm::dot(w, w) >= dragThresholdCfg / zz;
 }
 
-int defaultTextureZForMode(ModdingToolsMode mode)
-{
-    switch (mode)
-    {
-        case ModdingToolsMode::Hull:
-            return kHullTextureDefaultZ;
-        case ModdingToolsMode::Module:
-            return kModuleTextureDefaultZ;
-        case ModdingToolsMode::StationPart:
-            return kStationPartTextureDefaultZ;
-        default:
-            return 0;
-    }
-}
-
-int defaultSlotZForType(gobj::ModuleSlotType slotType)
-{
-    const size_t i = static_cast<size_t>(slotType);
-    if (i >= static_cast<size_t>(gobj::ModuleSlotType::NumSlotTypes))
-    {
-        return kNonRoofSlotDefaultZ;
-    }
-    return gobj::ModuleSlotZOffset[i];
-}
-
 int slotDrawZ(const SlotInfo& slot)
 {
-    return defaultSlotZForType(slot.slotTypeVal);
+    const size_t i = static_cast<size_t>(slot.slotTypeVal);
+    if (i >= static_cast<size_t>(gobj::ModuleSlotType::NumSlotTypes))
+    {
+        return 0;
+    }
+    return gfx::RenderEngine::zIdxShipHull + gobj::ModuleSlotZOffset[i];
 }
 
 uint32_t tintIfSelected(uint32_t baseAbgr, bool selected)
@@ -282,115 +313,114 @@ bool hitRotatedRect(const glm::vec2& p,
     return std::fabs(lx) <= size.x * 0.5f && std::fabs(ly) <= size.y * 0.5f;
 }
 
-bool hitRotatedEllipse(const glm::vec2& p,
-                       const glm::vec2& center,
-                       const glm::vec2& size,
-                       float rotRad)
-{
-    const float rx = size.x * 0.5f;
-    const float ry = size.y * 0.5f;
-    if (rx <= 1e-6f || ry <= 1e-6f)
-    {
-        return false;
-    }
-    const glm::vec2 d = p - center;
-    const float co = std::cos(rotRad);
-    const float si = std::sin(rotRad);
-    const float lx = d.x * co + d.y * si;
-    const float ly = -d.x * si + d.y * co;
-    const float nx = lx / rx;
-    const float ny = ly / ry;
-    return nx * nx + ny * ny <= 1.0f;
-}
-
 bool hitDisc(const glm::vec2& p, const glm::vec2& center, float radius)
 {
     const glm::vec2 d = p - center;
     return glm::dot(d, d) <= radius * radius;
 }
 
-bool hitRoofLikeSlot(const glm::vec2& p, const SlotInfo& slot)
+const char* exampleSlotTextureName(gobj::ModuleSlotType slotType)
 {
-    const float rot = smath::degToRad(slot.rotVal);
-    const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
-    const glm::vec2 center(slot.posXVal, slot.posYVal);
-    if (hitRotatedEllipse(p, center, glm::vec2(s, s), rot))
+    switch (slotType)
     {
-        return true;
-    }
-    const glm::vec2 offs = smath::rotateVec2(glm::vec2(0.0f, s), rot);
-    return hitRotatedRect(p, center + offs, glm::vec2(s * 0.3f, s), rot);
-}
-
-bool hitThrusterMainSlot(const glm::vec2& p, const SlotInfo& slot)
-{
-    const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
-    const float rot = smath::degToRad(slot.rotVal);
-    const glm::vec2 center(slot.posXVal, slot.posYVal);
-    if (hitRotatedRect(p, center, glm::vec2(s, s * 2.0f), rot))
-    {
-        return true;
-    }
-    const glm::vec2 offs = smath::rotateVec2(glm::vec2(0.0f, s * 2.0f), rot);
-    return hitRotatedRect(p, center - offs, glm::vec2(s * 0.6f, s * 2.0f), rot);
-}
-
-bool hitThrusterManeuverSlot(const glm::vec2& p, const SlotInfo& slot)
-{
-    const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
-    const float rot = smath::degToRad(slot.rotVal);
-    const glm::vec2 center(slot.posXVal, slot.posYVal);
-    if (hitRotatedRect(p, center, glm::vec2(s, s * 0.5f), rot))
-    {
-        return true;
-    }
-    const glm::vec2 offs = smath::rotateVec2(glm::vec2(0.0f, s * 0.5f), rot);
-    return hitRotatedRect(p, center - offs, glm::vec2(s * 0.6f, s * 0.5f), rot);
-}
-
-bool hitInternalSlot(const glm::vec2& p, const SlotInfo& slot)
-{
-    const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
-    const float rot = smath::degToRad(slot.rotVal);
-    return hitRotatedRect(
-        p, glm::vec2(slot.posXVal, slot.posYVal), glm::vec2(s, s), rot);
-}
-
-bool hitBaySlot(const glm::vec2& p, const SlotInfo& slot)
-{
-    const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
-    const float rot = smath::degToRad(slot.rotVal);
-    return hitRotatedRect(
-        p, glm::vec2(slot.posXVal, slot.posYVal), glm::vec2(s, s * 0.2f), rot);
-}
-
-bool hitSlot(const glm::vec2& p, const SlotInfo& slot)
-{
-    switch (slot.slotTypeVal)
-    {
-        case gobj::ModuleSlotType::RoofS_Common:
-        case gobj::ModuleSlotType::RoofM_Common:
-        case gobj::ModuleSlotType::RoofL_Common:
-            return hitRoofLikeSlot(p, slot);
         case gobj::ModuleSlotType::ThrusterMainS_Common:
+            return "ex-thm-s";
         case gobj::ModuleSlotType::ThrusterMainM_Common:
+            return "ex-thm-m";
         case gobj::ModuleSlotType::ThrusterMainL_Common:
-            return hitThrusterMainSlot(p, slot);
+            return "ex-thm-l";
         case gobj::ModuleSlotType::ThrusterManeuverS_Common:
+            return "ex-ths-s";
         case gobj::ModuleSlotType::ThrusterManeuverM_Common:
+            return "ex-ths-m";
         case gobj::ModuleSlotType::ThrusterManeuverL_Common:
-            return hitThrusterManeuverSlot(p, slot);
+            return "ex-ths-l";
         case gobj::ModuleSlotType::InternalS_Common:
+            return "ex-int-s";
         case gobj::ModuleSlotType::InternalM_Common:
+            return "ex-int-m";
         case gobj::ModuleSlotType::InternalL_Common:
-            return hitInternalSlot(p, slot);
+            return "ex-int-l";
+        case gobj::ModuleSlotType::RoofS_Common:
+            return "ex-roof-s";
+        case gobj::ModuleSlotType::RoofM_Common:
+            return "ex-roof-m";
+        case gobj::ModuleSlotType::RoofL_Common:
+            return "ex-roof-l";
         case gobj::ModuleSlotType::BayS_Common:
+            return "ex-bay-s";
         case gobj::ModuleSlotType::BayM_Common:
+            return "ex-bay-m";
         case gobj::ModuleSlotType::BayL_Common:
-            return hitBaySlot(p, slot);
+            return "ex-bay-l";
         default:
-            return false;
+            return nullptr;
     }
+}
+
+bool exampleTextureWorldSize(gfx::RenderEngine& renderer,
+                             const char* textureName,
+                             glm::vec2& worldSizeOut)
+{
+    if (textureName == nullptr || textureName[0] == '\0')
+    {
+        return false;
+    }
+    glm::vec2 texSizePx;
+    if (!renderer.getTexturePixelSize(textureName, texSizePx))
+    {
+        return false;
+    }
+    worldSizeOut = kTexturePixelToWorld * texSizePx;
+    return true;
+}
+
+bool hitSlot(const glm::vec2& p,
+             const SlotInfo& slot,
+             gfx::RenderEngine* renderer)
+{
+    if (renderer == nullptr)
+    {
+        return false;
+    }
+    const char* texName = exampleSlotTextureName(slot.slotTypeVal);
+    glm::vec2 size;
+    if (!exampleTextureWorldSize(*renderer, texName, size))
+    {
+        return false;
+    }
+    return hitRotatedRect(p,
+                          glm::vec2(slot.posXVal, slot.posYVal),
+                          size,
+                          smath::degToRad(slot.rotVal));
+}
+
+void drawExampleSlotTexture(gfx::RenderEngine& renderer,
+                            const SlotInfo& slot,
+                            const char* textureName,
+                            uint32_t tintAbgr,
+                            bool selected)
+{
+    const gfx::TextureHandle texHandle = renderer.getTextureHandle(textureName);
+    if (!texHandle.isValid())
+    {
+        return;
+    }
+    glm::vec2 size;
+    if (!exampleTextureWorldSize(renderer, textureName, size))
+    {
+        return;
+    }
+    renderer.prepTexRectForRendering(
+        glm::vec2(slot.posXVal, slot.posYVal),
+        size,
+        texHandle,
+        smath::degToRad(slot.rotVal),
+        slotDrawZ(slot),
+        tintIfSelected(tintAbgr, selected),
+        0,
+        glm::vec2(0.0f, 0.0f),
+        glm::vec2(1.0f, 1.0f));
 }
 
 bool hitTexture(const glm::vec2& p, const TextureInfo& tex)
@@ -646,7 +676,6 @@ void syncTextureTileStrings(TextureInfo& t)
 struct TextureYamlLoadOptions
 {
     bool yamlTextureBoundsBleed = false;
-    int defaultZ = 0;
     bool skipStationConnector = false;
 };
 
@@ -672,8 +701,8 @@ TextureInfo textureInfoFromYamlNode(const YAML::Node& texNode,
     }
     t.posXVal = px;
     t.posYVal = py;
-    const bool bleedThis = opts.yamlTextureBoundsBleed
-                           && textureNameUsesBoundsBleed(t.name);
+    const bool bleedThis =
+        opts.yamlTextureBoundsBleed && textureNameUsesBoundsBleed(t.name);
     const glm::vec2 logical =
         moddingTextureAssetSizeToLogical(sx, sy, bleedThis);
     t.sizeXVal = logical.x;
@@ -691,7 +720,7 @@ TextureInfo textureInfoFromYamlNode(const YAML::Node& texNode,
     t.rotVal = rotDeg;
     floatToString(t.rotVal, t.rot, 2);
 
-    int z = opts.defaultZ;
+    int z = 0;
     if (texNode["zIndex"])
     {
         z = texNode["zIndex"].as<int>();
@@ -796,17 +825,10 @@ void parseGeneralInfoNumericFields(GeneralInfo& info, float& hpOut)
 {
     tryParseFloat(info.hp, hpOut);
     floatToString(hpOut, info.hp, 2);
-    tryParseFloat(info.sizeX, info.sizeXVal);
-    tryParseFloat(info.sizeY, info.sizeYVal);
-    tryParseFloat(info.mass, info.massVal);
-    floatToString(info.sizeXVal, info.sizeX, 2);
-    floatToString(info.sizeYVal, info.sizeY, 2);
-    floatToString(info.massVal, info.mass, 2);
-    if (auto shipClass = magic_enum::enum_cast<gobj::ShipClass>(info.shipClass);
-        shipClass.has_value())
-    {
-        info.shipClassVal = shipClass.value();
-    }
+    parseModdingMassTonsString(info.mass, info.massVal);
+    formatModdingMassTonsString(info.massVal, info.mass);
+    parseModdingTorqueKNmString(info.internalGyroTorque, info.internalGyroTorqueVal);
+    formatModdingTorqueKNmString(info.internalGyroTorqueVal, info.internalGyroTorque);
     parseStorageVolumesInfoStrings(info.storageVolumes);
 }
 
@@ -823,10 +845,10 @@ void parseModuleInfoNumericFields(ModuleInfo& info)
     {
         info.slotTypeVal = slotType.value();
     }
-    tryParseFloat(info.mass, info.massVal);
-    floatToString(info.massVal, info.mass, 2);
-    tryParseFloat(info.maxThrust, info.maxThrustVal);
-    floatToString(info.maxThrustVal, info.maxThrust, 2);
+    parseModdingMassTonsString(info.mass, info.massVal);
+    formatModdingMassTonsString(info.massVal, info.mass);
+    parseModdingThrustMNString(info.maxThrust, info.maxThrustVal);
+    formatModdingThrustMNString(info.maxThrustVal, info.maxThrust);
     parseStorageVolumesInfoStrings(info.storageVolumes);
     if (auto shipClass =
             magic_enum::enum_cast<gobj::ShipClass>(info.hangarMaxShipClass);
@@ -1542,49 +1564,57 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
         syncListSelectionToRml();
     };
 
-    /** Lower `z` = foreground. When `z` matches, higher `layerTie` wins (later
-     * in draw order). Then lower `index` for stability. */
+    /** Pick priority: structural/edit handles beat decorative layers. Within the
+     * same category, lower `z` = foreground; then lower `index` for stability. */
     struct PickCandidate
     {
         SelectableObjectType type = SelectableObjectType::None;
         int index = -1;
         int z = 0;
-        int layerTie = 0;
     };
-    auto betterForeground = [](const PickCandidate& a,
-                               const PickCandidate& b) -> bool
+    auto pickCategoryPriority = [](SelectableObjectType type) -> int
     {
+        switch (type)
+        {
+            case SelectableObjectType::ColliderVertex:
+                return 4;
+            case SelectableObjectType::Slot:
+                return 3;
+            case SelectableObjectType::Connector:
+                return 2;
+            case SelectableObjectType::Texture:
+                return 1;
+            default:
+                return 0;
+        }
+    };
+    auto betterPick = [&](const PickCandidate& a,
+                          const PickCandidate& b) -> bool
+    {
+        const int pa = pickCategoryPriority(a.type);
+        const int pb = pickCategoryPriority(b.type);
+        if (pa != pb)
+        {
+            return pa > pb;
+        }
         if (a.z != b.z)
         {
             return a.z < b.z;
-        }
-        if (a.layerTie != b.layerTie)
-        {
-            return a.layerTie > b.layerTie;
         }
         return a.index < b.index;
     };
     PickCandidate bestPick{};
     bestPick.index = -1;
-    auto consider =
-        [&](SelectableObjectType type, int index, int z, int layerTie)
+    auto consider = [&](SelectableObjectType type, int index, int z)
     {
-        PickCandidate c{type, index, z, layerTie};
-        if (bestPick.index < 0 || betterForeground(c, bestPick))
+        PickCandidate c{type, index, z};
+        if (bestPick.index < 0 || betterPick(c, bestPick))
         {
             bestPick = c;
         }
     };
 
-    /** Implicit z for collider dots / connectors (no zIndex field); competes
-     * with texture/slot zIndexVal==0. */
     constexpr int kPickImplicitZ = 0;
-    constexpr int kPickHullLayerTex = 0;
-    constexpr int kPickHullLayerSlot = 1;
-    constexpr int kPickHullLayerCollider = 2;
-    constexpr int kPickPartLayerTex = 0;
-    constexpr int kPickPartLayerCollider = 1;
-    constexpr int kPickPartLayerConnector = 2;
 
     if (activeMode == ModdingToolsMode::Hull)
     {
@@ -1594,20 +1624,16 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
                               collider[static_cast<size_t>(i)].yVal);
             if (hitDisc(worldPos, v, colliderPickR))
             {
-                consider(SelectableObjectType::ColliderVertex,
-                         i,
-                         kPickImplicitZ,
-                         kPickHullLayerCollider);
+                consider(SelectableObjectType::ColliderVertex, i, kPickImplicitZ);
             }
         }
         for (int i = 0; i < static_cast<int>(slots.size()); ++i)
         {
-            if (hitSlot(worldPos, slots[static_cast<size_t>(i)]))
+            if (hitSlot(worldPos, slots[static_cast<size_t>(i)], renderer))
             {
                 consider(SelectableObjectType::Slot,
                          i,
-                         slotDrawZ(slots[static_cast<size_t>(i)]),
-                         kPickHullLayerSlot);
+                         slotDrawZ(slots[static_cast<size_t>(i)]));
             }
         }
     }
@@ -1623,10 +1649,7 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
                               connectors[static_cast<size_t>(i)].posYVal);
             if (hitDisc(worldPos, c, connectorPickR))
             {
-                consider(SelectableObjectType::Connector,
-                         i,
-                         kPickImplicitZ,
-                         kPickPartLayerConnector);
+                consider(SelectableObjectType::Connector, i, kPickImplicitZ);
             }
         }
         for (int i = 0; i < static_cast<int>(collider.size()); ++i)
@@ -1635,10 +1658,7 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
                               collider[static_cast<size_t>(i)].yVal);
             if (hitDisc(worldPos, v, colliderPickR))
             {
-                consider(SelectableObjectType::ColliderVertex,
-                         i,
-                         kPickImplicitZ,
-                         kPickPartLayerCollider);
+                consider(SelectableObjectType::ColliderVertex, i, kPickImplicitZ);
             }
         }
     }
@@ -1647,14 +1667,9 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
     {
         if (hitTexture(worldPos, textures[static_cast<size_t>(i)]))
         {
-            const int layer =
-                (activeMode == ModdingToolsMode::StationPart)
-                    ? kPickPartLayerTex
-                    : kPickHullLayerTex;
             consider(SelectableObjectType::Texture,
                      i,
-                     textures[static_cast<size_t>(i)].zIndexVal,
-                     layer);
+                     textures[static_cast<size_t>(i)].zIndexVal);
         }
     }
 
@@ -2110,19 +2125,6 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
         this);
     moddingToolsConstructor.BindEventCallback(
         "onModdingSelectListRow", &ModdingTools::onModdingSelectListRow, this);
-    if (auto hullHandle = moddingToolsConstructor.RegisterStruct<GeneralInfo>())
-    {
-        hullHandle.RegisterMember("name", &GeneralInfo::name);
-        hullHandle.RegisterMember("hp", &GeneralInfo::hp);
-        hullHandle.RegisterMember("sizeX", &GeneralInfo::sizeX);
-        hullHandle.RegisterMember("sizeY", &GeneralInfo::sizeY);
-        hullHandle.RegisterMember("mass", &GeneralInfo::mass);
-        hullHandle.RegisterMember("shipClass", &GeneralInfo::shipClass);
-        hullHandle.RegisterMember("storageVolumes", &GeneralInfo::storageVolumes);
-        hullHandle.RegisterMember("colliderRestitution",
-                                  &GeneralInfo::colliderRestitutionVal);
-    }
-    moddingToolsConstructor.Bind("hull", &genInfo);
     if (auto storageVolumesHandle =
             moddingToolsConstructor.RegisterStruct<StorageVolumesInfo>())
     {
@@ -2133,6 +2135,23 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
         storageVolumesHandle.RegisterMember("tank", &StorageVolumesInfo::tank);
         storageVolumesHandle.RegisterMember("bulk", &StorageVolumesInfo::bulk);
     }
+    if (auto hullHandle = moddingToolsConstructor.RegisterStruct<GeneralInfo>())
+    {
+        hullHandle.RegisterMember("name", &GeneralInfo::name);
+        hullHandle.RegisterMember("hp", &GeneralInfo::hp);
+        hullHandle.RegisterMember("width", &GeneralInfo::width);
+        hullHandle.RegisterMember("length", &GeneralInfo::length);
+        hullHandle.RegisterMember("mass", &GeneralInfo::mass);
+        hullHandle.RegisterMember("inertia", &GeneralInfo::inertia);
+        hullHandle.RegisterMember("internalGyroTorque",
+                                  &GeneralInfo::internalGyroTorque);
+        hullHandle.RegisterMember("shipClass", &GeneralInfo::shipClass);
+        hullHandle.RegisterMember("storageVolumes",
+                                  &GeneralInfo::storageVolumes);
+        hullHandle.RegisterMember("colliderRestitution",
+                                  &GeneralInfo::colliderRestitutionVal);
+    }
+    moddingToolsConstructor.Bind("hull", &genInfo);
     if (auto stationPartHandle =
             moddingToolsConstructor.RegisterStruct<StationPartInfo>())
     {
@@ -2258,6 +2277,7 @@ void ModdingTools::onModdingNewHull(Rml::DataModelHandle handle,
     selectedObjectIndex = -1;
     textureRowNameFocusIndex = -1;
     syncModeToRml();
+    updateHullDerivedFromCollider();
     handle.DirtyVariable("openFilepath");
     handle.DirtyVariable("hull");
     handle.DirtyVariable("stationPart");
@@ -2719,6 +2739,7 @@ void ModdingTools::onAddColliderVertex(Rml::DataModelHandle handle,
                                        const Rml::VariantList& args)
 {
     collider.push_back(ColliderVertex{});
+    updateHullDerivedFromCollider();
     rmlModel_.DirtyVariable("collider");
 }
 
@@ -2732,6 +2753,7 @@ void ModdingTools::onClearColliderVertices(Rml::DataModelHandle handle,
         selectedObjectType = SelectableObjectType::None;
         selectedObjectIndex = -1;
     }
+    updateHullDerivedFromCollider();
     rmlModel_.DirtyVariable("collider");
     syncListSelectionToRml();
 }
@@ -2800,6 +2822,7 @@ void ModdingTools::generateColliderFromVisibleTextures(
         collider.push_back(std::move(v));
     }
 
+    updateHullDerivedFromCollider();
     if (rmlModel_)
     {
         rmlModel_.DirtyVariable("collider");
@@ -2836,6 +2859,7 @@ void ModdingTools::onRemoveColliderVertex(Rml::DataModelHandle handle,
     {
         collider.erase(collider.begin() + static_cast<size_t>(i));
         fixSelectionAfterErase(SelectableObjectType::ColliderVertex, i);
+        updateHullDerivedFromCollider();
         handle.DirtyVariable("collider");
         syncListSelectionToRml();
     }
@@ -2905,13 +2929,6 @@ void ModdingTools::syncStationPartConnectorTextures()
                        { return toLowerCopy(t.name) == "station-connector"; }),
         textures.end());
 
-    int maxZ = 0;
-    for (const auto& t : textures)
-    {
-        maxZ = std::max(maxZ, t.zIndexVal);
-    }
-    const int connectorZ = textures.empty() ? 41 : maxZ + 1;
-
     for (const auto& c : connectors)
     {
         const vec2 p(c.posXVal, c.posYVal);
@@ -2926,7 +2943,7 @@ void ModdingTools::syncStationPartConnectorTextures()
         t.sizeXVal = gobj::kConnectorWidth;
         t.sizeYVal = gobj::kConnectorHeight;
         t.rotVal = -c.rotDegVal;
-        t.zIndexVal = connectorZ;
+        t.zIndexVal = 0;
         t.flags = gobj::TextureFlags::None;
         floatToString(t.posXVal, t.posX, 2);
         floatToString(t.posYVal, t.posY, 2);
@@ -2946,6 +2963,42 @@ void ModdingTools::syncStationPartConnectorTextures()
     }
     textureSizeAppliedForName.resize(textures.size());
     syncListSelectionToRml();
+}
+
+void ModdingTools::updateHullDerivedFromCollider()
+{
+    if (activeMode != ModdingToolsMode::Hull)
+    {
+        return;
+    }
+    vector<vec2> verts;
+    verts.reserve(collider.size());
+    for (const ColliderVertex& v : collider)
+    {
+        verts.push_back(vec2(v.xVal, v.yVal));
+    }
+    const std::optional<vec2> ext = gobj::colliderLocalExtents(verts);
+    if (ext.has_value())
+    {
+        genInfo.widthVal = ext->x;
+        genInfo.lengthVal = ext->y;
+    }
+    else
+    {
+        genInfo.widthVal = 0.0f;
+        genInfo.lengthVal = 0.0f;
+    }
+    floatToString(genInfo.widthVal, genInfo.width, 2);
+    floatToString(genInfo.lengthVal, genInfo.length, 2);
+    genInfo.shipClassVal = gobj::inferShipClassFromColliderVertices(verts);
+    genInfo.shipClass = string(magic_enum::enum_name(genInfo.shipClassVal));
+    genInfo.inertiaVal = gobj::approximateHullInertia(
+        genInfo.massVal, genInfo.widthVal, genInfo.lengthVal);
+    formatModdingInertiaKString(genInfo.inertiaVal, genInfo.inertia);
+    if (rmlModel_)
+    {
+        rmlModel_.DirtyVariable("hull");
+    }
 }
 
 void ModdingTools::parseEditorNumericFields()
@@ -3023,6 +3076,10 @@ void ModdingTools::parseEditorNumericFields()
     rmlModel_.DirtyVariable("connectors");
     rmlModel_.DirtyVariable("stationPart");
     rmlModel_.DirtyVariable("hull");
+    if (activeMode == ModdingToolsMode::Hull)
+    {
+        updateHullDerivedFromCollider();
+    }
     if (activeMode == ModdingToolsMode::StationPart)
     {
         syncStationPartConnectorTextures();
@@ -3190,7 +3247,7 @@ void ModdingTools::syncTextureSizesFromNames(gfx::RenderEngine& renderer)
 TextureInfo ModdingTools::makeNewTextureEntry()
 {
     TextureInfo texture;
-    texture.zIndexVal = defaultTextureZForMode(activeMode);
+    texture.zIndexVal = 0;
     intToString(texture.zIndexVal, texture.zIndex);
     syncTextureTileStrings(texture);
     if ((activeMode == ModdingToolsMode::Hull
@@ -3266,15 +3323,20 @@ void ModdingTools::draw(gfx::RenderEngine& renderer)
     switch (activeMode)
     {
         case ModdingToolsMode::Hull:
-            drawTextures(renderer);
+            drawTextures(renderer, gfx::RenderEngine::zIdxShipHull);
             drawSlots(renderer);
             drawColliders(renderer);
             break;
         case ModdingToolsMode::Module:
-            drawTextures(renderer);
+        {
+            const int8_t z = gfx::RenderEngine::zIdxShipHull
+                             + gobj::ModuleSlotZOffset[static_cast<size_t>(
+                                 moduleInfo.slotTypeVal)];
+            drawTextures(renderer, z);
             break;
+        }
         case ModdingToolsMode::StationPart:
-            drawTextures(renderer);
+            drawTextures(renderer, gfx::RenderEngine::zIdxStation);
             drawColliders(renderer);
             drawConnectors(renderer);
             break;
@@ -3284,7 +3346,7 @@ void ModdingTools::draw(gfx::RenderEngine& renderer)
     }
 }
 
-void ModdingTools::drawTextures(gfx::RenderEngine& renderer)
+void ModdingTools::drawTextures(gfx::RenderEngine& renderer, int8_t zParent)
 {
     for (size_t i = 0; i < textures.size(); ++i)
     {
@@ -3301,7 +3363,7 @@ void ModdingTools::drawTextures(gfx::RenderEngine& renderer)
             drawSize,
             texHandle,
             -smath::degToRad(texture.rotVal),
-            texture.zIndexVal,
+            zParent + texture.zIndexVal,
             tintIfSelected(0xffffffff, sel),
             0,
             glm::vec2(texture.tileOffXVal, texture.tileOffYVal),
@@ -3379,14 +3441,14 @@ void ModdingTools::drawColliders(gfx::RenderEngine& renderer)
                 selectedObjectType == SelectableObjectType::ColliderVertex
                 && (selectedObjectIndex == static_cast<int>(i)
                     || selectedObjectIndex == static_cast<int>(i - 1));
-            renderer.drawLine(
-                glm::vec2(first.xVal, first.yVal),
-                glm::vec2(current.xVal, current.yVal),
-                tintIfSelected(kColliderColor, selSeg), // A nice sky blue color
-                lineWidth,
-                0.0f,
-                0);
-           
+            renderer.drawLine(glm::vec2(first.xVal, first.yVal),
+                              glm::vec2(current.xVal, current.yVal),
+                              tintIfSelected(kColliderColor,
+                                             selSeg),  // A nice sky blue color
+                              lineWidth,
+                              0.0f,
+                              0);
+
             first = current;
         }
     }
@@ -3422,104 +3484,40 @@ void ModdingTools::drawRoofSlot(gfx::RenderEngine& renderer,
                                 const SlotInfo& slot,
                                 bool selected)
 {
-    float rot = smath::degToRad(slot.rotVal);
-    const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
-    const uint32_t col = tintIfSelected(0x800000ff, selected);
-    renderer.drawEllipse(glm::vec2(slot.posXVal, slot.posYVal),
-                         glm::vec2(s, s),
-                         col,
-                         0.0f,
-                         rot,
-                         slotDrawZ(slot) / 100.0f,
-                         0);
-    vec2 offs = smath::rotateVec2(glm::vec2(0.0f, s), rot);
-    renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal) + offs,
-                           glm::vec2(s * 0.3f, s),
-                           col,
-                           0.0f,
-                           rot,
-                           slotDrawZ(slot) / 100.0f,
-                           0);
+    drawExampleSlotTexture(
+        renderer, slot, exampleSlotTextureName(slot.slotTypeVal), 0xffffff00, selected);
 }
 
 void ModdingTools::drawThrusterMainSlot(gfx::RenderEngine& renderer,
                                         const SlotInfo& slot,
                                         bool selected)
 {
-    const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
-    float rot = smath::degToRad(slot.rotVal);
-    const uint32_t colMain = tintIfSelected(0xff100000, selected);
-    const uint32_t colSub = tintIfSelected(0x300000ff, selected);
-    renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal),
-                           glm::vec2(s, s * 2.0f),
-                           colMain,
-                           0.0f,
-                           rot,
-                           slotDrawZ(slot) / 100.0f,
-                           0);
-    vec2 offs = smath::rotateVec2(glm::vec2(0.0f, s * 2.0f), rot);
-    renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal) - offs,
-                           glm::vec2(s * 0.6f, s * 2.0f),
-                           colSub,
-                           0.0f,
-                           rot,
-                           slotDrawZ(slot) / 100.0f,
-                           0);
+    drawExampleSlotTexture(
+        renderer, slot, exampleSlotTextureName(slot.slotTypeVal), 0xffffff00, selected);
 }
 
 void ModdingTools::drawThrusterManeuverSlot(gfx::RenderEngine& renderer,
                                             const SlotInfo& slot,
                                             bool selected)
 {
-    const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
-    float rot = smath::degToRad(slot.rotVal);
-    const uint32_t colMain = tintIfSelected(0xff100000, selected);
-    const uint32_t colSub = tintIfSelected(0x300000ff, selected);
-    renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal),
-                           glm::vec2(s, s * 0.5f),
-                           colMain,
-                           0.0f,
-                           rot,
-                           slotDrawZ(slot) / 100.0f,
-                           0);
-    vec2 offs = smath::rotateVec2(glm::vec2(0.0f, s * 0.5f), rot);
-    renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal) - offs,
-                           glm::vec2(s * 0.6f, s * 0.5f),
-                           colSub,
-                           0.0f,
-                           rot,
-                           slotDrawZ(slot) / 100.0f,
-                           0);
+    drawExampleSlotTexture(
+        renderer, slot, exampleSlotTextureName(slot.slotTypeVal), 0xffffff00, selected);
 }
 
 void ModdingTools::drawInternalSlot(gfx::RenderEngine& renderer,
                                     const SlotInfo& slot,
                                     bool selected)
 {
-    const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
-    float rot = smath::degToRad(slot.rotVal);
-    renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal),
-                           glm::vec2(s, s),
-                           tintIfSelected(0xff44ff44, selected),
-                           0.0f,
-                           rot,
-                           slotDrawZ(slot) / 100.0f,
-                           0);
+    drawExampleSlotTexture(
+        renderer, slot, exampleSlotTextureName(slot.slotTypeVal), 0xff44ff44, selected);
 }
 
 void ModdingTools::drawBaySlot(gfx::RenderEngine& renderer,
                                const SlotInfo& slot,
                                bool selected)
 {
-    const float s = gobj::SlotSize[static_cast<size_t>(slot.slotTypeVal)];
-    float rot = smath::degToRad(slot.rotVal);
-    renderer.drawRectangle(glm::vec2(slot.posXVal, slot.posYVal),
-                           glm::vec2(s, s * 0.2f),
-                           tintIfSelected(0xffff8800, selected),
-                           0.0f,
-                           rot,
-                           slotDrawZ(slot) / 100.0f,
-                           0);
+    drawExampleSlotTexture(
+        renderer, slot, exampleSlotTextureName(slot.slotTypeVal), 0xffffff00, selected);
 }
 
 bool ModdingTools::loadHullDataFromPath(const string& path)
@@ -3584,24 +3582,14 @@ bool ModdingTools::loadHullDataFromPath(const string& path)
         if (hullNode["mass"])
         {
             genInfo.massVal = hullNode["mass"].as<float>();
-            floatToString(genInfo.massVal, genInfo.mass, 2);
+            formatModdingMassTonsString(genInfo.massVal, genInfo.mass);
         }
-        if (hullNode["size"] && hullNode["size"].IsSequence()
-            && hullNode["size"].size() >= 2)
+        if (hullNode["internal-gyro-torque"])
         {
-            genInfo.sizeXVal = hullNode["size"][0].as<float>();
-            genInfo.sizeYVal = hullNode["size"][1].as<float>();
-            floatToString(genInfo.sizeXVal, genInfo.sizeX, 2);
-            floatToString(genInfo.sizeYVal, genInfo.sizeY, 2);
-        }
-        if (hullNode["ship-class"])
-        {
-            genInfo.shipClass = hullNode["ship-class"].as<string>();
-            if (auto sc = magic_enum::enum_cast<gobj::ShipClass>(genInfo.shipClass);
-                sc.has_value())
-            {
-                genInfo.shipClassVal = sc.value();
-            }
+            genInfo.internalGyroTorqueVal =
+                hullNode["internal-gyro-torque"].as<float>();
+            formatModdingTorqueKNmString(genInfo.internalGyroTorqueVal,
+                                         genInfo.internalGyroTorque);
         }
         loadModuleStorageVolumesFromYaml(hullNode, genInfo.storageVolumes);
 
@@ -3612,7 +3600,6 @@ bool ModdingTools::loadHullDataFromPath(const string& path)
         }
         TextureYamlLoadOptions texOpts;
         texOpts.yamlTextureBoundsBleed = yamlTextureBoundsBleed;
-        texOpts.defaultZ = defaultTextureZForMode(ModdingToolsMode::Hull);
         loadTexturesFromRootBundle(root, texKey, textures, texOpts);
         if (!texKey.empty() && textures.empty())
         {
@@ -3679,6 +3666,7 @@ bool ModdingTools::loadHullDataFromPath(const string& path)
                                           collider,
                                           genInfo.colliderRestitutionVal);
         }
+        updateHullDerivedFromCollider();
     }
     catch (const YAML::Exception& e)
     {
@@ -3833,11 +3821,11 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
         if (modNode["mass"])
         {
             moduleInfo.massVal = modNode["mass"].as<float>();
-            floatToString(moduleInfo.massVal, moduleInfo.mass, 2);
+            formatModdingMassTonsString(moduleInfo.massVal, moduleInfo.mass);
         }
 
         moduleInfo.maxThrustVal = 100000.0f;
-        moduleInfo.maxThrust = "100000.0";
+        formatModdingThrustMNString(moduleInfo.maxThrustVal, moduleInfo.maxThrust);
         moduleInfo.storageVolumes = StorageVolumesInfo{};
         const YAML::Node dataNode = modNode["data"];
         if (dataNode && dataNode.IsMap())
@@ -3845,8 +3833,8 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
             if (dataNode["max-thrust"])
             {
                 moduleInfo.maxThrustVal = dataNode["max-thrust"].as<float>();
-                floatToString(
-                    moduleInfo.maxThrustVal, moduleInfo.maxThrust, 2);
+                formatModdingThrustMNString(
+                    moduleInfo.maxThrustVal, moduleInfo.maxThrust);
             }
             loadModuleStorageVolumesFromYaml(dataNode,
                                              moduleInfo.storageVolumes);
@@ -3863,7 +3851,8 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
             }
             if (dataNode["hangar-space"])
             {
-                moduleInfo.hangarSpaceVal = dataNode["hangar-space"].as<float>();
+                moduleInfo.hangarSpaceVal =
+                    dataNode["hangar-space"].as<float>();
                 floatToString(
                     moduleInfo.hangarSpaceVal, moduleInfo.hangarSpace, 2);
             }
@@ -3881,7 +3870,6 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
 
         TextureYamlLoadOptions texOpts;
         texOpts.yamlTextureBoundsBleed = yamlTextureBoundsBleed;
-        texOpts.defaultZ = defaultTextureZForMode(ModdingToolsMode::Module);
         loadTexturesFromRootBundle(root, texKey, textures, texOpts);
     }
     catch (const YAML::Exception& e)
@@ -4046,8 +4034,6 @@ bool ModdingTools::loadStationPartDataFromPath(const string& path)
 
         TextureYamlLoadOptions texOpts;
         texOpts.yamlTextureBoundsBleed = yamlTextureBoundsBleed;
-        texOpts.defaultZ =
-            defaultTextureZForMode(ModdingToolsMode::StationPart);
         texOpts.skipStationConnector = true;
         loadTexturesFromRootBundle(root, texKey, textures, texOpts);
         if (!texKey.empty() && textures.empty())
@@ -4064,9 +4050,8 @@ bool ModdingTools::loadStationPartDataFromPath(const string& path)
         if (colliderRoot && colliderRoot[colKey]
             && colliderRoot[colKey].IsMap())
         {
-            loadColliderVerticesFromEntry(colliderRoot[colKey],
-                                          collider,
-                                          genInfo.colliderRestitutionVal);
+            loadColliderVerticesFromEntry(
+                colliderRoot[colKey], collider, genInfo.colliderRestitutionVal);
         }
 
         if (partNode["connectors"] && partNode["connectors"].IsSequence())
@@ -4216,10 +4201,7 @@ bool ModdingTools::saveHullDataToPath(const string& path)
     hullNode["name"] = displayName;
     hullNode["hullpoints"] = hpVal;
     hullNode["mass"] = genInfo.massVal;
-    hullNode["size"] = YAML::Node(YAML::NodeType::Sequence);
-    hullNode["size"].push_back(genInfo.sizeXVal);
-    hullNode["size"].push_back(genInfo.sizeYVal);
-    hullNode["ship-class"] = genInfo.shipClass;
+    hullNode["internal-gyro-torque"] = genInfo.internalGyroTorqueVal;
     writeModuleStorageVolumesToYaml(hullNode, genInfo.storageVolumes);
     hullNode["collider"] = key;
     hullNode["textures"] = key;
@@ -4233,7 +4215,7 @@ bool ModdingTools::saveHullDataToPath(const string& path)
         sn["pos"].push_back(s.posXVal);
         sn["pos"].push_back(s.posYVal);
         sn["rot"] = s.rotVal;
-        sn["z"] = defaultSlotZForType(s.slotTypeVal);
+        sn["z"] = 0;
         slotSeq.push_back(sn);
     }
     if (!slots.empty())

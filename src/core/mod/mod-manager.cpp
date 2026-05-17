@@ -448,7 +448,8 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
         return true;
     }
 
-    const auto foreachObjectDef = [](const YAML::Node& section, auto onItem) {
+    const auto foreachObjectDef = [](const YAML::Node& section, auto onItem)
+    {
         if (!section || !section.IsMap())
         {
             return;
@@ -465,21 +466,24 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
     if (phase == GameLibLoadPhase::Dependencies)
     {
         foreachObjectDef(libs["textures"],
-                         [&](const std::string& objName, const YAML::Node& node) {
+                         [&](const std::string& objName, const YAML::Node& node)
+                         {
                              const gobj::Textures textures =
                                  gobj::Textures::fromYaml(node, resourceMap);
                              texturesLib.addItem(objName, textures);
                              LG_I("Added textures: {}: {}", objName, textures);
                          });
         foreachObjectDef(libs["map-icon"],
-                         [&](const std::string& objName, const YAML::Node& node) {
+                         [&](const std::string& objName, const YAML::Node& node)
+                         {
                              const gobj::MapIcon mapIcon =
                                  gobj::MapIcon::fromYaml(node, resourceMap);
                              mapIconLib.addItem(objName, mapIcon);
                              LG_I("Added map icon: {}: {}", objName, mapIcon);
                          });
         foreachObjectDef(libs["collider"],
-                         [&](const std::string& objName, const YAML::Node& node) {
+                         [&](const std::string& objName, const YAML::Node& node)
+                         {
                              const gobj::Collider collider =
                                  gobj::Collider::fromYaml(node, resourceMap);
                              colliderLib.addItem(objName, collider);
@@ -489,28 +493,35 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
     else
     {
         foreachObjectDef(libs["module"],
-                         [&](const std::string& objName, const YAML::Node& node) {
+                         [&](const std::string& objName, const YAML::Node& node)
+                         {
                              const gobj::Module module =
                                  gobj::Module::fromYaml(node, texturesLib);
-                             moduleLib.addItem(objName, module);
-                             LG_I("Added module: {}: {}", objName, module);
+                             string key =
+                                 module.name != "" ? module.name : objName;
+                             moduleLib.addItem(key, module);
+                             LG_I("Added module: {}: {}", key, module);
                          });
         foreachObjectDef(libs["hull"],
-                         [&](const std::string& objName, const YAML::Node& node) {
+                         [&](const std::string& objName, const YAML::Node& node)
+                         {
                              const gobj::Hull hull = gobj::Hull::fromYaml(
                                  node, texturesLib, colliderLib);
                              string key = hull.name != "" ? hull.name : objName;
                              hullLib.addItem(key, hull);
                              LG_I("Added hull blueprint: {}: {}", key, hull);
                          });
-        foreachObjectDef(libs["station-part"],
-                         [&](const std::string& objName, const YAML::Node& node) {
-                             const gobj::StationPart stationPart =
-                                 gobj::StationPart::fromYaml(
-                                     node, texturesLib, colliderLib);
-                             stationPartLib.addItem(objName, stationPart);
-                             LG_I("Added station part: {}: {}", objName, stationPart);
-                         });
+        foreachObjectDef(
+            libs["station-part"],
+            [&](const std::string& objName, const YAML::Node& node)
+            {
+                const gobj::StationPart stationPart =
+                    gobj::StationPart::fromYaml(node, texturesLib, colliderLib);
+                string key =
+                    stationPart.name != "" ? stationPart.name : objName;
+                stationPartLib.addItem(key, stationPart);
+                LG_I("Added station part: {}: {}", key, stationPart);
+            });
     }
     return true;
 }
