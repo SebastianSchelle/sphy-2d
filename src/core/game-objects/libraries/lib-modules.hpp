@@ -9,6 +9,15 @@
 namespace gobj
 {
 
+enum class StorageType : uint8_t
+{
+    ContainerS,
+    ContainerL,
+    Tank,
+    Bulk,
+    NumStorageTypes,
+};
+
 enum class ModuleSlotType : uint8_t
 {
     ThrusterMainS_Common,
@@ -99,7 +108,7 @@ struct ManeuverThruster
 };
 struct Storage
 {
-    float volume;
+    float volume[static_cast<size_t>(gobj::StorageType::NumStorageTypes)];
     static Storage fromYaml(const YAML::Node& node);
 };
 
@@ -129,6 +138,7 @@ using ModuleHandle = typename con::ItemLib<Module>::Handle;
 
 }  // namespace gobj
 
+EXT_FMT(gobj::StorageType, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::ModuleSlotType, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::ModuleSlot,
         "(modType: {}, pos: {}, rot: {})",

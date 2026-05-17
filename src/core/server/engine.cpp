@@ -1186,15 +1186,17 @@ void Engine::testSpawn()
         {
             phyThrust->updateStatsFromEntity(ecs.getEntity(ent), ptrHandle);
         }
+        auto* storage = reg.try_get<ecs::Storage>(ecs.getEntity(ent));
+        if (storage)
+        {
+            storage->updateStatsFromEntity(ecs.getEntity(ent), ptrHandle);
+        }
     }
 
-
-    static constexpr const char* kStationParts[] = {"ter-strut-4",
-                                                    "ter-strut-3",
-                                                    "ter-habitat-1"};
-    static constexpr const char* kStationParts2[] = {
-                                                    "ter-solar-s",
-                                                    "ter-cont-s"};
+    static constexpr const char* kStationParts[] = {
+        "ter-strut-4", "ter-strut-3", "ter-habitat-1"};
+    static constexpr const char* kStationParts2[] = {"ter-solar-s",
+                                                     "ter-cont-s"};
     static constexpr size_t kStationPartsCount =
         sizeof(kStationParts) / sizeof(kStationParts[0]);
     static constexpr size_t kStationParts2Count =
@@ -1228,7 +1230,8 @@ void Engine::testSpawn()
 
         for (int j = 0; j < part1->connectors.size(); j++)
         {
-            const char* partName2 = kStationParts2[rand() % kStationParts2Count];
+            const char* partName2 =
+                kStationParts2[rand() % kStationParts2Count];
             gobj::StationPartHandle partHandle2 =
                 modManager.getStationPartLib().getHandle(partName2);
             gobj::StationPart* part2 =
@@ -1506,6 +1509,13 @@ ecs::AnchorFixed* Engine::makeAnchorFixed(entt::entity entity,
     return &reg.emplace_or_replace<ecs::AnchorFixed>(entity, anchorFixed);
 }
 
+ecs::Storage* Engine::makeStorage(entt::entity entity,
+                                  const ecs::Storage& storage)
+{
+    auto& reg = ecs.getRegistry();
+    return &reg.emplace_or_replace<ecs::Storage>(entity, storage);
+}
+
 ecs::Ai* Engine::makeAi(entt::entity entity,
                         const ai::taskdata::TaskData& defaultTask)
 {
@@ -1612,6 +1622,11 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
     if (!makeTextures(entt, hull->textures))
     {
         LG_E("Failed to make textures component");
+        success = false;
+    }
+    if (!makeStorage(entt, ecs::Storage{}))
+    {
+        LG_E("Failed to make storage component");
         success = false;
     }
     if (!makePhysicsBody(entt,

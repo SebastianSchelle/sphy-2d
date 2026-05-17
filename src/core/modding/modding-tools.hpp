@@ -105,13 +105,39 @@ struct GeneralInfo
     float colliderRestitutionVal = 0.1f;
 };
 
+/** Editable storage capacities (module `volume-*` / station-part `cap-*` YAML). */
+struct StorageVolumesInfo
+{
+    string containerS = "0";
+    string containerL = "0";
+    string tank = "0";
+    string bulk = "0";
+    float containerSVal = 0.0f;
+    float containerLVal = 0.0f;
+    float tankVal = 0.0f;
+    float bulkVal = 0.0f;
+};
+
 struct StationPartInfo
 {
     string partType = "Structural";
     gobj::StationPartType partTypeVal = gobj::StationPartType::Structural;
-    /** `data.volume` for Storage parts (see hulls.yaml). */
-    string storageVolume = "0";
-    float storageVolumeVal = 0.0f;
+    /** `data.cap-*` for Storage station parts. */
+    StorageVolumesInfo storageVolumes;
+};
+
+struct ModuleInfo
+{
+    string moduleType = "MainThruster";
+    gobj::ModuleType moduleTypeVal = gobj::ModuleType::MainThruster;
+    string slotType = "ThrusterMainS_Common";
+    gobj::ModuleSlotType slotTypeVal = gobj::ModuleSlotType::ThrusterMainS_Common;
+    string description;
+    /** `data.max-thrust` for MainThruster / ManeuverThruster. */
+    string maxThrust = "100000.0";
+    float maxThrustVal = 100000.0f;
+    /** `data.volume-*` for Storage modules. */
+    StorageVolumesInfo storageVolumes;
 };
 
 struct ConnectorInfo
@@ -271,6 +297,8 @@ class ModdingTools
     bool loadHullDataFromPath(const string& path);
     bool saveStationPartDataToPath(const string& path);
     bool loadStationPartDataFromPath(const string& path);
+    bool saveModuleDataToPath(const string& path);
+    bool loadModuleDataFromPath(const string& path);
     /** Drops any station-connector rows and appends one per connector (StationPart mode). */
     void syncStationPartConnectorTextures();
     void parseEditorNumericFields();
@@ -291,6 +319,7 @@ class ModdingTools
     string mode;
     GeneralInfo genInfo;
     StationPartInfo stationPartInfo;
+    ModuleInfo moduleInfo;
     float hpVal = 0.0f;
     vector<TextureInfo> textures;
     vector<string> renderTextureNames;
@@ -324,6 +353,7 @@ class ModdingTools
     glm::vec2 lmbDragPressWorld{};
     float lmbDragThresholdCfg = 300.f;
     bool lmbPastDragDeadzone = false;
+    bool lmbHadSelectionOnPress = false;
 
     bool rmbRotateGesture = false;
     glm::vec2 rmbDragPressWorld{};

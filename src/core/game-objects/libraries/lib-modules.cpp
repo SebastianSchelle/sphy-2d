@@ -6,6 +6,19 @@ namespace gobj
 namespace mdata
 {
 
+namespace
+{
+
+constexpr const char* kStorageVolumeYamlKeys[static_cast<size_t>(
+    StorageType::NumStorageTypes)] = {
+    "volume-container-s",
+    "volume-container-l",
+    "volume-tank",
+    "volume-bulk",
+};
+
+}  // namespace
+
 MainThruster MainThruster::fromYaml(const YAML::Node& node)
 {
     MainThruster mainThruster;
@@ -22,8 +35,24 @@ ManeuverThruster ManeuverThruster::fromYaml(const YAML::Node& node)
 
 Storage Storage::fromYaml(const YAML::Node& node)
 {
-    Storage storage;
-    TRY_YAML_DICT(storage.volume, node["volume"], 100.0f);
+    Storage storage{};
+    for (size_t i = 0; i < static_cast<size_t>(StorageType::NumStorageTypes); ++i)
+    {
+        storage.volume[i] = 0.0f;
+    }
+
+    bool anyPerType = false;
+    for (size_t i = 0; i < static_cast<size_t>(StorageType::NumStorageTypes); ++i)
+    {
+        if (node[kStorageVolumeYamlKeys[i]])
+        {
+            anyPerType = true;
+            float parsed = 0.0f;
+            TRY_YAML_DICT(parsed, node[kStorageVolumeYamlKeys[i]], 0.0f);
+            storage.volume[i] = parsed;
+        }
+    }
+
     return storage;
 }
 

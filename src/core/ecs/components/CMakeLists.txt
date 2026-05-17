@@ -7,6 +7,7 @@ target_sources(sphy_core_ecs_components INTERFACE
     comp-phy.cpp
     comp-phy.hpp
     comp-storage.hpp
+    comp-storage.cpp
     comp-struct.hpp
     comp-tag.hpp
 )

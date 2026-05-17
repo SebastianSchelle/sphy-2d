@@ -26,6 +26,7 @@
 #include <comp-gfx.hpp>
 #include <comp-phy.hpp>
 #include <comp-struct.hpp>
+#include <comp-storage.hpp>
 
 
 namespace ecs
@@ -153,6 +154,8 @@ class Engine
     ecs::MoveCtrl* makeMoveCtrl(entt::entity entity,
                                 const ecs::PhyThrust& phyThrust,
                                 const ecs::MoveCtrl& moveCtrl);
+    ecs::Storage* makeStorage(entt::entity entity,
+                              const ecs::Storage& storage);
     ecs::StationPart* makeStationPart(entt::entity entity,
                                       const gobj::StationPartHandle& partHandle);
     void makeSelectable(entt::entity entity);

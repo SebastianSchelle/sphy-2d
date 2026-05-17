@@ -1,10 +1,13 @@
 #ifndef COMP_STORAGE_HPP
 #define COMP_STORAGE_HPP
 
+#include <lib-modules.hpp>
 #include <std-inc.hpp>
+#include <entt/entt.hpp>
 
 namespace ecs
 {
+struct PtrHandle;
 
 struct CargoVolume
 {
@@ -23,17 +26,12 @@ struct Storage
     static const uint16_t VERSION = 1;
     static constexpr string NAME = "storage";
 
-    CargoVolume containerS;
-    CargoVolume containerL;
-    CargoVolume tank;
-    CargoVolume bulk;
+    CargoVolume cargo[static_cast<size_t>(gobj::StorageType::NumStorageTypes)];
+
+    void updateStatsFromEntity(entt::entity entity, ecs::PtrHandle* ptrHandle);
 };
 
-#define SER_STORAGE                                                            \
-    SOBJ(o.containerS);                                                        \
-    SOBJ(o.containerL);                                                        \
-    SOBJ(o.tank);                                                              \
-    SOBJ(o.bulk);
+#define SER_STORAGE SOBJ(o.cargo);
 EXT_SER(Storage, SER_STORAGE)
 EXT_DES(Storage, SER_STORAGE)
 

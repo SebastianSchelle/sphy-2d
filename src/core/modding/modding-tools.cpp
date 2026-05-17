@@ -25,6 +25,7 @@ constexpr uint32_t kSelectionTintAbgr = 0xff50ff80u;
 constexpr float kTexturePixelToWorld = 0.15f;
 constexpr float kModdingPasteNudgeWorld = 0.5f;
 constexpr int kHullTextureDefaultZ = 50;
+constexpr int kModuleTextureDefaultZ = 51;
 constexpr int kStationPartTextureDefaultZ = 40;
 constexpr int kRoofSlotDefaultZ = 49;
 constexpr int kNonRoofSlotDefaultZ = 51;
@@ -38,6 +39,143 @@ constexpr float kTextureShiftSnapAngleStepDeg = 90.f;
 /** When true, texture bounds[2:4] in YAML include bleed; editor keeps logical
  * sizes. */
 constexpr const char* kYamlTextureBoundsBleedKey = "texture-bounds-bleed";
+
+constexpr const char* kModuleStorageVolumeYamlKeys[static_cast<size_t>(
+    gobj::StorageType::NumStorageTypes)] = {
+    "volume-container-s",
+    "volume-container-l",
+    "volume-tank",
+    "volume-bulk",
+};
+
+constexpr const char* kStationStorageCapYamlKeys[static_cast<size_t>(
+    gobj::StorageType::NumStorageTypes)] = {
+    "cap-container-s",
+    "cap-container-l",
+    "cap-tank",
+    "cap-bulk",
+};
+
+void parseStorageVolumesInfoStrings(StorageVolumesInfo& volumes)
+{
+    tryParseFloat(volumes.containerS, volumes.containerSVal);
+    tryParseFloat(volumes.containerL, volumes.containerLVal);
+    tryParseFloat(volumes.tank, volumes.tankVal);
+    tryParseFloat(volumes.bulk, volumes.bulkVal);
+    floatToString(volumes.containerSVal, volumes.containerS, 2);
+    floatToString(volumes.containerLVal, volumes.containerL, 2);
+    floatToString(volumes.tankVal, volumes.tank, 2);
+    floatToString(volumes.bulkVal, volumes.bulk, 2);
+}
+
+void loadModuleStorageVolumesFromYaml(const YAML::Node& dataNode,
+                                      StorageVolumesInfo& volumes)
+{
+    volumes = StorageVolumesInfo{};
+    if (!dataNode || !dataNode.IsMap())
+    {
+        return;
+    }
+
+    float* vals[] = {&volumes.containerSVal,
+                     &volumes.containerLVal,
+                     &volumes.tankVal,
+                     &volumes.bulkVal};
+    string* strs[] = {&volumes.containerS,
+                      &volumes.containerL,
+                      &volumes.tank,
+                      &volumes.bulk};
+
+    bool anyPerType = false;
+    for (size_t i = 0; i < static_cast<size_t>(gobj::StorageType::NumStorageTypes);
+         ++i)
+    {
+        if (dataNode[kModuleStorageVolumeYamlKeys[i]])
+        {
+            anyPerType = true;
+            *vals[i] = dataNode[kModuleStorageVolumeYamlKeys[i]].as<float>();
+            floatToString(*vals[i], *strs[i], 2);
+        }
+    }
+
+    if (!anyPerType && dataNode["volume"])
+    {
+        const float legacy = dataNode["volume"].as<float>();
+        for (size_t i = 0;
+             i < static_cast<size_t>(gobj::StorageType::NumStorageTypes);
+             ++i)
+        {
+            *vals[i] = legacy;
+            floatToString(*vals[i], *strs[i], 2);
+        }
+    }
+}
+
+void writeModuleStorageVolumesToYaml(YAML::Node& dataNode,
+                                     const StorageVolumesInfo& volumes)
+{
+    dataNode["volume-container-s"] = volumes.containerSVal;
+    dataNode["volume-container-l"] = volumes.containerLVal;
+    dataNode["volume-tank"] = volumes.tankVal;
+    dataNode["volume-bulk"] = volumes.bulkVal;
+}
+
+void loadStationStorageVolumesFromYaml(const YAML::Node& dataNode,
+                                       StorageVolumesInfo& volumes)
+{
+    volumes = StorageVolumesInfo{};
+    if (!dataNode || !dataNode.IsMap())
+    {
+        return;
+    }
+
+    float* vals[] = {&volumes.containerSVal,
+                     &volumes.containerLVal,
+                     &volumes.tankVal,
+                     &volumes.bulkVal};
+    string* strs[] = {&volumes.containerS,
+                      &volumes.containerL,
+                      &volumes.tank,
+                      &volumes.bulk};
+
+    bool anyPerType = false;
+    for (size_t i = 0; i < static_cast<size_t>(gobj::StorageType::NumStorageTypes);
+         ++i)
+    {
+        if (dataNode[kStationStorageCapYamlKeys[i]])
+        {
+            anyPerType = true;
+            *vals[i] = dataNode[kStationStorageCapYamlKeys[i]].as<float>();
+            floatToString(*vals[i], *strs[i], 2);
+        }
+    }
+
+    if (!anyPerType && dataNode["volume"])
+    {
+        const float legacy = dataNode["volume"].as<float>();
+        for (size_t i = 0;
+             i < static_cast<size_t>(gobj::StorageType::NumStorageTypes);
+             ++i)
+        {
+            *vals[i] = legacy;
+            floatToString(*vals[i], *strs[i], 2);
+        }
+    }
+}
+
+void writeStationStorageVolumesToYaml(YAML::Node& dataNode,
+                                      const StorageVolumesInfo& volumes)
+{
+    dataNode["cap-container-s"] = volumes.containerSVal;
+    dataNode["cap-container-l"] = volumes.containerLVal;
+    dataNode["cap-tank"] = volumes.tankVal;
+    dataNode["cap-bulk"] = volumes.bulkVal;
+}
+
+constexpr uint32_t kColliderDotSize = 3.0f;
+constexpr uint32_t kColliderColor = 0xff40c0ffu;
+constexpr float kColliderPickR = 4.0f;
+constexpr float kConnectorPickR = 4.0f;
 
 /** Quantize `targetDeg` to nearest `stepDeg` multiple, then pick the
  * 360°-equivalent closest to `selectedDeg`. */
@@ -88,6 +226,8 @@ int defaultTextureZForMode(ModdingToolsMode mode)
     {
         case ModdingToolsMode::Hull:
             return kHullTextureDefaultZ;
+        case ModdingToolsMode::Module:
+            return kModuleTextureDefaultZ;
         case ModdingToolsMode::StationPart:
             return kStationPartTextureDefaultZ;
         default:
@@ -277,7 +417,8 @@ bool hitTexture(const glm::vec2& p, const TextureInfo& tex)
                           moddingTextureRotRad(tex));
 }
 
-/** Squared distance from p to texture OBB (0 when inside). Uses draw size + shader rot. */
+/** Squared distance from p to texture OBB (0 when inside). Uses draw size +
+ * shader rot. */
 float distSqPointToModdingTexture(const glm::vec2& p, const TextureInfo& tex)
 {
     const glm::vec2 drawSize = moddingTextureDrawSize(tex);
@@ -461,7 +602,8 @@ glm::vec2 moddingTextureAssetSizeToLogical(float sx, float sy, bool applyBleed)
     return {std::max(lx, 1e-6f), std::max(ly, 1e-6f)};
 }
 
-/** World-space width/height used for draw, hit-test, and shift-align (includes bleed). */
+/** World-space width/height used for draw, hit-test, and shift-align (includes
+ * bleed). */
 glm::vec2 moddingTextureDrawSize(const TextureInfo& tex)
 {
     return moddingTextureLogicalSizeToAsset(
@@ -504,10 +646,10 @@ void syncTextureTileStrings(TextureInfo& t)
     floatToString(t.tileCntYVal, t.tileCntY, 2);
     floatToString(t.tileOffXVal, t.tileOffX, 2);
     floatToString(t.tileOffYVal, t.tileOffY, 2);
-    const bool hasTile =
-        std::abs(t.tileCntXVal - 1.0f) > 1.0e-4f
-        || std::abs(t.tileCntYVal - 1.0f) > 1.0e-4f
-        || std::abs(t.tileOffXVal) > 1.0e-4f || std::abs(t.tileOffYVal) > 1.0e-4f;
+    const bool hasTile = std::abs(t.tileCntXVal - 1.0f) > 1.0e-4f
+                         || std::abs(t.tileCntYVal - 1.0f) > 1.0e-4f
+                         || std::abs(t.tileOffXVal) > 1.0e-4f
+                         || std::abs(t.tileOffYVal) > 1.0e-4f;
     if (!hasTile)
     {
         t.tileModifiers.clear();
@@ -611,8 +753,8 @@ std::optional<RgbaImage> loadRgbaImageFromPath(const std::string& path)
 
     bx::DefaultAllocator alloc;
     bx::Error err;
-    bimg::ImageContainer* image =
-        bimg::imageParse(&alloc, buffer.data(), sizef, bimg::TextureFormat::RGBA8, &err);
+    bimg::ImageContainer* image = bimg::imageParse(
+        &alloc, buffer.data(), sizef, bimg::TextureFormat::RGBA8, &err);
     if (!image || !err.isOk() || image->m_data == nullptr)
     {
         if (image)
@@ -652,8 +794,10 @@ void appendOpaqueTextureSamples(const TextureInfo& tex,
     const glm::vec2 drawSize = moddingTextureDrawSize(tex);
     const float rotRad = moddingTextureRotRad(tex);
     const glm::vec2 center(tex.posXVal, tex.posYVal);
-    const int tileCntX = std::max(1, static_cast<int>(std::round(tex.tileCntXVal)));
-    const int tileCntY = std::max(1, static_cast<int>(std::round(tex.tileCntYVal)));
+    const int tileCntX =
+        std::max(1, static_cast<int>(std::round(tex.tileCntXVal)));
+    const int tileCntY =
+        std::max(1, static_cast<int>(std::round(tex.tileCntYVal)));
     const int tileOffX = static_cast<int>(std::round(tex.tileOffXVal));
     const int tileOffY = static_cast<int>(std::round(tex.tileOffYVal));
     const int stride = std::max(1, kColliderImageSampleStride);
@@ -670,23 +814,24 @@ void appendOpaqueTextureSamples(const TextureInfo& tex,
             {
                 continue;
             }
-            const float u =
-                (static_cast<float>(px) + 0.5f) / static_cast<float>(image.width);
-            const float v =
-                (static_cast<float>(py) + 0.5f) / static_cast<float>(image.height);
+            const float u = (static_cast<float>(px) + 0.5f)
+                            / static_cast<float>(image.width);
+            const float v = (static_cast<float>(py) + 0.5f)
+                            / static_cast<float>(image.height);
             for (int ty = 0; ty < tileCntY; ++ty)
             {
                 for (int tx = 0; tx < tileCntX; ++tx)
                 {
-                    const float unitX =
-                        (static_cast<float>(tx) + u - static_cast<float>(tileOffX))
-                        / static_cast<float>(tileCntX);
-                    const float unitY =
-                        (static_cast<float>(ty) + v - static_cast<float>(tileOffY))
-                        / static_cast<float>(tileCntY);
+                    const float unitX = (static_cast<float>(tx) + u
+                                         - static_cast<float>(tileOffX))
+                                        / static_cast<float>(tileCntX);
+                    const float unitY = (static_cast<float>(ty) + v
+                                         - static_cast<float>(tileOffY))
+                                        / static_cast<float>(tileCntY);
                     const glm::vec2 local((unitX - 0.5f) * drawSize.x,
                                           (unitY - 0.5f) * drawSize.y);
-                    outWorldPts.push_back(center + rotateLocalToWorld(local, rotRad));
+                    outWorldPts.push_back(center
+                                          + rotateLocalToWorld(local, rotRad));
                 }
             }
         }
@@ -844,6 +989,7 @@ bool ModdingTools::canEditObjectType(SelectableObjectType type) const
     {
         case SelectableObjectType::Texture:
             return activeMode == ModdingToolsMode::Hull
+                   || activeMode == ModdingToolsMode::Module
                    || activeMode == ModdingToolsMode::StationPart;
         case SelectableObjectType::Slot:
             return activeMode == ModdingToolsMode::Hull;
@@ -872,7 +1018,8 @@ void ModdingTools::copySelectedToClipboard()
             {
                 return;
             }
-            clipboard_.texture = textures[static_cast<size_t>(selectedObjectIndex)];
+            clipboard_.texture =
+                textures[static_cast<size_t>(selectedObjectIndex)];
             clipboard_.texture.nameSuggestions.clear();
             clipboard_.texture.tileModifiers.clear();
             break;
@@ -977,8 +1124,10 @@ bool ModdingTools::pasteFromClipboard()
         case SelectableObjectType::Texture:
             clipboard_.texture.posXVal += kModdingPasteNudgeWorld;
             clipboard_.texture.posYVal += kModdingPasteNudgeWorld;
-            floatToString(clipboard_.texture.posXVal, clipboard_.texture.posX, 2);
-            floatToString(clipboard_.texture.posYVal, clipboard_.texture.posY, 2);
+            floatToString(
+                clipboard_.texture.posXVal, clipboard_.texture.posX, 2);
+            floatToString(
+                clipboard_.texture.posYVal, clipboard_.texture.posY, 2);
             break;
         case SelectableObjectType::Slot:
             clipboard_.slot.posXVal += kModdingPasteNudgeWorld;
@@ -989,18 +1138,18 @@ bool ModdingTools::pasteFromClipboard()
         case SelectableObjectType::ColliderVertex:
             clipboard_.colliderVertex.xVal += kModdingPasteNudgeWorld;
             clipboard_.colliderVertex.yVal += kModdingPasteNudgeWorld;
-            floatToString(clipboard_.colliderVertex.xVal,
-                            clipboard_.colliderVertex.x,
-                            2);
-            floatToString(clipboard_.colliderVertex.yVal,
-                            clipboard_.colliderVertex.y,
-                            2);
+            floatToString(
+                clipboard_.colliderVertex.xVal, clipboard_.colliderVertex.x, 2);
+            floatToString(
+                clipboard_.colliderVertex.yVal, clipboard_.colliderVertex.y, 2);
             break;
         case SelectableObjectType::Connector:
             clipboard_.connector.posXVal += kModdingPasteNudgeWorld;
             clipboard_.connector.posYVal += kModdingPasteNudgeWorld;
-            floatToString(clipboard_.connector.posXVal, clipboard_.connector.posX, 2);
-            floatToString(clipboard_.connector.posYVal, clipboard_.connector.posY, 2);
+            floatToString(
+                clipboard_.connector.posXVal, clipboard_.connector.posX, 2);
+            floatToString(
+                clipboard_.connector.posYVal, clipboard_.connector.posY, 2);
             break;
         default:
             break;
@@ -1080,6 +1229,7 @@ bool ModdingTools::deleteSelectedObject()
 bool ModdingTools::onEditorKey(ModdingEditorKey editorKey)
 {
     if (activeMode != ModdingToolsMode::Hull
+        && activeMode != ModdingToolsMode::Module
         && activeMode != ModdingToolsMode::StationPart)
     {
         return false;
@@ -1176,13 +1326,14 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
     suppressDragAfterClick = false;
 
     if (activeMode != ModdingToolsMode::Hull
+        && activeMode != ModdingToolsMode::Module
         && activeMode != ModdingToolsMode::StationPart)
     {
         return;
     }
 
-    const float colliderPickR = 3.0f / worldZoom;
-    const float connectorPickR = 4.0f / worldZoom;
+    const float colliderPickR = kColliderPickR / worldZoom;
+    const float connectorPickR = kConnectorPickR / worldZoom;
 
     auto clearSelection = [this]()
     {
@@ -1260,6 +1411,10 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
             }
         }
     }
+    else if (activeMode == ModdingToolsMode::Module)
+    {
+        // Textures only (picked below).
+    }
     else if (activeMode == ModdingToolsMode::StationPart)
     {
         for (int i = 0; i < static_cast<int>(connectors.size()); ++i)
@@ -1292,9 +1447,10 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
     {
         if (hitTexture(worldPos, textures[static_cast<size_t>(i)]))
         {
-            const int layer = activeMode == ModdingToolsMode::Hull
-                                  ? kPickHullLayerTex
-                                  : kPickPartLayerTex;
+            const int layer =
+                (activeMode == ModdingToolsMode::StationPart)
+                    ? kPickPartLayerTex
+                    : kPickHullLayerTex;
             consider(SelectableObjectType::Texture,
                      i,
                      textures[static_cast<size_t>(i)].zIndexVal,
@@ -1317,8 +1473,8 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
         const TextureInfo& selectedTex =
             textures[static_cast<size_t>(selectedObjectIndex)];
         const glm::vec2 selDraw = moddingTextureDrawSize(selectedTex);
-        const float snapDist =
-            std::max(selDraw.x, selDraw.y) * 2.0f + kModdingTexDrawOverlapAddWorld;
+        const float snapDist = std::max(selDraw.x, selDraw.y) * 2.0f
+                               + kModdingTexDrawOverlapAddWorld;
         const float snapDistSq = snapDist * snapDist;
 
         int anchorIdx = -1;
@@ -1386,8 +1542,8 @@ void ModdingTools::onLeftMouseDown(const glm::vec2& worldPos,
     lmbDragThresholdCfg = dragThresholdWorld;
     lmbPastDragDeadzone = false;
     suppressDragAfterClick = false;
-    dragSelectedObject =
-        selectedObjectType != SelectableObjectType::None;
+    lmbHadSelectionOnPress = selectedObjectType != SelectableObjectType::None;
+    dragSelectedObject = lmbHadSelectionOnPress;
 }
 
 void ModdingTools::onLeftMouseDrag(const glm::vec2& worldPos,
@@ -1501,16 +1657,17 @@ void ModdingTools::onLeftMouseDrag(const glm::vec2& worldPos,
 }
 
 void ModdingTools::onLeftMouseUp(const glm::vec2& worldPos,
-                               float worldZoom,
-                               gfx::RenderEngine* renderer,
-                               bool shiftAlignTextures)
+                                 float worldZoom,
+                                 gfx::RenderEngine* renderer,
+                                 bool shiftAlignTextures)
 {
-    if (!lmbPastDragDeadzone)
+    if (!lmbHadSelectionOnPress || !lmbPastDragDeadzone)
     {
         onSingleClick(worldPos, worldZoom, renderer, shiftAlignTextures);
     }
     dragSelectedObject = false;
     lmbPastDragDeadzone = false;
+    lmbHadSelectionOnPress = false;
 }
 
 void ModdingTools::onRightMouseDown(const glm::vec2& worldPos,
@@ -1522,6 +1679,7 @@ void ModdingTools::onRightMouseDown(const glm::vec2& worldPos,
     rmbRotatePrevWorld = worldPos;
     rmbRotateGesture = false;
     if (activeMode != ModdingToolsMode::Hull
+        && activeMode != ModdingToolsMode::Module
         && activeMode != ModdingToolsMode::StationPart)
     {
         return;
@@ -1727,9 +1885,7 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     moddingToolsConstructor.BindEventCallback(
         "onRemoveColliderVertex", &ModdingTools::onRemoveColliderVertex, this);
     moddingToolsConstructor.BindEventCallback(
-        "onAutoGenerateCollider",
-        &ModdingTools::onAutoGenerateCollider,
-        this);
+        "onAutoGenerateCollider", &ModdingTools::onAutoGenerateCollider, this);
     moddingToolsConstructor.BindEventCallback(
         "onAddConnector", &ModdingTools::onAddConnector, this);
     moddingToolsConstructor.BindEventCallback(
@@ -1763,15 +1919,36 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
                                   &GeneralInfo::colliderRestitutionVal);
     }
     moddingToolsConstructor.Bind("hull", &genInfo);
+    if (auto storageVolumesHandle =
+            moddingToolsConstructor.RegisterStruct<StorageVolumesInfo>())
+    {
+        storageVolumesHandle.RegisterMember("containerS",
+                                            &StorageVolumesInfo::containerS);
+        storageVolumesHandle.RegisterMember("containerL",
+                                            &StorageVolumesInfo::containerL);
+        storageVolumesHandle.RegisterMember("tank", &StorageVolumesInfo::tank);
+        storageVolumesHandle.RegisterMember("bulk", &StorageVolumesInfo::bulk);
+    }
     if (auto stationPartHandle =
             moddingToolsConstructor.RegisterStruct<StationPartInfo>())
     {
         stationPartHandle.RegisterMember("partType",
                                          &StationPartInfo::partType);
-        stationPartHandle.RegisterMember("storageVolume",
-                                         &StationPartInfo::storageVolume);
+        stationPartHandle.RegisterMember("storageVolumes",
+                                         &StationPartInfo::storageVolumes);
     }
     moddingToolsConstructor.Bind("stationPart", &stationPartInfo);
+    if (auto moduleHandle =
+            moddingToolsConstructor.RegisterStruct<ModuleInfo>())
+    {
+        moduleHandle.RegisterMember("moduleType", &ModuleInfo::moduleType);
+        moduleHandle.RegisterMember("slotType", &ModuleInfo::slotType);
+        moduleHandle.RegisterMember("description", &ModuleInfo::description);
+        moduleHandle.RegisterMember("maxThrust", &ModuleInfo::maxThrust);
+        moduleHandle.RegisterMember("storageVolumes",
+                                    &ModuleInfo::storageVolumes);
+    }
+    moddingToolsConstructor.Bind("module", &moduleInfo);
     moddingToolsConstructor.RegisterArray<std::vector<string>>();
     if (auto textureHandle =
             moddingToolsConstructor.RegisterStruct<TextureInfo>())
@@ -1888,10 +2065,29 @@ void ModdingTools::onModdingNewModule(Rml::DataModelHandle handle,
                                       Rml::Event& event,
                                       const Rml::VariantList& args)
 {
+    (void)event;
+    (void)args;
     activeMode = ModdingToolsMode::Module;
     openFilepath = "";
+    genInfo = GeneralInfo{};
+    genInfo.mapIcon.clear();
+    moduleInfo = ModuleInfo{};
+    stationPartInfo = StationPartInfo{};
+    textures.clear();
+    textureSizeAppliedForName.clear();
+    resetNewTexturePickerState();
+    slots.clear();
+    collider.clear();
+    connectors.clear();
+    selectedObjectType = SelectableObjectType::None;
+    selectedObjectIndex = -1;
+    textureRowNameFocusIndex = -1;
     syncModeToRml();
     handle.DirtyVariable("openFilepath");
+    handle.DirtyVariable("hull");
+    handle.DirtyVariable("module");
+    handle.DirtyVariable("textures");
+    syncListSelectionToRml();
     LG_D("Modding tools: new module");
 }
 
@@ -1962,6 +2158,23 @@ void ModdingTools::onModdingFileSave(Rml::DataModelHandle handle,
             LG_D("Modding tools: saved hull to {}", openFilepath);
         }
         break;
+        case ModdingToolsMode::Module:
+        {
+            if (textures.empty())
+            {
+                LG_W("Modding tools: no textures to save");
+                return;
+            }
+            if (!saveModuleDataToPath(path))
+            {
+                LG_W("Modding tools: failed to write {}", path);
+                return;
+            }
+            openFilepath = std::move(path);
+            handle.DirtyVariable("openFilepath");
+            LG_D("Modding tools: saved module to {}", openFilepath);
+        }
+        break;
         case ModdingToolsMode::StationPart:
         {
             if (textures.empty())
@@ -2006,6 +2219,14 @@ void ModdingTools::onModdingFileLoad(Rml::DataModelHandle handle,
             }
             LG_D("Modding tools: loaded hull from {}", openFilepath);
             break;
+        case ModdingToolsMode::Module:
+            if (!loadModuleDataFromPath(path))
+            {
+                LG_W("Modding tools: failed to load module from {}", path);
+                return;
+            }
+            LG_D("Modding tools: loaded module from {}", openFilepath);
+            break;
         case ModdingToolsMode::StationPart:
             if (!loadStationPartDataFromPath(path))
             {
@@ -2022,6 +2243,7 @@ void ModdingTools::onModdingFileLoad(Rml::DataModelHandle handle,
     openFilepath = std::move(path);
     handle.DirtyVariable("openFilepath");
     handle.DirtyVariable("hull");
+    handle.DirtyVariable("module");
     handle.DirtyVariable("textures");
     handle.DirtyVariable("slots");
     handle.DirtyVariable("collider");
@@ -2165,6 +2387,7 @@ void ModdingTools::onPickNewTextureNameFromPicker(Rml::DataModelHandle handle,
         return;
     }
     if (activeMode != ModdingToolsMode::Hull
+        && activeMode != ModdingToolsMode::Module
         && activeMode != ModdingToolsMode::StationPart)
     {
         return;
@@ -2311,6 +2534,7 @@ void ModdingTools::generateColliderFromVisibleTextures(
     gfx::RenderEngine& renderer)
 {
     if (activeMode != ModdingToolsMode::Hull
+        && activeMode != ModdingToolsMode::Module
         && activeMode != ModdingToolsMode::StationPart)
     {
         return;
@@ -2347,8 +2571,9 @@ void ModdingTools::generateColliderFromVisibleTextures(
 
     if (samples.size() < 3)
     {
-        LG_W("Modding tools: not enough opaque texture samples for collider "
-             "(need at least 3)");
+        LG_W(
+            "Modding tools: not enough opaque texture samples for collider "
+            "(need at least 3)");
         if (rmlModel_)
         {
             rmlModel_.DirtyVariable("collider");
@@ -2574,10 +2799,29 @@ void ModdingTools::parseEditorNumericFields()
     {
         stationPartInfo.partTypeVal = partType.value();
     }
-    tryParseFloat(stationPartInfo.storageVolume,
-                  stationPartInfo.storageVolumeVal);
-    floatToString(
-        stationPartInfo.storageVolumeVal, stationPartInfo.storageVolume, 2);
+    parseStorageVolumesInfoStrings(stationPartInfo.storageVolumes);
+
+    if (auto modType =
+            magic_enum::enum_cast<gobj::ModuleType>(moduleInfo.moduleType);
+        modType.has_value())
+    {
+        moduleInfo.moduleTypeVal = modType.value();
+    }
+    if (auto slotType =
+            magic_enum::enum_cast<gobj::ModuleSlotType>(moduleInfo.slotType);
+        slotType.has_value())
+    {
+        moduleInfo.slotTypeVal = slotType.value();
+    }
+    tryParseFloat(moduleInfo.maxThrust, moduleInfo.maxThrustVal);
+    floatToString(moduleInfo.maxThrustVal, moduleInfo.maxThrust, 2);
+    parseStorageVolumesInfoStrings(moduleInfo.storageVolumes);
+    if (rmlModel_)
+    {
+        rmlModel_.DirtyVariable("module");
+        rmlModel_.DirtyVariable("stationPart");
+    }
+
     for (auto& connector : connectors)
     {
         tryParseFloat(connector.posX, connector.posXVal);
@@ -2600,6 +2844,7 @@ void ModdingTools::parseEditorNumericFields()
 void ModdingTools::refreshPerRowTextureNameSuggestions()
 {
     if (activeMode != ModdingToolsMode::Hull
+        && activeMode != ModdingToolsMode::Module
         && activeMode != ModdingToolsMode::StationPart)
     {
         return;
@@ -2624,8 +2869,7 @@ void ModdingTools::refreshPerRowTextureNameSuggestions()
         return;
     }
 
-    TextureInfo& tex =
-        textures[static_cast<size_t>(textureRowNameFocusIndex)];
+    TextureInfo& tex = textures[static_cast<size_t>(textureRowNameFocusIndex)];
     if (!textureNameUsesBoundsBleed(tex.name))
     {
         if (!tex.nameSuggestions.empty())
@@ -2652,9 +2896,8 @@ void ModdingTools::refreshPerRowTextureNameSuggestions()
             filtered.resize(20);
         }
         if (filtered.size() != tex.nameSuggestions.size()
-            || !std::equal(filtered.begin(),
-                           filtered.end(),
-                           tex.nameSuggestions.begin()))
+            || !std::equal(
+                filtered.begin(), filtered.end(), tex.nameSuggestions.begin()))
         {
             tex.nameSuggestions = std::move(filtered);
             anyChange = true;
@@ -2704,6 +2947,7 @@ void ModdingTools::resetNewTexturePickerState()
 void ModdingTools::syncTextureSizesFromNames(gfx::RenderEngine& renderer)
 {
     if (activeMode != ModdingToolsMode::Hull
+        && activeMode != ModdingToolsMode::Module
         && activeMode != ModdingToolsMode::StationPart)
     {
         return;
@@ -2761,6 +3005,7 @@ TextureInfo ModdingTools::makeNewTextureEntry()
     intToString(texture.zIndexVal, texture.zIndex);
     syncTextureTileStrings(texture);
     if ((activeMode == ModdingToolsMode::Hull
+         || activeMode == ModdingToolsMode::Module
          || activeMode == ModdingToolsMode::StationPart)
         && !textures.empty())
     {
@@ -2806,6 +3051,7 @@ void ModdingTools::draw(gfx::RenderEngine& renderer)
             0, blueprintGrid, kGridCellWorld, kMajorEveryCells);
     }
     if (activeMode == ModdingToolsMode::Hull
+        || activeMode == ModdingToolsMode::Module
         || activeMode == ModdingToolsMode::StationPart)
     {
         constexpr float kWorldAxesHalfExtent = 10000.0f;
@@ -2834,6 +3080,9 @@ void ModdingTools::draw(gfx::RenderEngine& renderer)
             drawTextures(renderer);
             drawSlots(renderer);
             drawColliders(renderer);
+            break;
+        case ModdingToolsMode::Module:
+            drawTextures(renderer);
             break;
         case ModdingToolsMode::StationPart:
             drawTextures(renderer);
@@ -2914,8 +3163,8 @@ void ModdingTools::drawSlots(gfx::RenderEngine& renderer)
 void ModdingTools::drawColliders(gfx::RenderEngine& renderer)
 {
     const float zoom = renderer.getWorldZoom();
-    const glm::vec2 dotRadius(3.0f / zoom, 3.0f / zoom);
-    const float lineWidth = 1.0f / zoom;
+    const glm::vec2 dotRadius(kColliderDotSize / zoom, kColliderDotSize / zoom);
+    const float lineWidth = 0.66f * kColliderDotSize / zoom;
 
     for (size_t i = 0; i < collider.size(); ++i)
     {
@@ -2925,24 +3174,32 @@ void ModdingTools::drawColliders(gfx::RenderEngine& renderer)
             && selectedObjectIndex == static_cast<int>(i);
         renderer.drawEllipse(glm::vec2(vertex.xVal, vertex.yVal),
                              dotRadius,
-                             tintIfSelected(0xffffffff, sel),
+                             tintIfSelected(kColliderColor, sel),
                              0.0f,
                              0.0f,
                              0.0f,
                              0);
     }
-    for (size_t i = 1; i < collider.size(); ++i)
+    if (collider.size() > 1)
     {
-        const bool selSeg =
-            selectedObjectType == SelectableObjectType::ColliderVertex
-            && (selectedObjectIndex == static_cast<int>(i)
-                || selectedObjectIndex == static_cast<int>(i - 1));
-        renderer.drawLine(glm::vec2(collider[i - 1].xVal, collider[i - 1].yVal),
-                          glm::vec2(collider[i].xVal, collider[i].yVal),
-                          tintIfSelected(0xffffffff, selSeg),
-                          lineWidth,
-                          0.0f,
-                          0);
+        ColliderVertex& first = collider.back();
+        for (size_t i = 0; i < collider.size(); ++i)
+        {
+            ColliderVertex& current = collider[i];
+            const bool selSeg =
+                selectedObjectType == SelectableObjectType::ColliderVertex
+                && (selectedObjectIndex == static_cast<int>(i)
+                    || selectedObjectIndex == static_cast<int>(i - 1));
+            renderer.drawLine(
+                glm::vec2(first.xVal, first.yVal),
+                glm::vec2(current.xVal, current.yVal),
+                tintIfSelected(kColliderColor, selSeg), // A nice sky blue color
+                lineWidth,
+                0.0f,
+                0);
+           
+            first = current;
+        }
     }
 }
 
@@ -3336,12 +3593,299 @@ ModdingToolsMode ModdingTools::determineAssetType(const string& path)
     {
         return ModdingToolsMode::Hull;
     }
+    const YAML::Node moduleMap = root["module"];
+    if (moduleMap && moduleMap.IsMap() && moduleMap.size() > 0)
+    {
+        return ModdingToolsMode::Module;
+    }
     const YAML::Node spMap = root["station-part"];
     if (spMap && spMap.IsMap() && spMap.size() > 0)
     {
         return ModdingToolsMode::StationPart;
     }
     return ModdingToolsMode::None;
+}
+
+bool ModdingTools::loadModuleDataFromPath(const string& path)
+{
+    YAML::Node root;
+    try
+    {
+        root = YAML::LoadFile(path);
+    }
+    catch (const YAML::Exception& e)
+    {
+        LG_W("Modding tools: YAML error loading {}: {}", path, e.what());
+        return false;
+    }
+
+    const YAML::Node moduleMap = root["module"];
+    if (!moduleMap || !moduleMap.IsMap() || moduleMap.size() == 0)
+    {
+        LG_W("Modding tools: {} has no module map", path);
+        return false;
+    }
+
+    const auto modIt = moduleMap.begin();
+    const YAML::Node modNode = modIt->second;
+    if (!modNode || !modNode.IsMap())
+    {
+        LG_W("Modding tools: invalid module entry in {}", path);
+        return false;
+    }
+
+    activeMode = ModdingToolsMode::Module;
+    syncModeToRml();
+    textures.clear();
+    slots.clear();
+    collider.clear();
+    connectors.clear();
+    moduleInfo = ModuleInfo{};
+    stationPartInfo = StationPartInfo{};
+    genInfo = GeneralInfo{};
+    genInfo.mapIcon.clear();
+
+    const string moduleMapKey = modIt->first.as<string>();
+
+    try
+    {
+        const bool yamlTextureBoundsBleed =
+            root[kYamlTextureBoundsBleedKey].IsDefined()
+            && root[kYamlTextureBoundsBleedKey].as<bool>();
+
+        if (modNode["name"])
+        {
+            genInfo.name = modNode["name"].as<string>();
+        }
+        if (genInfo.name.empty())
+        {
+            genInfo.name = moduleMapKey;
+        }
+
+        if (modNode["description"])
+        {
+            moduleInfo.description = modNode["description"].as<string>();
+        }
+
+        string slotTypeStr = "ThrusterMainS_Common";
+        if (modNode["slot-type"])
+        {
+            slotTypeStr = modNode["slot-type"].as<string>();
+        }
+        moduleInfo.slotType = slotTypeStr;
+        const auto st =
+            magic_enum::enum_cast<gobj::ModuleSlotType>(moduleInfo.slotType);
+        if (st.has_value())
+        {
+            moduleInfo.slotTypeVal = st.value();
+        }
+        else
+        {
+            moduleInfo.slotType = "ThrusterMainS_Common";
+            moduleInfo.slotTypeVal = gobj::ModuleSlotType::ThrusterMainS_Common;
+        }
+
+        string typeStr = "MainThruster";
+        if (modNode["type"])
+        {
+            typeStr = modNode["type"].as<string>();
+        }
+        moduleInfo.moduleType = typeStr;
+        const auto mt =
+            magic_enum::enum_cast<gobj::ModuleType>(moduleInfo.moduleType);
+        if (mt.has_value())
+        {
+            moduleInfo.moduleTypeVal = mt.value();
+        }
+        else
+        {
+            moduleInfo.moduleType = "MainThruster";
+            moduleInfo.moduleTypeVal = gobj::ModuleType::MainThruster;
+        }
+
+        moduleInfo.maxThrustVal = 100000.0f;
+        moduleInfo.maxThrust = "100000.0";
+        moduleInfo.storageVolumes = StorageVolumesInfo{};
+        const YAML::Node dataNode = modNode["data"];
+        if (dataNode && dataNode.IsMap())
+        {
+            if (dataNode["max-thrust"])
+            {
+                moduleInfo.maxThrustVal = dataNode["max-thrust"].as<float>();
+                floatToString(
+                    moduleInfo.maxThrustVal, moduleInfo.maxThrust, 2);
+            }
+            loadModuleStorageVolumesFromYaml(dataNode,
+                                             moduleInfo.storageVolumes);
+        }
+
+        string texKey;
+        if (modNode["textures"])
+        {
+            texKey = modNode["textures"].as<string>();
+        }
+        if (texKey.empty())
+        {
+            texKey = moduleMapKey;
+        }
+
+        const YAML::Node texRoot = root["textures"];
+        if (!texKey.empty() && texRoot && texRoot[texKey]
+            && texRoot[texKey]["textures"])
+        {
+            for (const auto& texNode : texRoot[texKey]["textures"])
+            {
+                TextureInfo t;
+                if (texNode["name"])
+                {
+                    t.name = texNode["name"].as<string>();
+                }
+                float px = 0.0f;
+                float py = 0.0f;
+                float sx = 100.0f;
+                float sy = 100.0f;
+                const YAML::Node b = texNode["bounds"];
+                if (b && b.IsSequence() && b.size() >= 4)
+                {
+                    px = b[0].as<float>();
+                    py = b[1].as<float>();
+                    sx = b[2].as<float>();
+                    sy = b[3].as<float>();
+                }
+                t.posXVal = px;
+                t.posYVal = py;
+                const bool bleedThis = yamlTextureBoundsBleed
+                                       && textureNameUsesBoundsBleed(t.name);
+                const glm::vec2 logical =
+                    moddingTextureAssetSizeToLogical(sx, sy, bleedThis);
+                t.sizeXVal = logical.x;
+                t.sizeYVal = logical.y;
+                floatToString(t.posXVal, t.posX, 2);
+                floatToString(t.posYVal, t.posY, 2);
+                floatToString(t.sizeXVal, t.sizeX, 2);
+                floatToString(t.sizeYVal, t.sizeY, 2);
+
+                float rotDeg = 0.0f;
+                if (texNode["rot"])
+                {
+                    rotDeg = texNode["rot"].as<float>();
+                }
+                t.rotVal = rotDeg;
+                floatToString(t.rotVal, t.rot, 2);
+
+                int z = defaultTextureZForMode(ModdingToolsMode::Module);
+                if (texNode["zIndex"])
+                {
+                    z = texNode["zIndex"].as<int>();
+                }
+                t.zIndexVal = static_cast<int8_t>(z);
+                intToString(static_cast<int>(t.zIndexVal), t.zIndex);
+
+                int flagsInt = 0;
+                if (texNode["flags"])
+                {
+                    flagsInt = texNode["flags"].as<int>();
+                }
+                t.flags = static_cast<gobj::TextureFlags>(flagsInt);
+
+                readTextureTileFields(texNode, t);
+                syncTextureTileStrings(t);
+                textures.push_back(std::move(t));
+            }
+        }
+    }
+    catch (const YAML::Exception& e)
+    {
+        LG_W("Modding tools: error parsing module in {}: {}", path, e.what());
+        textures.clear();
+        moduleInfo = ModuleInfo{};
+        genInfo = GeneralInfo{};
+        activeMode = ModdingToolsMode::None;
+        syncModeToRml();
+        return false;
+    }
+
+    resetNewTexturePickerState();
+    parseEditorNumericFields();
+    return true;
+}
+
+bool ModdingTools::saveModuleDataToPath(const string& path)
+{
+    parseEditorNumericFields();
+
+    const string key =
+        sanitizeHullKey(genInfo.name.empty() ? string("module") : genInfo.name);
+    const string displayName = genInfo.name.empty() ? key : genInfo.name;
+
+    YAML::Node texBundle;
+    YAML::Node texList(YAML::NodeType::Sequence);
+    for (const auto& t : textures)
+    {
+        YAML::Node entry;
+        entry["name"] = t.name;
+        entry["bounds"] = YAML::Node(YAML::NodeType::Sequence);
+        const glm::vec2 assetSize = moddingTextureLogicalSizeToAsset(
+            t.sizeXVal, t.sizeYVal, textureNameUsesBoundsBleed(t.name));
+        entry["bounds"].push_back(t.posXVal);
+        entry["bounds"].push_back(t.posYVal);
+        entry["bounds"].push_back(assetSize.x);
+        entry["bounds"].push_back(assetSize.y);
+        entry["zIndex"] = t.zIndexVal;
+        entry["flags"] = static_cast<int>(t.flags);
+        entry["rot"] = t.rotVal;
+        writeTextureTileFields(entry, t);
+        texList.push_back(entry);
+    }
+    texBundle["textures"] = texList;
+
+    YAML::Node modNode;
+    modNode["name"] = displayName;
+    modNode["slot-type"] = moduleInfo.slotType;
+    modNode["type"] = moduleInfo.moduleType;
+    modNode["textures"] = key;
+    if (!moduleInfo.description.empty())
+    {
+        modNode["description"] = moduleInfo.description;
+    }
+
+    YAML::Node dataNode(YAML::NodeType::Map);
+    switch (moduleInfo.moduleTypeVal)
+    {
+        case gobj::ModuleType::MainThruster:
+        case gobj::ModuleType::ManeuverThruster:
+            dataNode["max-thrust"] = moduleInfo.maxThrustVal;
+            break;
+        case gobj::ModuleType::Storage:
+            writeModuleStorageVolumesToYaml(dataNode,
+                                            moduleInfo.storageVolumes);
+            break;
+        case gobj::ModuleType::Dock:
+            dataNode["dummy"] = std::string("nodata");
+            break;
+        case gobj::ModuleType::None:
+        default:
+            break;
+    }
+    if (dataNode.size() > 0)
+    {
+        modNode["data"] = dataNode;
+    }
+
+    YAML::Node root;
+    root[kYamlTextureBoundsBleedKey] = true;
+    root["textures"] = YAML::Node(YAML::NodeType::Map);
+    root["textures"][key] = texBundle;
+    root["module"] = YAML::Node(YAML::NodeType::Map);
+    root["module"][key] = modNode;
+
+    std::ofstream out(path);
+    if (!out)
+    {
+        return false;
+    }
+    out << root;
+    return out.good();
 }
 
 bool ModdingTools::loadStationPartDataFromPath(const string& path)
@@ -3422,15 +3966,12 @@ bool ModdingTools::loadStationPartDataFromPath(const string& path)
             stationPartInfo.partTypeVal = gobj::StationPartType::Structural;
         }
 
-        stationPartInfo.storageVolumeVal = 0.0f;
-        stationPartInfo.storageVolume = "0";
+        stationPartInfo.storageVolumes = StorageVolumesInfo{};
         const YAML::Node dataNode = partNode["data"];
-        if (dataNode && dataNode.IsMap() && dataNode["volume"])
+        if (dataNode && dataNode.IsMap())
         {
-            stationPartInfo.storageVolumeVal = dataNode["volume"].as<float>();
-            floatToString(stationPartInfo.storageVolumeVal,
-                          stationPartInfo.storageVolume,
-                          2);
+            loadStationStorageVolumesFromYaml(dataNode,
+                                              stationPartInfo.storageVolumes);
         }
 
         string texKey;
@@ -3678,7 +4219,8 @@ bool ModdingTools::saveStationPartDataToPath(const string& path)
             dataNode["dummy"] = std::string("nodata");
             break;
         case gobj::StationPartType::Storage:
-            dataNode["volume"] = stationPartInfo.storageVolumeVal;
+            writeStationStorageVolumesToYaml(dataNode,
+                                             stationPartInfo.storageVolumes);
             break;
         default:
             break;
