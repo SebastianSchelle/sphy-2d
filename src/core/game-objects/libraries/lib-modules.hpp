@@ -90,7 +90,7 @@ enum class ModuleType : uint8_t
     MainThruster,
     ManeuverThruster,
     Storage,
-    Dock,
+    Hangar,
 };
 
 namespace mdata
@@ -112,12 +112,12 @@ struct Storage
     static Storage fromYaml(const YAML::Node& node);
 };
 
-struct Dock
+struct Hangar
 {
-    static Dock fromYaml(const YAML::Node& node);
+    static Hangar fromYaml(const YAML::Node& node);
 };
 
-using Data = std::variant<MainThruster, ManeuverThruster, Storage, Dock>;
+using Data = std::variant<MainThruster, ManeuverThruster, Storage, Hangar>;
 
 }  // namespace mdata
 

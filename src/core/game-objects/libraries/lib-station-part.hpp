@@ -15,7 +15,7 @@ enum class StationPartType : uint8_t
 {
     Structural,
     Storage,
-    Docking,
+    Hangar,
     Habitat,
     Defense,
     Production,
@@ -39,9 +39,9 @@ struct Storage
     static Storage fromYaml(const YAML::Node& node);
 };
 
-struct Docking
+struct Hangar
 {
-    static Docking fromYaml(const YAML::Node& node);
+    static Hangar fromYaml(const YAML::Node& node);
 };
 
 struct Habitat
@@ -66,7 +66,7 @@ struct LifeSupport
 
 using Data = std::variant<Structural,
                           Storage,
-                          Docking,
+                          Hangar,
                           Habitat,
                           Defense,
                           Production,

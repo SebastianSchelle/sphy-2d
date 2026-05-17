@@ -3860,7 +3860,7 @@ bool ModdingTools::saveModuleDataToPath(const string& path)
             writeModuleStorageVolumesToYaml(dataNode,
                                             moduleInfo.storageVolumes);
             break;
-        case gobj::ModuleType::Dock:
+        case gobj::ModuleType::Hangar:
             dataNode["dummy"] = std::string("nodata");
             break;
         case gobj::ModuleType::None:

@@ -56,10 +56,10 @@ Storage Storage::fromYaml(const YAML::Node& node)
     return storage;
 }
 
-Dock Dock::fromYaml(const YAML::Node& node)
+Hangar Hangar::fromYaml(const YAML::Node& node)
 {
-    Dock dock;
-    return dock;
+    Hangar hangar;
+    return hangar;
 }
 
 }  // namespace mdata
@@ -98,8 +98,8 @@ Module Module::fromYaml(const YAML::Node& node,
             case ModuleType::Storage:
                 module.data = mdata::Storage::fromYaml(dataNode);
                 break;
-            case ModuleType::Dock:
-                module.data = mdata::Dock::fromYaml(dataNode);
+            case ModuleType::Hangar:
+                module.data = mdata::Hangar::fromYaml(dataNode);
                 break;
             default:
                 break;

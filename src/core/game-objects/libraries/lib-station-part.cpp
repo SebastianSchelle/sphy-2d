@@ -23,10 +23,10 @@ Storage Storage::fromYaml(const YAML::Node& node)
     return storage;
 }
 
-Docking Docking::fromYaml(const YAML::Node& node)
+Hangar Hangar::fromYaml(const YAML::Node& node)
 {
-    Docking docking;
-    return docking;
+    Hangar hangar;
+    return hangar;
 }
 
 Habitat Habitat::fromYaml(const YAML::Node& node)
@@ -103,8 +103,8 @@ StationPart StationPart::fromYaml(const YAML::Node& node,
             case StationPartType::Storage:
                 stationPart.data = sdata::Storage::fromYaml(dataNode);
                 break;
-            case StationPartType::Docking:
-                stationPart.data = sdata::Docking::fromYaml(dataNode);
+            case StationPartType::Hangar:
+                stationPart.data = sdata::Hangar::fromYaml(dataNode);
                 break;
             case StationPartType::Habitat:
                 stationPart.data = sdata::Habitat::fromYaml(dataNode);
