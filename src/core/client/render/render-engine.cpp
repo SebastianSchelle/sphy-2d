@@ -114,12 +114,32 @@ bool RenderEngine::initPre()
         CFG_INT(config, 1000.0f, "gfx", "tex-bucket-size");
     const float texExcessHeightThreshold =
         CFG_FLOAT(config, 0.8f, "gfx", "tex-excess-height-threshold");
-    zoomPanCfgWorld.zoomStep = CFG_FLOAT(config, 0.1f, "ui", "zoom", "step");
-    zoomPanCfgWorld.maxZoom = CFG_FLOAT(config, 10.0f, "ui", "zoom", "max");
-    zoomPanCfgWorld.minZoom = CFG_FLOAT(config, 0.01f, "ui", "zoom", "min");
-    zoomPanCfgWorld.panSpeed = CFG_FLOAT(config, 10.0f, "ui", "pan", "speed");
-    zoomTactical = CFG_FLOAT(config, 0.5f, "ui", "zoom", "tactical-map");
-    zoomStrategic = CFG_FLOAT(config, 0.2f, "ui", "zoom", "strategic-map");
+
+    camMoveCfg[static_cast<size_t>(GameViewMode::ThirdPerson)].zoomStep =
+        CFG_FLOAT(config, 0.1f, "ui", "zoom", "step");
+    camMoveCfg[static_cast<size_t>(GameViewMode::ThirdPerson)].maxZoom =
+        CFG_FLOAT(config, 10.0f, "ui", "zoom", "max");
+    camMoveCfg[static_cast<size_t>(GameViewMode::ThirdPerson)].minZoom =
+        CFG_FLOAT(config, 0.01f, "ui", "zoom", "min");
+    camMoveCfg[static_cast<size_t>(GameViewMode::ThirdPerson)].panSpeed =
+        CFG_FLOAT(config, 10.0f, "ui", "pan", "speed");
+    camMoveCfg[static_cast<size_t>(GameViewMode::TacticalMap)].zoomStep =
+        CFG_FLOAT(config, 0.1f, "ui", "zoom", "step");
+    camMoveCfg[static_cast<size_t>(GameViewMode::TacticalMap)].maxZoom =
+        CFG_FLOAT(config, 10.0f, "ui", "zoom", "max");
+    camMoveCfg[static_cast<size_t>(GameViewMode::TacticalMap)].minZoom =
+        CFG_FLOAT(config, 0.01f, "ui", "zoom", "min");
+    camMoveCfg[static_cast<size_t>(GameViewMode::TacticalMap)].panSpeed =
+        CFG_FLOAT(config, 10.0f, "ui", "pan", "speed");
+    camMoveCfg[static_cast<size_t>(GameViewMode::StrategicMap)].zoomStep =
+        CFG_FLOAT(config, 0.1f, "ui", "zoom", "step");
+    camMoveCfg[static_cast<size_t>(GameViewMode::StrategicMap)].maxZoom =
+        CFG_FLOAT(config, 10.0f, "ui", "zoom", "max");
+    camMoveCfg[static_cast<size_t>(GameViewMode::StrategicMap)].minZoom =
+        CFG_FLOAT(config, 0.01f, "ui", "zoom", "min");
+    camMoveCfg[static_cast<size_t>(GameViewMode::StrategicMap)].panSpeed =
+        CFG_FLOAT(config, 10.0f, "ui", "pan", "speed");
+
     maxTexPerDrawCall =
         CFG_INT(config, 1024.0f, "gfx", "max-tex-per-draw-call");
 
@@ -313,13 +333,6 @@ void RenderEngine::setWindowSize(int width, int height)
     bgfx::setViewRect(kUiView, 0, 0, bgfx::BackbufferRatio::Equal);
 }
 
-void RenderEngine::setWorldCamera(const vec2& position, float zoom)
-{
-    worldCameraX = position.x;
-    worldCameraY = position.y;
-    worldZoom = zoom;
-}
-
 vec2 RenderEngine::screenToWorldPixel(const vec2& screenPx) const
 {
     const float wf = float(winWidth);
@@ -379,10 +392,6 @@ void RenderEngine::updateWorldView()
     bx::mtxMul(worldView, transMtx, scaleMtx);
     bx::mtxMul(worldViewProj, worldView, ortho);
     bx::mtxInverse(invWvp, worldViewProj);
-
-    viewMode = worldZoom < zoomTactical    ? GameViewMode::StrategicMap
-               : worldZoom < zoomStrategic ? GameViewMode::TacticalMap
-                                           : GameViewMode::ThirdPerson;
 }
 
 TextureHandle RenderEngine::loadTexture(const std::string& name,
@@ -1103,39 +1112,45 @@ void RenderEngine::allocateForTexRects()
     bgfx::allocInstanceDataBuffer(&idbTex, n, stride);
 }
 
-void RenderEngine::zoomWorld(float amount)
+void RenderEngine::zoom(float amount)
 {
+    float zoomStep = camMoveCfg[static_cast<size_t>(viewMode)].zoomStep;
+    float maxZoom = camMoveCfg[static_cast<size_t>(viewMode)].maxZoom;
+    float minZoom = camMoveCfg[static_cast<size_t>(viewMode)].minZoom;
+
     for (int i = 0; i < abs(amount); i++)
     {
         if (amount > 0)
         {
-            worldZoom *= zoomPanCfgWorld.zoomStep;
+            worldZoom *= zoomStep;
         }
         else
         {
-            worldZoom /= zoomPanCfgWorld.zoomStep;
+            worldZoom /= zoomStep;
         }
     }
     if (amount > 0)
     {
-        if (worldZoom > zoomPanCfgWorld.maxZoom)
+        if (worldZoom > maxZoom)
         {
-            worldZoom = zoomPanCfgWorld.maxZoom;
+            worldZoom = maxZoom;
         }
     }
     else
     {
-        if (worldZoom < zoomPanCfgWorld.minZoom)
+        if (worldZoom < minZoom)
         {
-            worldZoom = zoomPanCfgWorld.minZoom;
+            worldZoom = minZoom;
         }
     }
+    persistentCamPos[static_cast<size_t>(viewMode)].zoom = worldZoom;
 }
 
 void RenderEngine::panWorld(PanDirection dirX, PanDirection dirY)
 {
-    worldCameraX += (float)dirX * zoomPanCfgWorld.panSpeed / worldZoom;
-    worldCameraY += (float)dirY * zoomPanCfgWorld.panSpeed / worldZoom;
+    float panSpeed = camMoveCfg[static_cast<size_t>(viewMode)].panSpeed;
+    worldCameraX += (float)dirX * panSpeed / worldZoom;
+    worldCameraY += (float)dirY * panSpeed / worldZoom;
     updatePosWithSectorOffset();
 }
 
@@ -1143,13 +1158,6 @@ void RenderEngine::panWorld(const glm::vec2& delta)
 {
     worldCameraX += delta.x;
     worldCameraY += delta.y;
-    updatePosWithSectorOffset();
-}
-
-void RenderEngine::setWorldCameraPosition(const glm::vec2& position)
-{
-    worldCameraX = position.x;
-    worldCameraY = position.y;
     updatePosWithSectorOffset();
 }
 
@@ -1182,6 +1190,11 @@ void RenderEngine::updatePosWithSectorOffset()
         std::clamp(worldCameraY - deltaOffsY * worldShape->sectorSize,
                    -worldShape->sectorSize / 2.0f,
                    worldShape->sectorSize / 2.0f);
+
+    persistentCamPos[static_cast<size_t>(viewMode)].x = worldCameraX;
+    persistentCamPos[static_cast<size_t>(viewMode)].y = worldCameraY;
+    persistentCamPos[static_cast<size_t>(viewMode)].xOffs = deltaOffsX;
+    persistentCamPos[static_cast<size_t>(viewMode)].yOffs = deltaOffsY;
 }
 
 void RenderEngine::screenToSectorCoords(const vec2& screenPx,
@@ -1273,6 +1286,54 @@ void RenderEngine::panWorldTo(const def::SectorCoords& sectorCoords)
     sectorOffsetY = sectorCoords.pos.y;
     worldCameraX = sectorCoords.sectorPos.x;
     worldCameraY = sectorCoords.sectorPos.y;
+}
+
+void RenderEngine::onTglTactical()
+{
+    if(viewMode == GameViewMode::TacticalMap)
+    {
+        viewMode = GameViewMode::ThirdPerson;
+        loadPersistentCamPos(GameViewMode::ThirdPerson);
+    }
+    viewMode = GameViewMode::TacticalMap;
+    loadPersistentCamPos(GameViewMode::ThirdPerson);
+}
+
+void RenderEngine::onTglStrategic()
+{
+    if(viewMode == GameViewMode::StrategicMap)
+    {
+        viewMode = GameViewMode::ThirdPerson;
+        loadPersistentCamPos(GameViewMode::ThirdPerson);
+    }
+    viewMode = GameViewMode::StrategicMap;
+    loadPersistentCamPos(GameViewMode::StrategicMap);
+}
+
+void RenderEngine::savePersistentCamPos(GameViewMode viewMode)
+{
+    persistentCamPos[static_cast<size_t>(viewMode)].x = worldCameraX;
+    persistentCamPos[static_cast<size_t>(viewMode)].y = worldCameraY;
+    persistentCamPos[static_cast<size_t>(viewMode)].xOffs = sectorOffsetX;
+    persistentCamPos[static_cast<size_t>(viewMode)].yOffs = sectorOffsetY;
+    persistentCamPos[static_cast<size_t>(viewMode)].zoom = worldZoom;
+}
+
+void RenderEngine::loadPersistentCamPos(GameViewMode viewMode)
+{
+    worldCameraX = persistentCamPos[static_cast<size_t>(viewMode)].x;
+    worldCameraY = persistentCamPos[static_cast<size_t>(viewMode)].y;
+    sectorOffsetX = persistentCamPos[static_cast<size_t>(viewMode)].xOffs;
+    sectorOffsetY = persistentCamPos[static_cast<size_t>(viewMode)].yOffs;
+    worldZoom = persistentCamPos[static_cast<size_t>(viewMode)].zoom;
+    if(worldZoom < camMoveCfg[static_cast<size_t>(viewMode)].minZoom)
+    {
+        worldZoom = camMoveCfg[static_cast<size_t>(viewMode)].minZoom;
+    }
+    if(worldZoom > camMoveCfg[static_cast<size_t>(viewMode)].maxZoom)
+    {
+        worldZoom = camMoveCfg[static_cast<size_t>(viewMode)].maxZoom;
+    }
 }
 
 }  // namespace gfx

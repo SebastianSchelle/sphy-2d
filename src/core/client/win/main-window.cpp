@@ -105,7 +105,6 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
     debug::createLogger("logs/logClient.txt", logLevel);
     dragThreshold =
         CFG_FLOAT(config, 300.0f, "input", "drag-threshold", "world");
-    dragThreshold *= 0.5f;
     dragBoxColor = CFG_UINT(
         config, (float)0x2085e085, "theme", "input", "drag-box", "color");
     dragBoxThickness =
@@ -297,7 +296,7 @@ void MainWindow::winLoop()
             {
                 glm::vec2 mousePosWorldBefore =
                     renderEngine.screenToWorldPixel(mouseState.mousePos);
-                renderEngine.zoomWorld(mouseState.mz);
+                renderEngine.zoom(mouseState.mz);
                 renderEngine.updateWorldView();
                 glm::vec2 mousePosWorldAfter =
                     renderEngine.screenToWorldPixel(mouseState.mousePos);
@@ -822,6 +821,16 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         {
             panX = gfx::PanDirection::Stop;
         }
+        return;
+    }
+    if(action == GLFW_PRESS && key == GLFW_KEY_TAB)
+    {
+        renderEngine.onTglTactical();
+        return;
+    }
+    if(action == GLFW_PRESS && key == GLFW_KEY_M)
+    {
+        renderEngine.onTglStrategic();
         return;
     }
 }

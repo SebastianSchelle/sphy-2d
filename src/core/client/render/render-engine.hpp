@@ -31,6 +31,16 @@ enum class GameViewMode
     ThirdPerson,
     TacticalMap,
     StrategicMap,
+    Count,
+};
+
+struct PersistentCamPos
+{
+    float x;
+    float y;
+    float xOffs;
+    float yOffs;
+    float zoom;
 };
 
 struct Geometry
@@ -147,12 +157,12 @@ class RenderEngine
                                 TextureHandle textureHandle,
                                 bgfx::ViewId viewId = 0);
     void setWindowSize(int width, int height);
-    void setWorldCamera(const vec2& position, float zoom);
-    void zoomWorld(float amount);
+    void zoom(float amount);
     void panWorld(PanDirection dirX, PanDirection dirY);
     void panWorld(const glm::vec2& delta);
     void panWorldTo(const def::SectorCoords& sectorCoords);
-    void setWorldCameraPosition(const glm::vec2& pos);
+    void onTglTactical();
+    void onTglStrategic();
     TextureHandle loadTexture(const std::string& name,
                               const std::string& type,
                               const std::string& path);
@@ -309,7 +319,8 @@ class RenderEngine
                       bgfx::ViewId viewId = 0);
     void updatePosWithSectorOffset();
     void drawPreparedTexRect();
-
+    void savePersistentCamPos(GameViewMode viewMode);
+    void loadPersistentCamPos(GameViewMode viewMode);
 
     TextureLoader textureLoader;
     cfg::ConfigManager& config;
@@ -350,7 +361,8 @@ class RenderEngine
     float worldViewProj[16];
     float invWvp[16];
 
-    ZoomPanCfg zoomPanCfgWorld;
+    ZoomPanCfg camMoveCfg[static_cast<size_t>(GameViewMode::Count)];
+    PersistentCamPos persistentCamPos[static_cast<size_t>(GameViewMode::Count)];
 
     glm::vec2 scissorRegionPosition;
     glm::vec2 scissorRegionSize;
@@ -380,8 +392,6 @@ class RenderEngine
     vector<TexRectDataWrapper> texRectData;
     vector<ZSortEntry> texRectSorted;
 
-    float zoomTactical = 0.0f;
-    float zoomStrategic = 0.0f;
     GameViewMode viewMode = GameViewMode::ThirdPerson;
 };
 
