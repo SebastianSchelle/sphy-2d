@@ -843,11 +843,13 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
     if (action == GLFW_PRESS && key == GLFW_KEY_T)
     {
         renderEngine.clbToggleTacticalView();
+        userInterface.setupViewModeUi(renderEngine.getViewMode());
         return;
     }
     if (action == GLFW_PRESS && key == GLFW_KEY_M)
     {
         renderEngine.clbToggleStrategicView();
+        userInterface.setupViewModeUi(renderEngine.getViewMode());
         return;
     }
 }

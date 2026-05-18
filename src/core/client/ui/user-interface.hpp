@@ -9,8 +9,14 @@
 #include <item-lib.hpp>
 #include <memory>
 #include <ptr-handle.hpp>
+#include "ui-tab-panel.hpp"
 
 using UiDocHandle = con::ItemLib<Rml::ElementDocument*>::Handle;
+
+namespace gfx
+{
+    enum class GameViewMode;
+}
 
 namespace ui
 {
@@ -65,11 +71,17 @@ class UserInterface
     void processTextInput(Rml::Character codepoint);
     void render();
     void showDocument(UiDocHandle handle);
+    void showDocument(const string& documentId);
     void hideDocument(UiDocHandle handle);
+    void hideDocument(const string& documentId);
     void hideAllDocuments();
     UiDocHandle getDocumentHandle(const std::string& name);
     void showMenu();
     void closeMenu();
+    void showTabListStrategic();
+    void hideTabListStrategic();
+    void showTabListTactical();
+    void hideTabListTactical();
     void processEsc(bool keepMenuOpen = false);
     void addSystemMessage(const string& message);
     void addChatMessage(const ChatMessage& message);
@@ -78,6 +90,8 @@ class UserInterface
                              const std::string& documentPath);
     void unloadDocument(UiDocHandle handle);
     bool loadFont(const std::string& fontPath);
+    void setupViewModeUi(gfx::GameViewMode viewMode);
+
     // todo: move to mainwindow or something
     void
     bind(const std::string& model, const std::string& variable, void* value);
@@ -138,6 +152,8 @@ class UserInterface
     bool menuOpen = false;
     bool chatOpen = false;
     bool debugOpen = false;
+    bool tabListStrategicOpen = false;
+    bool tabListTacticalOpen = false;
 
     vector<string> menuStack;
     string currentMenuPage;
@@ -156,6 +172,10 @@ class UserInterface
     std::vector<std::string> cmdHistory;
     int cmdHistoryBrowseIndex = -1;
     std::string cmdHistoryDraft;
+
+    UiTabPanel tabPanelStrategic;
+    UiTabPanel tabPanelTactical;
+
 };
 
 }  // namespace ui

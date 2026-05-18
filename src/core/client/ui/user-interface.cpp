@@ -1,12 +1,13 @@
 #include "user-interface.hpp"
 #include "RmlUi/Core/DataModelHandle.h"
+#include "RmlUi/Core/Elements/ElementFormControlInput.h"
 #include "RmlUi/Core/EventListener.h"
 #include "RmlUi/Core/ID.h"
 #include "RmlUi/Core/Input.h"
-#include "RmlUi/Core/Elements/ElementFormControlInput.h"
 #include <climits>
 #include <iomanip>
 #include <limits>
+#include <render-engine.hpp>
 #include <sstream>
 #include <work-distributor.hpp>
 
@@ -53,7 +54,9 @@ void ChatData::addMessage(const ChatMessage& message)
     messages.back().timestampText = timeStream.str();
 }
 
-UserInterface::UserInterface(CmdCallback cmdCallback) : cmdCallback(cmdCallback)
+UserInterface::UserInterface(CmdCallback cmdCallback)
+    : cmdCallback(cmdCallback), tabPanelStrategic(this, "tab-panel-strategic"),
+      tabPanelTactical(this, "tab-panel-tactical")
 {
     chatData.currMsgTarget = "all";
 }
@@ -107,6 +110,13 @@ bool UserInterface::init(glm::ivec2 windowSize)
     }
 
     setupChatDataModel();
+    tabPanelStrategic.init();
+    tabPanelTactical.init();
+    // Test tab panel
+    tabPanelStrategic.addTab("Object Info", "mp-obj-info");
+    tabPanelStrategic.addTab("Faction Assets", "faction-assets");
+    tabPanelStrategic.addTab("Relations", "relations");
+    tabPanelTactical.addTab("Object Info", "mp-obj-info");
     return true;
 }
 
@@ -155,7 +165,8 @@ bool UserInterface::processMouseButtonDown(int button, int keyMod)
         LG_E("Button index out of range");
         return false;
     }
-    // Rml: true = mouse not interacting with any element (e.g. click missed UI).
+    // Rml: true = mouse not interacting with any element (e.g. click missed
+    // UI).
     const bool mouse_not_on_ui =
         rmlContext->ProcessMouseButtonDown(button, keyMod);
     mouseDownInteract[button] = !mouse_not_on_ui;
@@ -260,7 +271,7 @@ UiDocHandle UserInterface::loadDocument(const std::string& name,
 
 void UserInterface::unloadDocument(UiDocHandle handle)
 {
-    auto doc = rmlDocLib.getItem(handle.getIdx());
+    auto doc = rmlDocLib.getItem(handle);
     if (!doc)
     {
         return;
@@ -288,7 +299,7 @@ bool UserInterface::loadFont(const std::string& fontPath)
 
 void UserInterface::showDocument(UiDocHandle handle)
 {
-    auto doc = rmlDocLib.getItem(handle.getIdx());
+    auto doc = rmlDocLib.getItem(handle);
     if (doc)
     {
         LG_D("Showing document: {}", (*doc)->GetTitle());
@@ -296,13 +307,39 @@ void UserInterface::showDocument(UiDocHandle handle)
     }
 }
 
+void UserInterface::showDocument(const string& documentId)
+{
+    auto doc = rmlDocLib.getHandle(documentId);
+    if (doc.isValid())
+    {
+        showDocument(doc);
+    }
+    else
+    {
+        LG_W("Document not found: {}", documentId);
+    }
+}
+
 void UserInterface::hideDocument(UiDocHandle handle)
 {
-    auto doc = rmlDocLib.getItem(handle.getIdx());
+    auto doc = rmlDocLib.getItem(handle);
     if (doc)
     {
         LG_D("Hiding document: {}", (*doc)->GetTitle());
         (*doc)->Hide();
+    }
+}
+
+void UserInterface::hideDocument(const string& documentId)
+{
+    auto doc = rmlDocLib.getHandle(documentId);
+    if (doc.isValid())
+    {
+        hideDocument(doc);
+    }
+    else
+    {
+        LG_W("Document not found: {}", documentId);
     }
 }
 
@@ -312,6 +349,11 @@ void UserInterface::hideAllDocuments()
     {
         (*doc)->Hide();
     }
+    menuOpen = false;
+    chatOpen = false;
+    debugOpen = false;
+    tabListStrategicOpen = false;
+    tabListTacticalOpen = false;
 }
 
 UiDocHandle UserInterface::getDocumentHandle(const std::string& name)
@@ -353,6 +395,54 @@ void UserInterface::closeMenu()
     hideDocument(rmlDocLib.getHandle(currentMenuPage));
     menuStack.clear();
     menuOpen = false;
+}
+
+void UserInterface::showTabListStrategic()
+{
+    if (!tabListStrategicOpen)
+    {
+        showDocument(rmlDocLib.getHandle("tab-list-strategic"));
+        tabListStrategicOpen = true;
+    }
+}
+
+void UserInterface::hideTabListStrategic()
+{
+    hideDocument(rmlDocLib.getHandle("tab-list-strategic"));
+    tabListStrategicOpen = false;
+}
+
+void UserInterface::showTabListTactical()
+{
+    if (!tabListTacticalOpen)
+    {
+        showDocument(rmlDocLib.getHandle("tab-list-tactical"));
+        tabListTacticalOpen = true;
+    }
+}
+
+void UserInterface::hideTabListTactical()
+{
+    hideDocument(rmlDocLib.getHandle("tab-list-tactical"));
+    tabListTacticalOpen = false;
+}
+
+void UserInterface::setupViewModeUi(gfx::GameViewMode viewMode)
+{
+    hideAllDocuments();
+    switch (viewMode)
+    {
+        case gfx::GameViewMode::StrategicMap:
+            showTabListStrategic();
+            break;
+        case gfx::GameViewMode::TacticalMap:
+            showTabListTactical();
+            break;
+        case gfx::GameViewMode::ThirdPerson:
+            break;
+        default:
+            break;
+    }
 }
 
 void UserInterface::processEsc(bool keepMenuOpen)
@@ -525,7 +615,7 @@ void UserInterface::scrollChatToBottom()
     {
         return;
     }
-    auto doc = rmlDocLib.getItem(chatDoc.getIdx());
+    auto doc = rmlDocLib.getItem(chatDoc);
     if (doc)
     {
         auto chatElement = (*doc)->GetElementById("chat-scroll");
@@ -679,7 +769,7 @@ void UserInterface::focusChatInput()
     {
         return;
     }
-    auto docPtr = rmlDocLib.getItem(chatDoc.getIdx());
+    auto docPtr = rmlDocLib.getItem(chatDoc);
     if (!docPtr || !*docPtr)
     {
         return;
@@ -783,8 +873,7 @@ bool UserInterface::handleCmdHistoryKey(Rml::Input::KeyIdentifier key)
         if (cmdHistoryBrowseIndex < 0)
         {
             cmdHistoryDraft = chatInputText;
-            cmdHistoryBrowseIndex =
-                static_cast<int>(cmdHistory.size()) - 1;
+            cmdHistoryBrowseIndex = static_cast<int>(cmdHistory.size()) - 1;
         }
         else if (cmdHistoryBrowseIndex > 0)
         {
@@ -804,8 +893,7 @@ bool UserInterface::handleCmdHistoryKey(Rml::Input::KeyIdentifier key)
         {
             return false;
         }
-        if (cmdHistoryBrowseIndex
-            < static_cast<int>(cmdHistory.size()) - 1)
+        if (cmdHistoryBrowseIndex < static_cast<int>(cmdHistory.size()) - 1)
         {
             cmdHistoryBrowseIndex++;
             chatInputText =

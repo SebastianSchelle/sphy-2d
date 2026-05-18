@@ -1,11 +1,11 @@
-#include <mod-manager.hpp>
-#include <render-engine.hpp>
-#include <ui/user-interface.hpp>
-#include <logging.hpp>
-#include <yaml-cpp/yaml.h>
 #include <filesystem>
 #include <functional>
+#include <logging.hpp>
+#include <mod-manager.hpp>
+#include <render-engine.hpp>
 #include <string>
+#include <ui/user-interface.hpp>
+#include <yaml-cpp/yaml.h>
 
 namespace mod
 {
@@ -98,12 +98,12 @@ bool ModManager::loadFonts(PtrHandles& ptrHandles, const ModInfo& modInfo)
 }
 
 gfx::TextureHandle ModManager::loadTextureClient(PtrHandles& ptrHandles,
-                                   const string& texName,
-                                   const string& texType,
-                                   const string& texPath)
+                                                 const string& texName,
+                                                 const string& texType,
+                                                 const string& texPath)
 {
-    auto texHandle = ptrHandles.renderEngine->loadTexture(
-        texName, texType, texPath);
+    auto texHandle =
+        ptrHandles.renderEngine->loadTexture(texName, texType, texPath);
     return texHandle;
 }
 
@@ -130,6 +130,7 @@ bool ModManager::loadUiDocs(PtrHandles& ptrHandles,
                 if (!dispatchUiBool(ptrHandles,
                                     [&]()
                                     {
+                                        LG_I("Loading uiDoc: {}", uiDocPath);
                                         ptrHandles.userInterface->loadDocument(
                                             uiDocName, uiDocPath);
                                         return true;
@@ -165,7 +166,7 @@ bool ModManager::loadUiDocs(PtrHandles& ptrHandles,
 bool ModManager::loadModOptions(PtrHandles& ptrHandles, ModInfo& modInfo)
 {
     const std::string modOptionsPath =
-        modInfo.modDir + "/assets/ui/mod-options.rml";
+        modInfo.modDir + "/assets/ui/menu/mod-options.rml";
     if (std::filesystem::exists(modOptionsPath))
     {
         LG_I("Mod options found: {}", modOptionsPath);
