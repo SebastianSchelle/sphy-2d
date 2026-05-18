@@ -118,20 +118,27 @@ entt::entity EcsClient::enttFromServerId(const EntityId& entityId)
     }
     else
     {
-        // Check if existing entity has matching generation
         Slot& slot = idMap[entityId.index];
-        if (slot.generation == entityId.generation)
+        if (slot.generation != 0)
         {
-            // Return entity, as this is still the same entity
-            return slot.entity;
+            if (slot.generation == entityId.generation)
+            {
+                // Return valid entity
+                return slot.entity;
+            }
+            else
+            {
+                // Destroy existing entity and create new
+                registry.destroy(slot.entity);
+                auto e = registry.create();
+                idMap[entityId.index] = {e, entityId.generation};
+                return e;
+            }
         }
         else
         {
-            // Destroy existing entity and create new
-            registry.destroy(slot.entity);
-            auto e = registry.create();
-            idMap[entityId.index] = {e, entityId.generation};
-            return e;
+            // Not synched yet
+            return entt::null;
         }
     }
 }

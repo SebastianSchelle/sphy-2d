@@ -126,9 +126,10 @@ void Model::modelLoopGame(float dt)
     static tim::Timepoint lastReqAllComponents = tim::getCurrentTimeU();
     static tim::Timepoint lastGetAabbTree = tim::getCurrentTimeU();
 
-    if (renderer->getViewMode() == gfx::GameViewMode::ThirdPerson)
+    if (renderer->getViewMode() == gfx::GameViewMode::ThirdPerson
+        || renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
     {
-        entt::entity activeEntity = ecs.getEntity(clientInfo.getActiveEntity());
+        entt::entity activeEntity = getActiveEntity();
         auto& reg = ecs.getRegistry();
         if (reg.valid(activeEntity))
         {
@@ -136,10 +137,19 @@ void Model::modelLoopGame(float dt)
             auto* sectorId = reg.try_get<ecs::SectorId>(activeEntity);
             if (transform && sectorId)
             {
-                renderer->panWorldTo(def::SectorCoords{
-                    .pos = world.idToSectorCoords(sectorId->id),
-                    .sectorPos = transform->pos,
-                });
+                if (renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
+                {
+                    renderer->setActiveSector(
+                        world.idToSectorCoords(sectorId->id).x,
+                        world.idToSectorCoords(sectorId->id).y);
+                }
+                else
+                {
+                    renderer->panWorldTo(def::SectorCoords{
+                        .pos = world.idToSectorCoords(sectorId->id),
+                        .sectorPos = transform->pos,
+                    });
+                }
             }
         }
     }
@@ -448,7 +458,8 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
                             float zoom)
 {
     world.drawTacticalMap(renderer, viewRect, zoom);
-    drawObjects(renderer, viewRect, zoom);
+    uint32_t activeSectorId = getActiveSectorId();
+    drawObjects(renderer, viewRect, zoom, activeSectorId);
     auto& reg = ecs.getRegistry();
     for (const auto& entityId : selectedEntities)
     {
@@ -457,19 +468,19 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
         {
             auto* trans = reg.try_get<ecs::Transform>(entity);
             auto* sectorId = reg.try_get<ecs::SectorId>(entity);
-            if (trans && sectorId)
+            if (trans && sectorId && sectorId->id == activeSectorId)
             {
                 glm::vec2 worldPos =
                     world.getWorldPosSectorOffset(sectorId->id,
                                                   renderer.getSectorOffsetX(),
                                                   renderer.getSectorOffsetY())
                     + trans->pos;
-                renderer.drawRectangle(worldPos,
-                                       glm::vec2(40.0f, 40.0f),
-                                       0xff004000,
-                                       1.0f / zoom,
-                                       0.0f,
-                                       0);
+                renderer.drawShapeRectangle(worldPos,
+                                            glm::vec2(40.0f, 40.0f),
+                                            0xff004000,
+                                            1.0f / zoom,
+                                            0.0f,
+                                            0);
             }
         }
     }
@@ -509,7 +520,7 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
     //                     size += 1.0;
     //                 }
     //                 auto fatAABB = broadphase.fatAABB;
-    //                 renderer.drawRectangle(
+    //                 renderer.drawShapeRectangle(
     //                     worldPos,
     //                     vec2(fatAABB.upper.x - fatAABB.lower.x,
     //                          fatAABB.upper.y - fatAABB.lower.y),
@@ -559,13 +570,13 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
                     {
                         texHandle = mappedTexture->texHandle;
                     }
-                    renderer.prepTexRectForRendering(worldPos,
-                                         glm::vec2(mapIconItem->size.x / zoom,
-                                                   mapIconItem->size.y / zoom),
-                                         texHandle,
-                                         transform.rot,
-                                         gfx::RenderEngine::zIdxMapIconHull,
-                                         0xff0010ff);
+                    renderer.queueTexRect(worldPos,
+                                          glm::vec2(mapIconItem->size.x / zoom,
+                                                    mapIconItem->size.y / zoom),
+                                          texHandle,
+                                          transform.rot,
+                                          gfx::RenderEngine::zIdxMapIconHull,
+                                          0xff0010ff);
                 }
             }
         });
@@ -589,7 +600,7 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
                                              renderer.getSectorOffsetX(),
                                              renderer.getSectorOffsetY())
                                          + trans->pos;
-                    renderer.drawRectangle(
+                    renderer.drawShapeRectangle(
                         worldPos,
                         glm::vec2(mapIconItem->size.x * 1.5f / zoom,
                                   mapIconItem->size.y * 1.5f / zoom),
@@ -618,62 +629,79 @@ void Model::drawThirdPerson(gfx::RenderEngine& renderer,
 
 void Model::drawObjects(gfx::RenderEngine& renderer,
                         const glm::vec4& viewRect,
-                        float zoom)
+                        float zoom,
+                        uint32_t activeSectorId)
 {
-    drawStations(renderer, viewRect, zoom);
-    drawShips(renderer, viewRect, zoom);
+    drawStations(renderer, viewRect, zoom, activeSectorId);
+    drawShips(renderer, viewRect, zoom, activeSectorId);
 }
 
 void Model::drawShips(gfx::RenderEngine& renderer,
                       const glm::vec4& viewRect,
-                      float zoom)
+                      float zoom,
+                      uint32_t activeSectorId)
 {
     auto& reg = ecs.getRegistry();
     reg.view<ecs::Transform, ecs::SectorId, ecs::Textures, ecs::Hull>().each(
-        [this, &renderer, &viewRect, &reg](entt::entity entity,
-                                           ecs::Transform& transform,
-                                           ecs::SectorId& sectorId,
-                                           ecs::Textures& textures,
-                                           ecs::Hull& hull)
+        [this, &renderer, &viewRect, &reg, activeSectorId](
+            entt::entity entity,
+            ecs::Transform& transform,
+            ecs::SectorId& sectorId,
+            ecs::Textures& textures,
+            ecs::Hull& hull)
         {
-            glm::vec2 worldPos =
-                world.getWorldPosSectorOffset(sectorId.id,
-                                              renderer.getSectorOffsetX(),
-                                              renderer.getSectorOffsetY())
-                + transform.pos;
-            if (smath::pointInsideRect(worldPos, viewRect))
+            bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
+                                || sectorId.id == activeSectorId;
+            if (sectorFilter)
             {
-                drawModuleTextures(renderer,
-                                   transform,
-                                   gfx::RenderEngine::zIdxShipHull,
-                                   hull,
-                                   worldPos);
-                drawTextures(renderer,
-                             textures,
-                             transform.rot,
-                             gfx::RenderEngine::zIdxShipHull,
-                             worldPos);
+                glm::vec2 worldPos =
+                    world.getWorldPosSectorOffset(sectorId.id,
+                                                  renderer.getSectorOffsetX(),
+                                                  renderer.getSectorOffsetY())
+                    + transform.pos;
+                if (smath::pointInsideRect(worldPos, viewRect))
+                {
+                    drawModuleTextures(renderer,
+                                       transform,
+                                       gfx::RenderEngine::zIdxShipHull,
+                                       hull,
+                                       worldPos);
+                    drawTextures(renderer,
+                                 textures,
+                                 transform.rot,
+                                 gfx::RenderEngine::zIdxShipHull,
+                                 worldPos);
+                }
             }
         });
 }
 
 void Model::drawStations(gfx::RenderEngine& renderer,
                          const glm::vec4& viewRect,
-                         float zoom)
+                         float zoom,
+                         uint32_t activeSectorId)
 {
     auto& reg = ecs.getRegistry();
     reg.view<ecs::Transform, ecs::SectorId, ecs::Station>().each(
-        [this, &renderer, &viewRect, &reg](ecs::Transform& transform,
-                                           ecs::SectorId& sectorId,
-                                           ecs::Station& station)
+        [this, &renderer, &viewRect, &reg, activeSectorId](
+            ecs::Transform& transform,
+            ecs::SectorId& sectorId,
+            ecs::Station& station)
         {
-            glm::vec2 sectorOffset =
-                world.getWorldPosSectorOffset(sectorId.id,
-                                              renderer.getSectorOffsetX(),
-                                              renderer.getSectorOffsetY());
-            if (smath::pointInsideRect(sectorOffset + transform.pos, viewRect))
+            bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
+                                || sectorId.id == activeSectorId;
+            if (sectorFilter)
             {
-                drawStationTextures(renderer, transform, station, sectorOffset);
+                glm::vec2 sectorOffset =
+                    world.getWorldPosSectorOffset(sectorId.id,
+                                                  renderer.getSectorOffsetX(),
+                                                  renderer.getSectorOffsetY());
+                if (smath::pointInsideRect(sectorOffset + transform.pos,
+                                           viewRect))
+                {
+                    drawStationTextures(
+                        renderer, transform, station, sectorOffset);
+                }
             }
         });
 }
@@ -717,7 +745,8 @@ void Model::drawModuleTextures(gfx::RenderEngine& renderer,
         entt::entity moduleEntity = ecs.getEntity(modRef.entityId);
         if (moduleEntity != entt::null)
         {
-            const int8_t moduleOffset = gobj::ModuleSlotZOffset[static_cast<uint8_t>(modRef.slotType)];
+            const int8_t moduleOffset =
+                gobj::ModuleSlotZOffset[static_cast<uint8_t>(modRef.slotType)];
             const int8_t moduleZ = parentZ + moduleOffset;
             auto* anchorFixed = reg.try_get<ecs::AnchorFixed>(moduleEntity);
             auto* moduleTextures = reg.try_get<ecs::Textures>(moduleEntity);
@@ -761,7 +790,7 @@ void Model::drawTextures(gfx::RenderEngine& renderer,
             // ModdingTools::drawTextures.
             vec2 texOffset = smath::rotateVec2(
                 vec2(texture.bounds.x, texture.bounds.y), rot);
-            renderer.prepTexRectForRendering(
+            renderer.queueTexRect(
                 worldPos + texOffset,
                 glm::vec2(texture.bounds.z, texture.bounds.w),
                 texHandleGFX,
@@ -925,6 +954,11 @@ void Model::handleReqAllComponentsResp(
     ecs::EntityId entityId;
     cmddes.object(entityId);
     entt::entity entity = ecs.enttFromServerId(entityId);
+    if (entity == entt::null)
+    {
+        // Entity not found, probably destroyed
+        return;
+    }
     while (cmddes.adapter().currentReadPos() <= posNextCmdOrEof - 4)
     {
         uint32_t compHash;
@@ -1115,7 +1149,8 @@ void Model::drawOverlayAABBs(gfx::RenderEngine& renderer, float zoom)
                                               renderer.getSectorOffsetY());
             vec2 pos = worldPos + (aabb.lower + aabb.upper) / 2.0f;
             vec2 size = aabb.upper - aabb.lower;
-            renderer.drawRectangle(pos, size, 0x10ffffff, 1.0f / zoom, 0.0f, 0);
+            renderer.drawShapeRectangle(
+                pos, size, 0x10ffffff, 1.0f / zoom, 0.0f, 0);
         }
     }
 
@@ -1152,6 +1187,26 @@ void Model::registerConnectSequence()
         [this]() {},
         [this]() {},
         [this](bitsery::Serializer<OutputAdapter>& ser) {}));
+}
+
+uint32_t Model::getActiveSectorId()
+{
+    entt::entity activeEntity = getActiveEntity();
+    auto& reg = ecs.getRegistry();
+    if (reg.valid(activeEntity))
+    {
+        auto* sectorId = reg.try_get<ecs::SectorId>(activeEntity);
+        if (sectorId)
+        {
+            return sectorId->id;
+        }
+    }
+    return 0;
+}
+
+entt::entity Model::getActiveEntity()
+{
+    return ecs.getEntity(clientInfo.getActiveEntity());
 }
 
 }  // namespace sphyc

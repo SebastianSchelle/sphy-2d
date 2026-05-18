@@ -70,12 +70,12 @@ void Geometry::destroy()
     }
 }
 
-bgfx::VertexBufferHandle Geometry::getVbh() const
+bgfx::VertexBufferHandle Geometry::getVertexBufferHandle() const
 {
     return vbh;
 }
 
-bgfx::IndexBufferHandle Geometry::getIbh() const
+bgfx::IndexBufferHandle Geometry::getIndexBufferHandle() const
 {
     return ibh;
 }
@@ -98,7 +98,7 @@ void RenderEngine::shutdown()
         return;
     }
     hasShutdown = true;
-    cleanUpAll();
+    cleanupAll();
 }
 
 bool RenderEngine::initPre()
@@ -116,29 +116,41 @@ bool RenderEngine::initPre()
         CFG_FLOAT(config, 0.8f, "gfx", "tex-excess-height-threshold");
 
     camMoveCfg[static_cast<size_t>(GameViewMode::ThirdPerson)].zoomStep =
-        CFG_FLOAT(config, 0.1f, "ui", "zoom", "step");
+        CFG_FLOAT(
+            config, 0.1f, "ui", "third-person", "cam-movement", "zoom-step");
     camMoveCfg[static_cast<size_t>(GameViewMode::ThirdPerson)].maxZoom =
-        CFG_FLOAT(config, 10.0f, "ui", "zoom", "max");
+        CFG_FLOAT(
+            config, 10.0f, "ui", "third-person", "cam-movement", "zoom-max");
     camMoveCfg[static_cast<size_t>(GameViewMode::ThirdPerson)].minZoom =
-        CFG_FLOAT(config, 0.01f, "ui", "zoom", "min");
+        CFG_FLOAT(
+            config, 0.01f, "ui", "third-person", "cam-movement", "zoom-min");
     camMoveCfg[static_cast<size_t>(GameViewMode::ThirdPerson)].panSpeed =
-        CFG_FLOAT(config, 10.0f, "ui", "pan", "speed");
+        CFG_FLOAT(
+            config, 10.0f, "ui", "third-person", "cam-movement", "pan-speed");
     camMoveCfg[static_cast<size_t>(GameViewMode::TacticalMap)].zoomStep =
-        CFG_FLOAT(config, 0.1f, "ui", "zoom", "step");
+        CFG_FLOAT(
+            config, 0.1f, "ui", "tactical-map", "cam-movement", "zoom-step");
     camMoveCfg[static_cast<size_t>(GameViewMode::TacticalMap)].maxZoom =
-        CFG_FLOAT(config, 10.0f, "ui", "zoom", "max");
+        CFG_FLOAT(
+            config, 10.0f, "ui", "tactical-map", "cam-movement", "zoom-max");
     camMoveCfg[static_cast<size_t>(GameViewMode::TacticalMap)].minZoom =
-        CFG_FLOAT(config, 0.01f, "ui", "zoom", "min");
+        CFG_FLOAT(
+            config, 0.01f, "ui", "tactical-map", "cam-movement", "zoom-min");
     camMoveCfg[static_cast<size_t>(GameViewMode::TacticalMap)].panSpeed =
-        CFG_FLOAT(config, 10.0f, "ui", "pan", "speed");
+        CFG_FLOAT(
+            config, 10.0f, "ui", "tactical-map", "cam-movement", "pan-speed");
     camMoveCfg[static_cast<size_t>(GameViewMode::StrategicMap)].zoomStep =
-        CFG_FLOAT(config, 0.1f, "ui", "zoom", "step");
+        CFG_FLOAT(
+            config, 0.1f, "ui", "strategic-map", "cam-movement", "zoom-step");
     camMoveCfg[static_cast<size_t>(GameViewMode::StrategicMap)].maxZoom =
-        CFG_FLOAT(config, 10.0f, "ui", "zoom", "max");
+        CFG_FLOAT(
+            config, 10.0f, "ui", "strategic-map", "cam-movement", "zoom-max");
     camMoveCfg[static_cast<size_t>(GameViewMode::StrategicMap)].minZoom =
-        CFG_FLOAT(config, 0.01f, "ui", "zoom", "min");
+        CFG_FLOAT(
+            config, 0.01f, "ui", "strategic-map", "cam-movement", "zoom-min");
     camMoveCfg[static_cast<size_t>(GameViewMode::StrategicMap)].panSpeed =
-        CFG_FLOAT(config, 10.0f, "ui", "pan", "speed");
+        CFG_FLOAT(
+            config, 10.0f, "ui", "strategic-map", "cam-movement", "pan-speed");
 
     maxTexPerDrawCall =
         CFG_INT(config, 1024.0f, "gfx", "max-tex-per-draw-call");
@@ -251,7 +263,7 @@ void RenderEngine::releaseGeometry(GeometryHandle handle)
     }
 }
 
-void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
+void RenderEngine::renderCompiledGeometry(GeometryHandle geometryHandle,
                                           const glm::vec2& translation,
                                           TextureHandle textureHandle,
                                           bgfx::ViewId viewId)
@@ -264,10 +276,10 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
 
     changeRenderState(RenderState::DrawCompiledGeometry);
 
-    const Geometry* geometry = compiledGeometryLib.getItem(goemHandle);
+    const Geometry* geometry = compiledGeometryLib.getItem(geometryHandle);
     if (!geometry)
     {
-        LG_W("Invalid geometry handle: {}", goemHandle.value());
+        LG_W("Invalid geometry handle: {}", geometryHandle.value());
         return;
     }
 
@@ -315,8 +327,8 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle goemHandle,
     bgfx::setState(state);
 
     // Set vertex and index buffers
-    bgfx::setVertexBuffer(0, geometry->getVbh());
-    bgfx::setIndexBuffer(geometry->getIbh());
+    bgfx::setVertexBuffer(0, geometry->getVertexBufferHandle());
+    bgfx::setIndexBuffer(geometry->getIndexBufferHandle());
 
     // Submit to the specified view
     bgfx::submit(viewId,
@@ -437,7 +449,7 @@ void RenderEngine::setScissorRegion(const glm::vec2& position,
     }
 }
 
-void RenderEngine::enableScissorRegion(bool enable)
+void RenderEngine::setScissorRegionEnabled(bool enable)
 {
     scissorRegionEnabled = enable;
     if (scissorRegionEnabled)
@@ -458,7 +470,7 @@ void RenderEngine::setTransform(const glm::mat4& transform)
     geomTransformMatrix = transform;
 }
 
-glm::ivec2 RenderEngine::getTextureSize() const
+glm::ivec2 RenderEngine::getAtlasTextureSize() const
 {
     return glm::ivec2(texWidth, texHeight);
 }
@@ -561,11 +573,11 @@ void RenderEngine::fillAtlasDebugKindPickRows(
     textureLoader.fillAtlasDebugKindPickRows(out);
 }
 
-void RenderEngine::cleanUpAll()
+void RenderEngine::cleanupAll()
 {
-    cleanUpTextures();
-    cleanUpShaders();
-    cleanUpGeometry();
+    cleanupTextures();
+    cleanupShaders();
+    cleanupGeometry();
 
     if (bgfx::isValid(vbhRectangle))
     {
@@ -635,9 +647,9 @@ void RenderEngine::cleanUpAll()
     }
 }
 
-void RenderEngine::cleanUpTextures() {}
+void RenderEngine::cleanupTextures() {}
 
-void RenderEngine::cleanUpShaders()
+void RenderEngine::cleanupShaders()
 {
     ShaderHandle shaderHandle = ShaderHandle::Invalid();
     while ((shaderHandle = compiledShaderLib.firstAliveHandle()).isValid())
@@ -647,7 +659,7 @@ void RenderEngine::cleanUpShaders()
     }
 }
 
-void RenderEngine::cleanUpGeometry()
+void RenderEngine::cleanupGeometry()
 {
     GeometryHandle handle = GeometryHandle::Invalid();
     while ((handle = compiledGeometryLib.firstAliveHandle()).isValid())
@@ -762,12 +774,12 @@ void RenderEngine::drawBlueprintGridBackground(bgfx::ViewId viewId,
     drawFullScreenTriangles(viewId, shaderHandle);
 }
 
-ShaderHandle RenderEngine::getShaderHandle(const std::string& name)
+ShaderHandle RenderEngine::getShaderHandle(const std::string& name) const
 {
     return compiledShaderLib.getHandle(name);
 }
 
-void RenderEngine::drawBoxShape(float shapeType,
+void RenderEngine::enqueueShape(float shapeType,
                                 const glm::vec2& pos,
                                 const glm::vec2& size,
                                 uint32_t colorRGBA,
@@ -860,7 +872,7 @@ void RenderEngine::drawEllipse(const glm::vec2& pos,
                                float zIndex,
                                bgfx::ViewId viewId)
 {
-    drawBoxShape(SHAPE_TYPE_CIRCLE,
+    enqueueShape(SHAPE_TYPE_CIRCLE,
                  pos,
                  size,
                  colorRGBA,
@@ -870,15 +882,15 @@ void RenderEngine::drawEllipse(const glm::vec2& pos,
                  viewId);
 }
 
-void RenderEngine::drawRectangle(const glm::vec2& pos,
-                                 const glm::vec2& size,
-                                 uint32_t colorRGBA,
-                                 float thickness,
-                                 float rotationRad,
-                                 float zIndex,
-                                 bgfx::ViewId viewId)
+void RenderEngine::drawShapeRectangle(const glm::vec2& pos,
+                                      const glm::vec2& size,
+                                      uint32_t colorRGBA,
+                                      float thickness,
+                                      float rotationRad,
+                                      float zIndex,
+                                      bgfx::ViewId viewId)
 {
-    drawBoxShape(SHAPE_TYPE_RECTANGLE,
+    enqueueShape(SHAPE_TYPE_RECTANGLE,
                  pos,
                  size,
                  colorRGBA,
@@ -898,7 +910,7 @@ void RenderEngine::drawLine(const glm::vec2& start,
     float rot = atan2f(end.y - start.y, end.x - start.x);
     float len = glm::length(end - start);
     vec2 size = vec2(len, thickness);
-    drawRectangle(
+    drawShapeRectangle(
         (start + end) / 2.0f, size, colorABGR, thickness, rot, zIndex, viewId);
 }
 
@@ -948,15 +960,15 @@ void RenderEngine::submitShapes()
     }
 }
 
-void RenderEngine::prepTexRectForRendering(const glm::vec2& pos,
-                                           const glm::vec2& size,
-                                           TextureHandle textureHandle,
-                                           float rotationRad,
-                                           int8_t zIndex,
-                                           uint32_t colorABGR,
-                                           bgfx::ViewId viewId,
-                                           const glm::vec2& uvOffset,
-                                           const glm::vec2& uvScale)
+void RenderEngine::queueTexRect(const glm::vec2& pos,
+                                const glm::vec2& size,
+                                TextureHandle textureHandle,
+                                float rotationRad,
+                                int8_t zIndex,
+                                uint32_t colorABGR,
+                                bgfx::ViewId viewId,
+                                const glm::vec2& uvOffset,
+                                const glm::vec2& uvScale)
 {
     auto& texLib = textureLoader.getTextureLib();
     Texture* texture = texLib.getItem(textureHandle);
@@ -1044,7 +1056,7 @@ void RenderEngine::submitTexRects()
     texRectBatchArray = BGFX_INVALID_HANDLE;
 }
 
-void RenderEngine::drawPreparedTexRect()
+void RenderEngine::flushQueuedTexRect()
 {
     changeRenderState(RenderState::DrawTexRects);
 
@@ -1091,11 +1103,11 @@ void RenderEngine::drawPreparedTexRect()
     currentTexRectCount++;
 }
 
-void RenderEngine::drawPrepared()
+void RenderEngine::flushQueuedTexRects()
 {
     while (!texRectSorted.empty())
     {
-        drawPreparedTexRect();
+        flushQueuedTexRect();
     }
 }
 
@@ -1151,14 +1163,14 @@ void RenderEngine::panWorld(PanDirection dirX, PanDirection dirY)
     float panSpeed = camMoveCfg[static_cast<size_t>(viewMode)].panSpeed;
     worldCameraX += (float)dirX * panSpeed / worldZoom;
     worldCameraY += (float)dirY * panSpeed / worldZoom;
-    updatePosWithSectorOffset();
+    applyCameraSectorRebase();
 }
 
 void RenderEngine::panWorld(const glm::vec2& delta)
 {
     worldCameraX += delta.x;
     worldCameraY += delta.y;
-    updatePosWithSectorOffset();
+    applyCameraSectorRebase();
 }
 
 void RenderEngine::setWorldShape(const def::WorldShape* worldShape)
@@ -1166,35 +1178,46 @@ void RenderEngine::setWorldShape(const def::WorldShape* worldShape)
     this->worldShape = worldShape;
 }
 
-void RenderEngine::updatePosWithSectorOffset()
+void RenderEngine::applyCameraSectorRebase()
 {
     if (!worldShape)
     {
         return;
     }
-    int deltaOffsX =
-        std::clamp((int)floorf(worldCameraX / worldShape->sectorSize + 0.5f),
-                   (int32_t)(-sectorOffsetX),
-                   (int32_t)(worldShape->numSectorX - 1) - sectorOffsetX);
-    int deltaOffsY =
-        std::clamp((int)floorf(worldCameraY / worldShape->sectorSize + 0.5f),
-                   (int32_t)(-sectorOffsetY),
-                   (int32_t)(worldShape->numSectorY - 1) - sectorOffsetY);
-    sectorOffsetX += deltaOffsX;
-    sectorOffsetY += deltaOffsY;
-    worldCameraX =
-        std::clamp(worldCameraX - deltaOffsX * worldShape->sectorSize,
-                   -worldShape->sectorSize / 2.0f,
-                   worldShape->sectorSize / 2.0f);
-    worldCameraY =
-        std::clamp(worldCameraY - deltaOffsY * worldShape->sectorSize,
-                   -worldShape->sectorSize / 2.0f,
-                   worldShape->sectorSize / 2.0f);
+    if (viewMode == GameViewMode::TacticalMap)
+    {
+        sectorOffsetX = activeSectorX;
+        sectorOffsetY = activeSectorY;
+        worldCameraX = std::clamp(worldCameraX,
+                                  -worldShape->sectorSize / 2.0f,
+                                  worldShape->sectorSize / 2.0f);
+        worldCameraY = std::clamp(worldCameraY,
+                                  -worldShape->sectorSize / 2.0f,
+                                  worldShape->sectorSize / 2.0f);
+    }
+    else
+    {
+        int deltaOffsX = std::clamp(
+            (int)floorf(worldCameraX / worldShape->sectorSize + 0.5f),
+            (int32_t)(-sectorOffsetX),
+            (int32_t)(worldShape->numSectorX - 1) - sectorOffsetX);
+        int deltaOffsY = std::clamp(
+            (int)floorf(worldCameraY / worldShape->sectorSize + 0.5f),
+            (int32_t)(-sectorOffsetY),
+            (int32_t)(worldShape->numSectorY - 1) - sectorOffsetY);
+        sectorOffsetX += deltaOffsX;
+        sectorOffsetY += deltaOffsY;
+        worldCameraX =
+            std::clamp(worldCameraX - deltaOffsX * worldShape->sectorSize,
+                       -worldShape->sectorSize / 2.0f,
+                       worldShape->sectorSize / 2.0f);
+        worldCameraY =
+            std::clamp(worldCameraY - deltaOffsY * worldShape->sectorSize,
+                       -worldShape->sectorSize / 2.0f,
+                       worldShape->sectorSize / 2.0f);
+    }
 
-    persistentCamPos[static_cast<size_t>(viewMode)].x = worldCameraX;
-    persistentCamPos[static_cast<size_t>(viewMode)].y = worldCameraY;
-    persistentCamPos[static_cast<size_t>(viewMode)].xOffs = deltaOffsX;
-    persistentCamPos[static_cast<size_t>(viewMode)].yOffs = deltaOffsY;
+    saveViewCameraState(viewMode);
 }
 
 void RenderEngine::screenToSectorCoords(const vec2& screenPx,
@@ -1288,52 +1311,64 @@ void RenderEngine::panWorldTo(const def::SectorCoords& sectorCoords)
     worldCameraY = sectorCoords.sectorPos.y;
 }
 
-void RenderEngine::onTglTactical()
+void RenderEngine::clbToggleTacticalView()
 {
-    if(viewMode == GameViewMode::TacticalMap)
+    if (viewMode == GameViewMode::TacticalMap)
     {
         viewMode = GameViewMode::ThirdPerson;
-        loadPersistentCamPos(GameViewMode::ThirdPerson);
+        restoreViewCameraState(GameViewMode::ThirdPerson);
     }
-    viewMode = GameViewMode::TacticalMap;
-    loadPersistentCamPos(GameViewMode::ThirdPerson);
+    else
+    {
+        viewMode = GameViewMode::TacticalMap;
+        restoreViewCameraState(GameViewMode::TacticalMap);
+    }
 }
 
-void RenderEngine::onTglStrategic()
+void RenderEngine::clbToggleStrategicView()
 {
-    if(viewMode == GameViewMode::StrategicMap)
+    if (viewMode == GameViewMode::StrategicMap)
     {
         viewMode = GameViewMode::ThirdPerson;
-        loadPersistentCamPos(GameViewMode::ThirdPerson);
+        restoreViewCameraState(GameViewMode::ThirdPerson);
     }
-    viewMode = GameViewMode::StrategicMap;
-    loadPersistentCamPos(GameViewMode::StrategicMap);
+    else
+    {
+        viewMode = GameViewMode::StrategicMap;
+        restoreViewCameraState(GameViewMode::StrategicMap);
+    }
 }
 
-void RenderEngine::savePersistentCamPos(GameViewMode viewMode)
+void RenderEngine::saveViewCameraState(GameViewMode mode)
 {
-    persistentCamPos[static_cast<size_t>(viewMode)].x = worldCameraX;
-    persistentCamPos[static_cast<size_t>(viewMode)].y = worldCameraY;
-    persistentCamPos[static_cast<size_t>(viewMode)].xOffs = sectorOffsetX;
-    persistentCamPos[static_cast<size_t>(viewMode)].yOffs = sectorOffsetY;
-    persistentCamPos[static_cast<size_t>(viewMode)].zoom = worldZoom;
+    persistentCamPos[static_cast<size_t>(mode)].x = worldCameraX;
+    persistentCamPos[static_cast<size_t>(mode)].y = worldCameraY;
+    persistentCamPos[static_cast<size_t>(mode)].xOffs = sectorOffsetX;
+    persistentCamPos[static_cast<size_t>(mode)].yOffs = sectorOffsetY;
+    persistentCamPos[static_cast<size_t>(mode)].zoom = worldZoom;
 }
 
-void RenderEngine::loadPersistentCamPos(GameViewMode viewMode)
+void RenderEngine::restoreViewCameraState(GameViewMode mode)
 {
-    worldCameraX = persistentCamPos[static_cast<size_t>(viewMode)].x;
-    worldCameraY = persistentCamPos[static_cast<size_t>(viewMode)].y;
-    sectorOffsetX = persistentCamPos[static_cast<size_t>(viewMode)].xOffs;
-    sectorOffsetY = persistentCamPos[static_cast<size_t>(viewMode)].yOffs;
-    worldZoom = persistentCamPos[static_cast<size_t>(viewMode)].zoom;
-    if(worldZoom < camMoveCfg[static_cast<size_t>(viewMode)].minZoom)
+    worldCameraX = persistentCamPos[static_cast<size_t>(mode)].x;
+    worldCameraY = persistentCamPos[static_cast<size_t>(mode)].y;
+    sectorOffsetX = persistentCamPos[static_cast<size_t>(mode)].xOffs;
+    sectorOffsetY = persistentCamPos[static_cast<size_t>(mode)].yOffs;
+    worldZoom = persistentCamPos[static_cast<size_t>(mode)].zoom;
+    if (worldZoom < camMoveCfg[static_cast<size_t>(mode)].minZoom)
     {
-        worldZoom = camMoveCfg[static_cast<size_t>(viewMode)].minZoom;
+        worldZoom = camMoveCfg[static_cast<size_t>(mode)].minZoom;
     }
-    if(worldZoom > camMoveCfg[static_cast<size_t>(viewMode)].maxZoom)
+    if (worldZoom > camMoveCfg[static_cast<size_t>(mode)].maxZoom)
     {
-        worldZoom = camMoveCfg[static_cast<size_t>(viewMode)].maxZoom;
+        worldZoom = camMoveCfg[static_cast<size_t>(mode)].maxZoom;
     }
+}
+
+void RenderEngine::setActiveSector(int32_t sectorX, int32_t sectorY)
+{
+    activeSectorX = sectorX;
+    activeSectorY = sectorY;
 }
 
 }  // namespace gfx

@@ -411,7 +411,7 @@ void drawExampleSlotTexture(gfx::RenderEngine& renderer,
     {
         return;
     }
-    renderer.prepTexRectForRendering(
+    renderer.queueTexRect(
         glm::vec2(slot.posXVal, slot.posYVal),
         size,
         texHandle,
@@ -3358,7 +3358,7 @@ void ModdingTools::drawTextures(gfx::RenderEngine& renderer, int8_t zParent)
         const glm::vec2 drawSize = moddingTextureDrawSize(texture);
         // Match Model::drawTextures / drawTexRect: body rot 0 → pass
         // -texture.rot
-        renderer.prepTexRectForRendering(
+        renderer.queueTexRect(
             glm::vec2(texture.posXVal, texture.posYVal),
             drawSize,
             texHandle,

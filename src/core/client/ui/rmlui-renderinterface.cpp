@@ -23,7 +23,7 @@ RmlUiRenderInterface::CompileGeometry(Rml::Span<const Rml::Vertex> vertices,
         return Rml::CompiledGeometryHandle{};
     }
 
-    glm::ivec2 textureSize = renderEngine->getTextureSize();
+    glm::ivec2 textureSize = renderEngine->getAtlasTextureSize();
     std::vector<VertexPosColTex> vertexData;
     vertexData.reserve(vertices.size());
     for (size_t i = 0; i < vertices.size(); ++i)
@@ -120,7 +120,7 @@ void RmlUiRenderInterface::ReleaseTexture(Rml::TextureHandle texture)
 
 void RmlUiRenderInterface::EnableScissorRegion(bool enable)
 {
-    renderEngine->enableScissorRegion(enable);
+    renderEngine->setScissorRegionEnabled(enable);
 }
 
 void RmlUiRenderInterface::SetScissorRegion(Rml::Rectanglei region)

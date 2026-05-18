@@ -294,13 +294,23 @@ void MainWindow::winLoop()
         {
             if (mouseState.mz != 0)
             {
-                glm::vec2 mousePosWorldBefore =
-                    renderEngine.screenToWorldPixel(mouseState.mousePos);
+                glm::vec2 mousePosWorldBefore;
+                if (renderEngine.getViewMode()
+                    != gfx::GameViewMode::ThirdPerson)
+                {
+                    mousePosWorldBefore =
+                        renderEngine.screenToWorldPixel(mouseState.mousePos);
+                }
                 renderEngine.zoom(mouseState.mz);
-                renderEngine.updateWorldView();
-                glm::vec2 mousePosWorldAfter =
-                    renderEngine.screenToWorldPixel(mouseState.mousePos);
-                renderEngine.panWorld(mousePosWorldBefore - mousePosWorldAfter);
+                if (renderEngine.getViewMode()
+                    != gfx::GameViewMode::ThirdPerson)
+                {
+                    renderEngine.updateWorldView();
+                    glm::vec2 mousePosWorldAfter =
+                        renderEngine.screenToWorldPixel(mouseState.mousePos);
+                    renderEngine.panWorld(mousePosWorldBefore
+                                          - mousePosWorldAfter);
+                }
             }
         }
 
@@ -391,7 +401,7 @@ void MainWindow::renderGame()
         default:
             break;
     }
-    renderEngine.drawPrepared();
+    renderEngine.flushQueuedTexRects();
 }
 
 void MainWindow::renderAtlasDebug(bool /*mouseOverUi*/)
@@ -403,7 +413,8 @@ void MainWindow::renderAtlasDebug(bool /*mouseOverUi*/)
 
 void MainWindow::renderModdingTools(bool mouseOverUi)
 {
-    const glm::vec2 world = renderEngine.screenToWorldPixel(mouseState.mousePos);
+    const glm::vec2 world =
+        renderEngine.screenToWorldPixel(mouseState.mousePos);
     const float zoom = renderEngine.getWorldZoom();
     const bool shiftTextureAlign =
         glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS
@@ -438,7 +449,7 @@ void MainWindow::renderModdingTools(bool mouseOverUi)
     }
     renderEngine.panWorld(panX, panY);
     moddingTools.draw(renderEngine);
-    renderEngine.drawPrepared();
+    renderEngine.flushQueuedTexRects();
 }
 
 void MainWindow::processMouseTactical(float zoom)
@@ -458,14 +469,15 @@ void MainWindow::processMouseTactical(float zoom)
     }
     else if (mouseState.singleClick[0])
     {
-        //model.selectEntityAtWorldPosFast(mouseState.mouseCoords, 10.0f/zoom * 10.0f/zoom);
+        // model.selectEntityAtWorldPosFast(mouseState.mouseCoords, 10.0f/zoom
+        // * 10.0f/zoom);
         model.selectEntityAtWorldPos(mouseState.mouseCoords);
     }
     if (mouseState.buttons[1] && model.getSelectedEntities().size() > 0)
     {
-        const bool shiftPressed = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS
-                                  || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT)
-                                         == GLFW_PRESS;
+        const bool shiftPressed =
+            glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS
+            || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
         model.selectedEntitiesMoveCmd(mouseState.mouseCoords, shiftPressed);
     }
 }
@@ -490,7 +502,8 @@ void MainWindow::drawWorldRectangle(const def::SectorCoords& A,
     vec2 b = offsB + B.sectorPos;
     vec2 pos = (a + b) / 2.0f;
     vec2 size = glm::abs(b - a);
-    renderEngine.drawRectangle(pos, size, colorABGR, thickness, rotationRad);
+    renderEngine.drawShapeRectangle(
+        pos, size, colorABGR, thickness, rotationRad);
 }
 
 void MainWindow::processUiTasks()
@@ -775,7 +788,8 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         return;
     }
 
-    if (model.getGameState() != ClientGameState::AtlasDebug && key == GLFW_KEY_W)
+    if (model.getGameState() != ClientGameState::AtlasDebug
+        && key == GLFW_KEY_W)
     {
         if (action == GLFW_PRESS)
         {
@@ -787,7 +801,8 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         }
         return;
     }
-    if (model.getGameState() != ClientGameState::AtlasDebug && key == GLFW_KEY_S)
+    if (model.getGameState() != ClientGameState::AtlasDebug
+        && key == GLFW_KEY_S)
     {
         if (action == GLFW_PRESS)
         {
@@ -799,7 +814,8 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         }
         return;
     }
-    if (model.getGameState() != ClientGameState::AtlasDebug && key == GLFW_KEY_A)
+    if (model.getGameState() != ClientGameState::AtlasDebug
+        && key == GLFW_KEY_A)
     {
         if (action == GLFW_PRESS)
         {
@@ -811,7 +827,8 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         }
         return;
     }
-    if (model.getGameState() != ClientGameState::AtlasDebug && key == GLFW_KEY_D)
+    if (model.getGameState() != ClientGameState::AtlasDebug
+        && key == GLFW_KEY_D)
     {
         if (action == GLFW_PRESS)
         {
@@ -823,14 +840,14 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         }
         return;
     }
-    if(action == GLFW_PRESS && key == GLFW_KEY_TAB)
+    if (action == GLFW_PRESS && key == GLFW_KEY_T)
     {
-        renderEngine.onTglTactical();
+        renderEngine.clbToggleTacticalView();
         return;
     }
-    if(action == GLFW_PRESS && key == GLFW_KEY_M)
+    if (action == GLFW_PRESS && key == GLFW_KEY_M)
     {
-        renderEngine.onTglStrategic();
+        renderEngine.clbToggleStrategicView();
         return;
     }
 }
@@ -931,7 +948,8 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
     debugData.inputData.ptrSectorPosX = mouseState.mouseCoords.sectorPos.x;
     debugData.inputData.ptrSectorPosY = mouseState.mouseCoords.sectorPos.y;
     debugData.gameData.gameState = magic_enum::enum_name(model.getGameState());
-    debugData.gameData.viewMode = magic_enum::enum_name(renderEngine.getViewMode());
+    debugData.gameData.viewMode =
+        magic_enum::enum_name(renderEngine.getViewMode());
     debugData.connectionData.serverLatency =
         model.getTimeSyncData().serverLatency;
     debugData.connectionData.serverTimeOffset =

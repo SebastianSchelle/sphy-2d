@@ -196,7 +196,7 @@ void Sector::drawDebug(gfx::RenderEngine& renderer, float zoom)
     int32_t sectorOffsetX = renderer.getSectorOffsetX();
     int32_t sectorOffsetY = renderer.getSectorOffsetY();
     glm::vec2 pos = getWorldPosSectorOffset(sectorOffsetX, sectorOffsetY);
-    renderer.drawRectangle(
+    renderer.drawShapeRectangle(
         pos, glm::vec2(sectorSize, sectorSize), 0x10aaaa00, 1.0f / zoom);
 }
 
@@ -213,7 +213,7 @@ void Sector::drawStrategicMap(gfx::RenderEngine& renderer,
     int32_t sectorOffsetX = renderer.getSectorOffsetX();
     int32_t sectorOffsetY = renderer.getSectorOffsetY();
     glm::vec2 pos = getWorldPosSectorOffset(sectorOffsetX, sectorOffsetY);
-    renderer.drawRectangle(
+    renderer.drawShapeRectangle(
         pos, glm::vec2(sectorSize, sectorSize), 0x10aaaa00, 1.0f / zoom);
 }
 

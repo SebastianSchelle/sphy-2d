@@ -1,6 +1,7 @@
 #ifndef MODEL_HPP
 #define MODEL_HPP
 
+#include "sector.hpp"
 #include <client-def.hpp>
 #include <ecs.hpp>
 #include <exchange-sequence.hpp>
@@ -150,13 +151,13 @@ class Model
     void drawOverlayAABBs(gfx::RenderEngine& renderer, float zoom);
     void drawObjects(gfx::RenderEngine& renderer,
                      const glm::vec4& viewRect,
-                     float zoom);
+                     float zoom, uint32_t activeSectorId = world::INVALID_SECTOR_ID);
     void drawShips(gfx::RenderEngine& renderer,
                    const glm::vec4& viewRect,
-                   float zoom);
+                   float zoom, uint32_t activeSectorId = world::INVALID_SECTOR_ID);
     void drawStations(gfx::RenderEngine& renderer,
                       const glm::vec4& viewRect,
-                      float zoom);
+                      float zoom, uint32_t activeSectorId = world::INVALID_SECTOR_ID);
     void drawTextures(gfx::RenderEngine& renderer,
                       const ecs::Textures& textures,
                       float rot,
@@ -172,6 +173,8 @@ class Model
                              ecs::Station& station,
                              const glm::vec2& sectorOffset);
     void registerConnectSequence();
+    uint32_t getActiveSectorId();
+    entt::entity getActiveEntity();
 
     cfg::ConfigManager& config;
     net::TimeSync timeSyncData;

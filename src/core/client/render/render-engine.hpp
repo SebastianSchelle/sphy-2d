@@ -53,8 +53,8 @@ struct Geometry
              bgfx::VertexLayout& vertLayout,
              bool use32BitIndices = false);
 
-    bgfx::VertexBufferHandle getVbh() const;
-    bgfx::IndexBufferHandle getIbh() const;
+    bgfx::VertexBufferHandle getVertexBufferHandle() const;
+    bgfx::IndexBufferHandle getIndexBufferHandle() const;
     void destroy();
 
   private:
@@ -62,21 +62,16 @@ struct Geometry
     bgfx::IndexBufferHandle ibh;
 };
 
-// Type alias for Geometry handle - must be after Geometry is fully defined
 using GeometryHandle = typename con::ItemLib<Geometry>::Handle;
 using GeometryHandleUuid = typename con::ItemLib<Geometry>::HandleUuid;
 
-// Per-instance payload for bgfx::InstanceDataBuffer (stride multiple of 16).
-// Shader: i_data0..i_data4. Matches Texture::getRelBounds() and
-// TextureIdentifier::layerIdx (see texture.hpp); same atlas UV math as fs_geom
-// (origin.xy + local.xy * span.zw).
 struct TexRectData
 {
-    vec4 rect;        // .xy = world-space center, .zw = width and height
-    vec4 atlasUv;     // packed atlas rect: .xy origin, .zw size in UV space
-    vec4 rotLay;      // .x = rotation (rad), .y = layer index as float
-    vec4 uvOffScale;  // i_data3 — .xy tile offset, .zw tile repeat count
-    vec4 colorAbgr;   // i_data4
+    vec4 rect;
+    vec4 atlasUv;
+    vec4 rotLay;
+    vec4 uvOffScale;
+    vec4 colorAbgr;
 };
 
 struct ZoomPanCfg
@@ -132,7 +127,6 @@ class RenderEngine
     RenderEngine(cfg::ConfigManager& config);
     ~RenderEngine();
 
-    // Prevent copying and moving (contains BGFX handles and other resources)
     RenderEngine(const RenderEngine&) = delete;
     RenderEngine& operator=(const RenderEngine&) = delete;
     RenderEngine(RenderEngine&&) = delete;
@@ -145,24 +139,54 @@ class RenderEngine
     void startFrame();
     void endFrame();
 
-    GeometryHandle compileGeometry(const void* vertexData,
-                                   size_t vDatSize,
-                                   const void* indexData,
-                                   size_t iDatSize,
-                                   bgfx::VertexLayout& vertLayout,
-                                   bool use32BitIndices = false);
-    void releaseGeometry(GeometryHandle handle);
-    void renderCompiledGeometry(GeometryHandle handle,
-                                const glm::vec2& translation,
-                                TextureHandle textureHandle,
-                                bgfx::ViewId viewId = 0);
     void setWindowSize(int width, int height);
+    glm::ivec2 getWindowPixelSize() const
+    {
+        return {winWidth, winHeight};
+    }
+
+    void setScissorRegion(const glm::vec2& position, const glm::vec2& size);
+    void setScissorRegionEnabled(bool enabled);
+    void setTransform(const glm::mat4& transform);
+
     void zoom(float amount);
     void panWorld(PanDirection dirX, PanDirection dirY);
     void panWorld(const glm::vec2& delta);
     void panWorldTo(const def::SectorCoords& sectorCoords);
-    void onTglTactical();
-    void onTglStrategic();
+    void setActiveSector(int32_t sectorX, int32_t sectorY);
+    void clbToggleTacticalView();
+    void clbToggleStrategicView();
+
+    void setWorldShape(const def::WorldShape* worldShape);
+    void updateWorldView();
+
+    GameViewMode getViewMode() const
+    {
+        return viewMode;
+    }
+    glm::vec2 getWorldCameraPosition() const
+    {
+        return {worldCameraX, worldCameraY};
+    }
+    float getWorldZoom() const
+    {
+        return worldZoom;
+    }
+    int32_t getSectorOffsetX() const
+    {
+        return sectorOffsetX;
+    }
+    int32_t getSectorOffsetY() const
+    {
+        return sectorOffsetY;
+    }
+
+    vec2 screenToWorldPixel(const vec2& screenPx) const;
+    vec2 screenToWorldRel(const vec2& screenPosRel) const;
+    void screenToSectorCoords(const glm::vec2& screenPx,
+                              def::SectorCoords& sectorCoords) const;
+    void getViewportRect(smath::Rect& rect) const;
+
     TextureHandle loadTexture(const std::string& name,
                               const std::string& type,
                               const std::string& path);
@@ -176,17 +200,85 @@ class RenderEngine
                                   int width,
                                   int height,
                                   const std::string& path = "");
-    void setScissorRegion(const glm::vec2& position, const glm::vec2& size);
-    void enableScissorRegion(bool enable);
-    void setTransform(const glm::mat4& transform);
-    glm::ivec2 getTextureSize() const;
-    glm::ivec2 getWindowPixelSize() const
+    TextureHandle getTextureHandle(const std::string& name);
+    bool getTexturePixelSize(const std::string& name, glm::vec2& sizePx);
+    bool getTextureFilePath(const std::string& name, std::string& pathOut);
+    std::vector<std::string> getTextureNames() const;
+    TextureHandle getFallbackTextureHandle() const
     {
-        return {winWidth, winHeight};
+        return textureHandleFallback;
     }
+    glm::ivec2 getAtlasTextureSize() const;
     size_t getGpuTextureArrayCount() const;
     bool getGpuTextureArrayInfo(size_t index, GpuTextureArrayInfo& out) const;
-    /// Letterboxed inside pixel rect [px, py, px+pw, py+ph] (top-left origin).
+    std::string getAtlasRegistrySummary() const;
+    void fillAtlasDebugGpuArrayOptions(
+        std::vector<AtlasDebugSelectOption>& out) const;
+    void fillAtlasDebugLayerOptions(
+        int gpuArrayIndex,
+        std::vector<AtlasDebugSelectOption>& out) const;
+    void fillAtlasDebugMipOptions(int gpuArrayIndex,
+                                 std::vector<AtlasDebugSelectOption>& out) const;
+    void fillAtlasDebugKindPickRows(std::vector<AtlasDebugKindPickRow>& out);
+
+    ShaderHandle loadShader(const std::string& name,
+                            const std::string& vsPath,
+                            const std::string& fsPath);
+    void releaseShader(ShaderHandle handle);
+    ShaderHandle getShaderHandle(const std::string& name) const;
+
+    GeometryHandle compileGeometry(const void* vertexData,
+                                   size_t vDatSize,
+                                   const void* indexData,
+                                   size_t iDatSize,
+                                   bgfx::VertexLayout& vertLayout,
+                                   bool use32BitIndices = false);
+    void releaseGeometry(GeometryHandle handle);
+    void renderCompiledGeometry(GeometryHandle geometryHandle,
+                                const glm::vec2& translation,
+                                TextureHandle textureHandle,
+                                bgfx::ViewId viewId = 0);
+
+    void drawTexturedQuad(const glm::vec2& translation,
+                          float rotation,
+                          TextureHandle textureHandle,
+                          bgfx::ViewId viewId = 0);
+    void queueTexRect(const glm::vec2& pos,
+                      const glm::vec2& size,
+                      TextureHandle textureHandle,
+                      float rotationRad,
+                      int8_t zIndex,
+                      uint32_t colorABGR = 0xffffffff,
+                      bgfx::ViewId viewId = 0,
+                      const glm::vec2& uvOffset = glm::vec2(0.0f),
+                      const glm::vec2& uvScale = glm::vec2(1.0f));
+    void flushQueuedTexRects();
+    void drawShapeRectangle(const glm::vec2& pos,
+                            const glm::vec2& size,
+                            uint32_t colorABGR,
+                            float thickness,
+                            float rotationRad = 0.0f,
+                            float zIndex = 0.0f,
+                            bgfx::ViewId viewId = 0);
+    void drawEllipse(const glm::vec2& pos,
+                     const glm::vec2& size,
+                     uint32_t colorABGR,
+                     float thickness,
+                     float rotationRad = 0.0f,
+                     float zIndex = 0.0f,
+                     bgfx::ViewId viewId = 0);
+    void drawLine(const glm::vec2& start,
+                  const glm::vec2& end,
+                  uint32_t colorABGR,
+                  float thickness,
+                  float zIndex = 0.0f,
+                  bgfx::ViewId viewId = 0);
+    void drawFullScreenTriangles(bgfx::ViewId viewId,
+                                 ShaderHandle shaderHandle);
+    void drawBlueprintGridBackground(bgfx::ViewId viewId,
+                                     ShaderHandle shaderHandle,
+                                     float cellWorld,
+                                     float majorEveryCells = 5.0f);
     void drawAtlasDebugLayer(bgfx::ViewId viewId,
                              bgfx::TextureHandle texArray,
                              uint8_t layer,
@@ -197,119 +289,24 @@ class RenderEngine
                              int previewY,
                              int previewW,
                              int previewH);
-    std::string getAtlasRegistrySummary() const;
-    void fillAtlasDebugGpuArrayOptions(
-        std::vector<AtlasDebugSelectOption>& out) const;
-    void
-    fillAtlasDebugLayerOptions(int gpuArrayIndex,
-                               std::vector<AtlasDebugSelectOption>& out) const;
-    void
-    fillAtlasDebugMipOptions(int gpuArrayIndex,
-                             std::vector<AtlasDebugSelectOption>& out) const;
-    void fillAtlasDebugKindPickRows(std::vector<AtlasDebugKindPickRow>& out);
-    ShaderHandle loadShader(const std::string& name,
-                            const std::string& vsPath,
-                            const std::string& fsPath);
-    void releaseShader(ShaderHandle handle);
-    void drawRectangle(const glm::vec2& translation,
-                       float rotation,
-                       TextureHandle textureHandle,
-                       bgfx::ViewId viewId = 0);
-    void drawLine(const glm::vec2& start,
-                  const glm::vec2& end,
-                  uint32_t colorABGR,
-                  float thickness,
-                  float zIndex = 0.0f,
-                  bgfx::ViewId viewId = 0);
-    void drawFullScreenTriangles(bgfx::ViewId viewId,
-                                 ShaderHandle shaderHandle);
-    /// Fullscreen blueprint-style grid in world space (same `u_myproj` /
-    /// inverse as texrect). `cellWorld` = u_grid.x (world units per cell);
-    /// `majorEveryCells` = u_grid.y (integer >= 1).
-    void drawBlueprintGridBackground(bgfx::ViewId viewId,
-                                     ShaderHandle shaderHandle,
-                                     float cellWorld,
-                                     float majorEveryCells = 5.0f);
-    ShaderHandle getShaderHandle(const std::string& name);
-    void drawRectangle(const glm::vec2& pos,
-                       const glm::vec2& size,
-                       uint32_t colorABGR,
-                       float thickness,
-                       float rotationRad = 0.0f,
-                       float zIndex = 0.0f,
-                       bgfx::ViewId viewId = 0);
-    void drawEllipse(const glm::vec2& pos,
-                     const glm::vec2& size,
-                     uint32_t colorABGR,
-                     float thickness,
-                     float rotationRad = 0.0f,
-                     float zIndex = 0.0f,
-                     bgfx::ViewId viewId = 0);
-    void prepTexRectForRendering(const glm::vec2& pos,
-                                 const glm::vec2& size,
-                                 TextureHandle textureHandle,
-                                 float rotationRad,
-                                 int8_t zIndex,
-                                 uint32_t colorABGR = 0xffffffff,
-                                 bgfx::ViewId viewId = 0,
-                                 const glm::vec2& uvOffset = glm::vec2(0.0f),
-                                 const glm::vec2& uvScale = glm::vec2(1.0f));
+
     tim::Timepoint getStartTime() const;
-    float getWorldZoom() const
-    {
-        return worldZoom;
-    }
-    void drawPrepared();
-
-    GameViewMode getViewMode() const
-    {
-        return viewMode;
-    }
-
-    glm::vec2 getWorldCameraPosition() const
-    {
-        return {worldCameraX, worldCameraY};
-    }
-    /// Window pixel position (same space as GLFW cursor) → world XY under the
-    /// cursor.
-    vec2 screenToWorldPixel(const vec2& screenPx) const;
-    vec2 screenToWorldRel(const vec2& screenPosRel) const;
-    void updateWorldView();
-    void setWorldShape(const def::WorldShape* worldShape);
-    int32_t getSectorOffsetX() const
-    {
-        return sectorOffsetX;
-    }
-    int32_t getSectorOffsetY() const
-    {
-        return sectorOffsetY;
-    }
-    void screenToSectorCoords(const glm::vec2& screenPx,
-                              def::SectorCoords& sectorCoords) const;
-    void relScreenToWorldCoords(const vec2& screenPosRel, vec2& worldPos) const;
-    void getViewportRect(smath::Rect& rect) const;
-    TextureHandle getTextureHandle(const std::string& name);
-    bool getTexturePixelSize(const std::string& name, glm::vec2& sizePx);
-    bool getTextureFilePath(const std::string& name, std::string& pathOut);
-    std::vector<std::string> getTextureNames() const;
-
-    TextureHandle getFallbackTextureHandle() const
-    {
-        return textureHandleFallback;
-    }
 
   private:
-    void cleanUpAll();
+    void cleanupAll();
+    void cleanupTextures();
+    void cleanupShaders();
+    void cleanupGeometry();
     void updateOrtho();
-    void cleanUpTextures();
-    void cleanUpShaders();
-    void cleanUpGeometry();
+
     void changeRenderState(RenderState newState);
-    void submitShapes();
     void allocateForShapes();
-    void submitTexRects();
+    void submitShapes();
     void allocateForTexRects();
-    void drawBoxShape(float shapeType,
+    void submitTexRects();
+    void flushQueuedTexRect();
+
+    void enqueueShape(float shapeType,
                       const glm::vec2& pos,
                       const glm::vec2& size,
                       uint32_t colorABGR,
@@ -317,10 +314,9 @@ class RenderEngine
                       float rotationRad = 0.0f,
                       float zIndex = 0.0f,
                       bgfx::ViewId viewId = 0);
-    void updatePosWithSectorOffset();
-    void drawPreparedTexRect();
-    void savePersistentCamPos(GameViewMode viewMode);
-    void loadPersistentCamPos(GameViewMode viewMode);
+    void applyCameraSectorRebase();
+    void saveViewCameraState(GameViewMode mode);
+    void restoreViewCameraState(GameViewMode mode);
 
     TextureLoader textureLoader;
     cfg::ConfigManager& config;
@@ -384,6 +380,8 @@ class RenderEngine
     const def::WorldShape* worldShape = nullptr;
     int32_t sectorOffsetX = 0;
     int32_t sectorOffsetY = 0;
+    int32_t activeSectorX = 0;
+    int32_t activeSectorY = 0;
 
     bgfx::InstanceDataBuffer idbTex;
     size_t maxTexPerDrawCall = 1024;
