@@ -31,6 +31,9 @@ enum class GameViewMode
     ThirdPerson,
     TacticalMap,
     StrategicMap,
+    Menu,
+    AtlasDebug,
+    ModdingTools,
     Count,
 };
 

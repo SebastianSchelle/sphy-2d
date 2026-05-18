@@ -80,9 +80,11 @@ class Model
                                   const def::SectorCoords& end);
     void clearSelectedEntities();
     void selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords, bool queue);
-    void startModdingTools();
-    void startAtlasDebug();
-    void endAtlasDebug();
+    void gotoModdingTools();
+    void gotoAtlasDebug();
+    void gotoMenu();
+    void toggleTacticalView();
+    void toggleStrategicView();
 
     const std::vector<ecs::EntityId>& getSelectedEntities() const
     {

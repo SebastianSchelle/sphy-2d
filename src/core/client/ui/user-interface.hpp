@@ -77,7 +77,7 @@ class UserInterface
     void hideAllDocuments();
     UiDocHandle getDocumentHandle(const std::string& name);
     void showMenu();
-    void closeMenu();
+    void hideMenu();
     void showTabListStrategic();
     void hideTabListStrategic();
     void showTabListTactical();

@@ -2247,17 +2247,6 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     rmlModel_ = moddingToolsConstructor.GetModelHandle();
 }
 
-void ModdingTools::openToolsUi(ui::UserInterface& userInterface)
-{
-    activeMode = ModdingToolsMode::None;
-    syncModeToRml();
-    userInterface.hideAllDocuments();
-    userInterface.showDocument(
-        userInterface.getDocumentHandle("modding-tools-obj"));
-    userInterface.showDocument(
-        userInterface.getDocumentHandle("modding-tools-menu"));
-}
-
 void ModdingTools::onModdingNewHull(Rml::DataModelHandle handle,
                                     Rml::Event& event,
                                     const Rml::VariantList& args)

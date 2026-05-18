@@ -25,6 +25,8 @@ class UiTabPanel
     void addTab(const string& title, const string& documentId);
     void selectTab(const string& documentId);
     void hideCurrentTab();
+    const string& getCurrentTabDocumentId() const;
+    bool hasTab(const string& documentId) const;
 
   private:
     void setupDataModel();

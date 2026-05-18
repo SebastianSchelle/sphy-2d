@@ -340,7 +340,6 @@ void MainWindow::winLoop()
                 loadingLoop();
                 break;
             case ClientGameState::MainMenu:
-                userInterface.showMenu();
                 renderMenu();
                 break;
             case ClientGameState::Authenticated:
@@ -842,14 +841,12 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
     }
     if (action == GLFW_PRESS && key == GLFW_KEY_T)
     {
-        renderEngine.clbToggleTacticalView();
-        userInterface.setupViewModeUi(renderEngine.getViewMode());
+        model.toggleTacticalView();
         return;
     }
     if (action == GLFW_PRESS && key == GLFW_KEY_M)
     {
-        renderEngine.clbToggleStrategicView();
-        userInterface.setupViewModeUi(renderEngine.getViewMode());
+        model.toggleStrategicView();
         return;
     }
 }
@@ -1263,8 +1260,7 @@ void MainWindow::onStartModdingTools(Rml::DataModelHandle handle,
                                      Rml::Event& event,
                                      const Rml::VariantList& args)
 {
-    moddingTools.openToolsUi(userInterface);
-    model.startModdingTools();
+    model.gotoModdingTools();
 }
 
 void MainWindow::onStartAtlasDebug(Rml::DataModelHandle handle,
@@ -1274,8 +1270,7 @@ void MainWindow::onStartAtlasDebug(Rml::DataModelHandle handle,
     (void)handle;
     (void)event;
     (void)args;
-    model.startAtlasDebug();
-    atlasDebug.openUi(userInterface);
+    model.gotoAtlasDebug();
     atlasDebug.refreshAfterGpuArraysChange();
 }
 
@@ -1306,7 +1301,6 @@ void MainWindow::onConnectToServer(Rml::DataModelHandle handle,
         .tcpPortServ = menuData.connectData.tcpPortServ,
         .udpPortCli = menuData.connectData.udpPortCli,
     });
-    userInterface.closeMenu();
 }
 
 void MainWindow::onCmd(const std::string& cmd)
@@ -1324,7 +1318,7 @@ void MainWindow::onQuit(Rml::DataModelHandle handle,
                         Rml::Event& event,
                         const Rml::VariantList& args)
 {
-    userInterface.closeMenu();
+    userInterface.hideMenu();
     client.shutdown();
     stopServer();
     glfwSetWindowShouldClose(window, GLFW_TRUE);

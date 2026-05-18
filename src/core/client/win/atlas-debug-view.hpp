@@ -36,7 +36,6 @@ class AtlasDebugView
               gfx::RenderEngine* renderEngine);
 
     void setupDataModel(ui::UserInterface& userInterface);
-    void openUi(ui::UserInterface& userInterface);
     void closeUi(ui::UserInterface& userInterface, sphyc::Model& model);
 
     void draw();

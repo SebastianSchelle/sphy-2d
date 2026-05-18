@@ -181,7 +181,6 @@ class ModdingTools
     ModdingTools() = default;
 
     void setupDataModel(ui::UserInterface& userInterface);
-    void openToolsUi(ui::UserInterface& userInterface);
     void draw(gfx::RenderEngine& renderer);
 
     void onSingleClick(const glm::vec2& worldPos,

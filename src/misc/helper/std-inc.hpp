@@ -692,6 +692,7 @@ bool tryParseFloat(const string& text, float& outValue);
 bool tryParseInt(const string& text, int& outValue);
 void floatToString(float value, string& outText, int precision = 2);
 void intToString(int value, string& outText);
+constexpr string emptyString = "";
 
 #define SER_GENERIC_HANDLE                                                     \
     S2b(o.idx);                                                                \

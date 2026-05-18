@@ -349,6 +349,7 @@ void UserInterface::hideAllDocuments()
     {
         (*doc)->Hide();
     }
+    menuStack.clear();
     menuOpen = false;
     chatOpen = false;
     debugOpen = false;
@@ -390,7 +391,7 @@ void UserInterface::showMenu()
     }
 }
 
-void UserInterface::closeMenu()
+void UserInterface::hideMenu()
 {
     hideDocument(rmlDocLib.getHandle(currentMenuPage));
     menuStack.clear();
@@ -433,13 +434,47 @@ void UserInterface::setupViewModeUi(gfx::GameViewMode viewMode)
     switch (viewMode)
     {
         case gfx::GameViewMode::StrategicMap:
+        {
+            const string& currentTab =
+                tabPanelTactical.getCurrentTabDocumentId();
+            if (tabPanelStrategic.hasTab(currentTab))
+            {
+                showDocument(currentTab);
+            }
             showTabListStrategic();
-            break;
+        }
+        break;
         case gfx::GameViewMode::TacticalMap:
+        {
+            const string& currentTab =
+                tabPanelStrategic.getCurrentTabDocumentId();
+            if (tabPanelTactical.hasTab(currentTab))
+            {
+                showDocument(currentTab);
+            }
             showTabListTactical();
-            break;
+        }
+        break;
         case gfx::GameViewMode::ThirdPerson:
-            break;
+        {
+        }
+        break;
+        case gfx::GameViewMode::Menu:
+        {
+            showMenu();
+        }
+        break;
+        case gfx::GameViewMode::AtlasDebug:
+        {
+            showDocument(getDocumentHandle("atlas-debug-menu"));
+        }
+        break;
+        case gfx::GameViewMode::ModdingTools:
+        {
+            showDocument(getDocumentHandle("modding-tools-obj"));
+            showDocument(getDocumentHandle("modding-tools-menu"));
+        }
+        break;
         default:
             break;
     }
@@ -453,7 +488,7 @@ void UserInterface::processEsc(bool keepMenuOpen)
         {
             if (!keepMenuOpen)
             {
-                closeMenu();
+                hideMenu();
             }
         }
         else
@@ -515,7 +550,7 @@ void UserInterface::onMenuBackPriv()
             return;
         }
     }
-    closeMenu();
+    hideMenu();
 }
 
 void UserInterface::onPrint(Rml::DataModelHandle handle,

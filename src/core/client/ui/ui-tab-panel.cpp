@@ -103,4 +103,21 @@ void UiTabPanel::onTabSelected(Rml::DataModelHandle handle,
     }
 }
 
+const string& UiTabPanel::getCurrentTabDocumentId() const
+{
+    if (currentTab != -1)
+    {
+        return tabs[currentTab].documentId;
+    }
+    return emptyString;
+}
+
+bool UiTabPanel::hasTab(const string& documentId) const
+{
+    return std::find_if(tabs.begin(),
+                        tabs.end(),
+                        [&](const UiTab& tab)
+                        { return tab.documentId == documentId; }) != tabs.end();
+}
+
 }  // namespace ui

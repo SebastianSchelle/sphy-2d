@@ -85,20 +85,13 @@ void AtlasDebugView::setupDataModel(ui::UserInterface& userInterface)
     modelHandle = ctor.GetModelHandle();
 }
 
-void AtlasDebugView::openUi(ui::UserInterface& userInterface)
-{
-    userInterface.hideAllDocuments();
-    userInterface.showDocument(
-        userInterface.getDocumentHandle("atlas-debug-menu"));
-}
-
 void AtlasDebugView::closeUi(ui::UserInterface& userInterface,
                              sphyc::Model& model)
 {
     userInterface.hideDocument(
         userInterface.getDocumentHandle("atlas-debug-menu"));
-    model.endAtlasDebug();
-    userInterface.closeMenu();
+    model.gotoMenu();
+    userInterface.hideMenu();
     userInterface.showMenu();
 }
 
