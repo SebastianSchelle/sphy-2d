@@ -4,6 +4,7 @@
 #include "RmlUi/Core/EventListener.h"
 #include "RmlUi/Core/ID.h"
 #include "RmlUi/Core/Input.h"
+#include <GLFW/glfw3.h>
 #include <climits>
 #include <iomanip>
 #include <limits>
@@ -117,6 +118,38 @@ bool UserInterface::init(glm::ivec2 windowSize)
     tabPanelStrategic.addTab("Faction Assets", "faction-assets");
     tabPanelStrategic.addTab("Relations", "relations");
     tabPanelTactical.addTab("Object Info", "mp-obj-info");
+
+    // Test add some input events
+    userInput.addEvent(InputEvent::Environment::General,
+                       "Test Key",
+                       "Test Key",
+                       InputEvent::Key{
+                           .key = GLFW_KEY_G,
+                           .modifiers = 0,
+                           .action = GLFW_PRESS,
+                           .callback =
+                               [this](const InputEvent::EventData& eventData)
+                           {
+                               LG_D("Test Key pressed");
+                               return true;
+                           },
+                       });
+
+    userInput.addEvent(InputEvent::Environment::General,
+                       "Test Key Release",
+                       "Test Key Release",
+                       InputEvent::Key{
+                           .key = GLFW_KEY_G,
+                           .modifiers = 0,
+                           .action = GLFW_RELEASE,
+                           .callback =
+                               [this](const InputEvent::EventData& eventData)
+                           {
+                               LG_D("Test Key released");
+                               return true;
+                           },
+                       });
+
     return true;
 }
 

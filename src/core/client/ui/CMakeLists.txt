@@ -5,6 +5,7 @@ target_sources(sphy_client_ui INTERFACE
     rmlui-systeminterface.cpp
     user-interface.cpp
     ui-tab-panel.cpp
+    user-input.cpp
 )
 
 target_include_directories(sphy_client_ui

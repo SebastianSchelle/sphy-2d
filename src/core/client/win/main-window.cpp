@@ -275,6 +275,10 @@ void MainWindow::winLoop()
         debugData.inputData.ptrOverUi = mouseOverUi;
         bool mouseWheelInteract =
             userInterface.processMouseWheel(mouseState.mz, 0);
+
+
+        ProcessMouseStateNoui();
+
         for (int i = 0; i < 3; ++i)
         {
             if (mouseState.buttonPressed[i])
@@ -286,8 +290,6 @@ void MainWindow::winLoop()
                 userInterface.processMouseButtonUp(i, 0);
             }
         }
-
-        ProcessMouseStateNoui();
 
         if (!mouseOverUi && !mouseWheelInteract
             && model.getGameState() != ClientGameState::AtlasDebug)
@@ -849,6 +851,10 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         model.toggleStrategicView();
         return;
     }
+
+    InputEvent::Identifier identifier = InputEvent::Key::encodeIdentifier(
+        InputEvent::Environment::General, key, mods, action);
+    userInterface.getUserInput().processEvent(identifier, {});
 }
 
 void MainWindow::charCallback(GLFWwindow* window, unsigned int codepoint)

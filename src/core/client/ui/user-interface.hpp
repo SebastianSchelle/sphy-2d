@@ -10,6 +10,7 @@
 #include <memory>
 #include <ptr-handle.hpp>
 #include "ui-tab-panel.hpp"
+#include "user-input.hpp"
 
 using UiDocHandle = con::ItemLib<Rml::ElementDocument*>::Handle;
 
@@ -113,6 +114,7 @@ class UserInterface
     void toggleDebug();
     bool isDebugOpen() const { return debugOpen; }
     bool isMenuOpen() const { return menuOpen; }
+    UserInput& getUserInput() { return userInput; }
 
   private:
     void onMenuBackPriv();
@@ -176,6 +178,7 @@ class UserInterface
     UiTabPanel tabPanelStrategic;
     UiTabPanel tabPanelTactical;
 
+    UserInput userInput;
 };
 
 }  // namespace ui
