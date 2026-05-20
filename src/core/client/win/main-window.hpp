@@ -23,6 +23,7 @@
 #include <ui/user-interface.hpp>
 #include <vector>
 #include <version.hpp>
+#include <control-def.hpp>
 
 namespace ui
 {
@@ -252,6 +253,9 @@ class MainWindow
     void renderModdingTools(bool mouseOverUi);
     void renderAtlasDebug(bool mouseOverUi);
     void processMouseTactical(float zoom);
+    void setupThirdPersonCtrl();
+    void setupMapCtrl();
+    void determineUiEnvironment();
 
     GLFWwindow* window;
     WindowInfo wInfo;
@@ -293,6 +297,7 @@ class MainWindow
     float dragThreshold = 0.0f;
     uint32_t dragBoxColor = 0x20ffffff;
     float dragBoxThickness = 1.0f;
+
 };
 
 }  // namespace ui

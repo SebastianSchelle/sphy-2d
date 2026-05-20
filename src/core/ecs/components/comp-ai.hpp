@@ -13,6 +13,7 @@ struct Ai
 
     GenericHandle stackHandle;
     uint32_t nextRunFrame;
+    bool active = true;
 };
 
 #define SER_AI SOBJ(o.stackHandle);

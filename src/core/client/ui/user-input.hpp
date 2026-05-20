@@ -1,6 +1,8 @@
 #ifndef UI_USER_INPUT_HPP
 #define UI_USER_INPUT_HPP
 
+#include <GLFW/glfw3.h>
+#include <initializer_list>
 #include <std-inc.hpp>
 
 namespace ui
@@ -9,7 +11,7 @@ namespace ui
 struct InputEvent
 {
     typedef uint32_t Identifier;
-    static constexpr Identifier MASTER_NONE = 0xFFFFFFFF;
+    static constexpr Identifier INVALID_ID = 0xFFFFFFFF;
     enum class Type
     {
         Key,
@@ -63,17 +65,15 @@ struct InputEvent
                                      uint8_t& modifiers,
                                      uint8_t& action);
         void decodeIdentifier(Identifier identifier, Environment& environment);
-        uint32_t master = MASTER_NONE;
         uint16_t key;
-        uint8_t modifiers;
-        uint8_t action;
+        uint8_t modifiers = 0;
+        uint8_t action = GLFW_PRESS;
         EventCallback callback;
     };
     struct MouseWheel
     {
         Identifier createIdentifier(Environment environment) const;
         void decodeIdentifier(Identifier identifier, Environment& environment);
-        uint32_t master = MASTER_NONE;
         uint8_t axis;
         EventCallback callback;
     };
@@ -81,7 +81,6 @@ struct InputEvent
     {
         Identifier createIdentifier(Environment environment) const;
         void decodeIdentifier(Identifier identifier, Environment& environment);
-        uint32_t master = MASTER_NONE;
         uint8_t action;
         EventCallback callback;
     };
@@ -89,16 +88,26 @@ struct InputEvent
     {
         Identifier createIdentifier(Environment environment) const;
         void decodeIdentifier(Identifier identifier, Environment& environment);
-        uint32_t master = MASTER_NONE;
         uint8_t axis;
         EventCallback callback;
     };
     typedef std::variant<Key /*, MouseWheel, MouseButton, MouseAxis*/> Event;
 
-    Identifier identifier;
+    Identifier identifier = INVALID_ID;
+    Identifier master = INVALID_ID;
     string name;
     string description;
     Event event;
+
+    InputEvent(Identifier id,
+               Identifier masterId,
+               string name_,
+               string description_,
+               Event event_)
+        : identifier(id), master(masterId), name(std::move(name_)),
+          description(std::move(description_)), event(std::move(event_))
+    {
+    }
 };
 
 class UserInput
@@ -106,10 +115,26 @@ class UserInput
   public:
     UserInput();
     ~UserInput();
-    void addEvent(const InputEvent::Environment& environment,
-                  const string& name,
-                  const std::string& description,
-                  const InputEvent::Event& event);
+    InputEvent::Identifier
+    addEvent(const InputEvent::Environment& environment,
+             const string& name,
+             const std::string& description,
+             const InputEvent::Event& event,
+             const InputEvent::Identifier& master = InputEvent::INVALID_ID);
+    void
+    addEvents(std::initializer_list<InputEvent::Environment> environments,
+              const string& name,
+              const std::string& description,
+              const InputEvent::Event& event,
+              const InputEvent::Identifier& master = InputEvent::INVALID_ID);
+    void addKeyPressReleasePairs(
+        std::initializer_list<InputEvent::Environment> environments,
+        const string& name,
+        const std::string& description,
+        const uint16_t keyPress,
+        const uint8_t modifiers,
+        const InputEvent::EventCallback& callbackPress,
+        const InputEvent::EventCallback& callbackRelease);
     bool processEvent(const InputEvent::Identifier& identifier,
                       const InputEvent::EventData& eventData);
 

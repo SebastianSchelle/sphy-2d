@@ -46,27 +46,81 @@ UserInput::UserInput() {}
 
 UserInput::~UserInput() {}
 
-void UserInput::addEvent(const InputEvent::Environment& environment,
-                         const string& name,
-                         const std::string& description,
-                         const InputEvent::Event& event)
+InputEvent::Identifier
+UserInput::addEvent(const InputEvent::Environment& environment,
+                    const string& name,
+                    const std::string& description,
+                    const InputEvent::Event& event,
+                    const InputEvent::Identifier& master)
 {
     InputEvent::Identifier identifier;
     std::visit([&identifier, environment](const auto& event)
                { identifier = event.encodeIdentifier(environment); },
                event);
-    events[identifier] = InputEvent(identifier, name, description, event);
+    events.emplace(std::piecewise_construct,
+                   std::forward_as_tuple(identifier),
+                   std::forward_as_tuple(identifier,
+                                         master,
+                                         name,
+                                         description,
+                                         event));
+    LG_D("Added event: {}:{}", identifier, name);
+    return identifier;
+}
+
+void UserInput::addEvents(std::initializer_list<InputEvent::Environment> environments,
+                          const string& name,
+                          const std::string& description,
+                          const InputEvent::Event& event,
+                          const InputEvent::Identifier& master)
+{
+    for (const auto& environment : environments)
+    {
+        addEvent(environment, name, description, event, master);
+    }
+}
+
+void UserInput::addKeyPressReleasePairs(
+    std::initializer_list<InputEvent::Environment> environments,
+    const string& name,
+    const std::string& description,
+    const uint16_t keyPress,
+    const uint8_t modifiers,
+    const InputEvent::EventCallback& callbackPress,
+    const InputEvent::EventCallback& callbackRelease)
+{
+    for (const auto& environment : environments)
+    {
+        InputEvent::Identifier masterId =
+            addEvent(environment,
+                     name,
+                     description,
+                     InputEvent::Key{.key = keyPress,
+                                     .modifiers = modifiers,
+                                     .action = GLFW_PRESS,
+                                     .callback = callbackPress},
+                     InputEvent::INVALID_ID);
+        addEvent(environment,
+                 "Stop: " + name,
+                 "Stop: " + description,
+                 InputEvent::Key{.key = keyPress,
+                                 .modifiers = modifiers,
+                                 .action = GLFW_RELEASE,
+                                 .callback = callbackRelease},
+                 masterId);
+    }
 }
 
 bool UserInput::processEvent(const InputEvent::Identifier& identifier,
                              const InputEvent::EventData& eventData)
 {
     auto it = events.find(identifier);
+    LG_D("Processing event: {}", identifier);
     if (it == events.end())
     {
         return false;
     }
-    return std::visit([&eventData](const auto& event)
+    return std::visit([&eventData, &it](const auto& event)
                       { return event.callback(eventData); },
                       it->second.event);
 }

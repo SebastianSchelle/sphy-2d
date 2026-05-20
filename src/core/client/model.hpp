@@ -8,6 +8,7 @@
 #include <net-shared.hpp>
 #include <std-inc.hpp>
 #include <world.hpp>
+#include <control-def.hpp>
 
 namespace ecs
 {
@@ -85,6 +86,12 @@ class Model
     void gotoMenu();
     void toggleTacticalView();
     void toggleStrategicView();
+    void centerViewOnPlayer();
+
+    def::ThirdPersonControl& getThirdPersonControl()
+    {
+        return thirdPersonControl;
+    }
 
     const std::vector<ecs::EntityId>& getSelectedEntities() const
     {
@@ -177,6 +184,7 @@ class Model
     void registerConnectSequence();
     uint32_t getActiveSectorId();
     entt::entity getActiveEntity();
+    void sendThirdPersonControl();
 
     cfg::ConfigManager& config;
     net::TimeSync timeSyncData;
@@ -199,6 +207,7 @@ class Model
     bool overlayAabbTreeEnabled = false;
 
     long lastGetAabbTree;
+    def::ThirdPersonControl thirdPersonControl;
 };
 
 }  // namespace sphyc

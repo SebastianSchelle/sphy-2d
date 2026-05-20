@@ -115,6 +115,8 @@ class UserInterface
     bool isDebugOpen() const { return debugOpen; }
     bool isMenuOpen() const { return menuOpen; }
     UserInput& getUserInput() { return userInput; }
+    InputEvent::Environment getUiEnvironment() const { return uiEnvironment; }
+    void setUiEnvironment(InputEvent::Environment environment) { uiEnvironment = environment; }
 
   private:
     void onMenuBackPriv();
@@ -179,6 +181,8 @@ class UserInterface
     UiTabPanel tabPanelTactical;
 
     UserInput userInput;
+
+    InputEvent::Environment uiEnvironment = InputEvent::Environment::General;
 };
 
 }  // namespace ui

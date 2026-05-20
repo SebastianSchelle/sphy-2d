@@ -220,6 +220,45 @@ void Engine::update(float dt)
             // system.function(entity, entityId, dt, ptrHandle);
         }
     }
+    // Update third person controlled vehicles
+    for (auto handle : connectedClientHandles)
+    {
+        def::ClientInfo* clientInfo = clientLib.getItem(handle);
+        if (clientInfo->thirdPersonControl.dirty_active)
+        {
+            ecs::EntityId entityId = clientInfo->getActiveEntity();
+            entt::entity ent = ecs.getEntity(entityId);
+            if (ent == entt::null)
+            {
+                LG_W("Entity not found for client {}", clientInfo->getName());
+                continue;
+            }
+            auto* transformCache =
+                ptrHandle->registry->try_get<ecs::TransformCache>(ent);
+            auto* phyThrust = ptrHandle->registry->try_get<ecs::PhyThrust>(ent);
+            if (phyThrust && transformCache)
+            {
+                LG_D("Setting third person control for client {}",
+                     clientInfo->getName());
+                LG_D("Thrust: {}, Torque: {}",
+                     clientInfo->thirdPersonControl.thrust,
+                     clientInfo->thirdPersonControl.torque);
+                phyThrust->setThrustLocal(
+                    clientInfo->thirdPersonControl.thrust
+                        * vec2(phyThrust->thrustMainMax,
+                               phyThrust->thrustManeuverMax),
+                    transformCache->c,
+                    transformCache->s);
+                phyThrust->setTorque(clientInfo->thirdPersonControl.torque * phyThrust->maxTorque);
+            }
+            else
+            {
+                LG_W("PhyThrust or TransformCache not found for client {}",
+                     clientInfo->getName());
+                continue;
+            }
+        }
+    }
     world.update(dt, ptrHandle);
     markPlayerSectors();
 }
@@ -662,6 +701,36 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 mcomp.startCommand(prot::cmd::ALL_ENTT_COMPONENTS,
                                    CMD_FLAG_RESP);
                 mcomp.execute(sendQueue);
+            }
+            break;
+        }
+        case prot::cmd::THIRD_PERSON_CTRL:
+        {
+            if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
+            {
+                def::ThirdPersonControl& thirdPersonControl =
+                    clientInfo->thirdPersonControl;
+                cmddes.object(thirdPersonControl);
+                thirdPersonControl.dirty_active = true;
+                ecs::EntityId entityId = clientInfo->getActiveEntity();
+                entt::entity ent = ecs.getEntity(entityId);
+                if (ent == entt::null)
+                {
+                    LG_W("Entity not found for client {}",
+                         clientInfo->getName());
+                    return;
+                }
+                auto* moveCtrl =
+                    ptrHandle->registry->try_get<ecs::MoveCtrl>(ent);
+                if (moveCtrl)
+                {
+                    moveCtrl->active = false;
+                }
+                auto* ai = ptrHandle->registry->try_get<ecs::Ai>(ent);
+                if (ai)
+                {
+                    ai->active = false;
+                }
             }
             break;
         }
@@ -1449,10 +1518,12 @@ ecs::MapIcon* Engine::makeMapIcon(entt::entity entity)
             switch (hullData->shipClass)
             {
                 case def::ShipClass::Spark:
-                    mapIconHandle = modManager.getMapIconLib().getHandle("spark");
+                    mapIconHandle =
+                        modManager.getMapIconLib().getHandle("spark");
                     break;
                 case def::ShipClass::Echo:
-                    mapIconHandle = modManager.getMapIconLib().getHandle("echo");
+                    mapIconHandle =
+                        modManager.getMapIconLib().getHandle("echo");
                     break;
                 default:
                     break;
@@ -1468,7 +1539,6 @@ ecs::MapIcon* Engine::makeMapIcon(entt::entity entity)
         return &reg.emplace_or_replace<ecs::MapIcon>(
             entity,
             ecs::MapIcon{.mapIconHandle = mapIconHandle.toGenericHandle()});
-
     }
     LG_E("Failed to make map icon component");
     return nullptr;

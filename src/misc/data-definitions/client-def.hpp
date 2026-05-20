@@ -6,6 +6,7 @@
 #include <net-shared.hpp>
 #include <std-inc.hpp>
 #include <work-sequencer.hpp>
+#include <control-def.hpp>
 
 namespace def
 {
@@ -29,6 +30,7 @@ class ClientInfo
         this->lastSlowDump = tim::nowU();
         this->lastActiveSectorDump = tim::nowU();
         this->flags = flags;
+        this->thirdPersonControl.dirty_active = false;
     }
 #endif
 #ifdef CLIENT
@@ -47,6 +49,7 @@ class ClientInfo
     net::ClientInfo clientInfo;
     long lastSlowDump;
     long lastActiveSectorDump;
+    ThirdPersonControl thirdPersonControl;
 
     void addWorkFunction(std::function<void()> workFunction)
     {

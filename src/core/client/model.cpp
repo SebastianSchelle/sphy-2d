@@ -154,26 +154,15 @@ void Model::modelLoopGame(float dt)
             }
         }
     }
-    // Send some stuff to server
-    /*CMDAT_PREP_TOKEN(net::SendType::UDP, prot::cmd::LOG, 0)
-    std::string str = "Hello World!";
-    cmdser.text1b(str, str.size());
-    CMDAT_FIN_TOKEN()
-    sendQueue.enqueue(cmdData);*/
 
-    /*DO_PERIODIC_EXTNOW(testTime, 1000000, now, [this]() {
-        prot::writeMessageUdp(sendQueue, nullptr,
-    [this](bitsery::Serializer<OutputAdapter>& cmdser) {
-            prot::writeCommand(cmdser, prot::cmd::LOG, 0,
-    [this](bitsery::Serializer<OutputAdapter>& cmdser) { std::string str =
-    "Hello World!"; cmdser.text1b(str, str.size());
-            });
-            prot::writeCommand(cmdser, prot::cmd::LOG, 0,
-    [this](bitsery::Serializer<OutputAdapter>& cmdser) { std::string str =
-    "Hello Sector!"; cmdser.text1b(str, str.size());
-            });
-        }, true);
-    });*/
+    if (renderer->getViewMode() == gfx::GameViewMode::ThirdPerson)
+    {
+        if (thirdPersonControl.dirty_active)
+        {
+            sendThirdPersonControl();
+            thirdPersonControl.dirty_active = false;
+        }
+    }
 
     if (timeSyncData.cnt == 0)
     {
@@ -231,6 +220,28 @@ void Model::parseCommandData(const net::CmdQueueData& cmdData)
     catch (const std::exception& e)
     {
         LG_E("Error parsing command message: {}", e.what());
+    }
+}
+
+void Model::centerViewOnPlayer()
+{
+    if (renderer->getViewMode() == gfx::GameViewMode::StrategicMap
+        || renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
+    {
+        entt::entity activeEntity = getActiveEntity();
+        auto& reg = ecs.getRegistry();
+        if (reg.valid(activeEntity))
+        {
+            auto* transform = reg.try_get<ecs::Transform>(activeEntity);
+            auto* sectorId = reg.try_get<ecs::SectorId>(activeEntity);
+            if (transform && sectorId)
+            {
+                renderer->panWorldTo(def::SectorCoords{
+                    .pos = world.idToSectorCoords(sectorId->id),
+                    .sectorPos = transform->pos,
+                });
+            }
+        }
     }
 }
 
@@ -1229,6 +1240,15 @@ uint32_t Model::getActiveSectorId()
 entt::entity Model::getActiveEntity()
 {
     return ecs.getEntity(clientInfo.getActiveEntity());
+}
+
+void Model::sendThirdPersonControl()
+{
+    LG_D("Sending third person control");
+    prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
+    mcomp.startCommand(prot::cmd::THIRD_PERSON_CTRL, 0);
+    mcomp.ser->object(thirdPersonControl);
+    mcomp.execute(sendQueue);
 }
 
 }  // namespace sphyc

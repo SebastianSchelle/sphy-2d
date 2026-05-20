@@ -24,7 +24,7 @@
                 "-w",
                 "${workspaceFolder}/deploy",
                 "-s",
-                "${env:HOME}/Documents/galaxies/test-game-2"
+                "${workspaceFolder}/saves/test"
             ],
             "cwd": "${workspaceFolder}/deploy",
             "stopOnEntry": false

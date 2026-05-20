@@ -182,11 +182,17 @@ bool MainWindow::initPre()
     atlasDebug.bind(&userInterface, &model, &renderEngine);
     atlasDebug.setupDataModel(userInterface);
 
+    setupThirdPersonCtrl();
+    setupMapCtrl();
+
     return true;
 }
 
 bool MainWindow::initPost()
 {
+    modManager.populateMenuData(menuData.mods);
+    rmlModelMenu.DirtyVariable("mods");
+    userInterface.showMenu();
     return true;
 }
 
@@ -254,6 +260,7 @@ void MainWindow::winLoop()
 
     while (!glfwWindowShouldClose(window))
     {
+        determineUiEnvironment();
         processUiTasks();
 
         tim::Timepoint now = tim::getCurrentTimeU();
@@ -633,9 +640,7 @@ void MainWindow::loadingLoop()
             {
                 loadingThread.join();
             }
-            modManager.populateMenuData(menuData.mods);
-            rmlModelMenu.DirtyVariable("mods");
-            userInterface.showMenu();
+            initPost();
             model.startModel();
         }
         else
@@ -789,58 +794,6 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         return;
     }
 
-    if (model.getGameState() != ClientGameState::AtlasDebug
-        && key == GLFW_KEY_W)
-    {
-        if (action == GLFW_PRESS)
-        {
-            panY = gfx::PanDirection::Up;
-        }
-        else if (action == GLFW_RELEASE && panY == gfx::PanDirection::Up)
-        {
-            panY = gfx::PanDirection::Stop;
-        }
-        return;
-    }
-    if (model.getGameState() != ClientGameState::AtlasDebug
-        && key == GLFW_KEY_S)
-    {
-        if (action == GLFW_PRESS)
-        {
-            panY = gfx::PanDirection::Down;
-        }
-        else if (action == GLFW_RELEASE && panY == gfx::PanDirection::Down)
-        {
-            panY = gfx::PanDirection::Stop;
-        }
-        return;
-    }
-    if (model.getGameState() != ClientGameState::AtlasDebug
-        && key == GLFW_KEY_A)
-    {
-        if (action == GLFW_PRESS)
-        {
-            panX = gfx::PanDirection::Left;
-        }
-        else if (action == GLFW_RELEASE && panX == gfx::PanDirection::Left)
-        {
-            panX = gfx::PanDirection::Stop;
-        }
-        return;
-    }
-    if (model.getGameState() != ClientGameState::AtlasDebug
-        && key == GLFW_KEY_D)
-    {
-        if (action == GLFW_PRESS)
-        {
-            panX = gfx::PanDirection::Right;
-        }
-        else if (action == GLFW_RELEASE && panX == gfx::PanDirection::Right)
-        {
-            panX = gfx::PanDirection::Stop;
-        }
-        return;
-    }
     if (action == GLFW_PRESS && key == GLFW_KEY_T)
     {
         model.toggleTacticalView();
@@ -852,9 +805,21 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         return;
     }
 
+
+    // Check specific event types
     InputEvent::Identifier identifier = InputEvent::Key::encodeIdentifier(
-        InputEvent::Environment::General, key, mods, action);
-    userInterface.getUserInput().processEvent(identifier, {});
+        userInterface.getUiEnvironment(), key, mods, action);
+    if (userInterface.getUserInput().processEvent(identifier, {}))
+    {
+        return;
+    }
+    // Check general event type
+    identifier = InputEvent::Key::encodeIdentifier(
+        ui::InputEvent::Environment::General, key, mods, action);
+    if (userInterface.getUserInput().processEvent(identifier, {}))
+    {
+        return;
+    }
 }
 
 void MainWindow::charCallback(GLFWwindow* window, unsigned int codepoint)
@@ -1340,6 +1305,179 @@ void MainWindow::onExitToMenu(Rml::DataModelHandle handle,
 void MainWindow::onAfterLoadWorld()
 {
     renderEngine.setWorldShape(&model.getWorldShape());
+}
+
+void MainWindow::setupThirdPersonCtrl()
+{
+    UserInput& userInput = userInterface.getUserInput();
+
+    auto add = [&](const char* name,
+                   const char* description,
+                   uint16_t key,
+                   void (def::ThirdPersonControl::*onPress)(),
+                   void (def::ThirdPersonControl::*onRelease)())
+    {
+        userInput.addKeyPressReleasePairs(
+            {ui::InputEvent::Environment::ThirdPerson},
+            name,
+            description,
+            key,
+            0,
+            [this, onPress](const ui::InputEvent::EventData&)
+            {
+                (model.getThirdPersonControl().*onPress)();
+                return true;
+            },
+            [this, onRelease](const ui::InputEvent::EventData&)
+            {
+                (model.getThirdPersonControl().*onRelease)();
+                return true;
+            });
+    };
+
+    add("Accelerate",
+        "Accelerate the third person control",
+        GLFW_KEY_W,
+        &def::ThirdPersonControl::acc,
+        &def::ThirdPersonControl::stopAcc);
+    add("Decelerate",
+        "Decelerate the third person control",
+        GLFW_KEY_S,
+        &def::ThirdPersonControl::dec,
+        &def::ThirdPersonControl::stopDec);
+    add("Rotate left",
+        "Rotate the third person control counter-clockwise",
+        GLFW_KEY_Q,
+        &def::ThirdPersonControl::rotateLeft,
+        &def::ThirdPersonControl::stopRotateLeft);
+    add("Rotate right",
+        "Rotate the third person control clockwise",
+        GLFW_KEY_E,
+        &def::ThirdPersonControl::rotateRight,
+        &def::ThirdPersonControl::stopRotateRight);
+    add("Strafe left",
+        "Strafe the third person control left",
+        GLFW_KEY_A,
+        &def::ThirdPersonControl::strafeLeft,
+        &def::ThirdPersonControl::stopStrafeLeft);
+    add("Strafe right",
+        "Strafe the third person control right",
+        GLFW_KEY_D,
+        &def::ThirdPersonControl::strafeRight,
+        &def::ThirdPersonControl::stopStrafeRight);
+}
+
+void MainWindow::determineUiEnvironment()
+{
+    auto viewMode = renderEngine.getViewMode();
+    if (userInterface.isMenuOpen())
+    {
+        userInterface.setUiEnvironment(ui::InputEvent::Environment::Menu);
+        return;
+    }
+    switch (viewMode)
+    {
+        case gfx::GameViewMode::ThirdPerson:
+            userInterface.setUiEnvironment(
+                ui::InputEvent::Environment::ThirdPerson);
+            break;
+        case gfx::GameViewMode::StrategicMap:
+            userInterface.setUiEnvironment(
+                ui::InputEvent::Environment::Strategic);
+            break;
+        case gfx::GameViewMode::TacticalMap:
+            userInterface.setUiEnvironment(
+                ui::InputEvent::Environment::Tactical);
+            break;
+        default:
+            userInterface.setUiEnvironment(
+                ui::InputEvent::Environment::General);
+            break;
+    }
+}
+
+void MainWindow::setupMapCtrl()
+{
+    UserInput& userInput = userInterface.getUserInput();
+    const auto mapEnvironments = {ui::InputEvent::Environment::Strategic,
+                                  ui::InputEvent::Environment::Tactical};
+
+    auto addPanY = [&](const char* name,
+                       const char* description,
+                       uint16_t key,
+                       gfx::PanDirection direction)
+    {
+        userInput.addKeyPressReleasePairs(
+            mapEnvironments,
+            name,
+            description,
+            key,
+            0,
+            [this, direction](const ui::InputEvent::EventData&)
+            {
+                panY = direction;
+                return true;
+            },
+            [this, direction](const ui::InputEvent::EventData&)
+            {
+                if (panY == direction)
+                {
+                    panY = gfx::PanDirection::Stop;
+                    return true;
+                }
+                return false;
+            });
+    };
+
+    auto addPanX = [&](const char* name,
+                       const char* description,
+                       uint16_t key,
+                       gfx::PanDirection direction)
+    {
+        userInput.addKeyPressReleasePairs(
+            mapEnvironments,
+            name,
+            description,
+            key,
+            0,
+            [this, direction](const ui::InputEvent::EventData&)
+            {
+                panX = direction;
+                return true;
+            },
+            [this, direction](const ui::InputEvent::EventData&)
+            {
+                if (panX == direction)
+                {
+                    panX = gfx::PanDirection::Stop;
+                    return true;
+                }
+                return false;
+            });
+    };
+
+    addPanY("Pan Up", "Pan the map up", GLFW_KEY_W, gfx::PanDirection::Up);
+    addPanY(
+        "Pan Down", "Pan the map down", GLFW_KEY_S, gfx::PanDirection::Down);
+    addPanX(
+        "Pan Left", "Pan the map left", GLFW_KEY_A, gfx::PanDirection::Left);
+    addPanX(
+        "Pan Right", "Pan the map right", GLFW_KEY_D, gfx::PanDirection::Right);
+
+    userInput.addEvents(
+        {ui::InputEvent::Environment::Strategic,
+         ui::InputEvent::Environment::Tactical},
+        "Center on Player",
+        "Center the view on the map on the player's position",
+        ui::InputEvent::Key{.key = GLFW_KEY_P,
+                            .action = GLFW_PRESS,
+                            .callback =
+                                [this](const ui::InputEvent::EventData&)
+                            {
+                                model.centerViewOnPlayer();
+                                return true;
+                            }},
+        ui::InputEvent::INVALID_ID);
 }
 
 }  // namespace ui

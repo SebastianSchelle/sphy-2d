@@ -19,6 +19,7 @@
 #include <task-system.hpp>
 #include <work-distributor.hpp>
 #include <world.hpp>
+#include <control-def.hpp>
 
 #include <lib-hull.hpp>
 
@@ -27,7 +28,6 @@
 #include <comp-phy.hpp>
 #include <comp-struct.hpp>
 #include <comp-storage.hpp>
-
 
 namespace ecs
 {

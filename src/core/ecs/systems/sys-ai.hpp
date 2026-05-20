@@ -20,7 +20,7 @@ const System sysAi = {
         {
             auto reg = ptrHandle->registry;
             auto* ai = reg->try_get<Ai>(entity);
-            if (ai)
+            if (ai && ai->active)
             {
                 if (ptrHandle->frameCnt < ai->nextRunFrame)
                 {
