@@ -247,7 +247,8 @@ void Engine::update(float dt)
                 {
                     if (thrdCtrl.thrust.x == 0.0f)
                     {
-                        moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::BrakeManeuver;
+                        moveCtrl->moveMode =
+                        ecs::MoveCtrl::MoveMode::BrakeManeuver;
                     }
                     else if (thrdCtrl.thrust.y == 0.0f)
                     {
@@ -258,6 +259,7 @@ void Engine::update(float dt)
                     {
                         moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::None;
                     }
+                    moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::None;
                     // Local x = maneuver (strafe), y = main (forward); use
                     // Transform::rot — TransformCache may lag when rotVel is
                     // small.
@@ -1106,7 +1108,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 1; ++i)
+    for (int i = 0; i < 5000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);

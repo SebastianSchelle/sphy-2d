@@ -284,6 +284,10 @@ const System sysPhyThrust = {
 
                 float spd = glm::length(physicsBody->vel);
                 glm::vec2 thrustApply = phyThrust->thrustGlobal;
+                if (!std::isfinite(thrustApply.x) || !std::isfinite(thrustApply.y))
+                {
+                    LG_W("PhyThrust2 thrustApply is invalid");
+                }
                 if (spd >= phyThrust->maxSpd && spd > 1e-8f)
                 {
                     const glm::vec2 vhat = physicsBody->vel / spd;
@@ -292,6 +296,11 @@ const System sysPhyThrust = {
                     {
                         thrustApply -= vhat * along;
                     }
+                }
+                if (!std::isfinite(thrustApply.x) || !std::isfinite(thrustApply.y))
+                {
+                    LG_W("PhyThrust1 thrustApply is invalid");
+                    exit(1);
                 }
                 physicsBody->acc += thrustApply / physicsBody->mass;
 

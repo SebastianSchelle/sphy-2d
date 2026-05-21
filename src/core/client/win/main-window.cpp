@@ -411,7 +411,7 @@ void MainWindow::renderGame()
     }
     renderEngine.flushQueuedTexRects();
     renderEngine.drawDebugCheckerboard(
-        0, renderEngine.getShaderHandle("debuggrid"));
+        0, renderEngine.getShaderHandle("debuggrid"), 50.0f, 0.05f);
 }
 
 void MainWindow::renderAtlasDebug(bool /*mouseOverUi*/)
@@ -1350,13 +1350,13 @@ void MainWindow::setupThirdPersonCtrl()
     add("Rotate left",
         "Rotate the third person control counter-clockwise",
         GLFW_KEY_Q,
-        &def::ThirdPersonControl::rotateLeft,
-        &def::ThirdPersonControl::stopRotateLeft);
+        &def::ThirdPersonControl::rotateCCW,
+        &def::ThirdPersonControl::stopRotateCCW);
     add("Rotate right",
         "Rotate the third person control clockwise",
         GLFW_KEY_E,
-        &def::ThirdPersonControl::rotateRight,
-        &def::ThirdPersonControl::stopRotateRight);
+        &def::ThirdPersonControl::rotateCW,
+        &def::ThirdPersonControl::stopRotateCW);
     add("Strafe left",
         "Strafe the third person control left",
         GLFW_KEY_A,

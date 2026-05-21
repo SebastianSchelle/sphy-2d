@@ -43,28 +43,13 @@ struct ThirdPersonControl
         }
     }
 
-    void rotateLeft()
-    {
-        torque = 1.0f;
-        dirty_active = true;
-    }
-
-    void stopRotateLeft()
-    {
-        if (torque > 0.0f)
-        {
-            torque = 0.0f;
-            dirty_active = true;
-        }
-    }
-
-    void rotateRight()
+    void rotateCCW()
     {
         torque = -1.0f;
         dirty_active = true;
     }
 
-    void stopRotateRight()
+    void stopRotateCCW()
     {
         if (torque < 0.0f)
         {
@@ -73,15 +58,30 @@ struct ThirdPersonControl
         }
     }
 
+    void rotateCW()
+    {
+        torque = 1.0f;
+        dirty_active = true;
+    }
+
+    void stopRotateCW()
+    {
+        if (torque > 0.0f)
+        {
+            torque = 0.0f;
+            dirty_active = true;
+        }
+    }
+
     void strafeLeft()
     {
-        thrust.x = -1.0f;
+        thrust.x = 1.0f;
         dirty_active = true;
     }
 
     void stopStrafeLeft()
     {
-        if (thrust.x < 0.0f)
+        if (thrust.x > 0.0f)
         {
             thrust.x = 0.0f;
             dirty_active = true;
@@ -90,13 +90,13 @@ struct ThirdPersonControl
 
     void strafeRight()
     {
-        thrust.x = 1.0f;
+        thrust.x = -1.0f;
         dirty_active = true;
     }
 
     void stopStrafeRight()
     {
-        if (thrust.x > 0.0f)
+        if (thrust.x < 0.0f)
         {
             thrust.x = 0.0f;
             dirty_active = true;

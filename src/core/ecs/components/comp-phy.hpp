@@ -407,7 +407,7 @@ EXT_DES(PhysicsBody, SER_PHYSICS_BODY)
 inline void
 clampThrustLocalToActuatorBox(vec2& local, float maneuverMax, float mainMax)
 {
-    constexpr float eps = 1e-12f;
+    constexpr float eps = 1e-8f;
     const float tx = local.x;
     const float ty = local.y;
     const float ax = std::fabsf(tx);
@@ -425,10 +425,12 @@ clampThrustLocalToActuatorBox(vec2& local, float maneuverMax, float mainMax)
     if (ax > eps)
     {
         s = std::fminf(s, maneuverMax / ax);
+        // LG_D("ax s: {}", s);
     }
     if (ay > eps)
     {
         s = std::fminf(s, mainMax / ay);
+        // LG_D("ay s: {}", s);
     }
     local.x = tx * s;
     local.y = ty * s;
@@ -478,20 +480,20 @@ struct PhyThrust
 
     void setThrustLocalMain(float th, float s, float c)
     {
-        // thrustLocal = smath::rotateVec2(thrustGlobal, -s, c);
-        // thrustLocal.y = th;
-        // clampThrustLocalToActuatorBox(
-        //     thrustLocal, thrustManeuverMax, thrustMainMax);
-        // thrustGlobal = smath::rotateVec2(thrustLocal, s, c);
+        thrustLocal = smath::rotateVec2(thrustGlobal, -s, c);
+        thrustLocal.y = th;
+        clampThrustLocalToActuatorBox(
+            thrustLocal, thrustManeuverMax, thrustMainMax);
+        thrustGlobal = smath::rotateVec2(thrustLocal, s, c);
     }
 
     void setThrustLocalManeuver(float th, float s, float c)
     {
-        // thrustLocal = smath::rotateVec2(thrustGlobal, -s, c);
-        // thrustLocal.x = th;
-        // clampThrustLocalToActuatorBox(
-        //     thrustLocal, thrustManeuverMax, thrustMainMax);
-        // thrustGlobal = smath::rotateVec2(thrustLocal, s, c);
+        thrustLocal = smath::rotateVec2(thrustGlobal, -s, c);
+        thrustLocal.x = th;
+        clampThrustLocalToActuatorBox(
+            thrustLocal, thrustManeuverMax, thrustMainMax);
+        thrustGlobal = smath::rotateVec2(thrustLocal, s, c);
     }
 
     void setThrustNone()
