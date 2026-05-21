@@ -224,7 +224,8 @@ void Engine::update(float dt)
     for (auto handle : connectedClientHandles)
     {
         def::ClientInfo* clientInfo = clientLib.getItem(handle);
-        if (clientInfo->thirdPersonControl.dirty_active)
+        auto& thrdCtrl = clientInfo->thirdPersonControl;
+        if (thrdCtrl.dirty_active)
         {
             ecs::EntityId entityId = clientInfo->getActiveEntity();
             entt::entity ent = ecs.getEntity(entityId);
@@ -233,28 +234,55 @@ void Engine::update(float dt)
                 LG_W("Entity not found for client {}", clientInfo->getName());
                 continue;
             }
-            auto* transformCache =
-                ptrHandle->registry->try_get<ecs::TransformCache>(ent);
+            auto* transform = ptrHandle->registry->try_get<ecs::Transform>(ent);
             auto* phyThrust = ptrHandle->registry->try_get<ecs::PhyThrust>(ent);
-            if (phyThrust && transformCache)
+            auto* moveCtrl = ptrHandle->registry->try_get<ecs::MoveCtrl>(ent);
+            if (phyThrust && transform && moveCtrl)
             {
-                LG_D("Setting third person control for client {}",
-                     clientInfo->getName());
-                LG_D("Thrust: {}, Torque: {}",
-                     clientInfo->thirdPersonControl.thrust,
-                     clientInfo->thirdPersonControl.torque);
-                phyThrust->setThrustLocal(
-                    clientInfo->thirdPersonControl.thrust
-                        * vec2(phyThrust->thrustMainMax,
-                               phyThrust->thrustManeuverMax),
-                    transformCache->c,
-                    transformCache->s);
-                phyThrust->setTorque(clientInfo->thirdPersonControl.torque * phyThrust->maxTorque);
+                if (thrdCtrl.thrust == vec2(0.0f, 0.0f))
+                {
+                    moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::Brake;
+                }
+                else
+                {
+                    if (thrdCtrl.thrust.x == 0.0f)
+                    {
+                        moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::BrakeManeuver;
+                    }
+                    else if (thrdCtrl.thrust.y == 0.0f)
+                    {
+                        moveCtrl->moveMode =
+                            ecs::MoveCtrl::MoveMode::BrakeMain;
+                    }
+                    else
+                    {
+                        moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::None;
+                    }
+                    // Local x = maneuver (strafe), y = main (forward); use
+                    // Transform::rot — TransformCache may lag when rotVel is
+                    // small.
+                    phyThrust->setThrustLocal(
+                        thrdCtrl.thrust
+                            * vec2(phyThrust->thrustManeuverMax,
+                                   phyThrust->thrustMainMax),
+                        *transform);
+                }
+                if (thrdCtrl.torque == 0.0f)
+                {
+                    moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::Brake;
+                }
+                else
+                {
+                    moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::None;
+                    phyThrust->setTorque(thrdCtrl.torque
+                                         * phyThrust->maxTorque);
+                }
             }
             else
             {
-                LG_W("PhyThrust or TransformCache not found for client {}",
-                     clientInfo->getName());
+                LG_W(
+                    "PhyThrust, Transform, or MoveCtrl not found for client {}",
+                    clientInfo->getName());
                 continue;
             }
         }
@@ -720,12 +748,6 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                          clientInfo->getName());
                     return;
                 }
-                auto* moveCtrl =
-                    ptrHandle->registry->try_get<ecs::MoveCtrl>(ent);
-                if (moveCtrl)
-                {
-                    moveCtrl->active = false;
-                }
                 auto* ai = ptrHandle->registry->try_get<ecs::Ai>(ent);
                 if (ai)
                 {
@@ -836,133 +858,6 @@ void Engine::registerConsoleCommands()
         { return assetFactory.assetInfo(a.flags.at("-a")); },
         "Print information for one asset",
         {{"-a", "Asset id", true}});
-
-    commandManager.registerCommand(
-        {"move-ctrl", "set"},
-        [this](const cmd::CommandArgs& a) -> std::string
-        {
-            try
-            {
-                std::string idxStr = a.flags.at("-e");
-                uint32_t idx = std::stoul(idxStr);
-                ecs::EntityId entityId = ecs.getEntityIdFromIdx(idx);
-
-                entt::entity ent = ecs.getEntity(entityId);
-                if (ent == entt::null)
-                {
-                    return "Failed: Entity not found";
-                }
-
-                if (ecs.getRegistry().all_of<ecs::MoveCtrl>(ent))
-                {
-                    auto& mc = ecs.getRegistry().get<ecs::MoveCtrl>(ent);
-                    auto* sectorId =
-                        ecs.getRegistry().try_get<ecs::SectorId>(ent);
-
-                    const auto sxIt = a.flags.find("-sx");
-                    const auto syIt = a.flags.find("-sy");
-                    const bool hasSx =
-                        sxIt != a.flags.end() && !sxIt->second.empty();
-                    const bool hasSy =
-                        syIt != a.flags.end() && !syIt->second.empty();
-                    if (hasSx != hasSy)
-                    {
-                        return "Failed: provide both -sx and -sy";
-                    }
-                    if (hasSx)
-                    {
-                        mc.spPos.pos.x = std::stoul(sxIt->second);
-                        mc.spPos.pos.y = std::stoul(syIt->second);
-                    }
-                    else if (!mc.active && sectorId)
-                    {
-                        // On first activation, default target sector to
-                        // current.
-                        auto [sx, sy] =
-                            ptrHandle->world->idToSectorCoords(sectorId->id);
-                        mc.spPos.pos.x = sx;
-                        mc.spPos.pos.y = sy;
-                    }
-
-                    if (const auto it = a.flags.find("-x");
-                        it != a.flags.end() && !it->second.empty())
-                    {
-                        mc.spPos.sectorPos.x = std::stof(it->second);
-                    }
-                    if (const auto it = a.flags.find("-y");
-                        it != a.flags.end() && !it->second.empty())
-                    {
-                        mc.spPos.sectorPos.y = std::stof(it->second);
-                    }
-                    if (const auto it = a.flags.find("-r");
-                        it != a.flags.end() && !it->second.empty())
-                    {
-                        mc.spRot = std::stof(it->second);
-                    }
-                    if (const auto it = a.flags.find("-fd");
-                        it != a.flags.end() && !it->second.empty())
-                    {
-                        string mode = it->second;
-                        std::transform(mode.begin(),
-                                       mode.end(),
-                                       mode.begin(),
-                                       [](unsigned char c)
-                                       { return std::tolower(c); });
-                        if (mode == "none")
-                        {
-                            mc.faceDirMode = ecs::MoveCtrl::FaceDirMode::None;
-                        }
-                        else if (mode == "forward")
-                        {
-                            mc.faceDirMode =
-                                ecs::MoveCtrl::FaceDirMode::Forward;
-                        }
-                        else if (mode == "targetpoint")
-                        {
-                            mc.faceDirMode =
-                                ecs::MoveCtrl::FaceDirMode::TargetPoint;
-                        }
-                        else
-                        {
-                            return "Failed: -fd must be "
-                                   "none|forward|targetpoint";
-                        }
-                    }
-                    if (const auto it = a.flags.find("-tx");
-                        it != a.flags.end() && !it->second.empty())
-                    {
-                        mc.lookAt.x = std::stof(it->second);
-                    }
-                    if (const auto it = a.flags.find("-ty");
-                        it != a.flags.end() && !it->second.empty())
-                    {
-                        mc.lookAt.y = std::stof(it->second);
-                    }
-
-                    mc.active = true;
-                }
-                else
-                {
-                    return "Failed: MoveCtrl component not found";
-                }
-
-                return "Ok";
-            }
-            catch (const std::exception& e)
-            {
-                return std::string("Failed: ") + e.what();
-            }
-        },
-        "Update move-ctrl setpoints for an entity",
-        {{"-e", "Entity id", true},
-         {"-sx", "Target sector X (must be used with -sy)", false},
-         {"-sy", "Target sector Y (must be used with -sx)", false},
-         {"-x", "Target in-sector X position", false},
-         {"-y", "Target in-sector Y position", false},
-         {"-r", "Target rotation (rad)", false},
-         {"-fd", "Face direction mode: none|forward|targetpoint", false},
-         {"-tx", "Target-point X (for -fd targetpoint)", false},
-         {"-ty", "Target-point Y (for -fd targetpoint)", false}});
 
     commandManager.registerCommand(
         {"phy", "set"},
@@ -1211,7 +1106,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 5000; ++i)
+    for (int i = 0; i < 1; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1245,11 +1140,11 @@ void Engine::testSpawn()
         auto* moveCtrl = reg.try_get<ecs::MoveCtrl>(ecs.getEntity(ent));
         if (moveCtrl)
         {
-            moveCtrl->active = true;
+            moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::MoveTo;
             moveCtrl->spPos.sectorPos.x = posDist(gen);
             moveCtrl->spPos.sectorPos.y = posDist(gen);
             moveCtrl->spPos.pos = world.idToSectorCoords(sectorPick(gen));
-            moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
+            moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::Forward;
         }
         auto* phyThrust = reg.try_get<ecs::PhyThrust>(ecs.getEntity(ent));
         if (phyThrust)
@@ -1727,17 +1622,14 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
         LG_E("Failed to make physics body component");
         success = false;
     }
-    if (!makeMoveCtrl(
-            entt,
-            ecs::PhyThrust{.maxTorque = 1000.0f,
-                           .maxRotVel = 3.0f,
-                           .thrustMainMax = 10000.0f,
-                           .thrustManeuverMax = 1000.0f,
-                           .maxSpd = 1000.0f},
-            ecs::MoveCtrl{.active = true,
-                          .faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward,
-                          .spPos = {0, 0},
-                          .spRot = 0.0f}))
+    if (!makeMoveCtrl(entt,
+                      ecs::PhyThrust{.maxTorque = 1000.0f,
+                                     .maxRotVel = 3.0f,
+                                     .thrustMainMax = 10000.0f,
+                                     .thrustManeuverMax = 1000.0f,
+                                     .maxSpd = 1000.0f},
+                      ecs::MoveCtrl{.moveMode = ecs::MoveCtrl::MoveMode::None,
+                                    .turnMode = ecs::MoveCtrl::TurnMode::None}))
     {
         LG_E("Failed to make move ctrl component");
         success = false;

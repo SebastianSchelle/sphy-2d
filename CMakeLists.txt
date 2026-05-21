@@ -27,6 +27,7 @@ project(
 
 # Debug | Release | Profile — usage: see cmake/SphyBuildTypes.cmake
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SphyBuildTypes.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SphyTargetKind.cmake")
 
 # Define DEBUG only for Debug configuration.
 add_compile_definitions($<$<CONFIG:Debug>:DEBUG>)

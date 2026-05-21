@@ -45,69 +45,180 @@ const System sysMoveCtrl = {
             auto* transformCache = reg->try_get<TransformCache>(entity);
             auto* physicsBody = reg->try_get<PhysicsBody>(entity);
             auto* phyThrust = reg->try_get<PhyThrust>(entity);
-            if (!moveCtrl || !moveCtrl->active || !transform || !transformCache
-                || !physicsBody || !phyThrust || !sectorId || dt <= 1e-6f)
+            if (!moveCtrl || !transform || !transformCache || !physicsBody
+                || !phyThrust || !sectorId || dt <= 1e-6f)
             {
                 return;
             }
 
-            // Thrust control =====================
-            const float s = transformCache->s;
-            const float c = transformCache->c;
-            const float m = physicsBody->mass;
-            const vec2 v_vel = physicsBody->vel;
-            const vec2 v_vel_l = smath::rotateVec2(v_vel, -s, c);
-            const float v = glm::length(v_vel);
-            vec2 relTargetPos =
-                (moveCtrl->spPos.pos.toVec2() - sectorId->toVec2())
-                    * ptrHandle->world->getWorldShape().sectorSize
-                + moveCtrl->spPos.sectorPos;
-            // d_w: target direction in world space
-            const vec2 d_w = relTargetPos - transform->pos;
-            // d_l: target direction in object local space
-            const vec2 d_l = smath::rotateVec2(d_w, -s, c);
-            const float d_l_mag = glm::length(d_l);
+            float s;
+            float c;
+            vec2 d_w;
+            vec2 d_l;
+            float d_l_mag;
+            bool calcLocalSpaceVectorsDone = false;
 
-            vec2 v_des_l = vec2(0.0f, 0.0f);
-
-            moveCtrl->posReached = d_l_mag < moveCtrl->allowedPosError;
-            if (!moveCtrl->posReached)
+            auto calcLocalSpaceVectors = [&](def::SectorCoords trgt)
             {
-                // t_ml: maximum thrust vector in object local space and target
-                // direction
-                const float tm_x = phyThrust->thrustManeuverMax;
-                const float tm_y = phyThrust->thrustMainMax;
-                const float k_t =
-                    std::min(tm_x / fabs(d_l.x), tm_y / fabs(d_l.y));
-                const vec2 t_ml = k_t * d_l;
-                // t_m: maximum thrust magnitude
-                // a_m: maximum acceleration
-                // v_m: desired velocity
-                const float t_m = glm::length(t_ml);
-                const float a_m = t_m / m;
-                const float v_m = sqrtf(2.0f * a_m * d_l_mag);
-                // v_des: desired velocity magnitude
-                // v_des_l: desired velocity in object local space
-                const float v_des =
-                    std::min(velMargin * v_m, phyThrust->maxSpd);
-                v_des_l = v_des * d_l / d_l_mag;
-            }
+                s = transformCache->s;
+                c = transformCache->c;
+                vec2 relTargetPos =
+                    (trgt.pos.toVec2() - sectorId->toVec2())
+                        * ptrHandle->world->getWorldShape().sectorSize
+                    + trgt.sectorPos;
+                d_w = relTargetPos - transform->pos;
+                d_l = smath::rotateVec2(d_w, -s, c);
+                d_l_mag = glm::length(d_l);
+                calcLocalSpaceVectorsDone = true;
+            };
 
-            const bool inPosDeadzone = d_l_mag < posDeadband && v < velDeadband;
-            if (inPosDeadzone)
+            auto ctrlPos = [&](def::SectorCoords trgt)
             {
-                phyThrust->setThrustNone();
+                // Thrust control =====================
+                const float m = physicsBody->mass;
+                const vec2 v_vel = physicsBody->vel;
+                const vec2 v_vel_l = smath::rotateVec2(v_vel, -s, c);
+                const float v = glm::length(v_vel);
+
+
+                vec2 v_des_l = vec2(0.0f, 0.0f);
+
+                moveCtrl->posReached = d_l_mag < moveCtrl->allowedPosError;
+                if (!moveCtrl->posReached)
+                {
+                    // t_ml: maximum thrust vector in object local space and
+                    // target direction
+                    const float tm_x = phyThrust->thrustManeuverMax;
+                    const float tm_y = phyThrust->thrustMainMax;
+                    const float k_t =
+                        std::min(tm_x / fabs(d_l.x), tm_y / fabs(d_l.y));
+                    const vec2 t_ml = k_t * d_l;
+                    // t_m: maximum thrust magnitude
+                    // a_m: maximum acceleration
+                    // v_m: desired velocity
+                    const float t_m = glm::length(t_ml);
+                    const float a_m = t_m / m;
+                    const float v_m = sqrtf(2.0f * a_m * d_l_mag);
+                    // v_des: desired velocity magnitude
+                    // v_des_l: desired velocity in object local space
+                    const float v_des =
+                        std::min(velMargin * v_m, phyThrust->maxSpd);
+                    v_des_l = v_des * d_l / d_l_mag;
+                }
+
+                const bool inPosDeadzone =
+                    d_l_mag < posDeadband && v < velDeadband;
+                if (inPosDeadzone)
+                {
+                    phyThrust->setThrustNone();
+                }
+                const vec2 err = v_des_l - v_vel_l;
+                const vec2 thrust = ptrHandle->kpThrust * m * err;
+                phyThrust->setThrustLocal(thrust, s, c);
+            };
+
+            auto ctrlVelLoc = [&](vec2 trgt)
+            {
+                const float m = physicsBody->mass;
+                const vec2 v_vel = physicsBody->vel;
+                const vec2 v_vel_l = smath::rotateVec2(v_vel, -s, c);
+                const vec2 err = trgt - v_vel_l;
+                const vec2 thrust = ptrHandle->kpThrust * m * err;
+                phyThrust->setThrustLocal(thrust, s, c);
+            };
+
+            auto ctrlVelLocMain = [&](float trgt)
+            {
+                const float m = physicsBody->mass;
+                const vec2 v_vel = physicsBody->vel;
+                const float v_vel_l_main = smath::rotateVec2(v_vel, -s, c).y;
+                const float err = trgt - v_vel_l_main;
+                const float thrust = ptrHandle->kpThrust * m * err;
+                phyThrust->setThrustLocalMain(thrust, s, c);
+            };
+
+            auto ctrlVelLocManeuver = [&](float trgt)
+            {
+                const float m = physicsBody->mass;
+                const vec2 v_vel = physicsBody->vel;
+                const float v_vel_l_maneuver = smath::rotateVec2(v_vel, -s, c).x;
+                const float err = trgt - v_vel_l_maneuver;
+                const float thrust = ptrHandle->kpThrust * m * err;
+                phyThrust->setThrustLocalManeuver(thrust, s, c);
+            };
+
+            switch (moveCtrl->moveMode)
+            {
+                case MoveCtrl::MoveMode::MoveTo:
+                {
+                    calcLocalSpaceVectors(moveCtrl->spPos);
+                    ctrlPos(moveCtrl->spPos);
+                    break;
+                }
+                case MoveCtrl::MoveMode::Brake:
+                {
+                    ctrlVelLoc(vec2(0.0f, 0.0f));
+                    break;
+                }
+                case MoveCtrl::MoveMode::BrakeMain:
+                {
+                    ctrlVelLocMain(0.0f);
+                    break;
+                }
+                case MoveCtrl::MoveMode::BrakeManeuver:
+                {
+                    ctrlVelLocManeuver(0.0f);
+                    break;
+                }
+                default:
+                    break;
             }
-            const vec2 err = v_des_l - v_vel_l;
-            const vec2 thrust = ptrHandle->kpThrust * m * err;
-            phyThrust->setThrustLocal(thrust, s, c);
 
             // Torque control =====================
-
-            switch (moveCtrl->faceDirMode)
+            auto ctrlAngle = [&](float trgt)
             {
-                case MoveCtrl::FaceDirMode::Forward:
+                const float angleErr = smath::angleError(trgt, transform->rot);
+                moveCtrl->rotReached =
+                    std::abs(angleErr) < moveCtrl->allowedRotError;
+                const float maxAngAcc =
+                    phyThrust->maxTorque / physicsBody->inertia;
+                const float desWMag =
+                    velMargin
+                    * std::sqrt(
+                        std::max(0.0f, 2.0f * maxAngAcc * std::abs(angleErr)));
+                const float maxRotVel = std::max(0.0f, phyThrust->maxRotVel);
+                float desW = std::min(desWMag, maxRotVel);
+                desW *= glm::sign(angleErr);
+                const bool inRotDeadzone =
+                    std::abs(angleErr) < rotDeadband
+                    && std::abs(physicsBody->rotVel) < rotVelDeadband;
+                if (inRotDeadzone)
                 {
+                    phyThrust->setTorque(0.0f);
+                }
+                else
+                {
+                    const float werr = desW - physicsBody->rotVel;
+                    float trq = ptrHandle->kpTurn * werr * physicsBody->inertia;
+                    phyThrust->setTorque(trq);
+                }
+            };
+
+            auto ctrlW = [&](float trgt)
+            {
+                const float werr = trgt - physicsBody->rotVel;
+                float trq = ptrHandle->kpTurn * werr * physicsBody->inertia;
+                phyThrust->setTorque(trq);
+            };
+
+            switch (moveCtrl->turnMode)
+            {
+                case MoveCtrl::TurnMode::Forward:
+                {
+                    if (!calcLocalSpaceVectorsDone)
+                    {
+                        calcLocalSpaceVectors(moveCtrl->spPos);
+                    }
                     const float minFFDist =
                         std::get<MoveCtrl::MCForwardData>(moveCtrl->faceDirData)
                             .minFaceForwardDist;
@@ -115,12 +226,14 @@ const System sysMoveCtrl = {
                     {
                         // World is Y-down; sprites use local +Y as forward.
                         // After CW rotation by `rot`, local +Y maps to
-                        // (-sin(rot), cos(rot)) in world — align that with dir.
+                        // (-sin(rot), cos(rot)) in world — align that with
+                        // dir.
                         moveCtrl->spRot = atan2f(-d_w.x, d_w.y);
                     }
+                    ctrlAngle(moveCtrl->spRot);
                 }
                 break;
-                case MoveCtrl::FaceDirMode::TargetPoint:
+                case MoveCtrl::TurnMode::TargetPoint:
                 {
                     vec2 tgtDir = vec2(moveCtrl->lookAt.x - transform->pos.x,
                                        moveCtrl->lookAt.y - transform->pos.y);
@@ -129,36 +242,16 @@ const System sysMoveCtrl = {
                     {
                         moveCtrl->spRot = atan2f(-tgtDir.x, tgtDir.y);
                     }
+                    ctrlW(moveCtrl->spRot);
+                }
+                break;
+                case MoveCtrl::TurnMode::Brake:
+                {
+                    ctrlW(0.0f);
                 }
                 break;
                 default:
                     break;
-            }
-
-            const float angleErr =
-                smath::angleError(moveCtrl->spRot, transform->rot);
-            moveCtrl->rotReached =
-                std::abs(angleErr) < moveCtrl->allowedRotError;
-            const float maxAngAcc = phyThrust->maxTorque / physicsBody->inertia;
-            const float desWMag =
-                velMargin
-                * std::sqrt(
-                    std::max(0.0f, 2.0f * maxAngAcc * std::abs(angleErr)));
-            const float maxRotVel = std::max(0.0f, phyThrust->maxRotVel);
-            float desW = std::min(desWMag, maxRotVel);
-            desW *= glm::sign(angleErr);
-            const bool inRotDeadzone =
-                std::abs(angleErr) < rotDeadband
-                && std::abs(physicsBody->rotVel) < rotVelDeadband;
-            if (inRotDeadzone)
-            {
-                phyThrust->setTorque(0.0f);
-            }
-            else
-            {
-                const float werr = desW - physicsBody->rotVel;
-                float trq = ptrHandle->kpTurn * werr * physicsBody->inertia;
-                phyThrust->setTorque(trq);
             }
         }}};
 
@@ -395,25 +488,25 @@ const System sysCollisionDetection = {
                     {
                         const vec2 correction =
                             contact.normal * contact.penetration * 0.5f;
-                        if(phy1)
+                        if (phy1)
                         {
                             transform1.pos -= correction;
                         }
-                        if(phy2)
+                        if (phy2)
                         {
                             transform2.pos += correction;
                         }
                     }
                     vec2 vel1 = vec2(0.0f, 0.0f);
                     float mass1 = 100000.0f;
-                    if(phy1)
+                    if (phy1)
                     {
                         vel1 = phy1->vel;
                         mass1 = phy1->mass;
                     }
                     vec2 vel2 = vec2(0.0f, 0.0f);
                     float mass2 = 100000.0f;
-                    if(phy2)
+                    if (phy2)
                     {
                         vel2 = phy2->vel;
                         mass2 = phy2->mass;
@@ -448,11 +541,11 @@ const System sysCollisionDetection = {
                     }
                     const float j = (jN + penBias) / denom;
                     const vec2 impulse = contact.normal * j;
-                    if(phy1)
+                    if (phy1)
                     {
                         phy1->vel -= impulse * invMass1;
                     }
-                    if(phy2)
+                    if (phy2)
                     {
                         phy2->vel += impulse * invMass2;
                     }

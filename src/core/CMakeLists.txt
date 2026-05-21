@@ -1,7 +1,7 @@
 add_subdirectory(world)
-add_subdirectory(ai)
 add_subdirectory(ecs)
 add_subdirectory(game-objects)
+add_subdirectory(ai)
 add_subdirectory(mod)
 add_subdirectory(modding)
 add_subdirectory(server)

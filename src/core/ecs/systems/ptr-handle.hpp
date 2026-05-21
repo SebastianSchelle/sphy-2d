@@ -54,6 +54,12 @@ struct PtrHandle
     entt::registry* registry;
     world::World* world;
     mod::ModManager* modManager;
+    // Shared fields must precede SERVER/CLIENT-only members (see cmake/SphyTargetKind.cmake).
+    uint32_t frameCnt;
+    const vector<System>* systems;
+    ecs::Ecs* ecs;
+    sthread::WorkDistributor* workDistributor;
+    con::ItemLib<gobj::Collider>* colliderLib = nullptr;
 #ifdef SERVER
     sphys::Engine* engine;
     float kpThrust;
@@ -65,11 +71,6 @@ struct PtrHandle
 #elif CLIENT
     sphyc::Client* client;
 #endif
-    uint32_t frameCnt;
-    const vector<System>* systems;
-    ecs::Ecs* ecs;
-    sthread::WorkDistributor* workDistributor;
-    con::ItemLib<gobj::Collider>* colliderLib = nullptr;
 };
 
 }  // namespace ecs

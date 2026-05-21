@@ -774,6 +774,34 @@ void RenderEngine::drawBlueprintGridBackground(bgfx::ViewId viewId,
     drawFullScreenTriangles(viewId, shaderHandle);
 }
 
+void RenderEngine::drawDebugCheckerboard(bgfx::ViewId viewId,
+                                         ShaderHandle shaderHandle,
+                                         float cellWorld,
+                                         float highlightStrength)
+{
+    if (!shaderHandle.isValid() || !bgfx::isValid(u_grid))
+    {
+        return;
+    }
+    const float cell = cellWorld < 1.0f ? 1.0f : cellWorld;
+    const float strength =
+        highlightStrength < 0.0f
+            ? 0.0f
+            : (highlightStrength > 1.0f ? 1.0f : highlightStrength);
+    const float gridParams[4] = {cell, strength, 0.0f, 0.0f};
+    bgfx::setUniform(u_grid, gridParams);
+    changeRenderState(RenderState::DrawFullScreenTriangles);
+    bgfx::setVertexBuffer(0, vbhFullScreenTriangles);
+    bgfx::setIndexBuffer(ibhFullScreenTriangles);
+    const uint64_t state =
+        BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
+        | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,
+                                BGFX_STATE_BLEND_INV_SRC_ALPHA);
+    bgfx::setState(state);
+    bgfx::submit(viewId,
+                 compiledShaderLib.getItem(shaderHandle)->getHandle());
+}
+
 ShaderHandle RenderEngine::getShaderHandle(const std::string& name) const
 {
     return compiledShaderLib.getHandle(name);

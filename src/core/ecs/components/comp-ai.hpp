@@ -8,7 +8,7 @@ namespace ecs
 
 struct Ai
 {
-    static const uint16_t VERSION = 1;
+    static const uint16_t VERSION = 2;
     static constexpr string NAME = "ai";
 
     GenericHandle stackHandle;
@@ -16,7 +16,9 @@ struct Ai
     bool active = true;
 };
 
-#define SER_AI SOBJ(o.stackHandle);
+#define SER_AI                                                                   \
+    SOBJ(o.stackHandle);                                                         \
+    S4b(o.nextRunFrame);
 EXT_SER(Ai, SER_AI)
 EXT_DES(Ai, SER_AI)
 

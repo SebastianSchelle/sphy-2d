@@ -21,6 +21,7 @@ TaskFunResult SectorPatrol::function(TaskFunArgs* args)
     if (!transform || !sectorId || !moveCtrl)
     {
         SCHED_NEXT(DEFAULT_INTERVAL);
+        LG_D("SectorPatrol: EcsCompMissing");
         return TaskFunResult::EcsCompMissing;
     }
     if (!state.initialized)
@@ -28,17 +29,21 @@ TaskFunResult SectorPatrol::function(TaskFunArgs* args)
         makeRandomPos(args);
         state.initialized = true;
     }
-    moveCtrl->active = true;
+    moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::MoveTo;
     moveCtrl->spPos = {.pos = {sectorId->x, sectorId->y},
                        .sectorPos = state.randomPos};
     moveCtrl->allowedPosError = config.allowedPosError;
     moveCtrl->allowedRotError = config.allowedRotError;
-    moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
-    if (moveCtrl->active && moveCtrl->posReached && moveCtrl->rotReached)
+    moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::Forward;
+    if (moveCtrl->moveMode != ecs::MoveCtrl::MoveMode::None
+        && moveCtrl->posReached
+        && moveCtrl->turnMode != ecs::MoveCtrl::TurnMode::None
+        && moveCtrl->rotReached)
     {
         moveCtrl->posReached = false;
         moveCtrl->rotReached = false;
-        moveCtrl->active = false;
+        moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::None;
+        moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::None;
         makeRandomPos(args);
     }
     SCHED_NEXT(DEFAULT_INTERVAL);
@@ -50,8 +55,9 @@ void SectorPatrol::makeRandomPos(TaskFunArgs* args)
     auto& worldShape = args->ptrHandle->world->getWorldShape();
     state.randomPos =
         0.9f
-        * vec2((rand() % (int)worldShape.sectorSize) - worldShape.sectorSize / 2,
-               (rand() % (int)worldShape.sectorSize) - worldShape.sectorSize / 2);
+        * vec2(
+            (rand() % (int)worldShape.sectorSize) - worldShape.sectorSize / 2,
+            (rand() % (int)worldShape.sectorSize) - worldShape.sectorSize / 2);
 }
 
 TaskFunResult Patrol::function(TaskFunArgs* args)
@@ -71,16 +77,20 @@ TaskFunResult Patrol::function(TaskFunArgs* args)
         return TaskFunResult::EcsCompMissing;
     }
     auto& wayPoint = config.wayPoints[state.currentWayPointIndex];
-    moveCtrl->active = true;
+    moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::MoveTo;
     moveCtrl->spPos = wayPoint;
     moveCtrl->allowedPosError = config.allowedPosError;
     moveCtrl->allowedRotError = config.allowedRotError;
-    moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
-    if (moveCtrl->active && moveCtrl->posReached && moveCtrl->rotReached)
+    moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::Forward;
+    if (moveCtrl->moveMode != ecs::MoveCtrl::MoveMode::None
+        && moveCtrl->posReached
+        && moveCtrl->turnMode != ecs::MoveCtrl::TurnMode::None
+        && moveCtrl->rotReached)
     {
         moveCtrl->posReached = false;
         moveCtrl->rotReached = false;
-        moveCtrl->active = false;
+        moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::None;
+        moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::None;
         state.currentWayPointIndex++;
     }
     SCHED_NEXT(DEFAULT_INTERVAL);
@@ -98,15 +108,19 @@ TaskFunResult Goto::function(TaskFunArgs* args)
         SCHED_NEXT(DEFAULT_INTERVAL);
         return TaskFunResult::EcsCompMissing;
     }
-    moveCtrl->active = true;
+    moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::MoveTo;
     moveCtrl->spPos = config.target;
     moveCtrl->allowedPosError = config.allowedPosError;
     moveCtrl->allowedRotError = config.allowedRotError;
-    moveCtrl->faceDirMode = ecs::MoveCtrl::FaceDirMode::Forward;
-    if (moveCtrl->active && moveCtrl->posReached && moveCtrl->rotReached)
+    moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::Forward;
+    if (moveCtrl->moveMode != ecs::MoveCtrl::MoveMode::None
+        && moveCtrl->posReached
+        && moveCtrl->turnMode != ecs::MoveCtrl::TurnMode::None
+        && moveCtrl->rotReached)
     {
         SCHED_NEXT(DEFAULT_INTERVAL);
-        moveCtrl->active = false;
+        moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::None;
+        moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::None;
         moveCtrl->posReached = false;
         moveCtrl->rotReached = false;
         return TaskFunResult::Done;

@@ -282,6 +282,10 @@ class RenderEngine
                                      ShaderHandle shaderHandle,
                                      float cellWorld,
                                      float majorEveryCells = 5.0f);
+    void drawDebugCheckerboard(bgfx::ViewId viewId,
+                               ShaderHandle shaderHandle,
+                               float cellWorld = 1000.0f,
+                               float highlightStrength = 0.08f);
     void drawAtlasDebugLayer(bgfx::ViewId viewId,
                              bgfx::TextureHandle texArray,
                              uint8_t layer,

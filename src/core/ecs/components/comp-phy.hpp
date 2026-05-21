@@ -476,6 +476,24 @@ struct PhyThrust
         thrustGlobal = smath::rotateVec2(thrustLocal, s, c);
     }
 
+    void setThrustLocalMain(float th, float s, float c)
+    {
+        // thrustLocal = smath::rotateVec2(thrustGlobal, -s, c);
+        // thrustLocal.y = th;
+        // clampThrustLocalToActuatorBox(
+        //     thrustLocal, thrustManeuverMax, thrustMainMax);
+        // thrustGlobal = smath::rotateVec2(thrustLocal, s, c);
+    }
+
+    void setThrustLocalManeuver(float th, float s, float c)
+    {
+        // thrustLocal = smath::rotateVec2(thrustGlobal, -s, c);
+        // thrustLocal.x = th;
+        // clampThrustLocalToActuatorBox(
+        //     thrustLocal, thrustManeuverMax, thrustMainMax);
+        // thrustGlobal = smath::rotateVec2(thrustLocal, s, c);
+    }
+
     void setThrustNone()
     {
         thrustGlobal = vec2(0.0f);
@@ -541,25 +559,36 @@ struct MoveCtrl
     {
         vec2 lookAt;
     };
-    enum class FaceDirMode : uint8_t
+    enum class TurnMode : uint8_t
     {
         None,
         Forward,
         TargetPoint,
+        Brake,
     };
+    enum class MoveMode : uint8_t
+    {
+        None,
+        MoveTo,
+        Brake,
+        BrakeMain,
+        BrakeManeuver,
+    };
+
 
     static const uint16_t VERSION = 1;
     static constexpr string NAME = "move-ctrl";
 
-    bool active = false;
-    bool posReached = false;
-    bool rotReached = false;
-    FaceDirMode faceDirMode;
+    MoveMode moveMode;
     def::SectorCoords spPos;
+    float allowedPosError;
+    bool posReached = false;
+
+    TurnMode turnMode;
+    bool rotReached = false;
     // lookAt only works in sector
     vec2 lookAt;
     float spRot;
-    float allowedPosError;
     float allowedRotError;
 
     std::variant<MCForwardData, MCTargetPointData> faceDirData =
@@ -572,7 +601,17 @@ struct MoveCtrl
     {
         MoveCtrl c;
         string dirMode;
-        TRY_YAML_DICT(c.active, node["active"], false);
+        string moveMode;
+        TRY_YAML_DICT(moveMode, node["moveMode"], "None");
+        auto moveModeEnum = magic_enum::enum_cast<MoveMode>(moveMode);
+        if (moveModeEnum.has_value())
+        {
+            c.moveMode = moveModeEnum.value();
+        }
+        else
+        {
+            c.moveMode = MoveMode::None;
+        }
         TRY_YAML_DICT(c.posReached, node["targetReached"], false);
         TRY_YAML_DICT(c.spPos.sectorPos.x, node["spPos"][0], 0.0f);
         TRY_YAML_DICT(c.spPos.sectorPos.y, node["spPos"][1], 0.0f);
@@ -586,23 +625,23 @@ struct MoveCtrl
         TRY_YAML_DICT(allRotErr, node["allowedRotError"], 5.0f);
         c.allowedRotError = smath::degToRad(allRotErr);
         TRY_YAML_DICT(dirMode, node["faceDirMode"], "None");
-        auto faceDirMode = magic_enum::enum_cast<FaceDirMode>(dirMode);
+        auto faceDirMode = magic_enum::enum_cast<TurnMode>(dirMode);
         if (faceDirMode.has_value())
         {
-            c.faceDirMode = faceDirMode.value();
+            c.turnMode = faceDirMode.value();
         }
         else
         {
-            c.faceDirMode = FaceDirMode::None;
+            c.turnMode = TurnMode::None;
         }
-        switch (c.faceDirMode)
+        switch (c.turnMode)
         {
-            case FaceDirMode::Forward:
+            case TurnMode::Forward:
                 float minFFDist;
                 TRY_YAML_DICT(minFFDist, node["minFFDist"], 100.0f);
                 c.faceDirData = MCForwardData{minFFDist};
                 break;
-            case FaceDirMode::TargetPoint:
+            case TurnMode::TargetPoint:
                 vec2 lookAt;
                 TRY_YAML_DICT(lookAt, node["lookAt"], vec2(0.0f, 0.0f));
                 c.faceDirData = MCTargetPointData{vec2(0.0f, 0.0f)};
@@ -610,24 +649,66 @@ struct MoveCtrl
             default:
                 break;
         }
-        TRY_YAML_DICT(c.lookAt.x, node["lookAt"][0], 0.0f);
-        TRY_YAML_DICT(c.lookAt.y, node["lookAt"][1], 0.0f);
         registry.emplace<MoveCtrl>(entity, c);
     }
 };
 
-#define SER_MOVE_CTRL_HOLD                                                     \
-    S1b(o.active);                                                             \
+#define SER_MOVE_CTRL_FORWARD_DATA S4b(o.minFaceForwardDist);
+EXT_SER(MoveCtrl::MCForwardData, SER_MOVE_CTRL_FORWARD_DATA)
+EXT_DES(MoveCtrl::MCForwardData, SER_MOVE_CTRL_FORWARD_DATA)
+
+#define SER_MOVE_CTRL_TARGET_POINT_DATA SOBJ(o.lookAt);
+EXT_SER(MoveCtrl::MCTargetPointData, SER_MOVE_CTRL_TARGET_POINT_DATA)
+EXT_DES(MoveCtrl::MCTargetPointData, SER_MOVE_CTRL_TARGET_POINT_DATA)
+
+#define SER_MOVE_CTRL                                                          \
     S1b(o.posReached);                                                         \
     S1b(o.rotReached);                                                         \
     SOBJ(o.spPos);                                                             \
     S4b(o.spRot);                                                              \
-    S1b(o.faceDirMode);                                                        \
+    {                                                                          \
+        uint8_t moveModeRaw = static_cast<uint8_t>(o.moveMode);                \
+        s.value1b(moveModeRaw);                                                \
+        o.moveMode = static_cast<MoveCtrl::MoveMode>(moveModeRaw);             \
+    }                                                                          \
+    {                                                                          \
+        uint8_t turnModeRaw = static_cast<uint8_t>(o.turnMode);                \
+        s.value1b(turnModeRaw);                                                \
+        o.turnMode = static_cast<MoveCtrl::TurnMode>(turnModeRaw);             \
+    }                                                                          \
     SOBJ(o.lookAt);                                                            \
     S4b(o.allowedPosError);                                                    \
-    S4b(o.allowedRotError);
-EXT_SER(MoveCtrl, SER_MOVE_CTRL_HOLD)
-EXT_DES(MoveCtrl, SER_MOVE_CTRL_HOLD)
+    S4b(o.allowedRotError);                                                    \
+    switch (o.turnMode)                                                        \
+    {                                                                          \
+        case MoveCtrl::TurnMode::Forward:                                      \
+        {                                                                      \
+            MoveCtrl::MCForwardData data =                                     \
+                std::holds_alternative<MoveCtrl::MCForwardData>(o.faceDirData) \
+                    ? std::get<MoveCtrl::MCForwardData>(o.faceDirData)         \
+                    : MoveCtrl::MCForwardData{100.0f};                         \
+            s.object(data);                                                    \
+            o.faceDirData = data;                                              \
+            break;                                                             \
+        }                                                                      \
+        case MoveCtrl::TurnMode::TargetPoint:                                  \
+        {                                                                      \
+            MoveCtrl::MCTargetPointData data =                                 \
+                std::holds_alternative<MoveCtrl::MCTargetPointData>(           \
+                    o.faceDirData)                                             \
+                    ? std::get<MoveCtrl::MCTargetPointData>(o.faceDirData)     \
+                    : MoveCtrl::MCTargetPointData{o.lookAt};                   \
+            s.object(data);                                                    \
+            o.faceDirData = data;                                              \
+            break;                                                             \
+        }                                                                      \
+        default:                                                               \
+            o.faceDirData = MoveCtrl::MCForwardData{100.0f};                   \
+            break;                                                             \
+    }
+
+EXT_SER(MoveCtrl, SER_MOVE_CTRL)
+EXT_DES(MoveCtrl, SER_MOVE_CTRL)
 
 struct AnchorFixed
 {
@@ -690,14 +771,18 @@ EXT_FMT(ecs::PhyThrust,
         o.thrustManeuverMax,
         o.maxSpd);
 EXT_FMT(ecs::MoveCtrl,
-        "(active: {}, targetReached: {}, spPos: {}, spRot: {}, faceDirMode: "
-        "{}, lookAt: {})",
-        o.active,
+        "(moveMode: {}, posReached: {}, rotReached: {}, spPos: {}, spRot: "
+        "{}, turnMode: {}, allowedPosError: {}, allowedRotError: {}, "
+        "faceDirData: {})",
+        magic_enum::enum_name(o.moveMode),
         o.posReached,
+        o.rotReached,
         o.spPos,
         o.spRot,
-        magic_enum::enum_name(o.faceDirMode),
-        o.lookAt);
+        magic_enum::enum_name(o.turnMode),
+        o.allowedPosError,
+        o.allowedRotError,
+        o.faceDirData);
 
 EXT_FMT(ecs::Collider, "(colliderHandle: {})", o.colliderHandle);
 EXT_FMT(ecs::Broadphase, "(proxyId: {}, fatAABB: {})", o.proxyId, o.fatAABB);

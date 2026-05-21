@@ -24,6 +24,9 @@ const System sysAi = {
             {
                 if (ptrHandle->frameCnt < ai->nextRunFrame)
                 {
+                    // LG_D("sysAi: nextRunFrame: {}, frameCnt: {}",
+                    //      ai->nextRunFrame,
+                    //      ptrHandle->frameCnt);
                     return;
                 }
                 auto* taskSystem = ptrHandle->taskSystem;

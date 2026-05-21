@@ -410,6 +410,8 @@ void MainWindow::renderGame()
             break;
     }
     renderEngine.flushQueuedTexRects();
+    renderEngine.drawDebugCheckerboard(
+        0, renderEngine.getShaderHandle("debuggrid"));
 }
 
 void MainWindow::renderAtlasDebug(bool /*mouseOverUi*/)
@@ -995,14 +997,14 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
         if (auto moveCtrl = reg.try_get<ecs::MoveCtrl>(entity))
         {
             go.hasMoveCtrl = true;
-            go.moveCtrlActive = moveCtrl->active;
+            go.moveCtrlActive = false;
             go.spPosX = moveCtrl->spPos.sectorPos.x;
             go.spPosY = moveCtrl->spPos.sectorPos.y;
             go.spPosSecX = moveCtrl->spPos.pos.x;
             go.spPosSecY = moveCtrl->spPos.pos.y;
             go.spRot = moveCtrl->spRot;
             go.moveCtrlFaceDirMode =
-                magic_enum::enum_name(moveCtrl->faceDirMode);
+                magic_enum::enum_name(moveCtrl->turnMode);
             go.lookAtX = moveCtrl->lookAt.x;
             go.lookAtY = moveCtrl->lookAt.y;
         }

@@ -95,7 +95,8 @@ set_property(
     SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/../mod/sphy-bindings.cpp
     TARGET ${EXEC_NAME}
     PROPERTY COMPILE_OPTIONS "${_das_mod_no_rtti}")
-target_compile_definitions(${EXEC_NAME} PRIVATE BX_CONFIG_DEBUG=1 CLIENT GAME_NAME="${GAME_NAME}")
+target_compile_definitions(${EXEC_NAME} PRIVATE BX_CONFIG_DEBUG=1 GAME_NAME="${GAME_NAME}")
+sphy_link_target_kind(${EXEC_NAME} client)
 
 target_include_directories(${EXEC_NAME} PUBLIC ${CLIENT_INC_PUBLIC})
 target_link_libraries(${EXEC_NAME} PUBLIC ${LIBS_PUB})
