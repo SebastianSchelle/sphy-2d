@@ -69,6 +69,7 @@ class Model
     bool isAabbTreeOverlayEnabled() const;
     void sendCmdToServer(const std::string& command);
     void checkVersion(const net::ModelClientInfo& clientInfo);
+    void prepareForConnect();
     void disconnectFromServer();
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
@@ -107,7 +108,7 @@ class Model
     }
     ecs::EntityId getSelectedEntity() const
     {
-        return clientInfo.getActiveEntity();
+        return clientInfo.activeEntity;
     }
     ecs::EcsClient* getEcs()
     {
@@ -140,23 +141,23 @@ class Model
                       net::SendType sendType,
                       uint16_t cmd,
                       uint8_t flags,
-                      uint16_t len);
+                      size_t dataEndPos);
     void modelLoopMenu(float dt);
     void modelLoopGame(float dt);
     void timeSync();
     void authenticate();
     void handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
-                        uint16_t posNextCmdOrEof);
+                        size_t dataEndPos);
     void handleActiveSectorDump(bitsery::Deserializer<InputAdapter>& cmddes,
-                                uint16_t posNextCmdOrEof);
+                                size_t dataEndPos);
     void reqAllComponents(ecs::EntityId entity);
     void handleReqAllComponentsResp(bitsery::Deserializer<InputAdapter>& cmddes,
-                                    uint16_t posNextCmdOrEof);
+                                    size_t dataEndPos);
     void notifyReady();
     void handleGetAabbTreeResp(bitsery::Deserializer<InputAdapter>& cmddes,
-                               uint16_t posNextCmdOrEof);
+                               size_t dataEndPos);
     void handleActiveEntitySwitched(bitsery::Deserializer<InputAdapter>& cmddes,
-                                    uint16_t posNextCmdOrEof);
+                                    size_t dataEndPos);
     void drawOverlayAABBs(gfx::RenderEngine& renderer, float zoom);
     void drawObjects(gfx::RenderEngine& renderer,
                      const glm::vec4& viewRect,

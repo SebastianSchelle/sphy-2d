@@ -51,17 +51,15 @@ const System sysMoveCtrl = {
                 return;
             }
 
-            float s;
-            float c;
             vec2 d_w;
             vec2 d_l;
             float d_l_mag;
             bool calcLocalSpaceVectorsDone = false;
+            const float s = transformCache->s;
+            const float c = transformCache->c;
 
             auto calcLocalSpaceVectors = [&](def::SectorCoords trgt)
             {
-                s = transformCache->s;
-                c = transformCache->c;
                 vec2 relTargetPos =
                     (trgt.pos.toVec2() - sectorId->toVec2())
                         * ptrHandle->world->getWorldShape().sectorSize

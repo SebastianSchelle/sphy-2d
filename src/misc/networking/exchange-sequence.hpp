@@ -41,6 +41,7 @@ class ExchangeSequence
     void start(ConcurrentQueue<net::CmdQueueData>& sendQueue);
     void advance(ConcurrentQueue<net::CmdQueueData>& sendQueue, uint16_t recCommand, prot::cmd::State recState);
     bool done();
+    void reset();
 
   private:
     std::vector<Exchange> exchanges;

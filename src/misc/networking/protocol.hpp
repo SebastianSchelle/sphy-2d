@@ -112,6 +112,7 @@ const uint16_t ACTIVE_ENTITY_SWITCHED = 0x000C;
 const uint16_t ALL_ENTT_COMPONENTS = 0x000D;
 const uint16_t ACTIVE_SECTOR_UPDATE = 0x000E;
 const uint16_t THIRD_PERSON_CTRL = 0x000F;
+const uint16_t CLIENT_INFO = 0x0010;
 
 }  // namespace cmd
 

@@ -103,6 +103,7 @@ constexpr uint32_t hashConst(const char* s, size_t i = 0)
 #define S2b(value) s.value2b(value)
 #define S1b(value) s.value1b(value)
 #define SOBJ(value) s.object(value)
+#define STXT(value, size) s.text1b(value, size)
 
 #define EXT_SER(type, block)                                                   \
     template <typename S> void serialize(S& s, type& o)                        \

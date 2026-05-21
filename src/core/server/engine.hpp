@@ -103,7 +103,7 @@ class Engine
                       net::SendType sendType,
                       uint16_t cmd,
                       uint8_t flags,
-                      uint16_t len);
+                      size_t dataEndPos);
     // void parseCommand(const net::CmdQueueData& cmdData);
     bool loadFromFolder();
     bool createFromConfig();

@@ -12,9 +12,16 @@ WorkSequencer::~WorkSequencer()
 {
 }
 
-void WorkSequencer::addWorkFunction(std::function<void()> workFunction)
+void WorkSequencer::addWorkFunction(std::function<void()> workFunction, bool last)
 {
-    workFunctions.push_back(workFunction);
+    if(last)
+    {
+        workFunctions.insert(workFunctions.begin(), workFunction);
+    }
+    else
+    {
+        workFunctions.push_back(workFunction);
+    }
 }
 
 void WorkSequencer::execute()
@@ -30,6 +37,11 @@ void WorkSequencer::execute()
             return;
         }
     }
+}
+
+void WorkSequencer::clear()
+{
+    workFunctions.clear();
 }
 
 }  // namespace work

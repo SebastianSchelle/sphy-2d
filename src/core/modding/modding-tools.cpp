@@ -1757,6 +1757,7 @@ void ModdingTools::onLeftMouseDown(const glm::vec2& worldPos,
     lmbDragThresholdCfg = dragThresholdWorld;
     lmbPastDragDeadzone = false;
     suppressDragAfterClick = false;
+    lmbWorldPressTracked = true;
     lmbHadSelectionOnPress = selectedObjectType != SelectableObjectType::None;
     dragSelectedObject = lmbHadSelectionOnPress;
 }
@@ -1876,13 +1877,15 @@ void ModdingTools::onLeftMouseUp(const glm::vec2& worldPos,
                                  gfx::RenderEngine* renderer,
                                  bool shiftAlignTextures)
 {
-    if (!lmbHadSelectionOnPress || !lmbPastDragDeadzone)
+    if (lmbWorldPressTracked
+        && (!lmbHadSelectionOnPress || !lmbPastDragDeadzone))
     {
         onSingleClick(worldPos, worldZoom, renderer, shiftAlignTextures);
     }
     dragSelectedObject = false;
     lmbPastDragDeadzone = false;
     lmbHadSelectionOnPress = false;
+    lmbWorldPressTracked = false;
 }
 
 void ModdingTools::onRightMouseDown(const glm::vec2& worldPos,

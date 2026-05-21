@@ -30,6 +30,7 @@ struct InputEvent
         Strategic,
         Tactical,
         ModdingTools,
+        AtlasDebug,
     };
 
     struct KeyData

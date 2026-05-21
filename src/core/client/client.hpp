@@ -31,14 +31,14 @@ class Client
     {
         shutdownCallback = std::move(cb);
     }
-    void shutdown();
+    void shutdown(bool notifyModel = true);
     void wait();  // Wait for model thread to finish
 
   private:
     void scheduleSend(const std::string& token);
     void udpReceive(const char* data, size_t length);
     void tcpReceive(const net::CmdQueueData& cmdData);
-    void connectionClosedClb();
+    void connectionClosedClb(uint32_t generation);
 
     std::unique_ptr<net::UdpClient> udpClient;
     std::unique_ptr<net::TcpClient> tcpClient;
@@ -49,6 +49,7 @@ class Client
     std::atomic<bool> shuttingDown{false};
     std::atomic<bool> spdlogShutdown{false};
     std::atomic<bool> shutdownNotified{false};
+    std::atomic<uint32_t> connectGeneration{0};
     std::function<void()> shutdownCallback;
     std::mutex lifecycleMutex;
     ConcurrentQueue<net::CmdQueueData>& modelSendQueue;

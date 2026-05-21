@@ -2,19 +2,17 @@
 #define CLIENT_DEF_HPP
 
 #include <comp-ident.hpp>
+#include <control-def.hpp>
 #include <item-lib.hpp>
 #include <net-shared.hpp>
 #include <std-inc.hpp>
 #include <work-sequencer.hpp>
-#include <control-def.hpp>
 
 namespace def
 {
 
-struct ClientFlags
-{
-    uint8_t enConsole : 1;
-};
+#define CLIENT_FLAG_EN_CONSOLE 1 << 0
+static constexpr size_t CLIENT_INFO_NAME_MAX = 256;
 
 class ClientInfo
 {
@@ -22,8 +20,8 @@ class ClientInfo
 #ifdef SERVER
     ClientInfo(const std::string& name,
                const net::ClientInfo& clientInfo,
-               const ClientFlags& flags)
-        : workSequencer(100)
+               uint8_t flags)
+        : workSequencer(10000)
     {
         this->name = name;
         this->clientInfo = clientInfo;
@@ -37,7 +35,7 @@ class ClientInfo
     ClientInfo() {}
     ClientInfo(const std::string& name,
                const net::ModelClientInfo& modelClientInfo,
-               const ClientFlags& flags)
+               uint8_t flags)
     {
         this->name = name;
         this->modelClientInfo = modelClientInfo;
@@ -59,6 +57,10 @@ class ClientInfo
     {
         workSequencer.execute();
     }
+    void clearWorkSequencer()
+    {
+        workSequencer.clear();
+    }
     const std::set<uint32_t>& getActiveSectors() const
     {
         return activeSectors;
@@ -76,37 +78,25 @@ class ClientInfo
     net::ModelClientInfo modelClientInfo;
 #endif
 
-    void setActiveEntity(const ecs::EntityId& activeEntity)
-    {
-        this->activeEntity = activeEntity;
-    }
-
-    const std::string& getName() const
-    {
-        return name;
-    }
-
-    const ecs::EntityId& getActiveEntity() const
-    {
-        return activeEntity;
-    }
-
-    const ClientFlags& getFlags() const
-    {
-        return flags;
-    }
+    ecs::EntityId activeEntity;
+    uint8_t flags;
+    std::string name;
 
   private:
-    std::string name;
-    ecs::EntityId activeEntity;
     std::set<uint32_t> activeSectors;
-    ClientFlags flags;
 #ifdef SERVER
     work::WorkSequencer workSequencer;
 #endif
 };
 
 using ClientInfoHandle = typename con::ItemLib<ClientInfo>::Handle;
+
+#define SER_CLIENT_INFO                                                        \
+    SOBJ(o.activeEntity);                                                      \
+    S1b(o.flags);                                                              \
+    STXT(o.name, CLIENT_INFO_NAME_MAX);
+EXT_SER(ClientInfo, SER_CLIENT_INFO)
+EXT_DES(ClientInfo, SER_CLIENT_INFO)
 
 }  // namespace def
 

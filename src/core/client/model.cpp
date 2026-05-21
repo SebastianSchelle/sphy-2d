@@ -36,6 +36,32 @@ Model::Model(ui::UserInterface* userInterface,
 
 Model::~Model() {}
 
+namespace
+{
+
+void drainQueue(moodycamel::ConcurrentQueue<net::CmdQueueData>& queue)
+{
+    net::CmdQueueData item;
+    while (queue.try_dequeue(item))
+    {
+    }
+}
+
+}  // namespace
+
+void Model::prepareForConnect()
+{
+    drainQueue(sendQueue);
+    drainQueue(receiveQueue);
+    loadWorldSequence.reset();
+    timeSyncData.waiting = false;
+    timeSyncData.cnt = 0;
+    ecs.clearSession();
+    selectedEntities.clear();
+    aabbs.clear();
+    thirdPersonControl = def::ThirdPersonControl{};
+}
+
 void Model::modelLoop(float dt)
 {
     net::CmdQueueData recQueueData;
@@ -176,8 +202,7 @@ void Model::modelLoopGame(float dt)
     DO_PERIODIC_EXTNOW(lastReqAllComponents,
                        1000000,
                        now,
-                       [this]()
-                       { reqAllComponents(clientInfo.getActiveEntity()); });
+                       [this]() { reqAllComponents(clientInfo.activeEntity); });
 }
 
 void Model::parseCommandData(const net::CmdQueueData& cmdData)
@@ -205,16 +230,25 @@ void Model::parseCommandData(const net::CmdQueueData& cmdData)
             cmddes.value2b(len);
             size_t dataStartPos = cmddes.adapter().currentReadPos();
 
+            if (dataStartPos + len > data.size())
+            {
+                LG_W("Command data too short cmd={}, len={}", cmd, len);
+                break;
+            }
             parseCommand(
                 cmddes, cmdData.sendType, cmd, flags, dataStartPos + len);
             size_t readPos = cmddes.adapter().currentReadPos();
             if (readPos - dataStartPos != len)
             {
-                LG_W("Command data length mismatch. Expected: {}, Read: {}",
-                     len,
-                     cmddes.adapter().currentReadPos() - dataStartPos);
-                return;
+                LG_W(
+                    "Command data length mismatch: Cmd: {}, Flags: {}, "
+                    "Expected: {}, Read: {}",
+                    cmd,
+                    flags,
+                    len,
+                    cmddes.adapter().currentReadPos() - dataStartPos);
             }
+            cmddes.adapter().currentReadPos(dataStartPos + len);
         }
     }
     catch (const std::exception& e)
@@ -249,7 +283,7 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                          net::SendType sendType,
                          uint16_t cmd,
                          uint8_t flags,
-                         uint16_t posNextCmdOrEof)
+                         size_t dataEndPos)
 {
     prot::cmd::State result = prot::cmd::State::SUCCESS;
 
@@ -258,7 +292,8 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         case prot::cmd::LOG:
         {
             std::string str;
-            cmddes.text1b(str, posNextCmdOrEof);
+            cmddes.text1b(
+                str, dataEndPos - cmddes.adapter().currentReadPos());
             LG_I("Log from server: {}", str);
             break;
         }
@@ -371,12 +406,21 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             }
             break;
         }
+        case prot::cmd::CLIENT_INFO:
+        {
+            if (flags & CMD_FLAG_RESP && sendType == net::SendType::TCP)
+            {
+                cmddes.object(clientInfo);
+            }
+            break;
+        }
         case prot::cmd::NOTIFY_CLIENT_READY:
         {
             if (flags & CMD_FLAG_RESP && sendType == net::SendType::TCP)
             {
                 LG_I("Server accepted client readyness");
                 gameState = ClientGameState::GameLoop;
+                renderer->startGame();
             }
             break;
         }
@@ -385,7 +429,8 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             if (flags & CMD_FLAG_RESP)
             {
                 std::string str;
-                cmddes.text1b(str, posNextCmdOrEof);
+                cmddes.text1b(
+                    str, dataEndPos - cmddes.adapter().currentReadPos());
                 LG_I("Console cmd response: {}", str);
                 userInterface->addSystemMessage(str);
             }
@@ -395,7 +440,7 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         {
             if ((flags & CMD_FLAG_RESP) == 0)
             {
-                handleSlowDump(cmddes, posNextCmdOrEof);
+                handleSlowDump(cmddes, dataEndPos);
             }
             break;
         }
@@ -403,7 +448,7 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         {
             if (flags & CMD_FLAG_RESP)
             {
-                handleReqAllComponentsResp(cmddes, posNextCmdOrEof);
+                handleReqAllComponentsResp(cmddes, dataEndPos);
             }
             break;
         }
@@ -411,7 +456,7 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         {
             if (flags & CMD_FLAG_RESP)
             {
-                handleGetAabbTreeResp(cmddes, posNextCmdOrEof);
+                handleGetAabbTreeResp(cmddes, dataEndPos);
             }
             break;
         }
@@ -419,7 +464,7 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         {
             if ((flags & CMD_FLAG_RESP) == 0)
             {
-                handleActiveEntitySwitched(cmddes, posNextCmdOrEof);
+                handleActiveEntitySwitched(cmddes, dataEndPos);
             }
             break;
         }
@@ -427,7 +472,7 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         {
             if ((flags & CMD_FLAG_RESP) == 0)
             {
-                handleActiveSectorDump(cmddes, posNextCmdOrEof);
+                handleActiveSectorDump(cmddes, dataEndPos);
             }
             break;
         }
@@ -843,8 +888,8 @@ void Model::sendCmdToServer(const std::string& command)
 
 void Model::checkVersion(const net::ModelClientInfo& clientInfo)
 {
-    this->clientInfo =
-        def::ClientInfo("", clientInfo, def::ClientFlags{.enConsole = 0});
+    prepareForConnect();
+    this->clientInfo = def::ClientInfo("", clientInfo, 0);
     prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
     mcomp.startCommand(prot::cmd::VERSION_CHECK, 0);
     mcomp.ser->value2b(version::MAJOR);
@@ -880,6 +925,7 @@ void Model::notifyReady()
 
 void Model::disconnectFromServer()
 {
+    prepareForConnect();
     switch (gameState)
     {
         case ClientGameState::Authenticating:
@@ -887,7 +933,11 @@ void Model::disconnectFromServer()
             gameState = ClientGameState::MainMenu;
             break;
         case ClientGameState::GameLoop:
-            LG_W("Disconnecting from server");
+        case ClientGameState::LoadWorld:
+        case ClientGameState::NotifyServerReady:
+        case ClientGameState::Authenticated:
+        case ClientGameState::VersionCheck:
+            LG_W("Disconnected from server");
             gameState = ClientGameState::MainMenu;
             break;
         default:
@@ -896,7 +946,7 @@ void Model::disconnectFromServer()
 }
 
 void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
-                           uint16_t posNextCmdOrEof)
+                           size_t dataEndPos)
 {
     uint32_t compHash;
     cmddes.value4b(compHash);
@@ -905,7 +955,7 @@ void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
     {
         if (hash == compHash)
         {
-            while (cmddes.adapter().currentReadPos() < posNextCmdOrEof - 6)
+            while (cmddes.adapter().currentReadPos() < dataEndPos - 6)
             {
                 uint32_t sectorId;
                 uint16_t numEntities;
@@ -916,7 +966,10 @@ void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
                     ecs::EntityId entityId;
                     cmddes.object(entityId);
                     entt::entity entity = ecs.enttFromServerId(entityId);
-
+                    if (entity == entt::null)
+                    {
+                        continue;
+                    }
                     auto& reg = ecs.getRegistry();
                     auto [x, y] = world.idToSectorCoords(sectorId);
                     reg.emplace_or_replace<ecs::SectorId>(
@@ -930,8 +983,9 @@ void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
 }
 
 void Model::handleActiveSectorDump(bitsery::Deserializer<InputAdapter>& cmddes,
-                                   uint16_t posNextCmdOrEof)
+                                   size_t dataEndPos)
 {
+    (void)dataEndPos;
     uint32_t compHash;
     cmddes.value4b(compHash);
     for (auto& [hash, helper] :
@@ -948,7 +1002,10 @@ void Model::handleActiveSectorDump(bitsery::Deserializer<InputAdapter>& cmddes,
                 ecs::EntityId entityId;
                 cmddes.object(entityId);
                 entt::entity entity = ecs.enttFromServerId(entityId);
-
+                if (entity == entt::null)
+                {
+                    continue;
+                }
                 auto& reg = ecs.getRegistry();
                 auto [x, y] = world.idToSectorCoords(sectorId);
                 reg.emplace_or_replace<ecs::SectorId>(entity, sectorId, x, y);
@@ -961,30 +1018,43 @@ void Model::handleActiveSectorDump(bitsery::Deserializer<InputAdapter>& cmddes,
 
 void Model::handleReqAllComponentsResp(
     bitsery::Deserializer<InputAdapter>& cmddes,
-    uint16_t posNextCmdOrEof)
+    size_t dataEndPos)
 {
     ecs::EntityId entityId;
     cmddes.object(entityId);
     entt::entity entity = ecs.enttFromServerId(entityId);
     if (entity == entt::null)
     {
-        // Entity not found, probably destroyed
+        LG_W("Entity not found for component sync: {}", entityId);
+        cmddes.adapter().currentReadPos(dataEndPos);
         return;
     }
-    while (cmddes.adapter().currentReadPos() <= posNextCmdOrEof - 4)
+    const auto& compHelpers =
+        assetFactory.componentFactory.getComponentHelpers();
+    while (cmddes.adapter().currentReadPos() <= dataEndPos - 4)
     {
+        const size_t posBefore = cmddes.adapter().currentReadPos();
         uint32_t compHash;
         cmddes.value4b(compHash);
-        auto compHelper = assetFactory.componentFactory.getComponentHelpers();
-        auto it = compHelper.find(compHash);
-        if (it != compHelper.end())
+        auto it = compHelpers.find(compHash);
+        if (it != compHelpers.end())
         {
             auto& reg = ecs.getRegistry();
             it->second.deserializeIntoRegistry(reg, entity, cmddes);
+            if (cmddes.adapter().currentReadPos() == posBefore)
+            {
+                LG_E(
+                    "Component deserialize made no progress (hash={}), "
+                    "aborting entity sync",
+                    compHash);
+                cmddes.adapter().currentReadPos(dataEndPos);
+                return;
+            }
         }
         else
         {
             LG_W("Unknown component hash: {}", compHash);
+            cmddes.adapter().currentReadPos(dataEndPos);
             return;
         }
     }
@@ -1010,6 +1080,7 @@ void Model::toggleStrategicView()
 
 void Model::gotoModdingTools()
 {
+    renderer->gotoModdingTools();
     userInterface->setupViewModeUi(gfx::GameViewMode::ModdingTools);
     gameState = ClientGameState::ModdingTools;
 }
@@ -1162,8 +1233,9 @@ void Model::selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords, bool queue)
 }
 
 void Model::handleGetAabbTreeResp(bitsery::Deserializer<InputAdapter>& cmddes,
-                                  uint16_t posNextCmdOrEof)
+                                  size_t dataEndPos)
 {
+    (void)dataEndPos;
     aabbs.clear();
     cmddes.value4b(aabbSector);
     cmddes.object(aabbs);
@@ -1201,17 +1273,23 @@ void Model::drawOverlayAABBs(gfx::RenderEngine& renderer, float zoom)
 
 void Model::handleActiveEntitySwitched(
     bitsery::Deserializer<InputAdapter>& cmddes,
-    uint16_t posNextCmdOrEof)
+    size_t dataEndPos)
 {
+    (void)dataEndPos;
     ecs::EntityId entityId;
     cmddes.object(entityId);
-    clientInfo.setActiveEntity(entityId);
+    clientInfo.activeEntity = entityId;
 }
 
 void Model::registerConnectSequence()
 {
     loadWorldSequence.registerExchange(net::Exchange(
         prot::cmd::WORLD_INFO,
+        [this]() {},
+        [this]() {},
+        [this](bitsery::Serializer<OutputAdapter>& ser) {}));
+    loadWorldSequence.registerExchange(net::Exchange(
+        prot::cmd::CLIENT_INFO,
         [this]() {},
         [this]() {},
         [this](bitsery::Serializer<OutputAdapter>& ser) {}));
@@ -1239,7 +1317,7 @@ uint32_t Model::getActiveSectorId()
 
 entt::entity Model::getActiveEntity()
 {
-    return ecs.getEntity(clientInfo.getActiveEntity());
+    return ecs.getEntity(clientInfo.activeEntity);
 }
 
 void Model::sendThirdPersonControl()

@@ -95,9 +95,9 @@ void Engine::start()
                             .portUdp = 0,
                             .address = asio::ip::make_address("0.0.0.0"),
                         },
-                        def::ClientFlags{.enConsole = 1}));
+                        CLIENT_FLAG_EN_CONSOLE));
     auto clientInfo = clientLib.getItem(handle);
-    clientInfo->setActiveEntity(ecs::EntityId{0, 1});
+    clientInfo->activeEntity = ecs::EntityId{5, 1};
 
     // engineThread = std::thread([this]() { engineLoop(); });
     engineLoop();
@@ -227,11 +227,11 @@ void Engine::update(float dt)
         auto& thrdCtrl = clientInfo->thirdPersonControl;
         if (thrdCtrl.dirty_active)
         {
-            ecs::EntityId entityId = clientInfo->getActiveEntity();
+            ecs::EntityId entityId = clientInfo->activeEntity;
             entt::entity ent = ecs.getEntity(entityId);
             if (ent == entt::null)
             {
-                LG_W("Entity not found for client {}", clientInfo->getName());
+                LG_W("Entity not found for client {}", clientInfo->name);
                 continue;
             }
             auto* transform = ptrHandle->registry->try_get<ecs::Transform>(ent);
@@ -248,18 +248,16 @@ void Engine::update(float dt)
                     if (thrdCtrl.thrust.x == 0.0f)
                     {
                         moveCtrl->moveMode =
-                        ecs::MoveCtrl::MoveMode::BrakeManeuver;
+                            ecs::MoveCtrl::MoveMode::BrakeManeuver;
                     }
                     else if (thrdCtrl.thrust.y == 0.0f)
                     {
-                        moveCtrl->moveMode =
-                            ecs::MoveCtrl::MoveMode::BrakeMain;
+                        moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::BrakeMain;
                     }
                     else
                     {
                         moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::None;
                     }
-                    moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::None;
                     // Local x = maneuver (strafe), y = main (forward); use
                     // Transform::rot — TransformCache may lag when rotVel is
                     // small.
@@ -284,7 +282,7 @@ void Engine::update(float dt)
             {
                 LG_W(
                     "PhyThrust, Transform, or MoveCtrl not found for client {}",
-                    clientInfo->getName());
+                    clientInfo->name);
                 continue;
             }
         }
@@ -457,16 +455,17 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
                          cmdData.sendType,
                          cmd,
                          flags,
-                         len);
+                         dataStartPos + len);
             size_t readPos = cmddes.adapter().currentReadPos();
             if (readPos - dataStartPos != len)
             {
-                LG_W("Command data length mismatch. Expected: {}, Read: {}",
+                LG_W("Command data length mismatch: Cmd: {}, Flags: {}, Expected: {}, Read: {}",
+                     cmd,
+                     flags,
                      len,
                      cmddes.adapter().currentReadPos() - dataStartPos);
-                return;
             }
-            // cmddes.adapter().currentReadPos(dataStartPos + len);
+            cmddes.adapter().currentReadPos(dataStartPos + len);
         }
     }
     catch (const std::exception& e)
@@ -484,7 +483,7 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                           net::SendType sendType,
                           uint16_t cmd,
                           uint8_t flags,
-                          uint16_t len)
+                          size_t dataEndPos)
 {
     switch (cmd)
     {
@@ -496,11 +495,11 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 cmddes.text1b(str, 256);
                 if (sendType == net::SendType::UDP)
                 {
-                    LG_I("UDP Log from {}: {}", clientInfo->getName(), str);
+                    LG_I("UDP Log from {}: {}", clientInfo->name, str);
                 }
                 else if (sendType == net::SendType::TCP)
                 {
-                    LG_I("TCP Log from {}: {}", clientInfo->getName(), str);
+                    LG_I("TCP Log from {}: {}", clientInfo->name, str);
                 }
             }
             break;
@@ -556,9 +555,15 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                     def::ClientInfoHandle handle = clientLib.getHandle(token);
                     if (handle.isValid())
                     {
-                        auto address =
-                            tcpConnection->socket().local_endpoint().address();
                         def::ClientInfo* clientInfo = clientLib.getItem(handle);
+                        if (clientInfo->clientInfo.connection != nullptr
+                            && clientInfo->clientInfo.connection != tcpConnection)
+                        {
+                            clientInfo->clientInfo.connection->close();
+                        }
+                        clientInfo->clearWorkSequencer();
+                        auto address =
+                            tcpConnection->socket().remote_endpoint().address();
                         clientInfo->clientInfo.portUdp = portUdp;
                         clientInfo->clientInfo.address = address;
                         clientInfo->clientInfo.udpEndpoint =
@@ -566,7 +571,19 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                         clientInfo->clientInfo.connection = tcpConnection;
                         clientInfo->clientInfo.connection->setClientInfoHandle(
                             *((net::TcpClientInfoHandle*)&handle));
-                        connectedClientHandles.push_back(handle);
+                        bool alreadyConnected = false;
+                        for (const auto& connected : connectedClientHandles)
+                        {
+                            if (connected.value() == handle.value())
+                            {
+                                alreadyConnected = true;
+                                break;
+                            }
+                        }
+                        if (!alreadyConnected)
+                        {
+                            connectedClientHandles.push_back(handle);
+                        }
                         LG_I(
                             "Client authenticated. ip={}, udp port={}, "
                             "token={}",
@@ -579,7 +596,7 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                                            CMD_FLAG_RESP);
                         mcomp.startCommand(prot::cmd::ACTIVE_ENTITY_SWITCHED,
                                            0);
-                        mcomp.ser->object(clientInfo->getActiveEntity());
+                        mcomp.ser->object(clientInfo->activeEntity);
                         mcomp.execute(sendQueue);
                         return;
                     }
@@ -602,12 +619,24 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             }
             break;
         }
+        case prot::cmd::CLIENT_INFO:
+        {
+            if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
+            {
+                LG_I("Sending client info");
+                prot::MsgComposer mcomp(net::SendType::TCP, tcpConnection);
+                mcomp.startCommand(prot::cmd::CLIENT_INFO, CMD_FLAG_RESP);
+                mcomp.ser->object(*clientInfo);
+                mcomp.execute(sendQueue);
+            }
+            break;
+        }
         case prot::cmd::NOTIFY_CLIENT_READY:
         {
             if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
             {
                 LG_I("Server accepted client readyness of {}",
-                     clientInfo->getName());
+                     clientInfo->name);
                 activeClientHandles.push_back(clientInfoHandle);
                 prot::MsgComposer mcomp(net::SendType::TCP, tcpConnection);
                 mcomp.startCommand(prot::cmd::NOTIFY_CLIENT_READY,
@@ -622,10 +651,11 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             {
                 string data;
                 string response;
-                cmddes.text1b(data, len);
+                cmddes.text1b(data,
+                              dataEndPos - cmddes.adapter().currentReadPos());
                 if (clientInfo)
                 {
-                    if (clientInfo->getFlags().enConsole)
+                    if (clientInfo->flags & CLIENT_FLAG_EN_CONSOLE)
                     {
                         try
                         {
@@ -638,7 +668,7 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                     }
                     else
                     {
-                        response = "Failed: Client " + clientInfo->getName()
+                        response = "Failed: Client " + clientInfo->name
                                    + " is not a console";
                     }
                 }
@@ -722,15 +752,9 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         {
             if ((flags & CMD_FLAG_RESP) == 0)
             {
-                // todo: threaded or max number of entities per frame, queue
-                // clients to send to
                 LG_D("Sending all entt components to client {}",
-                     clientInfo->getName());
+                     clientInfo->name);
                 sendAllEnttComponents(clientInfo, tcpConnection);
-                prot::MsgComposer mcomp(net::SendType::TCP, tcpConnection);
-                mcomp.startCommand(prot::cmd::ALL_ENTT_COMPONENTS,
-                                   CMD_FLAG_RESP);
-                mcomp.execute(sendQueue);
             }
             break;
         }
@@ -742,12 +766,11 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                     clientInfo->thirdPersonControl;
                 cmddes.object(thirdPersonControl);
                 thirdPersonControl.dirty_active = true;
-                ecs::EntityId entityId = clientInfo->getActiveEntity();
+                ecs::EntityId entityId = clientInfo->activeEntity;
                 entt::entity ent = ecs.getEntity(entityId);
                 if (ent == entt::null)
                 {
-                    LG_W("Entity not found for client {}",
-                         clientInfo->getName());
+                    LG_W("Entity not found for client {}", clientInfo->name);
                     return;
                 }
                 auto* ai = ptrHandle->registry->try_get<ecs::Ai>(ent);
@@ -1041,13 +1064,24 @@ void Engine::handleTcpDisconnect(net::TcpConnection* conn,
             ++it;
     }
     if (def::ClientInfo* ci = clientLib.getItem(handle))
+    {
+        ci->clearWorkSequencer();
+        ci->clearActiveSectors();
         ci->clientInfo.connection = nullptr;
+    }
     LG_I("TCP client disconnected (handle value={})", hv);
 }
 
 void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
                                    net::TcpConnection* conn)
 {
+    clientInfo->addWorkFunction(
+        [this, clientInfo, conn]()
+        {
+            prot::MsgComposer mcomp(net::SendType::TCP, conn);
+            mcomp.startCommand(prot::cmd::ALL_ENTT_COMPONENTS, CMD_FLAG_RESP);
+            mcomp.execute(sendQueue);
+        });
     ecs.iterateEntities(
         [this, clientInfo, conn](ecs::EntityId entityId)
         {
@@ -1108,7 +1142,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 5000; ++i)
+    for (int i = 0; i < 70000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1129,10 +1163,9 @@ void Engine::testSpawn()
         }
         else
         {
-            auto ent =
-                spawnShipHull(modManager.getHullLib().getHandle("Mosquito"),
-                              sectorId,
-                              ecs::Transform{pos, rot});
+            ent = spawnShipHull(modManager.getHullLib().getHandle("Mosquito"),
+                                sectorId,
+                                ecs::Transform{pos, rot});
             spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 0);
             spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 1);
@@ -1269,10 +1302,9 @@ void Engine::markPlayerSectors()
         clientInfo->clearActiveSectors();
         if (clientInfo)
         {
-            ecs::EntityId entityId = clientInfo->getActiveEntity();
-            if (entityId != ecs::EntityId::Invalid())
+            if (clientInfo->activeEntity != ecs::EntityId::Invalid())
             {
-                entt::entity entity = ecs.getEntity(entityId);
+                entt::entity entity = ecs.getEntity(clientInfo->activeEntity);
                 if (entity != entt::null)
                 {
                     const float sectorSize = world.getWorldShape().sectorSize;

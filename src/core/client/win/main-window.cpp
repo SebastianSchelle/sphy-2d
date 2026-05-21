@@ -411,7 +411,7 @@ void MainWindow::renderGame()
     }
     renderEngine.flushQueuedTexRects();
     renderEngine.drawDebugCheckerboard(
-        0, renderEngine.getShaderHandle("debuggrid"), 50.0f, 0.05f);
+        0, renderEngine.getShaderHandle("debuggrid"), 50.0f, 0.02f);
 }
 
 void MainWindow::renderAtlasDebug(bool /*mouseOverUi*/)
@@ -423,6 +423,7 @@ void MainWindow::renderAtlasDebug(bool /*mouseOverUi*/)
 
 void MainWindow::renderModdingTools(bool mouseOverUi)
 {
+    renderEngine.panWorld(panX, panY);
     const glm::vec2 world =
         renderEngine.screenToWorldPixel(mouseState.mousePos);
     const float zoom = renderEngine.getWorldZoom();
@@ -1003,8 +1004,7 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
             go.spPosSecX = moveCtrl->spPos.pos.x;
             go.spPosSecY = moveCtrl->spPos.pos.y;
             go.spRot = moveCtrl->spRot;
-            go.moveCtrlFaceDirMode =
-                magic_enum::enum_name(moveCtrl->turnMode);
+            go.moveCtrlFaceDirMode = magic_enum::enum_name(moveCtrl->turnMode);
             go.lookAtX = moveCtrl->lookAt.x;
             go.lookAtY = moveCtrl->lookAt.y;
         }
@@ -1262,6 +1262,10 @@ void MainWindow::onConnectToServer(Rml::DataModelHandle handle,
                                    Rml::Event& event,
                                    const Rml::VariantList& args)
 {
+    (void)handle;
+    (void)event;
+    (void)args;
+    model.prepareForConnect();
     client.connectToServer(menuData.connectData.ipAddress,
                            menuData.connectData.udpPortServ,
                            menuData.connectData.tcpPortServ,
@@ -1391,6 +1395,18 @@ void MainWindow::determineUiEnvironment()
             userInterface.setUiEnvironment(
                 ui::InputEvent::Environment::Tactical);
             break;
+        case gfx::GameViewMode::ModdingTools:
+            userInterface.setUiEnvironment(
+                ui::InputEvent::Environment::ModdingTools);
+            break;
+        case gfx::GameViewMode::AtlasDebug:
+            userInterface.setUiEnvironment(
+                ui::InputEvent::Environment::AtlasDebug);
+            break;
+        case gfx::GameViewMode::Menu:
+            userInterface.setUiEnvironment(
+                ui::InputEvent::Environment::Menu);
+            break;
         default:
             userInterface.setUiEnvironment(
                 ui::InputEvent::Environment::General);
@@ -1402,7 +1418,8 @@ void MainWindow::setupMapCtrl()
 {
     UserInput& userInput = userInterface.getUserInput();
     const auto mapEnvironments = {ui::InputEvent::Environment::Strategic,
-                                  ui::InputEvent::Environment::Tactical};
+                                  ui::InputEvent::Environment::Tactical,
+                                  ui::InputEvent::Environment::ModdingTools};
 
     auto addPanY = [&](const char* name,
                        const char* description,

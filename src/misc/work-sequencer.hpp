@@ -11,8 +11,9 @@ class WorkSequencer
   public:
     WorkSequencer(uint stepsPerCall);
     ~WorkSequencer();
-    void addWorkFunction(std::function<void()> workFunction);
+    void addWorkFunction(std::function<void()> workFunction, bool last = false);
     void execute();
+    void clear();
 
   private:
     uint stepsPerCall;

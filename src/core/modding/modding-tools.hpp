@@ -379,6 +379,8 @@ class ModdingTools
     float lmbDragThresholdCfg = 300.f;
     bool lmbPastDragDeadzone = false;
     bool lmbHadSelectionOnPress = false;
+    /** True only after onLeftMouseDown (world press); UI clicks must not run onSingleClick. */
+    bool lmbWorldPressTracked = false;
 
     bool rmbRotateGesture = false;
     glm::vec2 rmbDragPressWorld{};

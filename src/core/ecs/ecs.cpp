@@ -109,37 +109,22 @@ EcsClient::~EcsClient() {}
 entt::entity EcsClient::enttFromServerId(const EntityId& entityId)
 {
     auto it = idMap.find(entityId.index);
-    if (it == idMap.end())
+    if (it == idMap.end() || it->second.generation == 0)
     {
-        // Create new entity
         entt::entity e = registry.create();
+        idMap[entityId.index] = {e, entityId.generation};
+        return e;
+    }
+    else if (it->second.generation != entityId.generation)
+    {
+        registry.destroy(it->second.entity);
+        auto e = registry.create();
         idMap[entityId.index] = {e, entityId.generation};
         return e;
     }
     else
     {
-        Slot& slot = idMap[entityId.index];
-        if (slot.generation != 0)
-        {
-            if (slot.generation == entityId.generation)
-            {
-                // Return valid entity
-                return slot.entity;
-            }
-            else
-            {
-                // Destroy existing entity and create new
-                registry.destroy(slot.entity);
-                auto e = registry.create();
-                idMap[entityId.index] = {e, entityId.generation};
-                return e;
-            }
-        }
-        else
-        {
-            // Not synched yet
-            return entt::null;
-        }
+        return it->second.entity;
     }
 }
 
@@ -151,9 +136,13 @@ entt::registry& EcsClient::getRegistry()
 
 bool EcsClient::validId(EntityId entityId)
 {
-    return entityId.index < idMap.size()
-           && idMap[entityId.index].generation == entityId.generation
-           && idMap[entityId.index].entity != entt::null;
+    auto it = idMap.find(entityId.index);
+    if (it == idMap.end())
+    {
+        return false;
+    }
+    return it->second.generation == entityId.generation
+           && it->second.entity != entt::null;
 }
 
 entt::entity EcsClient::getEntity(EntityId entityId)
@@ -163,6 +152,12 @@ entt::entity EcsClient::getEntity(EntityId entityId)
         return entt::null;
     }
     return idMap[entityId.index].entity;
+}
+
+void EcsClient::clearSession()
+{
+    registry.clear();
+    idMap.clear();
 }
 
 }  // namespace ecs

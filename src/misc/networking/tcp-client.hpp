@@ -3,6 +3,7 @@
 
 #include <net-shared.hpp>
 #include <std-inc.hpp>
+#include <atomic>
 
 namespace net
 {
@@ -21,6 +22,7 @@ class TcpClient
     void startReceive();
     void handleReceive(const boost::system::error_code& error,
                        size_t bytes_received);
+    void resetParser();
 
   private:
     tcp::socket socket;
@@ -28,6 +30,7 @@ class TcpClient
     TcpReceiveClb tcpReceiveCallback;
     ConnectionClosedCallback connectionClosedCallback;
     tcp::endpoint devServerEndpoint;
+    std::atomic<bool> running{true};
     RcvCmdState rcvCmdState = RcvCmdState::ParseCmd0;
     uint16_t rcvCmdLen = 0;
     uint16_t lastDataStart = 0;

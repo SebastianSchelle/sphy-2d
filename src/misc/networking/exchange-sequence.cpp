@@ -56,6 +56,11 @@ bool ExchangeSequence::done()
     return currentExchange >= exchanges.size();
 }
 
+void ExchangeSequence::reset()
+{
+    currentExchange = 0;
+}
+
 Exchange::Exchange(uint16_t cmd,
                    ErrorCallback errorCallback,
                    SuccessCallback successCallback,

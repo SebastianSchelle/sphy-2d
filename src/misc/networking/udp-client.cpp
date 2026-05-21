@@ -17,6 +17,10 @@ UdpClient::UdpClient(boost::asio::io_context& io_context,
 
 void UdpClient::close()
 {
+    if (!running.exchange(false))
+    {
+        return;
+    }
     boost::system::error_code ec;
     [[maybe_unused]] const auto cancelled = socket.cancel(ec);
     [[maybe_unused]] const auto closed = socket.close(ec);
@@ -24,6 +28,10 @@ void UdpClient::close()
 
 void UdpClient::sendMessage(const std::vector<uint8_t>& data)
 {
+    if (!running.load())
+    {
+        return;
+    }
     socket.async_send_to(
         boost::asio::buffer(data),
         devServerEndpoint,
@@ -39,11 +47,19 @@ void UdpClient::sendMessage(const std::vector<uint8_t>& data)
 void UdpClient::sendMessageTo(udp::endpoint endpoint,
                               const std::vector<uint8_t> data)
 {
+    if (!running.load())
+    {
+        return;
+    }
     socket.send_to(boost::asio::buffer(data), endpoint);
 }
 
 void UdpClient::startReceive()
 {
+    if (!running.load())
+    {
+        return;
+    }
     socket.async_receive_from(
         boost::asio::buffer(recvBuf, UDP_REC_BUF_LEN),
         devServerEndpoint,
@@ -54,6 +70,10 @@ void UdpClient::startReceive()
 void UdpClient::handleReceive(const boost::system::error_code& error,
                               size_t bytes_received)
 {
+    if (!running.load())
+    {
+        return;
+    }
     if (!error && bytes_received > 0)
     {
         if (receiveCallback)
@@ -64,8 +84,19 @@ void UdpClient::handleReceive(const boost::system::error_code& error,
         {
             LG_D("Received: {}", std::string(recvBuf, bytes_received));
         }
+        if (running.load())
+        {
+            startReceive();
+        }
     }
-    startReceive();
+    else if (error == boost::asio::error::operation_aborted)
+    {
+        return;
+    }
+    else if (error)
+    {
+        LG_E("UDP receive failed: {}", error.message());
+    }
 }
 
 }  // namespace net

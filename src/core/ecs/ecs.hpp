@@ -84,6 +84,7 @@ class EcsClient
     entt::entity enttFromServerId(const EntityId& entityId);
     entt::entity getEntity(EntityId entityId);
     bool validId(EntityId entityId);
+    void clearSession();
 
   private:
     entt::registry registry;

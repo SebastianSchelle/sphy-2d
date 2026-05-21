@@ -30,15 +30,18 @@ Client::~Client()
     }
 }
 
-void Client::shutdown()
+void Client::shutdown(bool notifyModel)
 {
-    if (!shutdownNotified.exchange(true) && shutdownCallback)
+    if (notifyModel)
     {
-        shutdownCallback();
+        if (!shutdownNotified.exchange(true) && shutdownCallback)
+        {
+            shutdownCallback();
+        }
     }
     if (shuttingDown.exchange(true))
     {
-        return;  // Already shutting down
+        return;
     }
     LG_I("Shutting down client...");
 
@@ -79,17 +82,15 @@ void Client::connectToServer(const std::string& ipAddress,
                              int udpPortCli,
                              const std::string& token)
 {
-    // Always tear down old connection state before reconnecting.
-    // Reassigning a joinable std::thread would call std::terminate.
-    shutdown();
+    const uint32_t generation = ++connectGeneration;
+    // Tear down old transport without notifying model — reconnect is intentional.
+    shutdown(/*notifyModel=*/false);
     if (ioThread.joinable())
     {
         ioThread.join();
     }
     {
         std::lock_guard<std::mutex> lock(lifecycleMutex);
-        // Reset transport objects only after io thread has stopped so no
-        // in-flight callbacks can race with these destructions.
         udpClient.reset();
         tcpClient.reset();
         ioContext.restart();
@@ -98,38 +99,43 @@ void Client::connectToServer(const std::string& ipAddress,
     shuttingDown = false;
     shutdownNotified = false;
 
-    // tcpClient = std::make_unique<TcpClient>(ioContext, portTcp);
-    udpClient = std::make_unique<net::UdpClient>(
-        ioContext,
-        udpPortCli,
-        udp::endpoint(boost::asio::ip::make_address(ipAddress), udpPortServ),
-        std::bind(&Client::udpReceive,
+    try
+    {
+        udpClient = std::make_unique<net::UdpClient>(
+            ioContext,
+            udpPortCli,
+            udp::endpoint(boost::asio::ip::make_address(ipAddress), udpPortServ),
+            std::bind(&Client::udpReceive,
+                      this,
+                      std::placeholders::_2,
+                      std::placeholders::_3));
+        LG_D("Setup udp socket to server at {}:{} on port {}",
+             ipAddress.c_str(),
+             udpPortServ,
+             udpPortCli);
 
-                  this,
-                  std::placeholders::_2,
-                  std::placeholders::_3));
-    LG_D("Setup udp socket to server at {}:{} on port {}",
-         ipAddress.c_str(),
-         udpPortServ,
-         udpPortCli);
+        tcpClient = std::make_unique<net::TcpClient>(
+            ioContext,
+            tcp::endpoint(boost::asio::ip::make_address(ipAddress), tcpPortServ),
+            std::bind(&Client::tcpReceive, this, std::placeholders::_1),
+            [this, generation]()
+            { connectionClosedClb(generation); });
+        LG_D("Setup tcp socket to server at {}:{} on port {}",
+             ipAddress,
+             tcpPortServ,
+             udpPortCli);
+    }
+    catch (const std::exception& e)
+    {
+        LG_E("Failed to connect to server at {}:{} — {}",
+             ipAddress,
+             tcpPortServ,
+             e.what());
+        shuttingDown = true;
+        return;
+    }
 
-    tcpClient = std::make_unique<net::TcpClient>(
-        ioContext,
-        tcp::endpoint(boost::asio::ip::make_address(ipAddress), tcpPortServ),
-        std::bind(&Client::tcpReceive,
-
-                  this,
-                  std::placeholders::_1),
-        std::bind(&Client::connectionClosedClb, this));
-    LG_D("Setup tcp socket to server at {}:{} on port {}",
-         ipAddress,
-         tcpPortServ,
-         udpPortCli);
-
-    // Post scheduleSend onto the io_context so the timer is armed on the
-    // correct executor (same thread that runs io_context.run()).
     boost::asio::post(ioContext, [this, token]() { scheduleSend(token); });
-    // Start ioContext in background thread for signal handling
     ioThread = std::thread([this]() { ioContext.run(); });
 }
 
@@ -184,6 +190,10 @@ void Client::scheduleSend(const std::string& token)
 
 void Client::udpReceive(const char* data, size_t length)
 {
+    if (shuttingDown.load())
+    {
+        return;
+    }
     if (length > 5)
     {
         net::CmdQueueData cmdData;
@@ -195,18 +205,27 @@ void Client::udpReceive(const char* data, size_t length)
 
 void Client::tcpReceive(const net::CmdQueueData& cmdData)
 {
+    if (shuttingDown.load())
+    {
+        return;
+    }
     modelReceiveQueue.enqueue(cmdData);
 }
 
-void Client::connectionClosedClb()
+void Client::connectionClosedClb(uint32_t generation)
 {
+    if (generation != connectGeneration.load())
+    {
+        LG_D("Ignoring TCP close from previous connection");
+        return;
+    }
     if (!shuttingDown.load())
     {
         LG_W(
             "Server TCP connection lost/closed, shutting down client "
             "networking");
     }
-    shutdown();
+    shutdown(/*notifyModel=*/true);
 }
 
 }  // namespace sphyc

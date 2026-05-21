@@ -42,6 +42,41 @@ static const PosVertex vertFullScreenTriangles[] = {{-1.0f, -1.0f},
                                                     {1.0f, 1.0f}};
 static const uint16_t indFullScreenTriangles[] = {2, 1, 0, 3, 1, 2};
 
+namespace
+{
+
+struct ViewCamMoveBinding
+{
+    GameViewMode mode;
+    const char* uiKey;
+    ZoomPanCfg defaults;
+};
+
+ZoomPanCfg loadZoomPanCfg(cfg::ConfigManager& config,
+                          const ViewCamMoveBinding& binding)
+{
+    const ZoomPanCfg& d = binding.defaults;
+    ZoomPanCfg cfg{};
+    cfg.zoomStep = CFG_FLOAT(
+        config, d.zoomStep, "ui", binding.uiKey, "cam-movement", "zoom-step");
+    cfg.maxZoom = CFG_FLOAT(
+        config, d.maxZoom, "ui", binding.uiKey, "cam-movement", "zoom-max");
+    cfg.minZoom = CFG_FLOAT(
+        config, d.minZoom, "ui", binding.uiKey, "cam-movement", "zoom-min");
+    cfg.panSpeed = CFG_FLOAT(
+        config, d.panSpeed, "ui", binding.uiKey, "cam-movement", "pan-speed");
+    return cfg;
+}
+
+constexpr ViewCamMoveBinding kViewCamMoveBindings[] = {
+    {GameViewMode::ThirdPerson, "third-person", {1.1f, 10.0f, 1.0f, 10.0f}},
+    {GameViewMode::TacticalMap, "tactical-map", {1.1f, 7.0f, 0.07f, 10.0f}},
+    {GameViewMode::StrategicMap, "strategic-map", {1.1f, 0.01f, 0.001f, 10.0f}},
+    {GameViewMode::ModdingTools, "modding-tools", {1.1f, 30.0f, 0.01f, 5.0f}},
+};
+
+}  // namespace
+
 
 Geometry::Geometry(const void* vertexData,
                    size_t vDatSize,
@@ -115,42 +150,17 @@ bool RenderEngine::initPre()
     const float texExcessHeightThreshold =
         CFG_FLOAT(config, 0.8f, "gfx", "tex-excess-height-threshold");
 
-    camMoveCfg[static_cast<size_t>(GameViewMode::ThirdPerson)].zoomStep =
-        CFG_FLOAT(
-            config, 0.1f, "ui", "third-person", "cam-movement", "zoom-step");
-    camMoveCfg[static_cast<size_t>(GameViewMode::ThirdPerson)].maxZoom =
-        CFG_FLOAT(
-            config, 10.0f, "ui", "third-person", "cam-movement", "zoom-max");
-    camMoveCfg[static_cast<size_t>(GameViewMode::ThirdPerson)].minZoom =
-        CFG_FLOAT(
-            config, 0.01f, "ui", "third-person", "cam-movement", "zoom-min");
-    camMoveCfg[static_cast<size_t>(GameViewMode::ThirdPerson)].panSpeed =
-        CFG_FLOAT(
-            config, 10.0f, "ui", "third-person", "cam-movement", "pan-speed");
-    camMoveCfg[static_cast<size_t>(GameViewMode::TacticalMap)].zoomStep =
-        CFG_FLOAT(
-            config, 0.1f, "ui", "tactical-map", "cam-movement", "zoom-step");
-    camMoveCfg[static_cast<size_t>(GameViewMode::TacticalMap)].maxZoom =
-        CFG_FLOAT(
-            config, 10.0f, "ui", "tactical-map", "cam-movement", "zoom-max");
-    camMoveCfg[static_cast<size_t>(GameViewMode::TacticalMap)].minZoom =
-        CFG_FLOAT(
-            config, 0.01f, "ui", "tactical-map", "cam-movement", "zoom-min");
-    camMoveCfg[static_cast<size_t>(GameViewMode::TacticalMap)].panSpeed =
-        CFG_FLOAT(
-            config, 10.0f, "ui", "tactical-map", "cam-movement", "pan-speed");
-    camMoveCfg[static_cast<size_t>(GameViewMode::StrategicMap)].zoomStep =
-        CFG_FLOAT(
-            config, 0.1f, "ui", "strategic-map", "cam-movement", "zoom-step");
-    camMoveCfg[static_cast<size_t>(GameViewMode::StrategicMap)].maxZoom =
-        CFG_FLOAT(
-            config, 10.0f, "ui", "strategic-map", "cam-movement", "zoom-max");
-    camMoveCfg[static_cast<size_t>(GameViewMode::StrategicMap)].minZoom =
-        CFG_FLOAT(
-            config, 0.01f, "ui", "strategic-map", "cam-movement", "zoom-min");
-    camMoveCfg[static_cast<size_t>(GameViewMode::StrategicMap)].panSpeed =
-        CFG_FLOAT(
-            config, 10.0f, "ui", "strategic-map", "cam-movement", "pan-speed");
+    for (const ViewCamMoveBinding& binding : kViewCamMoveBindings)
+    {
+        camMoveCfg[static_cast<size_t>(binding.mode)] =
+            loadZoomPanCfg(config, binding);
+        persistentCamPos[static_cast<size_t>(binding.mode)] = {
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            camMoveCfg[static_cast<size_t>(binding.mode)].maxZoom};
+    }
 
     maxTexPerDrawCall =
         CFG_INT(config, 1024.0f, "gfx", "max-tex-per-draw-call");
@@ -798,8 +808,7 @@ void RenderEngine::drawDebugCheckerboard(bgfx::ViewId viewId,
         | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,
                                 BGFX_STATE_BLEND_INV_SRC_ALPHA);
     bgfx::setState(state);
-    bgfx::submit(viewId,
-                 compiledShaderLib.getItem(shaderHandle)->getHandle());
+    bgfx::submit(viewId, compiledShaderLib.getItem(shaderHandle)->getHandle());
 }
 
 ShaderHandle RenderEngine::getShaderHandle(const std::string& name) const
@@ -1365,6 +1374,18 @@ void RenderEngine::clbToggleStrategicView()
         viewMode = GameViewMode::StrategicMap;
         restoreViewCameraState(GameViewMode::StrategicMap);
     }
+}
+
+void RenderEngine::gotoModdingTools()
+{
+    viewMode = GameViewMode::ModdingTools;
+    restoreViewCameraState(GameViewMode::ModdingTools);
+}
+
+void RenderEngine::startGame()
+{
+    viewMode = GameViewMode::ThirdPerson;
+    restoreViewCameraState(GameViewMode::ThirdPerson);
 }
 
 void RenderEngine::saveViewCameraState(GameViewMode mode)

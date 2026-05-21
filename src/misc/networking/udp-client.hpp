@@ -32,6 +32,7 @@ class UdpClient
     udp::endpoint devServerEndpoint;
     char recvBuf[UDP_REC_BUF_LEN];
     ReceiveCallback receiveCallback;
+    std::atomic<bool> running{true};
 };
 
 }  // namespace net

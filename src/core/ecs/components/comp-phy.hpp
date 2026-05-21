@@ -6,6 +6,7 @@
 #include <aabb-tree.hpp>
 #include <algorithm>
 #include <climits>
+#include <cmath>
 #include <entt/entt.hpp>
 #include <lib-collider.hpp>
 #include <magic_enum/magic_enum.hpp>
@@ -57,8 +58,8 @@ struct TransformCache
     static const uint16_t VERSION = 1;
     static constexpr string NAME = "transform-cache";
 
-    float c;
-    float s;
+    float c = 1.0f;
+    float s = 0.0f;
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
@@ -425,12 +426,10 @@ clampThrustLocalToActuatorBox(vec2& local, float maneuverMax, float mainMax)
     if (ax > eps)
     {
         s = std::fminf(s, maneuverMax / ax);
-        // LG_D("ax s: {}", s);
     }
     if (ay > eps)
     {
         s = std::fminf(s, mainMax / ay);
-        // LG_D("ay s: {}", s);
     }
     local.x = tx * s;
     local.y = ty * s;
@@ -450,19 +449,6 @@ struct PhyThrust
     float thrustManeuverMax;
     float maxSpd;
 
-    void setThrustGlobal(vec2 th, Transform& tr)
-    {
-        // World -> body: inverse of CW rotation by tr.rot
-        const float s = std::sin(tr.rot);
-        const float c = std::cos(tr.rot);
-        setThrustGlobal(th, s, c);
-    }
-
-    void setThrustGlobal(vec2 th, float s, float c)
-    {
-        setThrustLocal(smath::rotateVec2(th, -s, c), s, c);
-    }
-
     void setThrustLocal(vec2 th, Transform& tr)
     {
         const float s = std::sin(tr.rot);
@@ -475,24 +461,43 @@ struct PhyThrust
         thrustLocal = th;
         clampThrustLocalToActuatorBox(
             thrustLocal, thrustManeuverMax, thrustMainMax);
+        if (!std::isfinite(thrustLocal.y) || !std::isfinite(thrustLocal.x)
+            || fabsf(thrustLocal.x) > thrustManeuverMax * 1.5f
+            || fabsf(thrustLocal.y) > thrustMainMax * 1.5f)
+        {
+            LG_W("thrustLocal is invalid: {}", thrustLocal);
+            exit(1);
+        }
         thrustGlobal = smath::rotateVec2(thrustLocal, s, c);
     }
 
     void setThrustLocalMain(float th, float s, float c)
     {
-        thrustLocal = smath::rotateVec2(thrustGlobal, -s, c);
         thrustLocal.y = th;
         clampThrustLocalToActuatorBox(
             thrustLocal, thrustManeuverMax, thrustMainMax);
+        if (!std::isfinite(thrustLocal.y) || !std::isfinite(thrustLocal.x)
+            || fabsf(thrustLocal.x) > thrustManeuverMax * 1.5f
+            || fabsf(thrustLocal.y) > thrustMainMax * 1.5f)
+        {
+            LG_W("thrustLocal is invalid: {}", thrustLocal);
+            exit(1);
+        }
         thrustGlobal = smath::rotateVec2(thrustLocal, s, c);
     }
 
     void setThrustLocalManeuver(float th, float s, float c)
     {
-        thrustLocal = smath::rotateVec2(thrustGlobal, -s, c);
         thrustLocal.x = th;
         clampThrustLocalToActuatorBox(
             thrustLocal, thrustManeuverMax, thrustMainMax);
+        if (!std::isfinite(thrustLocal.y) || !std::isfinite(thrustLocal.x)
+            || fabsf(thrustLocal.x) > thrustManeuverMax * 1.5f
+            || fabsf(thrustLocal.y) > thrustMainMax * 1.5f)
+        {
+            LG_W("thrustLocal is invalid: {}", thrustLocal);
+            exit(1);
+        }
         thrustGlobal = smath::rotateVec2(thrustLocal, s, c);
     }
 
@@ -536,6 +541,20 @@ struct PhyThrust
     }
 
     void updateStatsFromEntity(entt::entity entity, ecs::PtrHandle* ptrHandle);
+
+  private:
+    void setThrustGlobal(vec2 th, Transform& tr)
+    {
+        // World -> body: inverse of CW rotation by tr.rot
+        const float s = std::sin(tr.rot);
+        const float c = std::cos(tr.rot);
+        setThrustGlobal(th, s, c);
+    }
+
+    void setThrustGlobal(vec2 th, float s, float c)
+    {
+        setThrustLocal(smath::rotateVec2(th, -s, c), s, c);
+    }
 };
 
 #define SER_PHY_THRUST                                                         \

@@ -3,6 +3,15 @@
 namespace net
 {
 
+void TcpClient::resetParser()
+{
+    rcvCmdState = RcvCmdState::ParseCmd0;
+    rcvCmdLen = 0;
+    lastDataStart = 0;
+    rcvdCmd.data.clear();
+    rcvdCmd.sendType = SendType::TCP;
+}
+
 TcpClient::TcpClient(boost::asio::io_context& io_context,
                      tcp::endpoint endpoint,
                      TcpReceiveClb tcpReceiveCallback,
@@ -17,6 +26,11 @@ TcpClient::TcpClient(boost::asio::io_context& io_context,
 
 void TcpClient::close()
 {
+    if (!running.exchange(false))
+    {
+        return;
+    }
+    resetParser();
     boost::system::error_code ec;
     [[maybe_unused]] const auto cancelled = socket.cancel(ec);
     [[maybe_unused]] const auto shut =
@@ -26,9 +40,14 @@ void TcpClient::close()
 
 void TcpClient::sendMessage(const std::vector<uint8_t>& data)
 {
+    if (!running.load())
+    {
+        return;
+    }
     try
     {
         size_t bytesSent = socket.send(boost::asio::buffer(data));
+        (void)bytesSent;
     }
     catch (const std::exception& e)
     {
@@ -38,6 +57,10 @@ void TcpClient::sendMessage(const std::vector<uint8_t>& data)
 
 void TcpClient::startReceive()
 {
+    if (!running.load())
+    {
+        return;
+    }
     rcvdCmd.sendType = SendType::TCP;
     socket.async_receive(
         boost::asio::buffer(recvBuf, TCP_REC_BUF_LEN),
@@ -48,6 +71,10 @@ void TcpClient::startReceive()
 void TcpClient::handleReceive(const boost::system::error_code& error,
                               size_t bytes_received)
 {
+    if (!running.load())
+    {
+        return;
+    }
     if (!error && bytes_received > 0)
     {
         for (size_t i = 0; i < bytes_received; i++)
@@ -85,17 +112,25 @@ void TcpClient::handleReceive(const boost::system::error_code& error,
         }
         if (rcvCmdState == RcvCmdState::ParseCmd0)
         {
-            // Packet is complete at stream boundary
-            if (tcpReceiveCallback)
+            if (tcpReceiveCallback && !rcvdCmd.data.empty())
             {
                 tcpReceiveCallback(rcvdCmd);
             }
             rcvdCmd.data.clear();
         }
-        startReceive();
+        if (running.load())
+        {
+            startReceive();
+        }
     }
     else
     {
+        running = false;
+        resetParser();
+        if (error == boost::asio::error::operation_aborted)
+        {
+            return;
+        }
         if (error == boost::asio::error::eof)
         {
             LG_W("TCP connection closed by peer");

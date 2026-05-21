@@ -159,6 +159,8 @@ class RenderEngine
     void setActiveSector(int32_t sectorX, int32_t sectorY);
     void clbToggleTacticalView();
     void clbToggleStrategicView();
+    void gotoModdingTools();
+    void startGame();
 
     void setWorldShape(const def::WorldShape* worldShape);
     void updateWorldView();
@@ -359,7 +361,7 @@ class RenderEngine
     float ortho[16];
     float worldCameraX = 0.0f;
     float worldCameraY = 0.0f;
-    float worldZoom = 2.0f;
+    float worldZoom = 1.0f;
     float worldView[16];
     float worldViewProj[16];
     float invWvp[16];
