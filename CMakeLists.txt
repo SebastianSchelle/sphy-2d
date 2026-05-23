@@ -63,8 +63,6 @@ set(DAS_STBIMAGE_DISABLED ON CACHE BOOL "" FORCE)
 set(DAS_TOOLS_DISABLED OFF CACHE BOOL "" FORCE)
 set(DAS_TUTORIAL_DISABLED ON CACHE BOOL "" FORCE)
 set(DAS_TESTS_DISABLED ON CACHE BOOL "" FORCE)
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/DascriptVendor.cmake")
-sphy_apply_dascript_patches()
 add_subdirectory(thirdparty/dascript)
 add_subdirectory(src)
 
@@ -81,7 +79,7 @@ endif()
 # Pass build directory and executable paths to the script
 add_custom_target(deploy
     COMMAND ${BASH_EXECUTABLE} ${DEPLOY_SCRIPT} ${DEPLOY_DIR} ${CMAKE_BINARY_DIR} "$<TARGET_FILE:game-client>" "$<TARGET_FILE:game-server>"
-    DEPENDS game-client game-server
+    DEPENDS game-client game-server shaders
     COMMENT "Deploying modules and executables to ${DEPLOY_DIR}"
 )
 
@@ -105,7 +103,6 @@ set(TEST_LIBS
     GTest::gtest_main
     sphy_misc_containers
     sphy_misc_data_definitions
-    sphy_misc_ai
     Boost::chrono
     Boost::thread
     Boost::program_options

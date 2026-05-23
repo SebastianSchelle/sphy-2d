@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Convert common raster images under a root folder to uncompressed DDS (no mipmaps)
-# using ImageMagick 7+ (`magick`). Original files are never deleted.
+# using ImageMagick (`magick` for v7+, or `convert` for v6). Original files are never deleted.
 #
 # Usage:
 #   ./convert-dds.sh [--recursive|-r] <root-folder>
 #
-# Requires: magick (ImageMagick 7+)
+# Requires: ImageMagick (brew install imagemagick on macOS)
 
 set -euo pipefail
 
@@ -22,12 +22,23 @@ Usage: convert-dds.sh [--recursive|-r] <root-folder>
 Original images are kept. Each matching file produces a sibling <name>.dds
 (same basename, .dds extension).
 
-Requires ImageMagick 7+: `magick` on PATH.
+Requires ImageMagick: `magick` (7+) or `convert` (6+) on PATH.
+  macOS: brew install imagemagick
 EOF
 }
 
-if ! command -v magick >/dev/null 2>&1; then
-    echo "error: 'magick' not found (install ImageMagick 7+)" >&2
+tolower() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+if command -v magick >/dev/null 2>&1; then
+    magick_cmd=(magick)
+elif command -v convert >/dev/null 2>&1; then
+    magick_cmd=(convert)
+    echo "note: using ImageMagick 6 'convert' (install imagemagick 7+ for 'magick')" >&2
+else
+    echo "error: neither 'magick' nor 'convert' found (install ImageMagick)" >&2
+    echo "  macOS: brew install imagemagick" >&2
     exit 1
 fi
 
@@ -81,7 +92,7 @@ magick_dds_opts=(
     -define "dds:mipmaps=0"
 )
 
-# Common extensions (case-insensitive via find -iname).
+# Common extensions (case-insensitive via find -iname; works on BSD/macOS and GNU find).
 find_expr=(
     \(
     -iname "*.png"
@@ -107,17 +118,17 @@ count=0
 errors=0
 
 while IFS= read -r -d '' src; do
-    dir=$(dirname -- "$src")
-    base=$(basename -- "$src")
+    dir=$(dirname "$src")
+    base=$(basename "$src")
     stem="${base%.*}"
     out="${dir}/${stem}.dds"
 
     # Skip if source is already DDS (should not match find, but be safe).
-    if [[ "${base,,}" == *.dds ]]; then
+    if [[ "$(tolower "$base")" == *.dds ]]; then
         continue
     fi
 
-    if ! magick "$src" "${magick_dds_opts[@]}" "$out"; then
+    if ! "${magick_cmd[@]}" "$src" "${magick_dds_opts[@]}" "$out"; then
         echo "warn: failed: $src -> $out" >&2
         errors=$((errors + 1))
         continue

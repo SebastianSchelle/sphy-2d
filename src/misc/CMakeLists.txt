@@ -17,7 +17,6 @@ target_include_directories(sphy_misc_runtime
 target_link_libraries(sphy_misc_runtime
     INTERFACE
     helper
-    sphy_misc_ai
     sphy_misc_containers
     sphy_misc_data_definitions
 )

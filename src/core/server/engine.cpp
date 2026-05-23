@@ -459,11 +459,13 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
             size_t readPos = cmddes.adapter().currentReadPos();
             if (readPos - dataStartPos != len)
             {
-                LG_W("Command data length mismatch: Cmd: {}, Flags: {}, Expected: {}, Read: {}",
-                     cmd,
-                     flags,
-                     len,
-                     cmddes.adapter().currentReadPos() - dataStartPos);
+                LG_W(
+                    "Command data length mismatch: Cmd: {}, Flags: {}, "
+                    "Expected: {}, Read: {}",
+                    cmd,
+                    flags,
+                    len,
+                    cmddes.adapter().currentReadPos() - dataStartPos);
             }
             cmddes.adapter().currentReadPos(dataStartPos + len);
         }
@@ -557,7 +559,8 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                     {
                         def::ClientInfo* clientInfo = clientLib.getItem(handle);
                         if (clientInfo->clientInfo.connection != nullptr
-                            && clientInfo->clientInfo.connection != tcpConnection)
+                            && clientInfo->clientInfo.connection
+                                   != tcpConnection)
                         {
                             clientInfo->clientInfo.connection->close();
                         }
@@ -1142,13 +1145,13 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 70000; ++i)
+    for (int i = 0; i < 10000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
         uint32_t sectorId = sectorPick(gen);
         ecs::EntityId ent;
-        if (i % 2 == 0)
+        if (i % 3 == 1)
         {
             ent = spawnShipHull(modManager.getHullLib().getHandle("Bee"),
                                 sectorId,
@@ -1161,7 +1164,7 @@ void Engine::testSpawn()
             spawnModule(
                 ent, modManager.getModuleLib().getHandle("Terran Tank S"), 5);
         }
-        else
+        else if (i % 3 == 2)
         {
             ent = spawnShipHull(modManager.getHullLib().getHandle("Mosquito"),
                                 sectorId,
@@ -1171,6 +1174,27 @@ void Engine::testSpawn()
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 1);
             spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
+        }
+        else
+        {
+            ent =
+                spawnShipHull(modManager.getHullLib().getHandle("Caterpillar"),
+                              sectorId,
+                              ecs::Transform{pos, rot});
+            for (int i = 8; i < 16; i++)
+            {
+                spawnModule(
+                    ent,
+                    modManager.getModuleLib().getHandle("Terran Tank S"),
+                    i);
+            }
+            spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 16);
+            spawnModule(ent,
+                        modManager.getModuleLib().getHandle("Breeze Maneuver"),
+                        17);
+            spawnModule(ent,
+                        modManager.getModuleLib().getHandle("Breeze Maneuver"),
+                        18);
         }
         auto* moveCtrl = reg.try_get<ecs::MoveCtrl>(ecs.getEntity(ent));
         if (moveCtrl)
@@ -1455,6 +1479,8 @@ ecs::MapIcon* Engine::makeMapIcon(entt::entity entity)
                         modManager.getMapIconLib().getHandle("echo");
                     break;
                 default:
+                    mapIconHandle =
+                        modManager.getMapIconLib().getHandle("echo");
                     break;
             }
         }
