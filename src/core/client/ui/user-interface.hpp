@@ -79,6 +79,8 @@ class UserInterface
     UiDocHandle getDocumentHandle(const std::string& name);
     void showMenu();
     void hideMenu();
+    void showConnecting();
+    void hideConnecting();
     void showTabListStrategic();
     void hideTabListStrategic();
     void showTabListTactical();
@@ -92,11 +94,6 @@ class UserInterface
     void unloadDocument(UiDocHandle handle);
     bool loadFont(const std::string& fontPath);
     void setupViewModeUi(gfx::GameViewMode viewMode);
-
-    // todo: move to mainwindow or something
-    void
-    bind(const std::string& model, const std::string& variable, void* value);
-    void dirtyVar(const std::string& model, const std::string& variable);
 
     Rml::DataModelConstructor getDataModel(const std::string& name);
 

@@ -9,6 +9,7 @@
 #include <std-inc.hpp>
 #include <world.hpp>
 #include <control-def.hpp>
+#include <RmlUi/Core/DataModelHandle.h>
 
 namespace ecs
 {
@@ -40,6 +41,12 @@ struct DragSelectionHelper
     float posXMax;
     float posYMin;
     float posYMax;
+};
+
+struct ConnectingData
+{
+    string status;
+    string info;
 };
 
 class Model
@@ -88,6 +95,7 @@ class Model
     void toggleTacticalView();
     void toggleStrategicView();
     void centerViewOnPlayer();
+    void setupDataModelConnecting();
 
     def::ThirdPersonControl& getThirdPersonControl()
     {
@@ -195,6 +203,8 @@ class Model
     ui::UserInterface* userInterface;
     mod::ModManager* modManager;
     gfx::RenderEngine* renderer;
+    Rml::DataModelHandle rmlModelConnecting;
+    ConnectingData connectingData;
     ecs::AssetFactory assetFactory;
     tim::Timepoint lastTSync;
     def::ClientInfo clientInfo;

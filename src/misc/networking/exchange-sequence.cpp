@@ -3,13 +3,9 @@
 namespace net
 {
 
-ExchangeSequence::ExchangeSequence()
-{
-}
+ExchangeSequence::ExchangeSequence() {}
 
-ExchangeSequence::~ExchangeSequence()
-{
-}
+ExchangeSequence::~ExchangeSequence() {}
 
 void ExchangeSequence::registerExchange(Exchange exchange)
 {
@@ -20,7 +16,7 @@ void ExchangeSequence::registerExchange(Exchange exchange)
 void ExchangeSequence::start(ConcurrentQueue<net::CmdQueueData>& sendQueue)
 {
     currentExchange = 0;
-    if(exchanges.size() > 0)
+    if (exchanges.size() > 0)
     {
         exchanges[currentExchange].execute(sendQueue);
     }
@@ -30,16 +26,18 @@ void ExchangeSequence::start(ConcurrentQueue<net::CmdQueueData>& sendQueue)
     }
 }
 
-void ExchangeSequence::advance(ConcurrentQueue<net::CmdQueueData>& sendQueue, uint16_t recCommand, prot::cmd::State recState)
+void ExchangeSequence::advance(ConcurrentQueue<net::CmdQueueData>& sendQueue,
+                               uint16_t recCommand,
+                               prot::cmd::State recState)
 {
     Exchange& curr = exchanges[currentExchange];
-    if(curr.command == recCommand)
+    if (curr.command == recCommand)
     {
-        if(recState == prot::cmd::State::SUCCESS)
+        if (recState == prot::cmd::State::SUCCESS)
         {
             curr.successCallback();
             currentExchange++;
-            if(currentExchange < exchanges.size())
+            if (currentExchange < exchanges.size())
             {
                 exchanges[currentExchange].execute(sendQueue);
             }
@@ -64,14 +62,16 @@ void ExchangeSequence::reset()
 Exchange::Exchange(uint16_t cmd,
                    ErrorCallback errorCallback,
                    SuccessCallback successCallback,
-                   SerializeCallback serializeCallback)
-    : command(cmd), errorCallback(errorCallback), successCallback(successCallback), serializeCallback(serializeCallback)
+                   SerializeCallback serializeCallback,
+                   string status,
+                   InfoGeneratorCallback infoGenerator)
+    : command(cmd), errorCallback(errorCallback),
+      successCallback(successCallback), serializeCallback(serializeCallback),
+      status(status), infoGenerator(infoGenerator)
 {
 }
 
-Exchange::~Exchange()
-{
-}
+Exchange::~Exchange() {}
 
 void Exchange::execute(ConcurrentQueue<net::CmdQueueData>& sendQueue)
 {

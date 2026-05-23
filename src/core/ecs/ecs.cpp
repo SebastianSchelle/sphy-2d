@@ -111,12 +111,15 @@ entt::entity EcsClient::enttFromServerId(const EntityId& entityId)
     auto it = idMap.find(entityId.index);
     if (it == idMap.end() || it->second.generation == 0)
     {
+        // Create new entity
         entt::entity e = registry.create();
         idMap[entityId.index] = {e, entityId.generation};
+        numClientEntities++;
         return e;
     }
     else if (it->second.generation != entityId.generation)
     {
+        // Generation mismatch, destroy old entity and create new one
         registry.destroy(it->second.entity);
         auto e = registry.create();
         idMap[entityId.index] = {e, entityId.generation};
@@ -124,8 +127,14 @@ entt::entity EcsClient::enttFromServerId(const EntityId& entityId)
     }
     else
     {
+        // Generation matches, return existing entity
         return it->second.entity;
     }
+}
+
+uint32_t EcsClient::getNumClientEntities() const
+{
+    return numClientEntities;
 }
 
 entt::registry& EcsClient::getRegistry()
@@ -158,6 +167,11 @@ void EcsClient::clearSession()
 {
     registry.clear();
     idMap.clear();
+}
+
+uint32_t Ecs::getNumEntities() const
+{
+    return idMap.size() - idMapFreeSlots.size();
 }
 
 }  // namespace ecs

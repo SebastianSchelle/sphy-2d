@@ -35,6 +35,7 @@ enum class GameViewMode
     AtlasDebug,
     ModdingTools,
     Count,
+    Connecting,
 };
 
 struct PersistentCamPos

@@ -80,15 +80,26 @@ void Model::modelLoop(float dt)
             break;
         case ClientGameState::Authenticated:
             loadWorldSequence.start(sendQueue);
-            userInterface->setupViewModeUi(gfx::GameViewMode::ThirdPerson);
+            userInterface->setupViewModeUi(gfx::GameViewMode::Connecting);
             gameState = ClientGameState::LoadWorld;
             break;
         case ClientGameState::LoadWorld:
+
             if (loadWorldSequence.done())
             {
                 LG_I("Exchanging world info with server done");
                 afterLoadWorldClb();
                 notifyReady();
+                userInterface->setupViewModeUi(gfx::GameViewMode::ThirdPerson);
+            }
+            else
+            {
+                net::Exchange& curr = loadWorldSequence.getCurrentExchange();
+                connectingData.status = curr.status;
+                connectingData.info =
+                    curr.infoGenerator ? curr.infoGenerator() : "";
+                rmlModelConnecting.DirtyVariable("status");
+                rmlModelConnecting.DirtyVariable("info");
             }
             break;
         case ClientGameState::NotifyServerReady:
@@ -292,8 +303,7 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         case prot::cmd::LOG:
         {
             std::string str;
-            cmddes.text1b(
-                str, dataEndPos - cmddes.adapter().currentReadPos());
+            cmddes.text1b(str, dataEndPos - cmddes.adapter().currentReadPos());
             LG_I("Log from server: {}", str);
             break;
         }
@@ -429,8 +439,8 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             if (flags & CMD_FLAG_RESP)
             {
                 std::string str;
-                cmddes.text1b(
-                    str, dataEndPos - cmddes.adapter().currentReadPos());
+                cmddes.text1b(str,
+                              dataEndPos - cmddes.adapter().currentReadPos());
                 LG_I("Console cmd response: {}", str);
                 userInterface->addSystemMessage(str);
             }
@@ -474,6 +484,11 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             {
                 handleActiveSectorDump(cmddes, dataEndPos);
             }
+            break;
+        }
+        case prot::cmd::TOTAL_NUM_ENTITIES:
+        {
+            cmddes.value4b(ecs.numServerEntities);
             break;
         }
         default:
@@ -1285,19 +1300,30 @@ void Model::registerConnectSequence()
 {
     loadWorldSequence.registerExchange(net::Exchange(
         prot::cmd::WORLD_INFO,
-        [this]() {},
-        [this]() {},
-        [this](bitsery::Serializer<OutputAdapter>& ser) {}));
+        []() {},
+        []() {},
+        [](bitsery::Serializer<OutputAdapter>&) {},
+        "Discovering Galaxy Dimensions",
+        []() { return "Where does the galaxy end?"; }));
     loadWorldSequence.registerExchange(net::Exchange(
         prot::cmd::CLIENT_INFO,
-        [this]() {},
-        [this]() {},
-        [this](bitsery::Serializer<OutputAdapter>& ser) {}));
+        []() {},
+        []() {},
+        [](bitsery::Serializer<OutputAdapter>&) {},
+        "Synchronizing Commander",
+        []() { return "Who am I?"; }));
     loadWorldSequence.registerExchange(net::Exchange(
         prot::cmd::ALL_ENTT_COMPONENTS,
-        [this]() {},
-        [this]() {},
-        [this](bitsery::Serializer<OutputAdapter>& ser) {}));
+        []() {},
+        []() {},
+        [](bitsery::Serializer<OutputAdapter>&) {},
+        "Exploring Sectors",
+        [this]()
+        {
+            return fmt::format("Loading {} of {} entities...",
+                               ecs.getNumClientEntities(),
+                               ecs.numServerEntities);
+        }));
 }
 
 uint32_t Model::getActiveSectorId()
@@ -1327,6 +1353,17 @@ void Model::sendThirdPersonControl()
     mcomp.startCommand(prot::cmd::THIRD_PERSON_CTRL, 0);
     mcomp.ser->object(thirdPersonControl);
     mcomp.execute(sendQueue);
+}
+
+void Model::setupDataModelConnecting()
+{
+    auto connectingConstructor = userInterface->getDataModel("connecting");
+    if (connectingConstructor)
+    {
+        connectingConstructor.Bind("status", &connectingData.status);
+        connectingConstructor.Bind("info", &connectingData.info);
+    }
+    rmlModelConnecting = connectingConstructor.GetModelHandle();
 }
 
 }  // namespace sphyc

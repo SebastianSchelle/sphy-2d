@@ -67,7 +67,7 @@ class Ecs
     entt::registry& getRegistry();
     entt::entity insertOrReplaceByExistingEntityId(EntityId entityId);
     void iterateEntities(IterateEntitiesCallback callback);
-
+    uint32_t getNumEntities() const;
   private:
     entt::registry registry;
     vector<Slot> idMap;
@@ -85,10 +85,14 @@ class EcsClient
     entt::entity getEntity(EntityId entityId);
     bool validId(EntityId entityId);
     void clearSession();
+    uint32_t getNumClientEntities() const;
+    
+    uint32_t numServerEntities = 0;
 
   private:
     entt::registry registry;
     std::unordered_map<uint32_t, Slot> idMap;
+    uint32_t numClientEntities = 0;
 };
 
 }  // namespace ecs

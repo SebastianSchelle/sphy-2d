@@ -14,14 +14,16 @@ namespace net
 typedef std::function<void()> ErrorCallback;
 typedef std::function<void()> SuccessCallback;
 typedef std::function<void(bitsery::Serializer<OutputAdapter>& ser)> SerializeCallback;
-
+typedef std::function<string(void)> InfoGeneratorCallback;
 class Exchange
 {
   public:
     Exchange(uint16_t cmd,
              ErrorCallback errorCallback,
              SuccessCallback successCallback,
-             SerializeCallback serializeCallback);
+             SerializeCallback serializeCallback,
+             string status,
+             InfoGeneratorCallback infoGenerator);
     ~Exchange();
     void addCommand(uint16_t cmd);
     void execute(ConcurrentQueue<net::CmdQueueData>& sendQueue);
@@ -30,6 +32,8 @@ class Exchange
     ErrorCallback errorCallback;
     SuccessCallback successCallback;
     SerializeCallback serializeCallback;
+    string status;
+    InfoGeneratorCallback infoGenerator;
 };
 
 class ExchangeSequence
@@ -42,6 +46,7 @@ class ExchangeSequence
     void advance(ConcurrentQueue<net::CmdQueueData>& sendQueue, uint16_t recCommand, prot::cmd::State recState);
     bool done();
     void reset();
+    Exchange& getCurrentExchange() { return exchanges[currentExchange]; }
 
   private:
     std::vector<Exchange> exchanges;

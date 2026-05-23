@@ -1093,6 +1093,14 @@ void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
                 [this, entityCopy, conn]()
                 { sendAllComponents(entityCopy, conn); });
         });
+    clientInfo->addWorkFunction(
+        [this, clientInfo, conn]()
+        {
+            prot::MsgComposer mcomp(net::SendType::TCP, conn);
+            mcomp.startCommand(prot::cmd::TOTAL_NUM_ENTITIES, 0);
+            mcomp.ser->value4b(ecs.getNumEntities());
+            mcomp.execute(sendQueue);
+        });
 }
 
 void Engine::sendAllComponents(ecs::EntityId entityId, net::TcpConnection* conn)

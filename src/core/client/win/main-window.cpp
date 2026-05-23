@@ -178,6 +178,7 @@ bool MainWindow::initPre()
 
     setupDataModelDebug();
     setupDataModelMenu();
+    model.setupDataModelConnecting();
     moddingTools.setupDataModel(userInterface);
     atlasDebug.bind(&userInterface, &model, &renderEngine);
     atlasDebug.setupDataModel(userInterface);

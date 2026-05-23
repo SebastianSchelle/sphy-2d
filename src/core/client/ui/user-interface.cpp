@@ -508,6 +508,11 @@ void UserInterface::setupViewModeUi(gfx::GameViewMode viewMode)
             showDocument(getDocumentHandle("modding-tools-menu"));
         }
         break;
+        case gfx::GameViewMode::Connecting:
+        {
+            showDocument(getDocumentHandle("connecting"));
+        }
+        break;
         default:
             break;
     }

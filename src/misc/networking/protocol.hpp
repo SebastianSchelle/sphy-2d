@@ -113,6 +113,7 @@ const uint16_t ALL_ENTT_COMPONENTS = 0x000D;
 const uint16_t ACTIVE_SECTOR_UPDATE = 0x000E;
 const uint16_t THIRD_PERSON_CTRL = 0x000F;
 const uint16_t CLIENT_INFO = 0x0010;
+const uint16_t TOTAL_NUM_ENTITIES = 0x0011;
 
 }  // namespace cmd
 
