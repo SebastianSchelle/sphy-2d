@@ -97,7 +97,7 @@ void Engine::start()
                         },
                         CLIENT_FLAG_EN_CONSOLE));
     auto clientInfo = clientLib.getItem(handle);
-    clientInfo->activeEntity = ecs::EntityId{5, 1};
+    clientInfo->activeEntity = ecs::EntityId{0, 1};
 
     // engineThread = std::thread([this]() { engineLoop(); });
     engineLoop();
@@ -1153,13 +1153,13 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 10000; ++i)
+    for (int i = 0; i < 800; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
         uint32_t sectorId = sectorPick(gen);
         ecs::EntityId ent;
-        if (i % 3 == 1)
+        if (i % 4 == 1)
         {
             ent = spawnShipHull(modManager.getHullLib().getHandle("Bee"),
                                 sectorId,
@@ -1172,7 +1172,7 @@ void Engine::testSpawn()
             spawnModule(
                 ent, modManager.getModuleLib().getHandle("Terran Tank S"), 5);
         }
-        else if (i % 3 == 2)
+        else if (i % 4 == 2)
         {
             ent = spawnShipHull(modManager.getHullLib().getHandle("Mosquito"),
                                 sectorId,
@@ -1182,6 +1182,25 @@ void Engine::testSpawn()
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 1);
             spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
+        }
+        else if (i % 4 == 3)
+        {
+            ent = spawnShipHull(modManager.getHullLib().getHandle("Bumblebee"),
+                                sectorId,
+                                ecs::Transform{pos, rot});
+            spawnModule(
+                ent, modManager.getModuleLib().getHandle("Cargo Container S"), 0);
+            spawnModule(
+                ent, modManager.getModuleLib().getHandle("Cargo Container S"), 1);
+            spawnModule(
+                ent, modManager.getModuleLib().getHandle("Cargo Container S"), 2);
+            spawnModule(
+                ent, modManager.getModuleLib().getHandle("Cargo Container S"), 3);
+            spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 4);
+            spawnModule(
+                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 5);
+            spawnModule(
+                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 6);
         }
         else
         {
@@ -1193,7 +1212,7 @@ void Engine::testSpawn()
             {
                 spawnModule(
                     ent,
-                    modManager.getModuleLib().getHandle("Terran Tank S"),
+                    modManager.getModuleLib().getHandle("Terran Bulk S"),
                     i);
             }
             spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 16);
