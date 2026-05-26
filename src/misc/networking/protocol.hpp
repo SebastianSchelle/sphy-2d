@@ -12,15 +12,17 @@
     bitsery::Serializer<OutputAdapter> cmdser(OutputAdapter(cmdData.data));    \
     cmdser.value2b((uint16_t)cmd);                                             \
     cmdser.value1b((uint8_t)flags);                                            \
-    cmdser.adapter().currentWritePos(5);
+    cmdser.adapter().currentWritePos(prot::kCommandHeaderSize);
 #define CMDAT_FIN()                                                            \
     cmdser.adapter().currentWritePos(3);                                       \
-    cmdser.value2b((uint16_t)(cmdser.adapter().writtenBytesCount() - 5));      \
+    cmdser.value4b((uint32_t)(cmdser.adapter().writtenBytesCount()             \
+                              - prot::kCommandHeaderSize));                    \
     cmdData.data.resize(cmdser.adapter().writtenBytesCount());
 #define CMDAT_FIN_REM_TAIL_BYTES(removeTailBytes)                              \
     cmdser.adapter().currentWritePos(3);                                       \
-    cmdser.value2b((uint16_t)(cmdser.adapter().writtenBytesCount() - 5         \
-                              - (removeTailBytes)));                           \
+    cmdser.value4b((uint32_t)(cmdser.adapter().writtenBytesCount()             \
+                              - prot::kCommandHeaderSize                     \
+                              - (removeTailBytes)));                          \
     cmdData.data.resize(cmdser.adapter().writtenBytesCount()                   \
                         - (removeTailBytes));
 
@@ -28,18 +30,28 @@
     net::CmdQueueData cmdData;                                                 \
     cmdData.sendType = sType;                                                  \
     bitsery::Serializer<OutputAdapter> cmdser(OutputAdapter(cmdData.data));    \
-    cmdser.adapter().currentWritePos(17);                                      \
+    cmdser.adapter().currentWritePos(prot::kUdpTokenPrefixBytes);              \
     cmdser.value2b((uint16_t)cmd);                                             \
     cmdser.value1b((uint8_t)flags);                                            \
-    cmdser.adapter().currentWritePos(22);
+    cmdser.adapter().currentWritePos(prot::kUdpPayloadOffset);
 #define CMDAT_FIN_TOKEN()                                                      \
-    cmdser.adapter().currentWritePos(20);                                      \
-    cmdser.value2b((uint16_t)(cmdser.adapter().writtenBytesCount() - 22));     \
+    cmdser.adapter().currentWritePos(prot::kUdpCommandHeaderOffset + 3);       \
+    cmdser.value4b((uint32_t)(cmdser.adapter().writtenBytesCount()            \
+                              - prot::kUdpPayloadOffset));                     \
     cmdData.data.resize(cmdser.adapter().writtenBytesCount());
 
 
 namespace prot
 {
+
+// cmd(2) + flags(1) + payload-length(4)
+inline constexpr std::size_t kCommandHeaderSize = 7;
+inline constexpr std::size_t kPayloadLengthFieldBytes = 4;
+inline constexpr std::size_t kUdpTokenPrefixBytes = 17;
+inline constexpr std::size_t kUdpCommandHeaderOffset = kUdpTokenPrefixBytes;
+inline constexpr std::size_t kUdpPayloadOffset =
+    kUdpCommandHeaderOffset + kCommandHeaderSize;
+inline constexpr uint32_t kMaxCommandPayloadBytes = 16u * 1024u * 1024u;
 
 inline constexpr std::size_t kMaxSerializedChunkBytes = 1000;
 

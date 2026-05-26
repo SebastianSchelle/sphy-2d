@@ -231,16 +231,24 @@ void Model::parseCommandData(const net::CmdQueueData& cmdData)
         {
         }
 
-        while (cmddes.adapter().currentReadPos() <= data.size() - 5)
+        while (cmddes.adapter().currentReadPos()
+               <= data.size() - prot::kCommandHeaderSize)
         {
             uint16_t cmd;
             uint8_t flags;
-            uint16_t len;
+            uint32_t len;
             cmddes.value2b(cmd);
             cmddes.value1b(flags);
-            cmddes.value2b(len);
+            cmddes.value4b(len);
             size_t dataStartPos = cmddes.adapter().currentReadPos();
 
+            if (len > prot::kMaxCommandPayloadBytes)
+            {
+                LG_E("Command payload length too large: cmd={}, len={}",
+                     cmd,
+                     len);
+                break;
+            }
             if (dataStartPos + len > data.size())
             {
                 LG_W("Command data too short cmd={}, len={}", cmd, len);
@@ -818,7 +826,8 @@ void Model::drawModuleTextures(gfx::RenderEngine& renderer,
         if (moduleEntity != entt::null)
         {
             const int8_t moduleOffset =
-                gobj::ModuleSlotZOffset[static_cast<uint8_t>(modRef.slotType)];
+                gobj::ModuleSlotZOffset[static_cast<uint8_t>(
+                    modRef.moduleSlotType)];
             const int8_t moduleZ = parentZ + moduleOffset;
             auto* anchorFixed = reg.try_get<ecs::AnchorFixed>(moduleEntity);
             auto* moduleTextures = reg.try_get<ecs::Textures>(moduleEntity);

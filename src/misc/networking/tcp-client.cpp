@@ -96,7 +96,15 @@ void TcpClient::handleReceive(const boost::system::error_code& error,
                     rcvCmdState = RcvCmdState::ParseLen1;
                     break;
                 case RcvCmdState::ParseLen1:
-                    rcvCmdLen = rcvCmdLen | (recvBuf[i] << 8);
+                    rcvCmdLen |= static_cast<uint32_t>(recvBuf[i]) << 8;
+                    rcvCmdState = RcvCmdState::ParseLen2;
+                    break;
+                case RcvCmdState::ParseLen2:
+                    rcvCmdLen |= static_cast<uint32_t>(recvBuf[i]) << 16;
+                    rcvCmdState = RcvCmdState::ParseLen3;
+                    break;
+                case RcvCmdState::ParseLen3:
+                    rcvCmdLen |= static_cast<uint32_t>(recvBuf[i]) << 24;
                     lastDataStart = rcvdCmd.data.size();
                     rcvCmdState = rcvCmdLen ? RcvCmdState::ParseData
                                             : RcvCmdState::ParseCmd0;

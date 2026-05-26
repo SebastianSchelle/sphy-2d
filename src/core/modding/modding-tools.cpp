@@ -81,7 +81,8 @@ void formatModdingThrustMNString(float gameThrust, string& thrustMNStr)
     floatToString(gameThrust / kModdingGameThrustPerMN, thrustMNStr, 2);
 }
 
-void parseModdingTorqueKNmString(const string& torqueKNmStr, float& gameTorqueOut)
+void parseModdingTorqueKNmString(const string& torqueKNmStr,
+                                 float& gameTorqueOut)
 {
     float torqueKNm = 0.0f;
     tryParseFloat(torqueKNmStr, torqueKNm);
@@ -108,6 +109,11 @@ constexpr const char* kStationStorageCapYamlKeys[static_cast<size_t>(
     "cap-tank",
     "cap-bulk",
 };
+
+constexpr const char* kTurretTypeYamlKey = "turret-type";
+constexpr const char* kTurretDamageTypeYamlKey = "damage-type";
+constexpr const char* kTurretNumBarrelsYamlKey = "num-barrels";
+constexpr const char* kTurretExitsYamlKey = "barrel-exits";
 
 void parseStorageVolumesInfoStrings(StorageVolumesInfo& volumes)
 {
@@ -358,6 +364,7 @@ const char* exampleSlotTextureName(gobj::ModuleSlotType slotType)
     }
 }
 
+
 bool exampleTextureWorldSize(gfx::RenderEngine& renderer,
                              const char* textureName,
                              glm::vec2& worldSizeOut)
@@ -411,16 +418,15 @@ void drawExampleSlotTexture(gfx::RenderEngine& renderer,
     {
         return;
     }
-    renderer.queueTexRect(
-        glm::vec2(slot.posXVal, slot.posYVal),
-        size,
-        texHandle,
-        smath::degToRad(slot.rotVal),
-        slotDrawZ(slot),
-        tintIfSelected(tintAbgr, selected),
-        0,
-        glm::vec2(0.0f, 0.0f),
-        glm::vec2(1.0f, 1.0f));
+    renderer.queueTexRect(glm::vec2(slot.posXVal, slot.posYVal),
+                          size,
+                          texHandle,
+                          smath::degToRad(slot.rotVal),
+                          slotDrawZ(slot),
+                          tintIfSelected(tintAbgr, selected),
+                          0,
+                          glm::vec2(0.0f, 0.0f),
+                          glm::vec2(1.0f, 1.0f));
 }
 
 bool hitTexture(const glm::vec2& p, const TextureInfo& tex)
@@ -827,9 +833,18 @@ void parseGeneralInfoNumericFields(GeneralInfo& info, float& hpOut)
     floatToString(hpOut, info.hp, 2);
     parseModdingMassTonsString(info.mass, info.massVal);
     formatModdingMassTonsString(info.massVal, info.mass);
-    parseModdingTorqueKNmString(info.internalGyroTorque, info.internalGyroTorqueVal);
-    formatModdingTorqueKNmString(info.internalGyroTorqueVal, info.internalGyroTorque);
+    parseModdingTorqueKNmString(info.internalGyroTorque,
+                                info.internalGyroTorqueVal);
+    formatModdingTorqueKNmString(info.internalGyroTorqueVal,
+                                 info.internalGyroTorque);
     parseStorageVolumesInfoStrings(info.storageVolumes);
+}
+
+void applyTurretNumBarrelsFromExits(ModuleInfo& info,
+                                    const vector<TurretExitInfo>& exits)
+{
+    info.turretNumBarrelsVal = static_cast<int>(exits.size());
+    intToString(info.turretNumBarrelsVal, info.turretNumBarrels);
 }
 
 void parseModuleInfoNumericFields(ModuleInfo& info)
@@ -858,6 +873,49 @@ void parseModuleInfoNumericFields(ModuleInfo& info)
     }
     tryParseFloat(info.hangarSpace, info.hangarSpaceVal);
     floatToString(info.hangarSpaceVal, info.hangarSpace, 2);
+    if (auto turretType =
+            magic_enum::enum_cast<def::TurretType>(info.turretType);
+        turretType.has_value())
+    {
+        info.turretTypeVal = turretType.value();
+    }
+    else
+    {
+        info.turretTypeVal = def::TurretType::Projectile;
+        info.turretType = string(magic_enum::enum_name(info.turretTypeVal));
+    }
+    if (auto damageType =
+            magic_enum::enum_cast<def::DamageType>(info.turretDamageType);
+        damageType.has_value())
+    {
+        info.turretDamageTypeVal = damageType.value();
+    }
+    else
+    {
+        info.turretDamageTypeVal =
+            def::TurretTypeDefaultDamage[static_cast<size_t>(
+                info.turretTypeVal)];
+        info.turretDamageType =
+            string(magic_enum::enum_name(info.turretDamageTypeVal));
+    }
+    tryParseFloat(info.turretProjDmg, info.turretProjDmgVal);
+    tryParseFloat(info.turretExitSpeed, info.turretExitSpeedVal);
+    tryParseFloat(info.turretLifetime, info.turretLifetimeVal);
+    tryParseFloat(info.turretReloadTime, info.turretReloadTimeVal);
+    tryParseFloat(info.turretDps, info.turretDpsVal);
+    tryParseFloat(info.turretBeamWidth, info.turretBeamWidthVal);
+    tryParseFloat(info.turretBeamLength, info.turretBeamLengthVal);
+    tryParseFloat(info.turretArcAngle, info.turretArcAngleVal);
+    tryParseFloat(info.turretArcLength, info.turretArcLengthVal);
+    floatToString(info.turretProjDmgVal, info.turretProjDmg, 2);
+    floatToString(info.turretExitSpeedVal, info.turretExitSpeed, 2);
+    floatToString(info.turretLifetimeVal, info.turretLifetime, 2);
+    floatToString(info.turretReloadTimeVal, info.turretReloadTime, 2);
+    floatToString(info.turretDpsVal, info.turretDps, 2);
+    floatToString(info.turretBeamWidthVal, info.turretBeamWidth, 2);
+    floatToString(info.turretBeamLengthVal, info.turretBeamLength, 2);
+    floatToString(info.turretArcAngleVal, info.turretArcAngle, 2);
+    floatToString(info.turretArcLengthVal, info.turretArcLength, 2);
 }
 
 void writeModuleDataYaml(YAML::Node& dataNode, const ModuleInfo& info)
@@ -874,6 +932,34 @@ void writeModuleDataYaml(YAML::Node& dataNode, const ModuleInfo& info)
         case gobj::ModuleType::Hangar:
             dataNode["max-ship-class"] = info.hangarMaxShipClass;
             dataNode["hangar-space"] = info.hangarSpaceVal;
+            break;
+        case gobj::ModuleType::Turret:
+            dataNode[kTurretTypeYamlKey] = info.turretType;
+            dataNode[kTurretDamageTypeYamlKey] = info.turretDamageType;
+            dataNode[kTurretNumBarrelsYamlKey] = info.turretNumBarrelsVal;
+            switch (info.turretTypeVal)
+            {
+                case def::TurretType::Laser:
+                    dataNode["dps"] = info.turretDpsVal;
+                    dataNode["beam-width"] = info.turretBeamWidthVal;
+                    dataNode["beam-length"] = info.turretBeamLengthVal;
+                    break;
+                case def::TurretType::Arc:
+                    dataNode["dps"] = info.turretDpsVal;
+                    dataNode["arc-angle"] = info.turretArcAngleVal;
+                    dataNode["arc-length"] = info.turretArcLengthVal;
+                    break;
+                case def::TurretType::Projectile:
+                case def::TurretType::Railgun:
+                case def::TurretType::Missile:
+                case def::TurretType::Mining:
+                default:
+                    dataNode["proj-dmg"] = info.turretProjDmgVal;
+                    dataNode["exit-speed"] = info.turretExitSpeedVal;
+                    dataNode["lifetime"] = info.turretLifetimeVal;
+                    dataNode["reload-time"] = info.turretReloadTimeVal;
+                    break;
+            }
             break;
         case gobj::ModuleType::None:
         default:
@@ -1220,6 +1306,9 @@ bool ModdingTools::canEditObjectType(SelectableObjectType type) const
                    || activeMode == ModdingToolsMode::StationPart;
         case SelectableObjectType::Connector:
             return activeMode == ModdingToolsMode::StationPart;
+        case SelectableObjectType::TurretExit:
+            return activeMode == ModdingToolsMode::Module
+                   && moduleInfo.moduleTypeVal == gobj::ModuleType::Turret;
         default:
             return false;
     }
@@ -1267,6 +1356,20 @@ void ModdingTools::copySelectedToClipboard()
             }
             clipboard_.connector =
                 connectors[static_cast<size_t>(selectedObjectIndex)];
+            break;
+        case SelectableObjectType::TurretExit:
+            if (selectedObjectIndex >= static_cast<int>(turretExits.size()))
+            {
+                return;
+            }
+            clipboard_.colliderVertex.x =
+                turretExits[static_cast<size_t>(selectedObjectIndex)].x;
+            clipboard_.colliderVertex.y =
+                turretExits[static_cast<size_t>(selectedObjectIndex)].y;
+            clipboard_.colliderVertex.xVal =
+                turretExits[static_cast<size_t>(selectedObjectIndex)].xVal;
+            clipboard_.colliderVertex.yVal =
+                turretExits[static_cast<size_t>(selectedObjectIndex)].yVal;
             break;
         default:
             return;
@@ -1338,6 +1441,19 @@ bool ModdingTools::pasteFromClipboard()
             selectedObjectIndex = static_cast<int>(connectors.size()) - 1;
             break;
         }
+        case SelectableObjectType::TurretExit:
+        {
+            TurretExitInfo te;
+            te.xVal = clipboard_.colliderVertex.xVal + kModdingPasteNudgeWorld;
+            te.yVal = clipboard_.colliderVertex.yVal + kModdingPasteNudgeWorld;
+            floatToString(te.xVal, te.x, 2);
+            floatToString(te.yVal, te.y, 2);
+            turretExits.push_back(std::move(te));
+            rmlModel_.DirtyVariable("turretExits");
+            selectedObjectType = SelectableObjectType::TurretExit;
+            selectedObjectIndex = static_cast<int>(turretExits.size()) - 1;
+            break;
+        }
         default:
             return false;
     }
@@ -1372,6 +1488,14 @@ bool ModdingTools::pasteFromClipboard()
                 clipboard_.connector.posXVal, clipboard_.connector.posX, 2);
             floatToString(
                 clipboard_.connector.posYVal, clipboard_.connector.posY, 2);
+            break;
+        case SelectableObjectType::TurretExit:
+            clipboard_.colliderVertex.xVal += kModdingPasteNudgeWorld;
+            clipboard_.colliderVertex.yVal += kModdingPasteNudgeWorld;
+            floatToString(
+                clipboard_.colliderVertex.xVal, clipboard_.colliderVertex.x, 2);
+            floatToString(
+                clipboard_.colliderVertex.yVal, clipboard_.colliderVertex.y, 2);
             break;
         default:
             break;
@@ -1441,6 +1565,15 @@ bool ModdingTools::deleteSelectedObject()
             rmlModel_.DirtyVariable("connectors");
             rmlModel_.DirtyVariable("textures");
             break;
+        case SelectableObjectType::TurretExit:
+            if (i < 0 || i >= static_cast<int>(turretExits.size()))
+            {
+                return false;
+            }
+            turretExits.erase(turretExits.begin() + static_cast<size_t>(i));
+            fixSelectionAfterErase(SelectableObjectType::TurretExit, i);
+            rmlModel_.DirtyVariable("turretExits");
+            break;
         default:
             return false;
     }
@@ -1492,6 +1625,7 @@ void ModdingTools::onModdingSelectListRow(Rml::DataModelHandle handle,
     {
         case SelectableObjectType::Texture:
             if (activeMode != ModdingToolsMode::Hull
+                && activeMode != ModdingToolsMode::Module
                 && activeMode != ModdingToolsMode::StationPart)
             {
                 return;
@@ -1532,6 +1666,17 @@ void ModdingTools::onModdingSelectListRow(Rml::DataModelHandle handle,
                 return;
             }
             break;
+        case SelectableObjectType::TurretExit:
+            if (activeMode != ModdingToolsMode::Module
+                || moduleInfo.moduleTypeVal != gobj::ModuleType::Turret)
+            {
+                return;
+            }
+            if (idx < 0 || idx >= static_cast<int>(turretExits.size()))
+            {
+                return;
+            }
+            break;
         default:
             return;
     }
@@ -1564,8 +1709,9 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
         syncListSelectionToRml();
     };
 
-    /** Pick priority: structural/edit handles beat decorative layers. Within the
-     * same category, lower `z` = foreground; then lower `index` for stability. */
+    /** Pick priority: structural/edit handles beat decorative layers. Within
+     * the same category, lower `z` = foreground; then lower `index` for
+     * stability. */
     struct PickCandidate
     {
         SelectableObjectType type = SelectableObjectType::None;
@@ -1581,6 +1727,8 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
             case SelectableObjectType::Slot:
                 return 3;
             case SelectableObjectType::Connector:
+                return 2;
+            case SelectableObjectType::TurretExit:
                 return 2;
             case SelectableObjectType::Texture:
                 return 1;
@@ -1624,7 +1772,8 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
                               collider[static_cast<size_t>(i)].yVal);
             if (hitDisc(worldPos, v, colliderPickR))
             {
-                consider(SelectableObjectType::ColliderVertex, i, kPickImplicitZ);
+                consider(
+                    SelectableObjectType::ColliderVertex, i, kPickImplicitZ);
             }
         }
         for (int i = 0; i < static_cast<int>(slots.size()); ++i)
@@ -1639,7 +1788,19 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
     }
     else if (activeMode == ModdingToolsMode::Module)
     {
-        // Textures only (picked below).
+        if (moduleInfo.moduleTypeVal == gobj::ModuleType::Turret)
+        {
+            for (int i = 0; i < static_cast<int>(turretExits.size()); ++i)
+            {
+                const glm::vec2 e(turretExits[static_cast<size_t>(i)].xVal,
+                                  turretExits[static_cast<size_t>(i)].yVal);
+                if (hitDisc(worldPos, e, colliderPickR))
+                {
+                    consider(
+                        SelectableObjectType::TurretExit, i, kPickImplicitZ);
+                }
+            }
+        }
     }
     else if (activeMode == ModdingToolsMode::StationPart)
     {
@@ -1658,7 +1819,8 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
                               collider[static_cast<size_t>(i)].yVal);
             if (hitDisc(worldPos, v, colliderPickR))
             {
-                consider(SelectableObjectType::ColliderVertex, i, kPickImplicitZ);
+                consider(
+                    SelectableObjectType::ColliderVertex, i, kPickImplicitZ);
             }
         }
     }
@@ -1865,6 +2027,25 @@ void ModdingTools::onLeftMouseDrag(const glm::vec2& worldPos,
                 syncStationPartConnectorTextures();
                 rmlModel_.DirtyVariable("textures");
             }
+            break;
+        case SelectableObjectType::TurretExit:
+            if (selectedObjectIndex >= static_cast<int>(turretExits.size()))
+            {
+                return;
+            }
+            turretExits[static_cast<size_t>(selectedObjectIndex)].xVal =
+                worldPos.x;
+            turretExits[static_cast<size_t>(selectedObjectIndex)].yVal =
+                worldPos.y;
+            floatToString(
+                turretExits[static_cast<size_t>(selectedObjectIndex)].xVal,
+                turretExits[static_cast<size_t>(selectedObjectIndex)].x,
+                2);
+            floatToString(
+                turretExits[static_cast<size_t>(selectedObjectIndex)].yVal,
+                turretExits[static_cast<size_t>(selectedObjectIndex)].y,
+                2);
+            rmlModel_.DirtyVariable("turretExits");
             break;
         case SelectableObjectType::None:
         default:
@@ -2111,6 +2292,12 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     moddingToolsConstructor.BindEventCallback(
         "onRemoveConnector", &ModdingTools::onRemoveConnector, this);
     moddingToolsConstructor.BindEventCallback(
+        "onAddTurretExit", &ModdingTools::onAddTurretExit, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onClearTurretExits", &ModdingTools::onClearTurretExits, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onRemoveTurretExit", &ModdingTools::onRemoveTurretExit, this);
+    moddingToolsConstructor.BindEventCallback(
         "onTextureNameFocus", &ModdingTools::onTextureNameFocus, this);
     moddingToolsConstructor.BindEventCallback(
         "onGlobalNewTexturePickerFocus",
@@ -2177,6 +2364,28 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
         moduleHandle.RegisterMember("hangarMaxShipClass",
                                     &ModuleInfo::hangarMaxShipClass);
         moduleHandle.RegisterMember("hangarSpace", &ModuleInfo::hangarSpace);
+        moduleHandle.RegisterMember("turretType", &ModuleInfo::turretType);
+        moduleHandle.RegisterMember("turretDamageType",
+                                    &ModuleInfo::turretDamageType);
+        moduleHandle.RegisterMember("turretNumBarrels",
+                                    &ModuleInfo::turretNumBarrels);
+        moduleHandle.RegisterMember("turretProjDmg",
+                                    &ModuleInfo::turretProjDmg);
+        moduleHandle.RegisterMember("turretExitSpeed",
+                                    &ModuleInfo::turretExitSpeed);
+        moduleHandle.RegisterMember("turretLifetime",
+                                    &ModuleInfo::turretLifetime);
+        moduleHandle.RegisterMember("turretReloadTime",
+                                    &ModuleInfo::turretReloadTime);
+        moduleHandle.RegisterMember("turretDps", &ModuleInfo::turretDps);
+        moduleHandle.RegisterMember("turretBeamWidth",
+                                    &ModuleInfo::turretBeamWidth);
+        moduleHandle.RegisterMember("turretBeamLength",
+                                    &ModuleInfo::turretBeamLength);
+        moduleHandle.RegisterMember("turretArcAngle",
+                                    &ModuleInfo::turretArcAngle);
+        moduleHandle.RegisterMember("turretArcLength",
+                                    &ModuleInfo::turretArcLength);
     }
     moddingToolsConstructor.Bind("module", &moduleInfo);
     moddingToolsConstructor.RegisterArray<std::vector<string>>();
@@ -2219,6 +2428,9 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
         slotHandle.RegisterMember("posX", &SlotInfo::posX);
         slotHandle.RegisterMember("posY", &SlotInfo::posY);
         slotHandle.RegisterMember("rot", &SlotInfo::rot);
+        slotHandle.RegisterMember("minAngle", &SlotInfo::minAngle);
+        slotHandle.RegisterMember("maxAngle", &SlotInfo::maxAngle);
+        slotHandle.RegisterMember("hasAngleLimits", &SlotInfo::hasAngleLimits);
     }
     moddingToolsConstructor.RegisterArray<std::vector<SlotInfo>>();
     moddingToolsConstructor.Bind("slots", &slots);
@@ -2240,6 +2452,14 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     }
     moddingToolsConstructor.RegisterArray<std::vector<ConnectorInfo>>();
     moddingToolsConstructor.Bind("connectors", &connectors);
+    if (auto turretExitHandle =
+            moddingToolsConstructor.RegisterStruct<TurretExitInfo>())
+    {
+        turretExitHandle.RegisterMember("x", &TurretExitInfo::x);
+        turretExitHandle.RegisterMember("y", &TurretExitInfo::y);
+    }
+    moddingToolsConstructor.RegisterArray<std::vector<TurretExitInfo>>();
+    moddingToolsConstructor.Bind("turretExits", &turretExits);
 
     moddingToolsConstructor.Bind("openFilepath", &openFilepath);
     moddingToolsConstructor.Bind("extendTextures", &extendTextures);
@@ -2264,6 +2484,7 @@ void ModdingTools::onModdingNewHull(Rml::DataModelHandle handle,
     slots.clear();
     collider.clear();
     connectors.clear();
+    turretExits.clear();
     genInfo.colliderRestitutionVal = 0.1f;
     selectedObjectType = SelectableObjectType::None;
     selectedObjectIndex = -1;
@@ -2277,6 +2498,7 @@ void ModdingTools::onModdingNewHull(Rml::DataModelHandle handle,
     handle.DirtyVariable("slots");
     handle.DirtyVariable("collider");
     handle.DirtyVariable("connectors");
+    handle.DirtyVariable("turretExits");
     syncListSelectionToRml();
     LG_D("Modding tools: new hull");
 }
@@ -2298,6 +2520,8 @@ void ModdingTools::onModdingNewModule(Rml::DataModelHandle handle,
     slots.clear();
     collider.clear();
     connectors.clear();
+    turretExits.clear();
+    turretExits.clear();
     selectedObjectType = SelectableObjectType::None;
     selectedObjectIndex = -1;
     textureRowNameFocusIndex = -1;
@@ -2306,6 +2530,7 @@ void ModdingTools::onModdingNewModule(Rml::DataModelHandle handle,
     handle.DirtyVariable("hull");
     handle.DirtyVariable("module");
     handle.DirtyVariable("textures");
+    handle.DirtyVariable("turretExits");
     syncListSelectionToRml();
     LG_D("Modding tools: new module");
 }
@@ -2337,6 +2562,7 @@ void ModdingTools::onModdingNewStationPart(Rml::DataModelHandle handle,
     handle.DirtyVariable("textures");
     handle.DirtyVariable("collider");
     handle.DirtyVariable("connectors");
+    handle.DirtyVariable("turretExits");
     syncListSelectionToRml();
     LG_D("Modding tools: new station part");
 }
@@ -2466,6 +2692,7 @@ void ModdingTools::onModdingFileLoad(Rml::DataModelHandle handle,
     handle.DirtyVariable("slots");
     handle.DirtyVariable("collider");
     handle.DirtyVariable("connectors");
+    handle.DirtyVariable("turretExits");
     handle.DirtyVariable("stationPart");
     handle.DirtyVariable("mode");
     textureSizeAppliedForName.resize(textures.size());
@@ -2908,6 +3135,55 @@ void ModdingTools::onRemoveConnector(Rml::DataModelHandle handle,
     }
 }
 
+void ModdingTools::syncTurretNumBarrelsFromExits()
+{
+    applyTurretNumBarrelsFromExits(moduleInfo, turretExits);
+    if (rmlModel_)
+    {
+        rmlModel_.DirtyVariable("module");
+    }
+}
+
+void ModdingTools::onAddTurretExit(Rml::DataModelHandle handle,
+                                   Rml::Event& event,
+                                   const Rml::VariantList& args)
+{
+    (void)event;
+    (void)args;
+    turretExits.push_back(TurretExitInfo{});
+    syncTurretNumBarrelsFromExits();
+    handle.DirtyVariable("turretExits");
+}
+
+void ModdingTools::onClearTurretExits(Rml::DataModelHandle handle,
+                                      Rml::Event& event,
+                                      const Rml::VariantList& args)
+{
+    (void)event;
+    (void)args;
+    turretExits.clear();
+    syncTurretNumBarrelsFromExits();
+    handle.DirtyVariable("turretExits");
+}
+
+void ModdingTools::onRemoveTurretExit(Rml::DataModelHandle handle,
+                                      Rml::Event& event,
+                                      const Rml::VariantList& args)
+{
+    (void)event;
+    if (args.size() != 1)
+    {
+        return;
+    }
+    const int i = args[0].Get<int>(-1);
+    if (i >= 0 && i < static_cast<int>(turretExits.size()))
+    {
+        turretExits.erase(turretExits.begin() + static_cast<size_t>(i));
+        syncTurretNumBarrelsFromExits();
+        handle.DirtyVariable("turretExits");
+    }
+}
+
 void ModdingTools::syncStationPartConnectorTextures()
 {
     if (activeMode != ModdingToolsMode::StationPart)
@@ -3023,15 +3299,21 @@ void ModdingTools::parseEditorNumericFields()
         tryParseFloat(slot.posX, slot.posXVal);
         tryParseFloat(slot.posY, slot.posYVal);
         tryParseFloat(slot.rot, slot.rotVal);
+        tryParseFloat(slot.minAngle, slot.minAngleVal);
+        tryParseFloat(slot.maxAngle, slot.maxAngleVal);
         floatToString(slot.posXVal, slot.posX, 2);
         floatToString(slot.posYVal, slot.posY, 2);
         floatToString(slot.rotVal, slot.rot, 2);
+        floatToString(slot.minAngleVal, slot.minAngle, 2);
+        floatToString(slot.maxAngleVal, slot.maxAngle, 2);
         auto slotType =
             magic_enum::enum_cast<gobj::ModuleSlotType>(slot.slotType);
         if (slotType.has_value())
         {
             slot.slotTypeVal = slotType.value();
         }
+        slot.hasAngleLimits =
+            gobj::moduleSlotTypeHasAngleLimits(slot.slotTypeVal);
         rmlModel_.DirtyVariable("slot");
     }
     for (auto& vertex : collider)
@@ -3050,6 +3332,10 @@ void ModdingTools::parseEditorNumericFields()
     }
     parseStorageVolumesInfoStrings(stationPartInfo.storageVolumes);
     parseModuleInfoNumericFields(moduleInfo);
+    if (moduleInfo.moduleTypeVal == gobj::ModuleType::Turret)
+    {
+        syncTurretNumBarrelsFromExits();
+    }
     if (rmlModel_)
     {
         rmlModel_.DirtyVariable("module");
@@ -3065,7 +3351,15 @@ void ModdingTools::parseEditorNumericFields()
         floatToString(connector.posYVal, connector.posY, 2);
         floatToString(connector.rotDegVal, connector.rot, 2);
     }
+    for (auto& turretExit : turretExits)
+    {
+        tryParseFloat(turretExit.x, turretExit.xVal);
+        tryParseFloat(turretExit.y, turretExit.yVal);
+        floatToString(turretExit.xVal, turretExit.x, 2);
+        floatToString(turretExit.yVal, turretExit.y, 2);
+    }
     rmlModel_.DirtyVariable("connectors");
+    rmlModel_.DirtyVariable("turretExits");
     rmlModel_.DirtyVariable("stationPart");
     rmlModel_.DirtyVariable("hull");
     if (activeMode == ModdingToolsMode::Hull)
@@ -3325,6 +3619,10 @@ void ModdingTools::draw(gfx::RenderEngine& renderer)
                              + gobj::ModuleSlotZOffset[static_cast<size_t>(
                                  moduleInfo.slotTypeVal)];
             drawTextures(renderer, z);
+            if (moduleInfo.moduleTypeVal == gobj::ModuleType::Turret)
+            {
+                drawTurretExits(renderer);
+            }
             break;
         }
         case ModdingToolsMode::StationPart:
@@ -3472,44 +3770,79 @@ void ModdingTools::drawConnectors(gfx::RenderEngine& renderer)
     }
 }
 
+void ModdingTools::drawTurretExits(gfx::RenderEngine& renderer)
+{
+    constexpr uint32_t kTurretExitColor = 0xff40c0ffu;
+    constexpr float kTurretExitLineLength = 1.0f;
+    const float zoom = renderer.getWorldZoom();
+    const float lineW = 1.0f / std::max(zoom, 1e-3f);
+    for (const auto& exit : turretExits)
+    {
+        const glm::vec2 p0(exit.xVal, exit.yVal);
+        const glm::vec2 p1(exit.xVal, exit.yVal + kTurretExitLineLength);
+        renderer.drawLine(p0, p1, kTurretExitColor, lineW, 0.0f, 0);
+    }
+}
+
 void ModdingTools::drawRoofSlot(gfx::RenderEngine& renderer,
                                 const SlotInfo& slot,
                                 bool selected)
 {
-    drawExampleSlotTexture(
-        renderer, slot, exampleSlotTextureName(slot.slotTypeVal), 0xffffff00, selected);
+    const float zoom = renderer.getWorldZoom();
+    // drawExampleSlotTexture(renderer,
+    //                        slot,
+    //                        exampleSlotTextureName(slot.slotTypeVal),
+    //                        0xffffff00,
+    //                        selected);
+    const vec2 pos = glm::vec2(slot.posXVal, slot.posYVal);
+    const vec2 vert = vec2(0.0f, 2.0f);
+    const vec2 horz = vec2(2.0f, 0.0f);
+    renderer.drawLine(pos - vert, pos + vert, 0xffffff00, 1.0f / zoom, 0.0f, 0);
+    renderer.drawLine(pos - horz, pos + horz, 0xffffff00, 1.0f / zoom, 0.0f, 0);
 }
 
 void ModdingTools::drawThrusterMainSlot(gfx::RenderEngine& renderer,
                                         const SlotInfo& slot,
                                         bool selected)
 {
-    drawExampleSlotTexture(
-        renderer, slot, exampleSlotTextureName(slot.slotTypeVal), 0xffffff00, selected);
+    drawExampleSlotTexture(renderer,
+                           slot,
+                           exampleSlotTextureName(slot.slotTypeVal),
+                           0xffffff00,
+                           selected);
 }
 
 void ModdingTools::drawThrusterManeuverSlot(gfx::RenderEngine& renderer,
                                             const SlotInfo& slot,
                                             bool selected)
 {
-    drawExampleSlotTexture(
-        renderer, slot, exampleSlotTextureName(slot.slotTypeVal), 0xffffff00, selected);
+    drawExampleSlotTexture(renderer,
+                           slot,
+                           exampleSlotTextureName(slot.slotTypeVal),
+                           0xffffff00,
+                           selected);
 }
 
 void ModdingTools::drawInternalSlot(gfx::RenderEngine& renderer,
                                     const SlotInfo& slot,
                                     bool selected)
 {
-    drawExampleSlotTexture(
-        renderer, slot, exampleSlotTextureName(slot.slotTypeVal), 0xff44ff44, selected);
+    drawExampleSlotTexture(renderer,
+                           slot,
+                           exampleSlotTextureName(slot.slotTypeVal),
+                           0xff44ff44,
+                           selected);
 }
 
 void ModdingTools::drawBaySlot(gfx::RenderEngine& renderer,
                                const SlotInfo& slot,
                                bool selected)
 {
-    drawExampleSlotTexture(
-        renderer, slot, exampleSlotTextureName(slot.slotTypeVal), 0xffffff00, selected);
+    drawExampleSlotTexture(renderer,
+                           slot,
+                           exampleSlotTextureName(slot.slotTypeVal),
+                           0xffffff00,
+                           selected);
 }
 
 bool ModdingTools::loadHullDataFromPath(const string& path)
@@ -3546,6 +3879,7 @@ bool ModdingTools::loadHullDataFromPath(const string& path)
     slots.clear();
     collider.clear();
     connectors.clear();
+    turretExits.clear();
     stationPartInfo = StationPartInfo{};
     genInfo.colliderRestitutionVal = 0.1f;
     genInfo = GeneralInfo{};
@@ -3645,6 +3979,26 @@ bool ModdingTools::loadHullDataFromPath(const string& path)
                 }
                 s.rotVal = rotDeg;
                 floatToString(s.rotVal, s.rot, 2);
+
+                if (gobj::moduleSlotTypeHasAngleLimits(s.slotTypeVal))
+                {
+                    float minAngleDeg = -180.0f;
+                    float maxAngleDeg = 180.0f;
+                    if (sn["min-angle"])
+                    {
+                        minAngleDeg = sn["min-angle"].as<float>();
+                    }
+                    if (sn["max-angle"])
+                    {
+                        maxAngleDeg = sn["max-angle"].as<float>();
+                    }
+                    s.minAngleVal = minAngleDeg;
+                    s.maxAngleVal = maxAngleDeg;
+                    floatToString(s.minAngleVal, s.minAngle, 2);
+                    floatToString(s.maxAngleVal, s.maxAngle, 2);
+                }
+                s.hasAngleLimits =
+                    gobj::moduleSlotTypeHasAngleLimits(s.slotTypeVal);
 
                 slots.push_back(std::move(s));
             }
@@ -3817,16 +4171,23 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
         }
 
         moduleInfo.maxThrustVal = 100000.0f;
-        formatModdingThrustMNString(moduleInfo.maxThrustVal, moduleInfo.maxThrust);
+        formatModdingThrustMNString(moduleInfo.maxThrustVal,
+                                    moduleInfo.maxThrust);
         moduleInfo.storageVolumes = StorageVolumesInfo{};
+        moduleInfo.turretType = "Projectile";
+        moduleInfo.turretTypeVal = def::TurretType::Projectile;
+        moduleInfo.turretDamageType = "Kinetic";
+        moduleInfo.turretDamageTypeVal = def::DamageType::Kinetic;
+        moduleInfo.turretNumBarrels = "0";
+        moduleInfo.turretNumBarrelsVal = 0;
         const YAML::Node dataNode = modNode["data"];
         if (dataNode && dataNode.IsMap())
         {
             if (dataNode["max-thrust"])
             {
                 moduleInfo.maxThrustVal = dataNode["max-thrust"].as<float>();
-                formatModdingThrustMNString(
-                    moduleInfo.maxThrustVal, moduleInfo.maxThrust);
+                formatModdingThrustMNString(moduleInfo.maxThrustVal,
+                                            moduleInfo.maxThrust);
             }
             loadModuleStorageVolumesFromYaml(dataNode,
                                              moduleInfo.storageVolumes);
@@ -3847,6 +4208,109 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
                     dataNode["hangar-space"].as<float>();
                 floatToString(
                     moduleInfo.hangarSpaceVal, moduleInfo.hangarSpace, 2);
+            }
+            if (dataNode[kTurretTypeYamlKey])
+            {
+                moduleInfo.turretType =
+                    dataNode[kTurretTypeYamlKey].as<string>();
+            }
+            if (auto tt = magic_enum::enum_cast<def::TurretType>(
+                    moduleInfo.turretType);
+                tt.has_value())
+            {
+                moduleInfo.turretTypeVal = tt.value();
+            }
+            if (dataNode[kTurretDamageTypeYamlKey])
+            {
+                moduleInfo.turretDamageType =
+                    dataNode[kTurretDamageTypeYamlKey].as<string>();
+            }
+            if (auto dt = magic_enum::enum_cast<def::DamageType>(
+                    moduleInfo.turretDamageType);
+                dt.has_value())
+            {
+                moduleInfo.turretDamageTypeVal = dt.value();
+            }
+            if (dataNode["proj-dmg"])
+            {
+                moduleInfo.turretProjDmgVal = dataNode["proj-dmg"].as<float>();
+                floatToString(
+                    moduleInfo.turretProjDmgVal, moduleInfo.turretProjDmg, 2);
+            }
+            if (dataNode["exit-speed"])
+            {
+                moduleInfo.turretExitSpeedVal =
+                    dataNode["exit-speed"].as<float>();
+                floatToString(moduleInfo.turretExitSpeedVal,
+                              moduleInfo.turretExitSpeed,
+                              2);
+            }
+            if (dataNode["lifetime"])
+            {
+                moduleInfo.turretLifetimeVal = dataNode["lifetime"].as<float>();
+                floatToString(
+                    moduleInfo.turretLifetimeVal, moduleInfo.turretLifetime, 2);
+            }
+            if (dataNode["reload-time"])
+            {
+                moduleInfo.turretReloadTimeVal =
+                    dataNode["reload-time"].as<float>();
+                floatToString(moduleInfo.turretReloadTimeVal,
+                              moduleInfo.turretReloadTime,
+                              2);
+            }
+            if (dataNode["dps"])
+            {
+                moduleInfo.turretDpsVal = dataNode["dps"].as<float>();
+                floatToString(moduleInfo.turretDpsVal, moduleInfo.turretDps, 2);
+            }
+            if (dataNode["beam-width"])
+            {
+                moduleInfo.turretBeamWidthVal =
+                    dataNode["beam-width"].as<float>();
+                floatToString(moduleInfo.turretBeamWidthVal,
+                              moduleInfo.turretBeamWidth,
+                              2);
+            }
+            if (dataNode["beam-length"])
+            {
+                moduleInfo.turretBeamLengthVal =
+                    dataNode["beam-length"].as<float>();
+                floatToString(moduleInfo.turretBeamLengthVal,
+                              moduleInfo.turretBeamLength,
+                              2);
+            }
+            if (dataNode["arc-angle"])
+            {
+                moduleInfo.turretArcAngleVal =
+                    dataNode["arc-angle"].as<float>();
+                floatToString(
+                    moduleInfo.turretArcAngleVal, moduleInfo.turretArcAngle, 2);
+            }
+            if (dataNode["arc-length"])
+            {
+                moduleInfo.turretArcLengthVal =
+                    dataNode["arc-length"].as<float>();
+                floatToString(moduleInfo.turretArcLengthVal,
+                              moduleInfo.turretArcLength,
+                              2);
+            }
+            const YAML::Node exitsNode = dataNode[kTurretExitsYamlKey];
+            if (exitsNode && exitsNode.IsSequence())
+            {
+                for (const YAML::Node& en : exitsNode)
+                {
+                    if (!en || !en.IsSequence() || en.size() < 2)
+                    {
+                        continue;
+                    }
+                    TurretExitInfo te;
+                    te.xVal = en[0].as<float>();
+                    te.yVal = en[1].as<float>();
+                    floatToString(te.xVal, te.x, 2);
+                    floatToString(te.yVal, te.y, 2);
+                    turretExits.push_back(std::move(te));
+                }
             }
         }
 
@@ -3903,6 +4367,19 @@ bool ModdingTools::saveModuleDataToPath(const string& path)
 
     YAML::Node dataNode(YAML::NodeType::Map);
     writeModuleDataYaml(dataNode, moduleInfo);
+    if (moduleInfo.moduleTypeVal == gobj::ModuleType::Turret
+        && !turretExits.empty())
+    {
+        YAML::Node exitsNode(YAML::NodeType::Sequence);
+        for (const auto& te : turretExits)
+        {
+            YAML::Node p(YAML::NodeType::Sequence);
+            p.push_back(te.xVal);
+            p.push_back(te.yVal);
+            exitsNode.push_back(p);
+        }
+        dataNode[kTurretExitsYamlKey] = exitsNode;
+    }
     if (dataNode.size() > 0)
     {
         modNode["data"] = dataNode;
@@ -4208,6 +4685,11 @@ bool ModdingTools::saveHullDataToPath(const string& path)
         sn["pos"].push_back(s.posYVal);
         sn["rot"] = s.rotVal;
         sn["z"] = 0;
+        if (gobj::moduleSlotTypeHasAngleLimits(s.slotTypeVal))
+        {
+            sn["min-angle"] = s.minAngleVal;
+            sn["max-angle"] = s.maxAngleVal;
+        }
         slotSeq.push_back(sn);
     }
     if (!slots.empty())

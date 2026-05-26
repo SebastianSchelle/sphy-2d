@@ -30,6 +30,7 @@ enum class SelectableObjectType
     Slot,
     ColliderVertex,
     Connector,
+    TurretExit,
 };
 
 enum class ModdingToolsMode
@@ -84,11 +85,17 @@ struct SlotInfo
     string posX = "0.0";
     string posY = "0.0";
     string rot = "0.0";
+    string minAngle = "-180";
+    string maxAngle = "180";
 
     gobj::ModuleSlotType slotTypeVal = gobj::ModuleSlotType::RoofS_Common;
     float posXVal = 0.0f;
     float posYVal = 0.0f;
     float rotVal = 0.0f;
+    float minAngleVal = -180.0f;
+    float maxAngleVal = 180.0f;
+    /** Rml: show min/max angle fields for roof and bay slot types. */
+    bool hasAngleLimits = true;
 };
 
 struct ColliderVertex
@@ -163,6 +170,33 @@ struct ModuleInfo
     def::ShipClass hangarMaxShipClassVal = def::ShipClass::Drone;
     string hangarSpace = "0";
     float hangarSpaceVal = 0.0f;
+    /** `data.turret-type` / `data.damage-type` / `data.num-barrels` for Turret modules. */
+    string turretType = "Projectile";
+    def::TurretType turretTypeVal = def::TurretType::Projectile;
+    string turretDamageType = "Kinetic";
+    def::DamageType turretDamageTypeVal = def::DamageType::Kinetic;
+    string turretNumBarrels = "1";
+    int turretNumBarrelsVal = 1;
+    /** Projectile-like turret params (`proj-dmg`, `exit-speed`, `lifetime`, `reload-time`). */
+    string turretProjDmg = "1";
+    float turretProjDmgVal = 1.0f;
+    string turretExitSpeed = "1000";
+    float turretExitSpeedVal = 1000.0f;
+    string turretLifetime = "1";
+    float turretLifetimeVal = 1.0f;
+    string turretReloadTime = "1";
+    float turretReloadTimeVal = 1.0f;
+    /** Beam/arc turret params. */
+    string turretDps = "1";
+    float turretDpsVal = 1.0f;
+    string turretBeamWidth = "1";
+    float turretBeamWidthVal = 1.0f;
+    string turretBeamLength = "1000";
+    float turretBeamLengthVal = 1000.0f;
+    string turretArcAngle = "10";
+    float turretArcAngleVal = 10.0f;
+    string turretArcLength = "1000";
+    float turretArcLengthVal = 1000.0f;
 };
 
 struct ConnectorInfo
@@ -173,6 +207,14 @@ struct ConnectorInfo
     float posXVal = 0.0f;
     float posYVal = 0.0f;
     float rotDegVal = 0.0f;
+};
+
+struct TurretExitInfo
+{
+    string x = "0.0";
+    string y = "0.0";
+    float xVal = 0.0f;
+    float yVal = 0.0f;
 };
 
 class ModdingTools
@@ -270,6 +312,15 @@ class ModdingTools
     void onRemoveConnector(Rml::DataModelHandle handle,
                            Rml::Event& event,
                            const Rml::VariantList& args);
+    void onAddTurretExit(Rml::DataModelHandle handle,
+                         Rml::Event& event,
+                         const Rml::VariantList& args);
+    void onClearTurretExits(Rml::DataModelHandle handle,
+                            Rml::Event& event,
+                            const Rml::VariantList& args);
+    void onRemoveTurretExit(Rml::DataModelHandle handle,
+                            Rml::Event& event,
+                            const Rml::VariantList& args);
     void onTextureNameFocus(Rml::DataModelHandle handle,
                             Rml::Event& event,
                             const Rml::VariantList& args);
@@ -316,6 +367,8 @@ class ModdingTools
     void drawSlots(gfx::RenderEngine& renderer);
     void drawTextures(gfx::RenderEngine& renderer, int8_t zParent = 0);
     void drawConnectors(gfx::RenderEngine& renderer);
+    void drawTurretExits(gfx::RenderEngine& renderer);
+    void syncTurretNumBarrelsFromExits();
 
     bool saveHullDataToPath(const string& path);
     bool loadHullDataFromPath(const string& path);
@@ -356,6 +409,7 @@ class ModdingTools
     vector<SlotInfo> slots;
     vector<ColliderVertex> collider;
     vector<ConnectorInfo> connectors;
+    vector<TurretExitInfo> turretExits;
     /** Physics restitution for hull collider; YAML key `restitution` under `collider:<hullKey>`. */
     bool extendTextures = true;
     bool extendSlots = true;

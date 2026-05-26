@@ -19,11 +19,13 @@ struct ModuleRef
 {
     EntityId entityId;
     gobj::ModuleType slotType;
+    gobj::ModuleSlotType moduleSlotType;
 };
 
 #define SER_MODULE_REF                                                         \
     SOBJ(o.entityId);                                                          \
-    S1b(o.slotType);
+    S1b(o.slotType);                                                            \
+    S1b(o.moduleSlotType);
 EXT_SER(ModuleRef, SER_MODULE_REF)
 EXT_DES(ModuleRef, SER_MODULE_REF)
 

@@ -70,8 +70,80 @@ Hangar Hangar::fromYaml(const YAML::Node& node)
 
 Turret Turret::fromYaml(const YAML::Node& node)
 {
-    (void)node;
-    return Turret{};
+    Turret turret{};
+    string turretTypeStr = string(magic_enum::enum_name(turret.type));
+    TRY_YAML_DICT(turretTypeStr, node["turret-type"], turretTypeStr);
+    turret.type = magic_enum::enum_cast<def::TurretType>(turretTypeStr)
+                      .value_or(def::TurretType::Projectile);
+
+    string damageTypeStr = string(magic_enum::enum_name(
+        def::TurretTypeDefaultDamage[static_cast<size_t>(turret.type)]));
+    TRY_YAML_DICT(damageTypeStr, node["damage-type"], damageTypeStr);
+    turret.damageType = magic_enum::enum_cast<def::DamageType>(damageTypeStr)
+                            .value_or(def::TurretTypeDefaultDamage[static_cast<size_t>(
+                                turret.type)]);
+
+    const YAML::Node exitsNode = node["barrel-exits"];
+    if (exitsNode && exitsNode.IsSequence())
+    {
+        for (const YAML::Node& en : exitsNode)
+        {
+            if (!en || !en.IsSequence() || en.size() < 2)
+            {
+                continue;
+            }
+            turret.barrelExits.emplace_back(en[0].as<float>(), en[1].as<float>());
+        }
+    }
+
+    if (turret.barrelExits.empty())
+    {
+        turret.barrelExits.emplace_back(0.0f, 0.0f);
+    }
+    turret.numBarrels = static_cast<uint8_t>(
+        std::min<size_t>(255, turret.barrelExits.size()));
+
+    switch (turret.type)
+    {
+        case def::TurretType::Projectile:
+        case def::TurretType::Railgun:
+        case def::TurretType::Missile:
+        {
+            BallisticData ballistic{};
+            TRY_YAML_DICT(ballistic.projDmg, node["proj-dmg"], ballistic.projDmg);
+            TRY_YAML_DICT(
+                ballistic.exitSpeed, node["exit-speed"], ballistic.exitSpeed);
+            TRY_YAML_DICT(ballistic.lifetime, node["lifetime"], ballistic.lifetime);
+            TRY_YAML_DICT(
+                ballistic.reloadTime, node["reload-time"], ballistic.reloadTime);
+            turret.data = ballistic;
+            break;
+        }
+        case def::TurretType::Laser:
+        {
+            LaserData laser{};
+            TRY_YAML_DICT(laser.dps, node["dps"], laser.dps);
+            TRY_YAML_DICT(laser.beamWidth, node["beam-width"], laser.beamWidth);
+            TRY_YAML_DICT(laser.beamLength, node["beam-length"], laser.beamLength);
+            turret.data = laser;
+            break;
+        }
+        case def::TurretType::Arc:
+        {
+            ArcData arc{};
+            TRY_YAML_DICT(arc.dps, node["dps"], arc.dps);
+            TRY_YAML_DICT(arc.arcAngle, node["arc-angle"], arc.arcAngle);
+            TRY_YAML_DICT(arc.arcLength, node["arc-length"], arc.arcLength);
+            turret.data = arc;
+            break;
+        }
+        case def::TurretType::Mining:
+            turret.data = MiningData{};
+            break;
+        default:
+            break;
+    }
+    return turret;
 }
 
 }  // namespace mdata
@@ -113,6 +185,9 @@ Module Module::fromYaml(const YAML::Node& node,
                 break;
             case ModuleType::Hangar:
                 module.data = mdata::Hangar::fromYaml(dataNode);
+                break;
+            case ModuleType::Turret:
+                module.data = mdata::Turret::fromYaml(dataNode);
                 break;
             default:
                 break;

@@ -431,16 +431,24 @@ void Engine::parseCommandData(const net::CmdQueueData& cmdData)
             }
         }
 
-        while (cmddes.adapter().currentReadPos() <= data.size() - 5)
+        while (cmddes.adapter().currentReadPos()
+               <= data.size() - prot::kCommandHeaderSize)
         {
             uint16_t cmd;
             uint8_t flags;
-            uint16_t len;
+            uint32_t len;
             cmddes.value2b(cmd);
             cmddes.value1b(flags);
-            cmddes.value2b(len);
+            cmddes.value4b(len);
             size_t dataStartPos = cmddes.adapter().currentReadPos();
 
+            if (len > prot::kMaxCommandPayloadBytes)
+            {
+                LG_E("Command payload length too large: cmd={}, len={}",
+                     cmd,
+                     len);
+                break;
+            }
             if (dataStartPos + len > data.size())
             {
                 LG_W("Command data too short cmd={}, len={}", cmd, len);
@@ -1085,13 +1093,16 @@ void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
             mcomp.startCommand(prot::cmd::ALL_ENTT_COMPONENTS, CMD_FLAG_RESP);
             mcomp.execute(sendQueue);
         });
+    uint32_t count = 0;
     ecs.iterateEntities(
-        [this, clientInfo, conn](ecs::EntityId entityId)
+        [this, clientInfo, conn, &count](ecs::EntityId entityId)
         {
             const ecs::EntityId entityCopy = entityId;
             clientInfo->addWorkFunction(
-                [this, entityCopy, conn]()
-                { sendAllComponents(entityCopy, conn); });
+                [this, entityCopy, conn, &count]()
+                {
+                    sendAllComponents(entityCopy, conn);
+                });
         });
     clientInfo->addWorkFunction(
         [this, clientInfo, conn]()
@@ -1153,13 +1164,13 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 800; ++i)
+    for (int i = 0; i < 80000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
         uint32_t sectorId = sectorPick(gen);
         ecs::EntityId ent;
-        if (i % 4 == 1)
+        if (i % 4 == 0)
         {
             ent = spawnShipHull(modManager.getHullLib().getHandle("Bee"),
                                 sectorId,
@@ -1170,9 +1181,13 @@ void Engine::testSpawn()
             spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
             spawnModule(
+                ent, modManager.getModuleLib().getHandle("Polter Mk1"), 3);
+            spawnModule(
+                ent, modManager.getModuleLib().getHandle("Polter Mk1"), 4);
+            spawnModule(
                 ent, modManager.getModuleLib().getHandle("Terran Tank S"), 5);
         }
-        else if (i % 4 == 2)
+        else if (i % 4 == 1)
         {
             ent = spawnShipHull(modManager.getHullLib().getHandle("Mosquito"),
                                 sectorId,
@@ -1183,19 +1198,27 @@ void Engine::testSpawn()
             spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
         }
-        else if (i % 4 == 3)
+        else if (i % 4 == 2)
         {
             ent = spawnShipHull(modManager.getHullLib().getHandle("Bumblebee"),
                                 sectorId,
                                 ecs::Transform{pos, rot});
             spawnModule(
-                ent, modManager.getModuleLib().getHandle("Cargo Container S"), 0);
+                ent,
+                modManager.getModuleLib().getHandle("Cargo Container S"),
+                0);
             spawnModule(
-                ent, modManager.getModuleLib().getHandle("Cargo Container S"), 1);
+                ent,
+                modManager.getModuleLib().getHandle("Cargo Container S"),
+                1);
             spawnModule(
-                ent, modManager.getModuleLib().getHandle("Cargo Container S"), 2);
+                ent,
+                modManager.getModuleLib().getHandle("Cargo Container S"),
+                2);
             spawnModule(
-                ent, modManager.getModuleLib().getHandle("Cargo Container S"), 3);
+                ent,
+                modManager.getModuleLib().getHandle("Cargo Container S"),
+                3);
             spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 4);
             spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 5);
@@ -2004,7 +2027,8 @@ ecs::EntityId Engine::spawnModule(ecs::EntityId parent,
         default:
             break;
     }
-    hull->addModule(slotIndex, ecs::ModuleRef{ent, module->type});
+    hull->addModule(slotIndex,
+                    ecs::ModuleRef{ent, module->type, module->slotType});
     return ent;
 }
 

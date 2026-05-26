@@ -43,7 +43,7 @@ bool writeMessage(net::CmdQueueData& cmdData,
     bitsery::Serializer<OutputAdapter> cmdser(OutputAdapter(cmdData.data));
     if (cmdData.sendType == net::SendType::UDP && useToken)
     {
-        cmdser.adapter().currentWritePos(17);
+        cmdser.adapter().currentWritePos(kUdpTokenPrefixBytes);
     }
     size_t ptrBefore = cmdser.adapter().currentWritePos();
     if (!contentWriter(cmdser))
@@ -64,14 +64,22 @@ bool writeCommand(bitsery::Serializer<OutputAdapter>& cmdser,
     cmdser.value2b(cmd);
     cmdser.value1b(flags);
     size_t lenPos = cmdser.adapter().currentWritePos();
-    cmdser.value2b((uint16_t)0);
+    cmdser.value4b((uint32_t)0);
     if (!contentWriter(cmdser))
     {
         return false;
     }
     size_t currPos = cmdser.adapter().currentWritePos();
+    const size_t payloadLen = currPos - lenPos - kPayloadLengthFieldBytes;
+    if (payloadLen > kMaxCommandPayloadBytes)
+    {
+        LG_E("Command payload too large: {} bytes (max {})",
+             payloadLen,
+             kMaxCommandPayloadBytes);
+        return false;
+    }
     cmdser.adapter().currentWritePos(lenPos);
-    cmdser.value2b((uint16_t)(currPos - lenPos - 2));
+    cmdser.value4b(static_cast<uint32_t>(payloadLen));
     cmdser.adapter().currentWritePos(currPos);
     return true;
 }
@@ -114,7 +122,7 @@ void MsgComposer::startCommand(uint16_t cmd, uint8_t flags)
     currCmdPos = ser->adapter().currentWritePos();
     ser->value1b(flags);
     currLenPos = ser->adapter().currentWritePos();
-    ser->value2b((uint16_t)0);
+    ser->value4b((uint32_t)0);
     hasContent = true;
     cmdFinished = false;
 }
@@ -135,9 +143,15 @@ void MsgComposer::execute(ConcurrentQueue<net::CmdQueueData>& sendQueue)
 void MsgComposer::finishCommand()
 {
     size_t currPos = ser->adapter().currentWritePos();
-    size_t cmdLen = currPos - currLenPos - 2;
+    const size_t cmdLen = currPos - currLenPos - kPayloadLengthFieldBytes;
+    if (cmdLen > kMaxCommandPayloadBytes)
+    {
+        LG_E("Command payload too large: {} bytes (max {})",
+             cmdLen,
+             kMaxCommandPayloadBytes);
+    }
     ser->adapter().currentWritePos(currLenPos);
-    ser->value2b((uint16_t)cmdLen);
+    ser->value4b(static_cast<uint32_t>(cmdLen));
     ser->adapter().currentWritePos(currPos);
     cmdFinished = true;
 }

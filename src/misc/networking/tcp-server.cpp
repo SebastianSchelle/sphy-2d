@@ -96,9 +96,18 @@ void TcpConnection::doRead()
                             rcvCmdState = RcvCmdState::ParseLen1;
                             break;
                         case RcvCmdState::ParseLen1:
-                            rcvCmdLen = rcvCmdLen | (recvBuf[i] << 8);
+                            rcvCmdLen |= static_cast<uint32_t>(recvBuf[i]) << 8;
+                            rcvCmdState = RcvCmdState::ParseLen2;
+                            break;
+                        case RcvCmdState::ParseLen2:
+                            rcvCmdLen |= static_cast<uint32_t>(recvBuf[i]) << 16;
+                            rcvCmdState = RcvCmdState::ParseLen3;
+                            break;
+                        case RcvCmdState::ParseLen3:
+                            rcvCmdLen |= static_cast<uint32_t>(recvBuf[i]) << 24;
                             lastDataStart = rcvdCmd.data.size();
-                            rcvCmdState = rcvCmdLen ? RcvCmdState::ParseData : RcvCmdState::ParseCmd0;
+                            rcvCmdState = rcvCmdLen ? RcvCmdState::ParseData
+                                                    : RcvCmdState::ParseCmd0;
                             break;
                         case RcvCmdState::ParseData:
                             if (rcvdCmd.data.size() - lastDataStart == rcvCmdLen)

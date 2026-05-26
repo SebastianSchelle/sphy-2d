@@ -3,9 +3,10 @@
 
 #include <lib-textures.hpp>
 #include <magic_enum/magic_enum.hpp>
-#include <std-inc.hpp>
-#include <yaml-cpp/yaml.h>
 #include <ship-def.hpp>
+#include <std-inc.hpp>
+#include <turret-def.hpp>
+#include <yaml-cpp/yaml.h>
 
 namespace gobj
 {
@@ -41,6 +42,7 @@ enum class ModuleSlotType : uint8_t
 
 constexpr int8_t
     ModuleSlotZOffset[static_cast<size_t>(ModuleSlotType::NumSlotTypes)] = {
+        -5,  // ThrusterMainS_Common
         -5,  // ThrusterMainM_Common
         -5,  // ThrusterMainL_Common
         -5,  // ThrusterManeuverS_Common
@@ -57,11 +59,30 @@ constexpr int8_t
         -5,  // BayL_Common
 };
 
+inline bool moduleSlotTypeHasAngleLimits(ModuleSlotType type)
+{
+    switch (type)
+    {
+        case ModuleSlotType::RoofS_Common:
+        case ModuleSlotType::RoofM_Common:
+        case ModuleSlotType::RoofL_Common:
+        case ModuleSlotType::BayS_Common:
+        case ModuleSlotType::BayM_Common:
+        case ModuleSlotType::BayL_Common:
+            return true;
+        default:
+            return false;
+    }
+}
+
 struct ModuleSlot
 {
     ModuleSlotType type;
     vec2 pos;
     float rot;
+    /** Allowed module yaw relative to slot forward (radians); roof/bay slots only. */
+    float minAngle = 0.0f;
+    float maxAngle = 0.0f;
 };
 
 enum class ModuleType : uint8_t
@@ -71,6 +92,7 @@ enum class ModuleType : uint8_t
     ManeuverThruster,
     Storage,
     Hangar,
+    Turret,
 };
 
 namespace mdata
@@ -99,6 +121,61 @@ struct Hangar
 };
 struct Turret
 {
+    struct BallisticData
+    {
+        float projDmg = 1.0f;
+        float exitSpeed = 1000.0f;
+        float lifetime = 1.0f;
+        float reloadTime = 1.0f;
+    };
+    struct LaserData
+    {
+        float dps = 1.0f;
+        float beamWidth = 1.0f;
+        float beamLength = 1000.0f;
+        uint32_t beamColor = 0xFFFFFFFF;
+    };
+    struct PlasmaData
+    {
+        float projDmg = 1.0f;
+        float exitSpeed = 1000.0f;
+        float lifetime = 1.0f;
+        uint32_t plasmaColor = 0xFFFFFFFF;
+    };
+    struct ArcData
+    {
+        float dps = 1.0f;
+        float arcAngle = 10.0f;
+        float arcLength = 1000.0f;
+        uint32_t arcColor = 0xFFFFFFFF;
+    };
+    struct MissileData
+    {
+    };
+    struct RailgunData
+    {
+        float projDmg = 1.0f;
+        float exitSpeed = 1000.0f;
+        float lifetime = 1.0f;
+    };
+    struct MiningData
+    {
+    };
+    typedef std::variant<BallisticData,
+                         LaserData,
+                         PlasmaData,
+                         ArcData,
+                         MissileData,
+                         RailgunData,
+                         MiningData>
+        TurretData;
+    TurretData data = BallisticData{};
+    def::TurretType type = def::TurretType::Projectile;
+    def::DamageType damageType =
+        def::TurretTypeDefaultDamage[static_cast<size_t>(type)];
+    uint8_t numBarrels = 1;
+    vector<vec2> barrelExits;
+
     static Turret fromYaml(const YAML::Node& node);
 };
 using Data =
@@ -127,10 +204,12 @@ using ModuleHandle = typename con::ItemLib<Module>::Handle;
 EXT_FMT(gobj::StorageType, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::ModuleSlotType, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::ModuleSlot,
-        "(modType: {}, pos: {}, rot: {})",
+        "(modType: {}, pos: {}, rot: {}, minAngle: {}, maxAngle: {})",
         o.type,
         o.pos,
-        o.rot);
+        o.rot,
+        o.minAngle,
+        o.maxAngle);
 EXT_FMT(gobj::ModuleType, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::Module,
         "(name: {}, description: {}, type: {}, slotType: {}, textures: {})",

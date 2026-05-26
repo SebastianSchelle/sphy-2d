@@ -1,0 +1,19 @@
+{
+  // data/ and saves/ are in .gitignore but should appear in Quick Open (Ctrl+E / Ctrl+P) and search.
+  "explorer.excludeGitIgnore": false,
+
+  // Keep bulky generated paths hidden even when gitignore is not applied to the explorer.
+  "files.exclude": {
+    "build": true,
+    "**/build": true,
+    ".cache": true,
+    "**/.cache": true,
+    "compile_commands.json": true
+  },
+
+  "search.useIgnoreFiles": false,
+  "search.exclude": {
+    "**/build": true,
+    "**/.cache": true
+  }
+}

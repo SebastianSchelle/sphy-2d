@@ -32,7 +32,7 @@ class TcpClient
     tcp::endpoint devServerEndpoint;
     std::atomic<bool> running{true};
     RcvCmdState rcvCmdState = RcvCmdState::ParseCmd0;
-    uint16_t rcvCmdLen = 0;
+    uint32_t rcvCmdLen = 0;
     uint16_t lastDataStart = 0;
     net::CmdQueueData rcvdCmd;
 };

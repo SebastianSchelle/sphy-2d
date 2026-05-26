@@ -78,9 +78,11 @@ enum class RcvCmdState
 {
   ParseCmd0,
   ParseCmd1,
+  ParseFlags,
   ParseLen0,
   ParseLen1,
-  ParseFlags,
+  ParseLen2,
+  ParseLen3,
   ParseData,
 };
 

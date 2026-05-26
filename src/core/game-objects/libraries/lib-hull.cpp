@@ -145,6 +145,15 @@ Hull Hull::fromYaml(const YAML::Node& node,
             float rotDeg = 0.0f;
             TRY_YAML_DICT(rotDeg, slotNode["rot"], 0.0f);
             slot.rot = smath::degToRad(rotDeg);
+            if (moduleSlotTypeHasAngleLimits(slot.type))
+            {
+                float minAngleDeg = -180.0f;
+                float maxAngleDeg = 180.0f;
+                TRY_YAML_DICT(minAngleDeg, slotNode["min-angle"], minAngleDeg);
+                TRY_YAML_DICT(maxAngleDeg, slotNode["max-angle"], maxAngleDeg);
+                slot.minAngle = smath::degToRad(minAngleDeg);
+                slot.maxAngle = smath::degToRad(maxAngleDeg);
+            }
             hull.slots.push_back(slot);
         }
     }
