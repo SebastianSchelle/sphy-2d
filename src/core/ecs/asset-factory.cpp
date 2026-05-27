@@ -8,6 +8,8 @@
 #include <comp-struct.hpp>
 #include <comp-tag.hpp>
 #include <comp-ai.hpp>
+#include <comp-storage.hpp>
+#include <comp-turret.hpp>
 
 namespace ecs
 {
@@ -56,6 +58,10 @@ void ComponentFactory::registerAllComponents()
     registerComponent<ecs::Ai>();
     registerComponent<ecs::Station>();
     registerComponent<ecs::StationPart>();
+    registerComponent<ecs::Module>();
+    registerComponent<ecs::Storage>();
+    registerComponent<ecs::Turret>();
+    registerComponent<ecs::Projectile>();
 }
 
 AssetFactory::AssetFactory() {}

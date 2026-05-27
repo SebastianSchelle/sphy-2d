@@ -118,11 +118,23 @@ struct StationPart
 EXT_SER(StationPart, SER_STATION_PART)
 EXT_DES(StationPart, SER_STATION_PART)
 
+struct Projectile
+{
+    static const uint16_t VERSION = 1;
+    static constexpr string NAME = "projectile";
+    float dmg = 1.0f;
+};
+
+#define SER_PROJECTILE S4b(o.dmg);
+EXT_SER(Projectile, SER_PROJECTILE)
+EXT_DES(Projectile, SER_PROJECTILE)
+
 }  // namespace ecs
 
 EXT_FMT(ecs::Hull, "(hullHandle: {}, hull: {})", o.hullHandle, o.hp);
 EXT_FMT(ecs::Module, "(moduleHandle: {})", o.moduleHandle);
 EXT_FMT(ecs::Station, "(hp: {})", o.hp);
 EXT_FMT(ecs::StationPart, "(stationPartHandle: {})", o.stationPartHandle);
+EXT_FMT(ecs::Projectile, "(dmg: {})", o.dmg);
 
 #endif

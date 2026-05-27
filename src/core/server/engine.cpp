@@ -9,6 +9,7 @@
 #include <comp-phy.hpp>
 #include <comp-struct.hpp>
 #include <comp-tag.hpp>
+#include <comp-turret.hpp>
 #include <components/comp-phy.hpp>
 #include <engine-impl.hpp>
 #include <net-shared.hpp>
@@ -17,6 +18,7 @@
 #include <server.hpp>
 #include <sys-ai.hpp>
 #include <sys-phy.hpp>
+#include <sys-turret.hpp>
 #include <thread>
 #include <version.hpp>
 #include <work-distributor.hpp>
@@ -82,11 +84,13 @@ void Engine::start()
     ecs.registerSystem(ecs::sysCollisionDetection);
     ecs.registerSystem(ecs::sysAnchorFixed);
     ecs.registerSystem(ecs::sysAi);
+    ecs.registerSystem(ecs::sysTurret);
 
     registerConsoleCommands();
 
     registerSlowDumpComponent<ecs::Transform>();
-    registerActiveSectorDumpComponent<ecs::Transform>();
+    registerActiveSectorDumpComponent<ecs::Transform>(DumpFilter::Selectable);
+    registerActiveSectorDumpComponent<ecs::Turret>();
 
     def::ClientInfoHandle handle = registerClient(
         def::ClientInfo("Based Laser King",
@@ -225,7 +229,10 @@ void Engine::update(float dt)
     {
         def::ClientInfo* clientInfo = clientLib.getItem(handle);
         auto& thrdCtrl = clientInfo->thirdPersonControl;
-        if (thrdCtrl.dirty_active)
+        if (thrdCtrl.flags
+            & (def::ThirdPersonControl::FLG_DRIVE_MANUAL
+               | def::ThirdPersonControl::FLG_TURN_MANUAL
+               | def::ThirdPersonControl::FLG_FIRE_WEAPONS))
         {
             ecs::EntityId entityId = clientInfo->activeEntity;
             entt::entity ent = ecs.getEntity(entityId);
@@ -776,19 +783,7 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 def::ThirdPersonControl& thirdPersonControl =
                     clientInfo->thirdPersonControl;
                 cmddes.object(thirdPersonControl);
-                thirdPersonControl.dirty_active = true;
-                ecs::EntityId entityId = clientInfo->activeEntity;
-                entt::entity ent = ecs.getEntity(entityId);
-                if (ent == entt::null)
-                {
-                    LG_W("Entity not found for client {}", clientInfo->name);
-                    return;
-                }
-                auto* ai = ptrHandle->registry->try_get<ecs::Ai>(ent);
-                if (ai)
-                {
-                    ai->active = false;
-                }
+                handleThirdPersonControl(clientInfo, tcpConnection);
             }
             break;
         }
@@ -1100,9 +1095,7 @@ void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
             const ecs::EntityId entityCopy = entityId;
             clientInfo->addWorkFunction(
                 [this, entityCopy, conn, &count]()
-                {
-                    sendAllComponents(entityCopy, conn);
-                });
+                { sendAllComponents(entityCopy, conn); });
         });
     clientInfo->addWorkFunction(
         [this, clientInfo, conn]()
@@ -1112,6 +1105,19 @@ void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
             mcomp.ser->value4b(ecs.getNumEntities());
             mcomp.execute(sendQueue);
         });
+}
+
+void Engine::broadcastEntityToClients(ecs::EntityId entityId)
+{
+    for (def::ClientInfoHandle handle : connectedClientHandles)
+    {
+        def::ClientInfo* clientInfo = clientLib.getItem(handle);
+        if (!clientInfo || !clientInfo->clientInfo.connection)
+        {
+            continue;
+        }
+        sendAllComponents(entityId, clientInfo->clientInfo.connection);
+    }
 }
 
 void Engine::sendAllComponents(ecs::EntityId entityId, net::TcpConnection* conn)
@@ -1164,7 +1170,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 80000; ++i)
+    for (int i = 0; i < 4; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1604,6 +1610,12 @@ Engine::makeStationPart(entt::entity entity,
         entity, partHandle.toGenericHandle());
 }
 
+ecs::Turret* Engine::makeTurret(entt::entity entity, const ecs::Turret& turret)
+{
+    auto& reg = ecs.getRegistry();
+    return &reg.emplace_or_replace<ecs::Turret>(entity, turret);
+}
+
 ecs::AnchorFixed* Engine::makeAnchorFixed(entt::entity entity,
                                           const ecs::AnchorFixed& anchorFixed)
 {
@@ -2024,12 +2036,111 @@ ecs::EntityId Engine::spawnModule(ecs::EntityId parent,
             break;
         case gobj::ModuleType::Storage:
             break;
+        case gobj::ModuleType::Turret:
+        {
+            gobj::mdata::Turret libTurretData =
+                std::get<gobj::mdata::Turret>(module->data);
+            if (!makeTurret(
+                    entt,
+                    ecs::Turret{
+                        .aimMode = ecs::Turret::AimMode::None,
+                        .aimData = ecs::Turret::AngleData{0.0f},
+                        .data = ecs::Turret::fromGobjTurretData(libTurretData),
+                        .currentAngle = 0.0f,
+                        .isFiring = false,
+                    }))
+            {
+                LG_E("Failed to make turret component");
+            }
+            break;
+        }
         default:
             break;
     }
     hull->addModule(slotIndex,
                     ecs::ModuleRef{ent, module->type, module->slotType});
     return ent;
+}
+
+void Engine::handleThirdPersonControl(def::ClientInfo* clientInfo,
+                                      net::TcpConnection* conn)
+{
+    def::ThirdPersonControl& tpc = clientInfo->thirdPersonControl;
+    ecs::EntityId entityId = clientInfo->activeEntity;
+    entt::entity ent = ecs.getEntity(entityId);
+    if (ent == entt::null)
+    {
+        LG_W("Entity not found for client {}", clientInfo->name);
+        return;
+    }
+    auto* ai = ptrHandle->registry->try_get<ecs::Ai>(ent);
+    bool shutdownAi = tpc.flags
+                      & (def::ThirdPersonControl::FLG_DRIVE_MANUAL
+                         | def::ThirdPersonControl::FLG_DRIVE_MANUAL
+                         | def::ThirdPersonControl::FLG_FIRE_WEAPONS);
+    if (ai && shutdownAi)
+    {
+        ai->active = false;
+    }
+
+    auto* hull = ptrHandle->registry->try_get<ecs::Hull>(ent);
+    if (hull)
+    {
+        for (const auto& module : hull->modules)
+        {
+            if (module.slotType == gobj::ModuleType::Turret)
+            {
+                entt::entity turretEntt = ecs.getEntity(module.entityId);
+                if (turretEntt != entt::null)
+                {
+                    auto* turret =
+                        ptrHandle->registry->try_get<ecs::Turret>(turretEntt);
+                    if (turret)
+                    {
+                        turret->isFiring =
+                            tpc.flags
+                            & def::ThirdPersonControl::FLG_FIRE_WEAPONS;
+                        turret->aimMode = ecs::Turret::AimMode::Point;
+                        turret->aimData = ecs::Turret::PointData{tpc.ptrPos};
+                    }
+                }
+            }
+        }
+    }
+}
+
+void Engine::spawnProjectile(uint32_t sectorId,
+                             vec2 pos,
+                             vec2 vel,
+                             gobj::TexturesHandle texturesHandle)
+{
+    auto& reg = ecs.getRegistry();
+    auto ent = ecs.createEntity();
+    entt::entity entt = ecs.getEntity(ent);
+    if (entt == entt::null)
+    {
+        LG_E("Failed to create entity for projectile");
+        return;
+    }
+    makeSelectable(entt);
+    reg.emplace_or_replace<ecs::Projectile>(
+        entt, ecs::Projectile{.dmg = 1.0f});
+    makePhysicsBody(
+        entt,
+        ecs::PhysicsBody{.mass = 1.0f,
+                         .vel = vel,
+                         .acc = vec2(0.0f, 0.0f),
+                         .inertia = 1.0f,
+                         .rotVel = 0.0f,
+                         .rotAcc = 0.0f});
+    if (!placeInSector(ent, entt, sectorId, {pos, 0.0f}))
+    {
+        LG_E("Failed to place projectile in sector");
+        ecs.destroyEntity(ent);
+        return;
+    }
+    LG_I("Spawning projectile: {}", ent);
+    broadcastEntityToClients(ent);
 }
 
 }  // namespace sphys

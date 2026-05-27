@@ -1,6 +1,7 @@
 #include "GLFW/glfw3.h"
 #include "RmlUi/Core/Core.h"
 #include "bgfx/defines.h"
+#include "control-def.hpp"
 #include "std-inc.hpp"
 #include "vertex-defines.hpp"
 #include <bgfx/platform.h>
@@ -404,6 +405,7 @@ void MainWindow::renderGame()
             renderEngine.panWorld(panX, panY);
             break;
         case gfx::GameViewMode::ThirdPerson:
+            processMouseThirdPerson(zoom);
             model.drawThirdPerson(renderEngine, viewportRect, zoom);
             renderEngine.panWorld(panX, panY);
             break;
@@ -492,6 +494,11 @@ void MainWindow::processMouseTactical(float zoom)
             || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
         model.selectedEntitiesMoveCmd(mouseState.mouseCoords, shiftPressed);
     }
+}
+
+void MainWindow::processMouseThirdPerson(float zoom)
+{
+    model.getThirdPersonControl().ptrPos = mouseState.mouseCoords.sectorPos;
 }
 
 void MainWindow::drawWorldRectangle(const def::SectorCoords& A,
@@ -1372,6 +1379,24 @@ void MainWindow::setupThirdPersonCtrl()
         GLFW_KEY_D,
         &def::ThirdPersonControl::strafeRight,
         &def::ThirdPersonControl::stopStrafeRight);
+    userInput.addKeyPressReleasePairs(
+        {ui::InputEvent::Environment::ThirdPerson},
+        "Fire weapons",
+        "Fire the third person control's weapons",
+        GLFW_KEY_SPACE,
+        0,
+        [this](const ui::InputEvent::EventData& eventData)
+        {
+            model.getThirdPersonControl().flags |=
+                def::ThirdPersonControl::FLG_FIRE_WEAPONS;
+            return true;
+        },
+        [this](const ui::InputEvent::EventData& eventData)
+        {
+            model.getThirdPersonControl().flags &=
+                ~def::ThirdPersonControl::FLG_FIRE_WEAPONS;
+            return true;
+        });
 }
 
 void MainWindow::determineUiEnvironment()
@@ -1405,8 +1430,7 @@ void MainWindow::determineUiEnvironment()
                 ui::InputEvent::Environment::AtlasDebug);
             break;
         case gfx::GameViewMode::Menu:
-            userInterface.setUiEnvironment(
-                ui::InputEvent::Environment::Menu);
+            userInterface.setUiEnvironment(ui::InputEvent::Environment::Menu);
             break;
         default:
             userInterface.setUiEnvironment(

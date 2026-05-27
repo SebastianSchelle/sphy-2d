@@ -31,7 +31,10 @@ struct Storage
     void updateStatsFromEntity(entt::entity entity, ecs::PtrHandle* ptrHandle);
 };
 
-#define SER_STORAGE SOBJ(o.cargo);
+#define SER_STORAGE                                                          \
+    for (size_t _i = 0; _i < static_cast<size_t>(gobj::StorageType::NumStorageTypes); ++_i) { \
+        s.object(o.cargo[_i]); \
+    }
 EXT_SER(Storage, SER_STORAGE)
 EXT_DES(Storage, SER_STORAGE)
 

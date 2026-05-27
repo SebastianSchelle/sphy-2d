@@ -253,6 +253,7 @@ class MainWindow
     void renderModdingTools(bool mouseOverUi);
     void renderAtlasDebug(bool mouseOverUi);
     void processMouseTactical(float zoom);
+    void processMouseThirdPerson(float zoom);
     void setupThirdPersonCtrl();
     void setupMapCtrl();
     void determineUiEnvironment();

@@ -160,6 +160,8 @@ struct ModuleInfo
     /** Display: metric tons (game mass = tons × 1000). */
     string mass = "1";
     float massVal = 1000.0f;
+    /** Textures-lib key written to module `base-texture` (`module.texturesBase`). */
+    string baseTexture;
     /** Display: MN (game max-thrust in N = MN × 1e6). */
     string maxThrust = "0.10";
     float maxThrustVal = 100000.0f;
@@ -177,6 +179,9 @@ struct ModuleInfo
     def::DamageType turretDamageTypeVal = def::DamageType::Kinetic;
     string turretNumBarrels = "1";
     int turretNumBarrelsVal = 1;
+    /** `data.rot-speed` — turret traverse rate (rad/s). */
+    string turretRotSpeed = "1";
+    float turretRotSpeedVal = 1.0f;
     /** Projectile-like turret params (`proj-dmg`, `exit-speed`, `lifetime`, `reload-time`). */
     string turretProjDmg = "1";
     float turretProjDmgVal = 1.0f;
@@ -193,10 +198,14 @@ struct ModuleInfo
     float turretBeamWidthVal = 1.0f;
     string turretBeamLength = "1000";
     float turretBeamLengthVal = 1000.0f;
+    string turretBeamColor = "4294967295";
+    uint32_t turretBeamColorVal = 0xFFFFFFFFu;
     string turretArcAngle = "10";
     float turretArcAngleVal = 10.0f;
     string turretArcLength = "1000";
     float turretArcLengthVal = 1000.0f;
+    string turretArcColor = "4294967295";
+    uint32_t turretArcColorVal = 0xFFFFFFFFu;
 };
 
 struct ConnectorInfo
@@ -282,6 +291,15 @@ class ModdingTools
     void onRemoveTexture(Rml::DataModelHandle handle,
                          Rml::Event& event,
                          const Rml::VariantList& args);
+    void onAddBaseTexture(Rml::DataModelHandle handle,
+                          Rml::Event& event,
+                          const Rml::VariantList& args);
+    void onClearBaseTextures(Rml::DataModelHandle handle,
+                             Rml::Event& event,
+                             const Rml::VariantList& args);
+    void onRemoveBaseTexture(Rml::DataModelHandle handle,
+                             Rml::Event& event,
+                             const Rml::VariantList& args);
     void onAddSlot(Rml::DataModelHandle handle,
                    Rml::Event& event,
                    const Rml::VariantList& args);
@@ -337,6 +355,21 @@ class ModdingTools
     void onPickNewTextureNameFromPicker(Rml::DataModelHandle handle,
                                         Rml::Event& event,
                                         const Rml::VariantList& args);
+    void onBaseTextureNameFocus(Rml::DataModelHandle handle,
+                                Rml::Event& event,
+                                const Rml::VariantList& args);
+    void onGlobalNewBaseTexturePickerFocus(Rml::DataModelHandle handle,
+                                           Rml::Event& event,
+                                           const Rml::VariantList& args);
+    void onBaseTextureRowNonNameFocus(Rml::DataModelHandle handle,
+                                      Rml::Event& event,
+                                      const Rml::VariantList& args);
+    void onPickBaseTextureName(Rml::DataModelHandle handle,
+                               Rml::Event& event,
+                               const Rml::VariantList& args);
+    void onPickNewBaseTextureNameFromPicker(Rml::DataModelHandle handle,
+                                            Rml::Event& event,
+                                            const Rml::VariantList& args);
     void onModdingSelectListRow(Rml::DataModelHandle handle,
                                 Rml::Event& event,
                                 const Rml::VariantList& args);
@@ -400,12 +433,16 @@ class ModdingTools
     ModuleInfo moduleInfo;
     float hpVal = 0.0f;
     vector<TextureInfo> textures;
+    vector<TextureInfo> baseTextures;
     vector<string> renderTextureNames;
     /** Add-texture row: filter field and suggestion list (Hull / StationPart). */
     string newTexturePickerName;
     vector<string> filteredNewTexturePickerNames;
+    string newBaseTexturePickerName;
+    vector<string> filteredNewBaseTexturePickerNames;
     /** Last name|tileCnt sync key we applied auto pixel-size scaling for. */
     vector<string> textureSizeAppliedForName;
+    vector<string> baseTextureSizeAppliedForName;
     vector<SlotInfo> slots;
     vector<ColliderVertex> collider;
     vector<ConnectorInfo> connectors;
@@ -422,6 +459,7 @@ class ModdingTools
     /** Per-row texture name field focus; controls visibility of that row's name
      * suggestions (-1 = none). Global "Add by name" list is unaffected. */
     int textureRowNameFocusIndex = -1;
+    int baseTextureRowNameFocusIndex = -1;
 
     SelectableObjectType selectedObjectType = SelectableObjectType::None;
     int selectedObjectIndex = -1;

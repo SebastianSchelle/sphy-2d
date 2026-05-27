@@ -1,4 +1,5 @@
 #include "comp-phy.hpp"
+#include "lib-modules.hpp"
 #include "lib-textures.hpp"
 #include "logging.hpp"
 #include "std-inc.hpp"
@@ -6,6 +7,7 @@
 #include <comp-ident.hpp>
 #include <comp-struct.hpp>
 #include <comp-tag.hpp>
+#include <comp-turret.hpp>
 #include <exchange-sequence.hpp>
 #include <model.hpp>
 #include <protocol.hpp>
@@ -163,6 +165,7 @@ void Model::modelLoopGame(float dt)
     static tim::Timepoint testTime = tim::getCurrentTimeU();
     static tim::Timepoint lastReqAllComponents = tim::getCurrentTimeU();
     static tim::Timepoint lastGetAabbTree = tim::getCurrentTimeU();
+    static tim::Timepoint lastSendThirdPersonControl = tim::getCurrentTimeU();
 
     if (renderer->getViewMode() == gfx::GameViewMode::ThirdPerson
         || renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
@@ -194,11 +197,10 @@ void Model::modelLoopGame(float dt)
 
     if (renderer->getViewMode() == gfx::GameViewMode::ThirdPerson)
     {
-        if (thirdPersonControl.dirty_active)
-        {
-            sendThirdPersonControl();
-            thirdPersonControl.dirty_active = false;
-        }
+        DO_PERIODIC_EXTNOW(lastSendThirdPersonControl,
+                           30000,
+                           now,
+                           [this]() { sendThirdPersonControl(); });
     }
 
     if (timeSyncData.cnt == 0)
@@ -466,6 +468,7 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         {
             if (flags & CMD_FLAG_RESP)
             {
+                LG_I("Received all components response");
                 handleReqAllComponentsResp(cmddes, dataEndPos);
             }
             break;
@@ -712,6 +715,7 @@ void Model::drawObjects(gfx::RenderEngine& renderer,
                         float zoom,
                         uint32_t activeSectorId)
 {
+    drawProjectiles(renderer, viewRect, zoom, activeSectorId);
     drawStations(renderer, viewRect, zoom, activeSectorId);
     drawShips(renderer, viewRect, zoom, activeSectorId);
 }
@@ -786,6 +790,41 @@ void Model::drawStations(gfx::RenderEngine& renderer,
         });
 }
 
+void Model::drawProjectiles(gfx::RenderEngine& renderer,
+                            const glm::vec4& viewRect,
+                            float zoom,
+                            uint32_t activeSectorId)
+{
+    auto& reg = ecs.getRegistry();
+    reg.view<ecs::Transform, ecs::SectorId, ecs::Projectile>().each(
+        [this, &renderer, &viewRect, &reg, activeSectorId](
+            ecs::Transform& transform,
+            ecs::SectorId& sectorId,
+            ecs::Projectile& projectile)
+        {
+            LG_I("Drawing projectile: {}", projectile.dmg);
+            bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
+                                || sectorId.id == activeSectorId;
+            if (sectorFilter)
+            {
+                glm::vec2 worldPos =
+                    world.getWorldPosSectorOffset(sectorId.id,
+                                                  renderer.getSectorOffsetX(),
+                                                  renderer.getSectorOffsetY())
+                    + transform.pos;
+                if (smath::pointInsideRect(worldPos, viewRect))
+                {
+                    renderer.drawEllipse(worldPos,
+                                         glm::vec2(0.5f, 0.5f),
+                                         0xffffffff,
+                                         0.0f,
+                                         0.0f,
+                                         0);
+                }
+            }
+        });
+}
+
 void Model::drawStationTextures(gfx::RenderEngine& renderer,
                                 const ecs::Transform& parentTransform,
                                 ecs::Station& station,
@@ -831,13 +870,40 @@ void Model::drawModuleTextures(gfx::RenderEngine& renderer,
             const int8_t moduleZ = parentZ + moduleOffset;
             auto* anchorFixed = reg.try_get<ecs::AnchorFixed>(moduleEntity);
             auto* moduleTextures = reg.try_get<ecs::Textures>(moduleEntity);
-            if (anchorFixed && moduleTextures)
+            auto* module = reg.try_get<ecs::Module>(moduleEntity);
+            if (anchorFixed && moduleTextures && module)
             {
+                gobj::Module* moduleItem = modManager->getModuleLib().getItem(
+                    gobj::ModuleHandle(module->moduleHandle));
+                float moduleRot = 0.0f;
+                if (moduleItem)
+                {
+                    switch (moduleItem->type)
+                    {
+                        case gobj::ModuleType::Turret:
+                        {
+                            auto* turret =
+                                reg.try_get<ecs::Turret>(moduleEntity);
+                            if (turret)
+                            {
+                                moduleRot = turret->currentAngle;
+                            }
+                        }
+                        break;
+                        default:
+                            moduleRot = 0.0f;
+                            break;
+                    }
+                }
+                else
+                {
+                    moduleRot = 0.0f;
+                }
                 const vec2 anchorFixedPos =
                     smath::rotateVec2(anchorFixed->pos, parentTransform.rot);
                 drawTextures(renderer,
                              *moduleTextures,
-                             parentTransform.rot + anchorFixed->rot,
+                             parentTransform.rot + anchorFixed->rot + moduleRot,
                              moduleZ,
                              worldPos + anchorFixedPos);
             }
@@ -866,8 +932,8 @@ void Model::drawTextures(gfx::RenderEngine& renderer,
             {
                 texHandleGFX = mappedTexture->texHandle;
             }
-            // Offset is in body space; rotate by +rot (CW, Y-down). drawTexRect
-            // uses (rot - texture.rot), same convention as
+            // Offset is in body space; rotate by +rot (CW, Y-down).
+            // drawTexRect uses (rot - texture.rot), same convention as
             // ModdingTools::drawTextures.
             vec2 texOffset = smath::rotateVec2(
                 vec2(texture.bounds.x, texture.bounds.y), rot);
@@ -1026,10 +1092,6 @@ void Model::handleActiveSectorDump(bitsery::Deserializer<InputAdapter>& cmddes,
                 ecs::EntityId entityId;
                 cmddes.object(entityId);
                 entt::entity entity = ecs.enttFromServerId(entityId);
-                if (entity == entt::null)
-                {
-                    continue;
-                }
                 auto& reg = ecs.getRegistry();
                 auto [x, y] = world.idToSectorCoords(sectorId);
                 reg.emplace_or_replace<ecs::SectorId>(entity, sectorId, x, y);
@@ -1357,7 +1419,6 @@ entt::entity Model::getActiveEntity()
 
 void Model::sendThirdPersonControl()
 {
-    LG_D("Sending third person control");
     prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
     mcomp.startCommand(prot::cmd::THIRD_PERSON_CTRL, 0);
     mcomp.ser->object(thirdPersonControl);

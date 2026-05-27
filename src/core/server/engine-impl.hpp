@@ -113,7 +113,8 @@ template <typename Component> void Engine::registerSlowDumpComponent()
         }));
 }
 
-template <typename Component> void Engine::registerActiveSectorDumpComponent()
+template <typename Component>
+void Engine::registerActiveSectorDumpComponent(DumpFilter filter)
 {
     const std::string name = Component::NAME;
     for (auto& component : activeSectorUpdates)
@@ -126,13 +127,13 @@ template <typename Component> void Engine::registerActiveSectorDumpComponent()
 
     activeSectorUpdates.push_back(CompActiveSectorUpdate(
         name,
-        [this, name](const net::ClientInfo* clientInfo,
-                     uint32_t sectorId,
-                     ecs::PtrHandle* ptrHandle)
+        [this, name, filter](const net::ClientInfo* clientInfo,
+                             uint32_t sectorId,
+                             ecs::PtrHandle* ptrHandle)
         {
             prot::MsgComposer mcomp(net::SendType::UDP,
                                     clientInfo->udpEndpoint);
-            mcomp.startCommand(prot::cmd::SLOW_DUMP, 0);
+            mcomp.startCommand(prot::cmd::ACTIVE_SECTOR_UPDATE, 0);
             mcomp.ser->value4b(hashConst(name.c_str()));
 
             uint16_t entityCntMessage = 0;
@@ -155,10 +156,23 @@ template <typename Component> void Engine::registerActiveSectorDumpComponent()
                 {
                     auto component =
                         ptrHandle->registry->try_get<Component>(entity);
-                    bool selectable =
-                        ptrHandle->registry->all_of<ecs::tag::Selectable>(
-                            entity);
-                    if (component && selectable)
+                    switch (filter)
+                    {
+                        case DumpFilter::All:
+                            break;
+                        case DumpFilter::Selectable:
+                        {
+                            if (!ptrHandle->registry
+                                     ->all_of<ecs::tag::Selectable>(entity))
+                            {
+                                continue;
+                            }
+                        }
+                        break;
+                        default:
+                            break;
+                    }
+                    if (component)
                     {
                         mcomp.ser->object(entityId);
                         mcomp.ser->object(*component);

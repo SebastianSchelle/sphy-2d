@@ -28,7 +28,7 @@ class ClientInfo
         this->lastSlowDump = tim::nowU();
         this->lastActiveSectorDump = tim::nowU();
         this->flags = flags;
-        this->thirdPersonControl.dirty_active = false;
+        this->thirdPersonControl.flags = 0;
     }
 #endif
 #ifdef CLIENT

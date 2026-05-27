@@ -2,6 +2,7 @@
 #define ENGINE_HPP
 
 #include "ecs.hpp"
+#include "world-def.hpp"
 #include <asset-factory.hpp>
 #include <atomic>
 #include <boost/asio.hpp>
@@ -10,6 +11,7 @@
 #include <cmd-options.hpp>
 #include <command-node.hpp>
 #include <config-manager/config-manager.hpp>
+#include <control-def.hpp>
 #include <functional>
 #include <item-lib.hpp>
 #include <mod-manager.hpp>
@@ -19,15 +21,15 @@
 #include <task-system.hpp>
 #include <work-distributor.hpp>
 #include <world.hpp>
-#include <control-def.hpp>
 
 #include <lib-hull.hpp>
 
 #include <comp-ai.hpp>
 #include <comp-gfx.hpp>
 #include <comp-phy.hpp>
-#include <comp-struct.hpp>
 #include <comp-storage.hpp>
+#include <comp-struct.hpp>
+#include <comp-turret.hpp>
 
 namespace ecs
 {
@@ -67,6 +69,12 @@ enum class EngineState
     Error,
 };
 
+enum class DumpFilter
+{
+    All,
+    Selectable,
+};
+
 class Engine
 {
   public:
@@ -85,10 +93,15 @@ class Engine
     ecs::EntityId spawnEntityFromAsset(const std::string& assetId,
                                        uint32_t sectorId,
                                        const ecs::Transform& transform);
+    void spawnProjectile(uint32_t sectorId,
+                         vec2 pos,
+                         vec2 vel,
+                         gobj::TexturesHandle texturesHandle);
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
     template <class T> void registerSlowDumpComponent();
-    template <class T> void registerActiveSectorDumpComponent();
+    template <class T>
+    void registerActiveSectorDumpComponent(DumpFilter filter = DumpFilter::All);
 
   private:
     void engineLoop();
@@ -122,8 +135,11 @@ class Engine
     void sendAllEnttComponents(def::ClientInfo* clientInfo,
                                net::TcpConnection* conn);
     void sendAllComponents(ecs::EntityId entityId, net::TcpConnection* conn);
+    void broadcastEntityToClients(ecs::EntityId entityId);
     void testSpawn();
     void handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn);
+    void handleThirdPersonControl(def::ClientInfo* clientInfo,
+                                  net::TcpConnection* conn);
     void markPlayerSectors();
 
     ecs::EntityId spawnShipHull(gobj::HullHandle hullHandle,
@@ -153,10 +169,11 @@ class Engine
     ecs::MoveCtrl* makeMoveCtrl(entt::entity entity,
                                 const ecs::PhyThrust& phyThrust,
                                 const ecs::MoveCtrl& moveCtrl);
-    ecs::Storage* makeStorage(entt::entity entity,
-                              const ecs::Storage& storage);
-    ecs::StationPart* makeStationPart(entt::entity entity,
-                                      const gobj::StationPartHandle& partHandle);
+    ecs::Storage* makeStorage(entt::entity entity, const ecs::Storage& storage);
+    ecs::StationPart*
+    makeStationPart(entt::entity entity,
+                    const gobj::StationPartHandle& partHandle);
+    ecs::Turret* makeTurret(entt::entity entity, const ecs::Turret& turret);
     void makeSelectable(entt::entity entity);
     ecs::AnchorFixed* makeAnchorFixed(entt::entity entity,
                                       const ecs::AnchorFixed& anchorFixed);

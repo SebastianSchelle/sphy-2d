@@ -4,6 +4,8 @@ target_sources(sphy_core_ecs_systems INTERFACE
     ptr-handle.hpp
     sys-ai.hpp
     sys-phy.hpp
+    sys-turret.hpp
+    sys-turret.cpp
 )
 
 target_include_directories(sphy_core_ecs_systems

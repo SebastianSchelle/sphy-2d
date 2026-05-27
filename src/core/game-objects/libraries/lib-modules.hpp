@@ -121,7 +121,7 @@ struct Hangar
 };
 struct Turret
 {
-    struct BallisticData
+    struct ProjectileData
     {
         float projDmg = 1.0f;
         float exitSpeed = 1000.0f;
@@ -134,13 +134,6 @@ struct Turret
         float beamWidth = 1.0f;
         float beamLength = 1000.0f;
         uint32_t beamColor = 0xFFFFFFFF;
-    };
-    struct PlasmaData
-    {
-        float projDmg = 1.0f;
-        float exitSpeed = 1000.0f;
-        float lifetime = 1.0f;
-        uint32_t plasmaColor = 0xFFFFFFFF;
     };
     struct ArcData
     {
@@ -161,21 +154,20 @@ struct Turret
     struct MiningData
     {
     };
-    typedef std::variant<BallisticData,
+    typedef std::variant<ProjectileData,
                          LaserData,
-                         PlasmaData,
                          ArcData,
                          MissileData,
                          RailgunData,
                          MiningData>
         TurretData;
-    TurretData data = BallisticData{};
+    TurretData data = ProjectileData{};
     def::TurretType type = def::TurretType::Projectile;
     def::DamageType damageType =
         def::TurretTypeDefaultDamage[static_cast<size_t>(type)];
     uint8_t numBarrels = 1;
     vector<vec2> barrelExits;
-
+    float rotSpeed = 1.0f;
     static Turret fromYaml(const YAML::Node& node);
 };
 using Data =
@@ -189,6 +181,7 @@ struct Module
     string description;
     ModuleSlotType slotType;
     TexturesHandle textures = TexturesHandle::Invalid();
+    TexturesHandle texturesBase = TexturesHandle::Invalid();
     ModuleType type;
     float mass;
     mdata::Data data;

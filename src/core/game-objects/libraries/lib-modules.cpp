@@ -102,21 +102,39 @@ Turret Turret::fromYaml(const YAML::Node& node)
     }
     turret.numBarrels = static_cast<uint8_t>(
         std::min<size_t>(255, turret.barrelExits.size()));
+    TRY_YAML_DICT(turret.rotSpeed, node["rot-speed"], turret.rotSpeed);
 
     switch (turret.type)
     {
         case def::TurretType::Projectile:
+        {
+            ProjectileData projectile{};
+            TRY_YAML_DICT(
+                projectile.projDmg, node["proj-dmg"], projectile.projDmg);
+            TRY_YAML_DICT(
+                projectile.exitSpeed, node["exit-speed"], projectile.exitSpeed);
+            TRY_YAML_DICT(
+                projectile.lifetime, node["lifetime"], projectile.lifetime);
+            TRY_YAML_DICT(
+                projectile.reloadTime,
+                node["reload-time"],
+                projectile.reloadTime);
+            turret.data = projectile;
+            break;
+        }
         case def::TurretType::Railgun:
+        {
+            RailgunData railgun{};
+            TRY_YAML_DICT(railgun.projDmg, node["proj-dmg"], railgun.projDmg);
+            TRY_YAML_DICT(
+                railgun.exitSpeed, node["exit-speed"], railgun.exitSpeed);
+            TRY_YAML_DICT(railgun.lifetime, node["lifetime"], railgun.lifetime);
+            turret.data = railgun;
+            break;
+        }
         case def::TurretType::Missile:
         {
-            BallisticData ballistic{};
-            TRY_YAML_DICT(ballistic.projDmg, node["proj-dmg"], ballistic.projDmg);
-            TRY_YAML_DICT(
-                ballistic.exitSpeed, node["exit-speed"], ballistic.exitSpeed);
-            TRY_YAML_DICT(ballistic.lifetime, node["lifetime"], ballistic.lifetime);
-            TRY_YAML_DICT(
-                ballistic.reloadTime, node["reload-time"], ballistic.reloadTime);
-            turret.data = ballistic;
+            turret.data = MissileData{};
             break;
         }
         case def::TurretType::Laser:
@@ -125,6 +143,7 @@ Turret Turret::fromYaml(const YAML::Node& node)
             TRY_YAML_DICT(laser.dps, node["dps"], laser.dps);
             TRY_YAML_DICT(laser.beamWidth, node["beam-width"], laser.beamWidth);
             TRY_YAML_DICT(laser.beamLength, node["beam-length"], laser.beamLength);
+            TRY_YAML_DICT(laser.beamColor, node["beam-color"], laser.beamColor);
             turret.data = laser;
             break;
         }
@@ -134,6 +153,7 @@ Turret Turret::fromYaml(const YAML::Node& node)
             TRY_YAML_DICT(arc.dps, node["dps"], arc.dps);
             TRY_YAML_DICT(arc.arcAngle, node["arc-angle"], arc.arcAngle);
             TRY_YAML_DICT(arc.arcLength, node["arc-length"], arc.arcLength);
+            TRY_YAML_DICT(arc.arcColor, node["arc-color"], arc.arcColor);
             turret.data = arc;
             break;
         }
@@ -159,6 +179,12 @@ Module Module::fromYaml(const YAML::Node& node,
     if (texturesName != "")
     {
         module.textures = texturesLib.getHandle(texturesName);
+    }
+    string baseTextureName = "";
+    TRY_YAML_DICT(baseTextureName, node["base-texture"], "");
+    if (baseTextureName != "")
+    {
+        module.texturesBase = texturesLib.getHandle(baseTextureName);
     }
     string slotTypeStr = "";
     TRY_YAML_DICT(slotTypeStr, node["slot-type"], "");

@@ -327,9 +327,8 @@ const System sysPhysics = {
             auto* transform = reg->try_get<Transform>(entity);
             auto* transformCache = reg->try_get<TransformCache>(entity);
             auto* physicsBody = reg->try_get<PhysicsBody>(entity);
-            auto* collider = reg->try_get<Collider>(entity);
             auto* broadphase = reg->try_get<Broadphase>(entity);
-            if (transform && physicsBody && transformCache && collider)
+            if (transform && physicsBody && transformCache)
             {
                 physicsBody->acc += -ptrHandle->linDrag * physicsBody->vel;
                 physicsBody->rotAcc +=
@@ -359,7 +358,9 @@ const System sysPhysics = {
                 {
                     transform->pos += physicsBody->vel * dt;
                 }
-                if (hasSignificantSpd || hasSignificantRotSpd)
+
+                auto* collider = reg->try_get<Collider>(entity);
+                if (collider && (hasSignificantSpd || hasSignificantRotSpd))
                 {
                     const gobj::Collider* colliderDef =
                         collider->getColliderDef(ptrHandle->colliderLib);

@@ -115,7 +115,6 @@ bool UserInput::processEvent(const InputEvent::Identifier& identifier,
                              const InputEvent::EventData& eventData)
 {
     auto it = events.find(identifier);
-    LG_D("Processing event: {}", identifier);
     if (it == events.end())
     {
         return false;

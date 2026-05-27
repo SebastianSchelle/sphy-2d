@@ -113,7 +113,30 @@ constexpr const char* kStationStorageCapYamlKeys[static_cast<size_t>(
 constexpr const char* kTurretTypeYamlKey = "turret-type";
 constexpr const char* kTurretDamageTypeYamlKey = "damage-type";
 constexpr const char* kTurretNumBarrelsYamlKey = "num-barrels";
+constexpr const char* kTurretRotSpeedYamlKey = "rot-speed";
+constexpr const char* kTurretBeamColorYamlKey = "beam-color";
+constexpr const char* kTurretArcColorYamlKey = "arc-color";
+constexpr const char* kModuleBaseTextureYamlKey = "base-texture";
 constexpr const char* kTurretExitsYamlKey = "barrel-exits";
+
+bool tryParseUint32Text(const string& s, uint32_t& out)
+{
+    try
+    {
+        size_t pos = 0;
+        const unsigned long parsed = std::stoul(s, &pos, 0);
+        if (pos != s.size())
+        {
+            return false;
+        }
+        out = static_cast<uint32_t>(parsed);
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
 
 void parseStorageVolumesInfoStrings(StorageVolumesInfo& volumes)
 {
@@ -898,6 +921,7 @@ void parseModuleInfoNumericFields(ModuleInfo& info)
         info.turretDamageType =
             string(magic_enum::enum_name(info.turretDamageTypeVal));
     }
+    tryParseFloat(info.turretRotSpeed, info.turretRotSpeedVal);
     tryParseFloat(info.turretProjDmg, info.turretProjDmgVal);
     tryParseFloat(info.turretExitSpeed, info.turretExitSpeedVal);
     tryParseFloat(info.turretLifetime, info.turretLifetimeVal);
@@ -907,6 +931,9 @@ void parseModuleInfoNumericFields(ModuleInfo& info)
     tryParseFloat(info.turretBeamLength, info.turretBeamLengthVal);
     tryParseFloat(info.turretArcAngle, info.turretArcAngleVal);
     tryParseFloat(info.turretArcLength, info.turretArcLengthVal);
+    tryParseUint32Text(info.turretBeamColor, info.turretBeamColorVal);
+    tryParseUint32Text(info.turretArcColor, info.turretArcColorVal);
+    floatToString(info.turretRotSpeedVal, info.turretRotSpeed, 2);
     floatToString(info.turretProjDmgVal, info.turretProjDmg, 2);
     floatToString(info.turretExitSpeedVal, info.turretExitSpeed, 2);
     floatToString(info.turretLifetimeVal, info.turretLifetime, 2);
@@ -916,6 +943,8 @@ void parseModuleInfoNumericFields(ModuleInfo& info)
     floatToString(info.turretBeamLengthVal, info.turretBeamLength, 2);
     floatToString(info.turretArcAngleVal, info.turretArcAngle, 2);
     floatToString(info.turretArcLengthVal, info.turretArcLength, 2);
+    info.turretBeamColor = std::to_string(info.turretBeamColorVal);
+    info.turretArcColor = std::to_string(info.turretArcColorVal);
 }
 
 void writeModuleDataYaml(YAML::Node& dataNode, const ModuleInfo& info)
@@ -937,27 +966,35 @@ void writeModuleDataYaml(YAML::Node& dataNode, const ModuleInfo& info)
             dataNode[kTurretTypeYamlKey] = info.turretType;
             dataNode[kTurretDamageTypeYamlKey] = info.turretDamageType;
             dataNode[kTurretNumBarrelsYamlKey] = info.turretNumBarrelsVal;
+            dataNode[kTurretRotSpeedYamlKey] = info.turretRotSpeedVal;
             switch (info.turretTypeVal)
             {
                 case def::TurretType::Laser:
                     dataNode["dps"] = info.turretDpsVal;
                     dataNode["beam-width"] = info.turretBeamWidthVal;
                     dataNode["beam-length"] = info.turretBeamLengthVal;
+                    dataNode[kTurretBeamColorYamlKey] = info.turretBeamColorVal;
                     break;
                 case def::TurretType::Arc:
                     dataNode["dps"] = info.turretDpsVal;
                     dataNode["arc-angle"] = info.turretArcAngleVal;
                     dataNode["arc-length"] = info.turretArcLengthVal;
+                    dataNode[kTurretArcColorYamlKey] = info.turretArcColorVal;
                     break;
                 case def::TurretType::Projectile:
-                case def::TurretType::Railgun:
-                case def::TurretType::Missile:
-                case def::TurretType::Mining:
-                default:
                     dataNode["proj-dmg"] = info.turretProjDmgVal;
                     dataNode["exit-speed"] = info.turretExitSpeedVal;
                     dataNode["lifetime"] = info.turretLifetimeVal;
                     dataNode["reload-time"] = info.turretReloadTimeVal;
+                    break;
+                case def::TurretType::Railgun:
+                    dataNode["proj-dmg"] = info.turretProjDmgVal;
+                    dataNode["exit-speed"] = info.turretExitSpeedVal;
+                    dataNode["lifetime"] = info.turretLifetimeVal;
+                    break;
+                case def::TurretType::Missile:
+                case def::TurretType::Mining:
+                default:
                     break;
             }
             break;
@@ -2270,6 +2307,12 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     moddingToolsConstructor.BindEventCallback(
         "removeTexture", &ModdingTools::onRemoveTexture, this);
     moddingToolsConstructor.BindEventCallback(
+        "onAddBaseTexture", &ModdingTools::onAddBaseTexture, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onClearBaseTextures", &ModdingTools::onClearBaseTextures, this);
+    moddingToolsConstructor.BindEventCallback(
+        "removeBaseTexture", &ModdingTools::onRemoveBaseTexture, this);
+    moddingToolsConstructor.BindEventCallback(
         "onAddSlot", &ModdingTools::onAddSlot, this);
     moddingToolsConstructor.BindEventCallback(
         "onClearSlots", &ModdingTools::onClearSlots, this);
@@ -2312,6 +2355,22 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     moddingToolsConstructor.BindEventCallback(
         "onPickNewTextureNameFromPicker",
         &ModdingTools::onPickNewTextureNameFromPicker,
+        this);
+    moddingToolsConstructor.BindEventCallback(
+        "onBaseTextureNameFocus", &ModdingTools::onBaseTextureNameFocus, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onGlobalNewBaseTexturePickerFocus",
+        &ModdingTools::onGlobalNewBaseTexturePickerFocus,
+        this);
+    moddingToolsConstructor.BindEventCallback(
+        "onBaseTextureRowNonNameFocus",
+        &ModdingTools::onBaseTextureRowNonNameFocus,
+        this);
+    moddingToolsConstructor.BindEventCallback(
+        "onPickBaseTextureName", &ModdingTools::onPickBaseTextureName, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onPickNewBaseTextureNameFromPicker",
+        &ModdingTools::onPickNewBaseTextureNameFromPicker,
         this);
     moddingToolsConstructor.BindEventCallback(
         "onModdingSelectListRow", &ModdingTools::onModdingSelectListRow, this);
@@ -2369,6 +2428,8 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
                                     &ModuleInfo::turretDamageType);
         moduleHandle.RegisterMember("turretNumBarrels",
                                     &ModuleInfo::turretNumBarrels);
+        moduleHandle.RegisterMember("turretRotSpeed",
+                                    &ModuleInfo::turretRotSpeed);
         moduleHandle.RegisterMember("turretProjDmg",
                                     &ModuleInfo::turretProjDmg);
         moduleHandle.RegisterMember("turretExitSpeed",
@@ -2382,10 +2443,14 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
                                     &ModuleInfo::turretBeamWidth);
         moduleHandle.RegisterMember("turretBeamLength",
                                     &ModuleInfo::turretBeamLength);
+        moduleHandle.RegisterMember("turretBeamColor",
+                                    &ModuleInfo::turretBeamColor);
         moduleHandle.RegisterMember("turretArcAngle",
                                     &ModuleInfo::turretArcAngle);
         moduleHandle.RegisterMember("turretArcLength",
                                     &ModuleInfo::turretArcLength);
+        moduleHandle.RegisterMember("turretArcColor",
+                                    &ModuleInfo::turretArcColor);
     }
     moddingToolsConstructor.Bind("module", &moduleInfo);
     moddingToolsConstructor.RegisterArray<std::vector<string>>();
@@ -2413,6 +2478,7 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     }
     moddingToolsConstructor.RegisterArray<std::vector<TextureInfo>>();
     moddingToolsConstructor.Bind("textures", &textures);
+    moddingToolsConstructor.Bind("baseTextures", &baseTextures);
     moddingToolsConstructor.Bind("renderTextureNames", &renderTextureNames);
     moddingToolsConstructor.Bind("activeTextureIndex", &activeTextureIndex);
     moddingToolsConstructor.Bind("selectedListKind", &selectedListKind);
@@ -2422,6 +2488,12 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     moddingToolsConstructor.Bind("newTexturePickerName", &newTexturePickerName);
     moddingToolsConstructor.Bind("filteredNewTexturePickerNames",
                                  &filteredNewTexturePickerNames);
+    moddingToolsConstructor.Bind("newBaseTexturePickerName",
+                                 &newBaseTexturePickerName);
+    moddingToolsConstructor.Bind("filteredNewBaseTexturePickerNames",
+                                 &filteredNewBaseTexturePickerNames);
+    moddingToolsConstructor.Bind("baseTextureRowNameFocusIndex",
+                                 &baseTextureRowNameFocusIndex);
     if (auto slotHandle = moddingToolsConstructor.RegisterStruct<SlotInfo>())
     {
         slotHandle.RegisterMember("slotType", &SlotInfo::slotType);
@@ -2479,7 +2551,10 @@ void ModdingTools::onModdingNewHull(Rml::DataModelHandle handle,
     genInfo = GeneralInfo{};
     stationPartInfo = StationPartInfo{};
     textures.clear();
+    baseTextures.clear();
+    baseTextures.clear();
     textureSizeAppliedForName.clear();
+    baseTextureSizeAppliedForName.clear();
     resetNewTexturePickerState();
     slots.clear();
     collider.clear();
@@ -2515,7 +2590,9 @@ void ModdingTools::onModdingNewModule(Rml::DataModelHandle handle,
     moduleInfo = ModuleInfo{};
     stationPartInfo = StationPartInfo{};
     textures.clear();
+    baseTextures.clear();
     textureSizeAppliedForName.clear();
+    baseTextureSizeAppliedForName.clear();
     resetNewTexturePickerState();
     slots.clear();
     collider.clear();
@@ -2544,7 +2621,9 @@ void ModdingTools::onModdingNewStationPart(Rml::DataModelHandle handle,
     genInfo = GeneralInfo{};
     stationPartInfo = StationPartInfo{};
     textures.clear();
+    baseTextures.clear();
     textureSizeAppliedForName.clear();
+    baseTextureSizeAppliedForName.clear();
     resetNewTexturePickerState();
     slots.clear();
     collider.clear();
@@ -2560,6 +2639,7 @@ void ModdingTools::onModdingNewStationPart(Rml::DataModelHandle handle,
     handle.DirtyVariable("hull");
     handle.DirtyVariable("stationPart");
     handle.DirtyVariable("textures");
+    handle.DirtyVariable("baseTextures");
     handle.DirtyVariable("collider");
     handle.DirtyVariable("connectors");
     handle.DirtyVariable("turretExits");
@@ -2689,6 +2769,7 @@ void ModdingTools::onModdingFileLoad(Rml::DataModelHandle handle,
     handle.DirtyVariable("hull");
     handle.DirtyVariable("module");
     handle.DirtyVariable("textures");
+    handle.DirtyVariable("baseTextures");
     handle.DirtyVariable("slots");
     handle.DirtyVariable("collider");
     handle.DirtyVariable("connectors");
@@ -2772,6 +2853,68 @@ void ModdingTools::onRemoveTexture(Rml::DataModelHandle handle,
     }
 }
 
+void ModdingTools::onAddBaseTexture(Rml::DataModelHandle handle,
+                                    Rml::Event& event,
+                                    const Rml::VariantList& args)
+{
+    (void)handle;
+    (void)event;
+    (void)args;
+    baseTextures.push_back(makeNewTextureEntry());
+    baseTextureSizeAppliedForName.push_back(string());
+    rmlModel_.DirtyVariable("baseTextures");
+}
+
+void ModdingTools::onClearBaseTextures(Rml::DataModelHandle handle,
+                                       Rml::Event& event,
+                                       const Rml::VariantList& args)
+{
+    (void)handle;
+    (void)event;
+    (void)args;
+    baseTextures.clear();
+    baseTextureSizeAppliedForName.clear();
+    baseTextureRowNameFocusIndex = -1;
+    newBaseTexturePickerName.clear();
+    filteredNewBaseTexturePickerNames.clear();
+    rmlModel_.DirtyVariable("baseTextures");
+    rmlModel_.DirtyVariable("baseTextureRowNameFocusIndex");
+    rmlModel_.DirtyVariable("newBaseTexturePickerName");
+    rmlModel_.DirtyVariable("filteredNewBaseTexturePickerNames");
+}
+
+void ModdingTools::onRemoveBaseTexture(Rml::DataModelHandle handle,
+                                       Rml::Event& event,
+                                       const Rml::VariantList& args)
+{
+    (void)handle;
+    (void)event;
+    if (args.size() != 1)
+    {
+        return;
+    }
+    const int i = args[0].Get<int>(-1);
+    if (i >= 0 && i < static_cast<int>(baseTextures.size()))
+    {
+        baseTextures.erase(baseTextures.begin() + static_cast<size_t>(i));
+        if (i < static_cast<int>(baseTextureSizeAppliedForName.size()))
+        {
+            baseTextureSizeAppliedForName.erase(
+                baseTextureSizeAppliedForName.begin() + static_cast<size_t>(i));
+        }
+        if (baseTextureRowNameFocusIndex == i)
+        {
+            baseTextureRowNameFocusIndex = -1;
+        }
+        else if (baseTextureRowNameFocusIndex > i)
+        {
+            baseTextureRowNameFocusIndex--;
+        }
+        rmlModel_.DirtyVariable("baseTextures");
+        rmlModel_.DirtyVariable("baseTextureRowNameFocusIndex");
+    }
+}
+
 void ModdingTools::onTextureNameFocus(Rml::DataModelHandle handle,
                                       Rml::Event& event,
                                       const Rml::VariantList& args)
@@ -2849,6 +2992,7 @@ void ModdingTools::onPickNewTextureNameFromPicker(Rml::DataModelHandle handle,
     selectedObjectType = SelectableObjectType::Texture;
     selectedObjectIndex = static_cast<int>(textures.size()) - 1;
     handle.DirtyVariable("textures");
+    handle.DirtyVariable("baseTextures");
     syncListSelectionToRml();
 }
 
@@ -2907,6 +3051,123 @@ void ModdingTools::onPickTextureName(Rml::DataModelHandle handle,
     selectedObjectIndex = row;
     refreshPerRowTextureNameSuggestions();
     syncListSelectionToRml();
+}
+
+void ModdingTools::onBaseTextureNameFocus(Rml::DataModelHandle handle,
+                                          Rml::Event& event,
+                                          const Rml::VariantList& args)
+{
+    (void)event;
+    (void)handle;
+    if (args.size() != 1)
+    {
+        return;
+    }
+    const int i = args[0].Get<int>(-1);
+    if (i < 0 || i >= static_cast<int>(baseTextures.size()))
+    {
+        return;
+    }
+    baseTextureRowNameFocusIndex = i;
+    if (rmlModel_)
+    {
+        rmlModel_.DirtyVariable("baseTextureRowNameFocusIndex");
+        rmlModel_.DirtyVariable("baseTextures");
+    }
+}
+
+void ModdingTools::onGlobalNewBaseTexturePickerFocus(
+    Rml::DataModelHandle handle,
+    Rml::Event& event,
+    const Rml::VariantList& args)
+{
+    (void)event;
+    (void)handle;
+    (void)args;
+    baseTextureRowNameFocusIndex = -1;
+    if (rmlModel_)
+    {
+        rmlModel_.DirtyVariable("baseTextureRowNameFocusIndex");
+    }
+}
+
+void ModdingTools::onBaseTextureRowNonNameFocus(Rml::DataModelHandle handle,
+                                                Rml::Event& event,
+                                                const Rml::VariantList& args)
+{
+    (void)handle;
+    (void)event;
+    (void)args;
+    baseTextureRowNameFocusIndex = -1;
+    if (rmlModel_)
+    {
+        rmlModel_.DirtyVariable("baseTextureRowNameFocusIndex");
+    }
+}
+
+void ModdingTools::onPickBaseTextureName(Rml::DataModelHandle handle,
+                                         Rml::Event& event,
+                                         const Rml::VariantList& args)
+{
+    (void)event;
+    (void)handle;
+    if (args.size() != 2)
+    {
+        return;
+    }
+    int row = args[0].Get<int>(-1);
+    const string picked = args[1].Get<string>("");
+    if (picked.empty())
+    {
+        return;
+    }
+    if (row < 0 || row >= static_cast<int>(baseTextures.size()))
+    {
+        row = baseTextureRowNameFocusIndex;
+    }
+    if (row < 0 || row >= static_cast<int>(baseTextures.size()))
+    {
+        return;
+    }
+    TextureInfo& tex = baseTextures[static_cast<size_t>(row)];
+    tex.name = picked;
+    if (row < static_cast<int>(baseTextureSizeAppliedForName.size()))
+    {
+        baseTextureSizeAppliedForName[static_cast<size_t>(row)].clear();
+    }
+    syncTextureTileStrings(tex);
+    baseTextureRowNameFocusIndex = row;
+    if (rmlModel_)
+    {
+        rmlModel_.DirtyVariable("baseTextures");
+        rmlModel_.DirtyVariable("baseTextureRowNameFocusIndex");
+    }
+}
+
+void ModdingTools::onPickNewBaseTextureNameFromPicker(
+    Rml::DataModelHandle handle,
+    Rml::Event& event,
+    const Rml::VariantList& args)
+{
+    (void)event;
+    (void)handle;
+    if (args.size() != 1)
+    {
+        return;
+    }
+    const string picked = args[0].Get<string>("");
+    if (picked.empty())
+    {
+        return;
+    }
+    TextureInfo texture = makeNewTextureEntry();
+    texture.name = picked;
+    baseTextures.push_back(std::move(texture));
+    baseTextureSizeAppliedForName.push_back(string());
+    if (rmlModel_)
+    {
+        rmlModel_.DirtyVariable("baseTextures");
+    }
 }
 
 void ModdingTools::onAddSlot(Rml::DataModelHandle handle,
@@ -3094,6 +3355,7 @@ void ModdingTools::onAddConnector(Rml::DataModelHandle handle,
     handle.DirtyVariable("connectors");
     syncStationPartConnectorTextures();
     handle.DirtyVariable("textures");
+    handle.DirtyVariable("baseTextures");
 }
 
 void ModdingTools::onClearConnectors(Rml::DataModelHandle handle,
@@ -3239,6 +3501,12 @@ void ModdingTools::updateHullDerivedFromCollider()
     {
         return;
     }
+    baseTextureSizeAppliedForName.resize(baseTextures.size());
+    for (size_t i = 0; i < baseTextures.size(); ++i)
+    {
+        baseTextureSizeAppliedForName[i] =
+            makeTextureSizeSyncKey(baseTextures[i]);
+    }
     vector<vec2> verts;
     verts.reserve(collider.size());
     for (const ColliderVertex& v : collider)
@@ -3293,6 +3561,26 @@ void ModdingTools::parseEditorNumericFields()
         intToString(texture.zIndexVal, texture.zIndex);
         syncTextureTileStrings(texture);
         rmlModel_.DirtyVariable("texture");
+    }
+    for (auto& texture : baseTextures)
+    {
+        tryParseFloat(texture.posX, texture.posXVal);
+        tryParseFloat(texture.posY, texture.posYVal);
+        tryParseFloat(texture.sizeX, texture.sizeXVal);
+        tryParseFloat(texture.sizeY, texture.sizeYVal);
+        tryParseFloat(texture.rot, texture.rotVal);
+        tryParseInt(texture.zIndex, texture.zIndexVal);
+        tryParseFloat(texture.tileCntX, texture.tileCntXVal);
+        tryParseFloat(texture.tileCntY, texture.tileCntYVal);
+        tryParseFloat(texture.tileOffX, texture.tileOffXVal);
+        tryParseFloat(texture.tileOffY, texture.tileOffYVal);
+        floatToString(texture.posXVal, texture.posX, 2);
+        floatToString(texture.posYVal, texture.posY, 2);
+        floatToString(texture.sizeXVal, texture.sizeX, 2);
+        floatToString(texture.sizeYVal, texture.sizeY, 2);
+        floatToString(texture.rotVal, texture.rot, 2);
+        intToString(texture.zIndexVal, texture.zIndex);
+        syncTextureTileStrings(texture);
     }
     for (auto& slot : slots)
     {
@@ -3371,6 +3659,7 @@ void ModdingTools::parseEditorNumericFields()
         syncStationPartConnectorTextures();
         rmlModel_.DirtyVariable("textures");
     }
+    rmlModel_.DirtyVariable("baseTextures");
 }
 
 void ModdingTools::refreshPerRowTextureNameSuggestions()
@@ -3439,6 +3728,50 @@ void ModdingTools::refreshPerRowTextureNameSuggestions()
     {
         rmlModel_.DirtyVariable("textures");
     }
+
+    bool anyBaseChange = false;
+    for (size_t i = 0; i < baseTextures.size(); ++i)
+    {
+        if (static_cast<int>(i) != baseTextureRowNameFocusIndex
+            && !baseTextures[i].nameSuggestions.empty())
+        {
+            baseTextures[i].nameSuggestions.clear();
+            anyBaseChange = true;
+        }
+    }
+    if (baseTextureRowNameFocusIndex >= 0
+        && baseTextureRowNameFocusIndex < static_cast<int>(baseTextures.size()))
+    {
+        TextureInfo& btex =
+            baseTextures[static_cast<size_t>(baseTextureRowNameFocusIndex)];
+        const string query = toLowerCopy(btex.name);
+        std::vector<string> filtered;
+        filtered.reserve(renderTextureNames.size());
+        for (const string& textureName : renderTextureNames)
+        {
+            const string lowerName = toLowerCopy(textureName);
+            if (query.empty() || lowerName.find(query) != string::npos)
+            {
+                filtered.push_back(textureName);
+            }
+        }
+        if (filtered.size() > 20)
+        {
+            filtered.resize(20);
+        }
+        if (filtered.size() != btex.nameSuggestions.size()
+            || !std::equal(filtered.begin(),
+                           filtered.end(),
+                           btex.nameSuggestions.begin()))
+        {
+            btex.nameSuggestions = std::move(filtered);
+            anyBaseChange = true;
+        }
+    }
+    if (anyBaseChange && rmlModel_)
+    {
+        rmlModel_.DirtyVariable("baseTextures");
+    }
 }
 
 void ModdingTools::refreshNewTexturePickerSuggestions()
@@ -3463,16 +3796,41 @@ void ModdingTools::refreshNewTexturePickerSuggestions()
         filteredNewTexturePickerNames = std::move(filtered);
         rmlModel_.DirtyVariable("filteredNewTexturePickerNames");
     }
+
+    const string baseQuery = toLowerCopy(newBaseTexturePickerName);
+    std::vector<string> baseFiltered;
+    baseFiltered.reserve(renderTextureNames.size());
+    for (const string& textureName : renderTextureNames)
+    {
+        const string lowerName = toLowerCopy(textureName);
+        if (baseQuery.empty() || lowerName.find(baseQuery) != string::npos)
+        {
+            baseFiltered.push_back(textureName);
+        }
+    }
+    if (baseFiltered.size() > 20)
+    {
+        baseFiltered.resize(20);
+    }
+    if (filteredNewBaseTexturePickerNames != baseFiltered)
+    {
+        filteredNewBaseTexturePickerNames = std::move(baseFiltered);
+        rmlModel_.DirtyVariable("filteredNewBaseTexturePickerNames");
+    }
 }
 
 void ModdingTools::resetNewTexturePickerState()
 {
     newTexturePickerName.clear();
     filteredNewTexturePickerNames.clear();
+    newBaseTexturePickerName.clear();
+    filteredNewBaseTexturePickerNames.clear();
     if (rmlModel_)
     {
         rmlModel_.DirtyVariable("newTexturePickerName");
         rmlModel_.DirtyVariable("filteredNewTexturePickerNames");
+        rmlModel_.DirtyVariable("newBaseTexturePickerName");
+        rmlModel_.DirtyVariable("filteredNewBaseTexturePickerNames");
     }
 }
 
@@ -3527,6 +3885,36 @@ void ModdingTools::syncTextureSizesFromNames(gfx::RenderEngine& renderer)
     if (dirty && rmlModel_)
     {
         rmlModel_.DirtyVariable("textures");
+    }
+
+    while (baseTextureSizeAppliedForName.size() < baseTextures.size())
+    {
+        baseTextureSizeAppliedForName.push_back(string());
+    }
+    if (baseTextureSizeAppliedForName.size() > baseTextures.size())
+    {
+        baseTextureSizeAppliedForName.resize(baseTextures.size());
+    }
+    bool baseDirty = false;
+    for (size_t i = 0; i < baseTextures.size(); ++i)
+    {
+        TextureInfo& tex = baseTextures[i];
+        const string syncKey = makeTextureSizeSyncKey(tex);
+        if (syncKey == baseTextureSizeAppliedForName[i] || tex.name.empty())
+        {
+            continue;
+        }
+        baseTextureSizeAppliedForName[i] = syncKey;
+        glm::vec2 baseTile{};
+        if (tryTextureBaseTileSize(renderer, tex, baseTile))
+        {
+            setTextureSizeFromBaseTile(tex, baseTile);
+            baseDirty = true;
+        }
+    }
+    if (baseDirty && rmlModel_)
+    {
+        rmlModel_.DirtyVariable("baseTextures");
     }
 }
 
@@ -3618,6 +4006,23 @@ void ModdingTools::draw(gfx::RenderEngine& renderer)
             const int8_t z = gfx::RenderEngine::zIdxShipHull
                              + gobj::ModuleSlotZOffset[static_cast<size_t>(
                                  moduleInfo.slotTypeVal)];
+            for (size_t i = 0; i < baseTextures.size(); ++i)
+            {
+                auto& texture = baseTextures[i];
+                const gfx::TextureHandle texHandle =
+                    renderer.getTextureHandle(texture.name);
+                const glm::vec2 drawSize = moddingTextureDrawSize(texture);
+                renderer.queueTexRect(
+                    glm::vec2(texture.posXVal, texture.posYVal),
+                    drawSize,
+                    texHandle,
+                    -smath::degToRad(texture.rotVal),
+                    z + texture.zIndexVal,
+                    0xffffffff,
+                    0,
+                    glm::vec2(texture.tileOffXVal, texture.tileOffYVal),
+                    glm::vec2(texture.tileCntXVal, texture.tileCntYVal));
+            }
             drawTextures(renderer, z);
             if (moduleInfo.moduleTypeVal == gobj::ModuleType::Turret)
             {
@@ -4169,6 +4574,11 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
             moduleInfo.massVal = modNode["mass"].as<float>();
             formatModdingMassTonsString(moduleInfo.massVal, moduleInfo.mass);
         }
+        if (modNode[kModuleBaseTextureYamlKey])
+        {
+            moduleInfo.baseTexture =
+                modNode[kModuleBaseTextureYamlKey].as<string>();
+        }
 
         moduleInfo.maxThrustVal = 100000.0f;
         formatModdingThrustMNString(moduleInfo.maxThrustVal,
@@ -4178,8 +4588,14 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
         moduleInfo.turretTypeVal = def::TurretType::Projectile;
         moduleInfo.turretDamageType = "Kinetic";
         moduleInfo.turretDamageTypeVal = def::DamageType::Kinetic;
+        moduleInfo.turretBeamColorVal = 0xFFFFFFFFu;
+        moduleInfo.turretBeamColor = "4294967295";
+        moduleInfo.turretArcColorVal = 0xFFFFFFFFu;
+        moduleInfo.turretArcColor = "4294967295";
         moduleInfo.turretNumBarrels = "0";
         moduleInfo.turretNumBarrelsVal = 0;
+        moduleInfo.turretRotSpeed = "1";
+        moduleInfo.turretRotSpeedVal = 1.0f;
         const YAML::Node dataNode = modNode["data"];
         if (dataNode && dataNode.IsMap())
         {
@@ -4231,6 +4647,14 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
             {
                 moduleInfo.turretDamageTypeVal = dt.value();
             }
+            if (dataNode[kTurretRotSpeedYamlKey])
+            {
+                moduleInfo.turretRotSpeedVal =
+                    dataNode[kTurretRotSpeedYamlKey].as<float>();
+                floatToString(moduleInfo.turretRotSpeedVal,
+                              moduleInfo.turretRotSpeed,
+                              2);
+            }
             if (dataNode["proj-dmg"])
             {
                 moduleInfo.turretProjDmgVal = dataNode["proj-dmg"].as<float>();
@@ -4280,6 +4704,13 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
                               moduleInfo.turretBeamLength,
                               2);
             }
+            if (dataNode[kTurretBeamColorYamlKey])
+            {
+                moduleInfo.turretBeamColorVal =
+                    dataNode[kTurretBeamColorYamlKey].as<uint32_t>();
+                moduleInfo.turretBeamColor =
+                    std::to_string(moduleInfo.turretBeamColorVal);
+            }
             if (dataNode["arc-angle"])
             {
                 moduleInfo.turretArcAngleVal =
@@ -4294,6 +4725,13 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
                 floatToString(moduleInfo.turretArcLengthVal,
                               moduleInfo.turretArcLength,
                               2);
+            }
+            if (dataNode[kTurretArcColorYamlKey])
+            {
+                moduleInfo.turretArcColorVal =
+                    dataNode[kTurretArcColorYamlKey].as<uint32_t>();
+                moduleInfo.turretArcColor =
+                    std::to_string(moduleInfo.turretArcColorVal);
             }
             const YAML::Node exitsNode = dataNode[kTurretExitsYamlKey];
             if (exitsNode && exitsNode.IsSequence())
@@ -4327,6 +4765,15 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
         TextureYamlLoadOptions texOpts;
         texOpts.yamlTextureBoundsBleed = yamlTextureBoundsBleed;
         loadTexturesFromRootBundle(root, texKey, textures, texOpts);
+        if (modNode[kModuleBaseTextureYamlKey])
+        {
+            moduleInfo.baseTexture = modNode[kModuleBaseTextureYamlKey].as<string>();
+            if (!moduleInfo.baseTexture.empty())
+            {
+                loadTexturesFromRootBundle(
+                    root, moduleInfo.baseTexture, baseTextures, texOpts);
+            }
+        }
     }
     catch (const YAML::Exception& e)
     {
@@ -4340,6 +4787,8 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
     }
 
     resetNewTexturePickerState();
+    newBaseTexturePickerName.clear();
+    filteredNewBaseTexturePickerNames.clear();
     parseEditorNumericFields();
     return true;
 }
@@ -4353,12 +4802,19 @@ bool ModdingTools::saveModuleDataToPath(const string& path)
     const string displayName = genInfo.name.empty() ? key : genInfo.name;
 
     const YAML::Node texBundle = buildTexturesYamlBundle(textures);
+    const YAML::Node baseTexBundle = buildTexturesYamlBundle(baseTextures);
 
     YAML::Node modNode;
     modNode["name"] = displayName;
     modNode["slot-type"] = moduleInfo.slotType;
     modNode["type"] = moduleInfo.moduleType;
     modNode["textures"] = key;
+    moduleInfo.baseTexture.clear();
+    if (!baseTextures.empty())
+    {
+        moduleInfo.baseTexture = key + "-base";
+        modNode[kModuleBaseTextureYamlKey] = moduleInfo.baseTexture;
+    }
     modNode["mass"] = moduleInfo.massVal;
     if (!moduleInfo.description.empty())
     {
@@ -4389,6 +4845,10 @@ bool ModdingTools::saveModuleDataToPath(const string& path)
     root[kYamlTextureBoundsBleedKey] = true;
     root["textures"] = YAML::Node(YAML::NodeType::Map);
     root["textures"][key] = texBundle;
+    if (!baseTextures.empty())
+    {
+        root["textures"][moduleInfo.baseTexture] = baseTexBundle;
+    }
     root["module"] = YAML::Node(YAML::NodeType::Map);
     root["module"][key] = modNode;
 
