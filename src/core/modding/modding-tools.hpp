@@ -8,6 +8,8 @@
 #include <lib-textures.hpp>
 #include <lib-modules.hpp>
 #include <lib-station-part.hpp>
+#include <lib-projectile.hpp>
+#include <turret-def.hpp>
 #include <ship-def.hpp>
 
 namespace gfx
@@ -39,6 +41,8 @@ enum class ModdingToolsMode
     Hull,
     Module,
     StationPart,
+    Projectile,
+    Missile,
 };
 
 enum class ModdingEditorKey
@@ -150,6 +154,30 @@ struct StationPartInfo
     StorageVolumesInfo storageVolumes;
 };
 
+struct ProjectileInfo
+{
+    string description;
+    string dmg = "1";
+    float dmgVal = 1.0f;
+    string lifetime = "10";
+    float lifetimeVal = 10.0f;
+    string damageType = "Kinetic";
+    def::DamageType damageTypeVal = def::DamageType::Kinetic;
+};
+
+struct MissileInfo
+{
+    string description;
+    string dmg = "1000";
+    float dmgVal = 1000.0f;
+    string detonationRadius = "20";
+    float detonationRadiusVal = 20.0f;
+    string lifetime = "10";
+    float lifetimeVal = 10.0f;
+    string damageType = "Explosive";
+    def::DamageType damageTypeVal = def::DamageType::Explosive;
+};
+
 struct ModuleInfo
 {
     string moduleType = "MainThruster";
@@ -177,18 +205,19 @@ struct ModuleInfo
     def::TurretType turretTypeVal = def::TurretType::Projectile;
     string turretDamageType = "Kinetic";
     def::DamageType turretDamageTypeVal = def::DamageType::Kinetic;
+    /** `data.projectile` / `data.missile` lib keys. */
+    string turretProjectile;
+    string turretMissile;
     string turretNumBarrels = "1";
     int turretNumBarrelsVal = 1;
     /** `data.rot-speed` — turret traverse rate (rad/s). */
     string turretRotSpeed = "1";
     float turretRotSpeedVal = 1.0f;
-    /** Projectile-like turret params (`proj-dmg`, `exit-speed`, `lifetime`, `reload-time`). */
+    /** Projectile-like turret params (`proj-dmg`, `exit-speed`, `reload-time`). */
     string turretProjDmg = "1";
     float turretProjDmgVal = 1.0f;
     string turretExitSpeed = "1000";
     float turretExitSpeedVal = 1000.0f;
-    string turretLifetime = "1";
-    float turretLifetimeVal = 1.0f;
     string turretReloadTime = "1";
     float turretReloadTimeVal = 1.0f;
     /** Beam/arc turret params. */
@@ -276,6 +305,12 @@ class ModdingTools
     void onModdingNewStationPart(Rml::DataModelHandle handle,
                                  Rml::Event& event,
                                  const Rml::VariantList& args);
+    void onModdingNewProjectile(Rml::DataModelHandle handle,
+                                Rml::Event& event,
+                                const Rml::VariantList& args);
+    void onModdingNewMissile(Rml::DataModelHandle handle,
+                             Rml::Event& event,
+                             const Rml::VariantList& args);
     void onModdingFileSave(Rml::DataModelHandle handle,
                            Rml::Event& event,
                            const Rml::VariantList& args);
@@ -409,6 +444,10 @@ class ModdingTools
     bool loadStationPartDataFromPath(const string& path);
     bool saveModuleDataToPath(const string& path);
     bool loadModuleDataFromPath(const string& path);
+    bool saveProjectileDataToPath(const string& path);
+    bool loadProjectileDataFromPath(const string& path);
+    bool saveMissileDataToPath(const string& path);
+    bool loadMissileDataFromPath(const string& path);
     /** Drops any station-connector rows and appends one per connector (StationPart mode). */
     void syncStationPartConnectorTextures();
     void parseEditorNumericFields();
@@ -430,6 +469,8 @@ class ModdingTools
     string mode;
     GeneralInfo genInfo;
     StationPartInfo stationPartInfo;
+    ProjectileInfo projectileInfo;
+    MissileInfo missileInfo;
     ModuleInfo moduleInfo;
     float hpVal = 0.0f;
     vector<TextureInfo> textures;

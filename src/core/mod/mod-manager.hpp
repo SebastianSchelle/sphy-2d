@@ -24,6 +24,7 @@ class UserInterface;
 #include <lib-textures.hpp>
 #include <lib-collider.hpp>
 #include <lib-station-part.hpp>
+#include <lib-projectile.hpp>
 
 #ifdef FMT_THROW
 #pragma push_macro("FMT_THROW")
@@ -191,6 +192,14 @@ class ModManager
     {
         return stationPartLib;
     }
+    con::ItemLib<gobj::Projectile>& getProjectileLib()
+    {
+        return projectileLib;
+    }
+    con::ItemLib<gobj::Missile>& getMissileLib()
+    {
+        return missileLib;
+    }
   private:
     bool checkDependency(const std::string& modId,
                          std::vector<std::string>& modList,
@@ -218,6 +227,8 @@ class ModManager
     enum class GameLibLoadPhase : uint8_t
     {
         Dependencies,
+        /** Projectiles and missiles (before modules that reference them). */
+        Ammunition,
         GameObjects,
     };
     bool loadGameLib(PtrHandles& ptrHandles,
@@ -238,6 +249,8 @@ class ModManager
     con::ItemLib<gobj::Collider> colliderLib;
     con::ItemLib<gobj::Module> moduleLib;
     con::ItemLib<gobj::StationPart> stationPartLib;
+    con::ItemLib<gobj::Projectile> projectileLib;
+    con::ItemLib<gobj::Missile> missileLib;
 };
 
 }  // namespace mod

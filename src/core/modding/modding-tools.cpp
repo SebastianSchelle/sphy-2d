@@ -112,12 +112,53 @@ constexpr const char* kStationStorageCapYamlKeys[static_cast<size_t>(
 
 constexpr const char* kTurretTypeYamlKey = "turret-type";
 constexpr const char* kTurretDamageTypeYamlKey = "damage-type";
+constexpr const char* kTurretProjectileYamlKey = "projectile";
+constexpr const char* kTurretMissileYamlKey = "missile";
 constexpr const char* kTurretNumBarrelsYamlKey = "num-barrels";
 constexpr const char* kTurretRotSpeedYamlKey = "rot-speed";
 constexpr const char* kTurretBeamColorYamlKey = "beam-color";
 constexpr const char* kTurretArcColorYamlKey = "arc-color";
 constexpr const char* kModuleBaseTextureYamlKey = "base-texture";
 constexpr const char* kTurretExitsYamlKey = "barrel-exits";
+
+bool moddingModeUsesTextures(modding::ModdingToolsMode mode)
+{
+    switch (mode)
+    {
+        case modding::ModdingToolsMode::Hull:
+        case modding::ModdingToolsMode::Module:
+        case modding::ModdingToolsMode::StationPart:
+        case modding::ModdingToolsMode::Projectile:
+        case modding::ModdingToolsMode::Missile:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool moddingModeUsesCollider(modding::ModdingToolsMode mode)
+{
+    switch (mode)
+    {
+        case modding::ModdingToolsMode::Hull:
+        case modding::ModdingToolsMode::StationPart:
+        case modding::ModdingToolsMode::Projectile:
+        case modding::ModdingToolsMode::Missile:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool moddingModeUsesConnectors(modding::ModdingToolsMode mode)
+{
+    return mode == modding::ModdingToolsMode::StationPart;
+}
+
+bool moddingModeIsActive(modding::ModdingToolsMode mode)
+{
+    return mode != modding::ModdingToolsMode::None;
+}
 
 bool tryParseUint32Text(const string& s, uint32_t& out)
 {
@@ -916,15 +957,13 @@ void parseModuleInfoNumericFields(ModuleInfo& info)
     else
     {
         info.turretDamageTypeVal =
-            def::TurretTypeDefaultDamage[static_cast<size_t>(
-                info.turretTypeVal)];
+            def::TurretTypeDefaultDamage[static_cast<size_t>(info.turretTypeVal)];
         info.turretDamageType =
             string(magic_enum::enum_name(info.turretDamageTypeVal));
     }
     tryParseFloat(info.turretRotSpeed, info.turretRotSpeedVal);
     tryParseFloat(info.turretProjDmg, info.turretProjDmgVal);
     tryParseFloat(info.turretExitSpeed, info.turretExitSpeedVal);
-    tryParseFloat(info.turretLifetime, info.turretLifetimeVal);
     tryParseFloat(info.turretReloadTime, info.turretReloadTimeVal);
     tryParseFloat(info.turretDps, info.turretDpsVal);
     tryParseFloat(info.turretBeamWidth, info.turretBeamWidthVal);
@@ -936,7 +975,6 @@ void parseModuleInfoNumericFields(ModuleInfo& info)
     floatToString(info.turretRotSpeedVal, info.turretRotSpeed, 2);
     floatToString(info.turretProjDmgVal, info.turretProjDmg, 2);
     floatToString(info.turretExitSpeedVal, info.turretExitSpeed, 2);
-    floatToString(info.turretLifetimeVal, info.turretLifetime, 2);
     floatToString(info.turretReloadTimeVal, info.turretReloadTime, 2);
     floatToString(info.turretDpsVal, info.turretDps, 2);
     floatToString(info.turretBeamWidthVal, info.turretBeamWidth, 2);
@@ -945,6 +983,44 @@ void parseModuleInfoNumericFields(ModuleInfo& info)
     floatToString(info.turretArcLengthVal, info.turretArcLength, 2);
     info.turretBeamColor = std::to_string(info.turretBeamColorVal);
     info.turretArcColor = std::to_string(info.turretArcColorVal);
+}
+
+void parseProjectileInfoNumericFields(ProjectileInfo& info)
+{
+    tryParseFloat(info.dmg, info.dmgVal);
+    tryParseFloat(info.lifetime, info.lifetimeVal);
+    if (auto damageType = magic_enum::enum_cast<def::DamageType>(info.damageType);
+        damageType.has_value())
+    {
+        info.damageTypeVal = damageType.value();
+    }
+    else
+    {
+        info.damageTypeVal = def::DamageType::Kinetic;
+        info.damageType = string(magic_enum::enum_name(info.damageTypeVal));
+    }
+    floatToString(info.dmgVal, info.dmg, 2);
+    floatToString(info.lifetimeVal, info.lifetime, 2);
+}
+
+void parseMissileInfoNumericFields(MissileInfo& info)
+{
+    tryParseFloat(info.dmg, info.dmgVal);
+    tryParseFloat(info.detonationRadius, info.detonationRadiusVal);
+    tryParseFloat(info.lifetime, info.lifetimeVal);
+    if (auto damageType = magic_enum::enum_cast<def::DamageType>(info.damageType);
+        damageType.has_value())
+    {
+        info.damageTypeVal = damageType.value();
+    }
+    else
+    {
+        info.damageTypeVal = def::DamageType::Explosive;
+        info.damageType = string(magic_enum::enum_name(info.damageTypeVal));
+    }
+    floatToString(info.dmgVal, info.dmg, 2);
+    floatToString(info.detonationRadiusVal, info.detonationRadius, 2);
+    floatToString(info.lifetimeVal, info.lifetime, 2);
 }
 
 void writeModuleDataYaml(YAML::Node& dataNode, const ModuleInfo& info)
@@ -984,16 +1060,26 @@ void writeModuleDataYaml(YAML::Node& dataNode, const ModuleInfo& info)
                 case def::TurretType::Projectile:
                     dataNode["proj-dmg"] = info.turretProjDmgVal;
                     dataNode["exit-speed"] = info.turretExitSpeedVal;
-                    dataNode["lifetime"] = info.turretLifetimeVal;
                     dataNode["reload-time"] = info.turretReloadTimeVal;
+                    if (!info.turretProjectile.empty())
+                    {
+                        dataNode[kTurretProjectileYamlKey] = info.turretProjectile;
+                    }
                     break;
                 case def::TurretType::Railgun:
                     dataNode["proj-dmg"] = info.turretProjDmgVal;
                     dataNode["exit-speed"] = info.turretExitSpeedVal;
-                    dataNode["lifetime"] = info.turretLifetimeVal;
+                    if (!info.turretProjectile.empty())
+                    {
+                        dataNode[kTurretProjectileYamlKey] = info.turretProjectile;
+                    }
                     break;
                 case def::TurretType::Missile:
-                case def::TurretType::Mining:
+                    if (!info.turretMissile.empty())
+                    {
+                        dataNode[kTurretMissileYamlKey] = info.turretMissile;
+                    }
+                    break;
                 default:
                     break;
             }
@@ -1333,14 +1419,11 @@ bool ModdingTools::canEditObjectType(SelectableObjectType type) const
     switch (type)
     {
         case SelectableObjectType::Texture:
-            return activeMode == ModdingToolsMode::Hull
-                   || activeMode == ModdingToolsMode::Module
-                   || activeMode == ModdingToolsMode::StationPart;
+            return moddingModeUsesTextures(activeMode);
         case SelectableObjectType::Slot:
             return activeMode == ModdingToolsMode::Hull;
         case SelectableObjectType::ColliderVertex:
-            return activeMode == ModdingToolsMode::Hull
-                   || activeMode == ModdingToolsMode::StationPart;
+            return moddingModeUsesCollider(activeMode);
         case SelectableObjectType::Connector:
             return activeMode == ModdingToolsMode::StationPart;
         case SelectableObjectType::TurretExit:
@@ -1620,9 +1703,7 @@ bool ModdingTools::deleteSelectedObject()
 
 bool ModdingTools::onEditorKey(ModdingEditorKey editorKey)
 {
-    if (activeMode != ModdingToolsMode::Hull
-        && activeMode != ModdingToolsMode::Module
-        && activeMode != ModdingToolsMode::StationPart)
+    if (!moddingModeUsesTextures(activeMode))
     {
         return false;
     }
@@ -1661,9 +1742,7 @@ void ModdingTools::onModdingSelectListRow(Rml::DataModelHandle handle,
     switch (*kind)
     {
         case SelectableObjectType::Texture:
-            if (activeMode != ModdingToolsMode::Hull
-                && activeMode != ModdingToolsMode::Module
-                && activeMode != ModdingToolsMode::StationPart)
+            if (!moddingModeUsesTextures(activeMode))
             {
                 return;
             }
@@ -1683,8 +1762,7 @@ void ModdingTools::onModdingSelectListRow(Rml::DataModelHandle handle,
             }
             break;
         case SelectableObjectType::ColliderVertex:
-            if (activeMode != ModdingToolsMode::Hull
-                && activeMode != ModdingToolsMode::StationPart)
+            if (!moddingModeUsesCollider(activeMode))
             {
                 return;
             }
@@ -1729,9 +1807,7 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
 {
     suppressDragAfterClick = false;
 
-    if (activeMode != ModdingToolsMode::Hull
-        && activeMode != ModdingToolsMode::Module
-        && activeMode != ModdingToolsMode::StationPart)
+    if (!moddingModeUsesTextures(activeMode))
     {
         return;
     }
@@ -1801,7 +1877,7 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
 
     constexpr int kPickImplicitZ = 0;
 
-    if (activeMode == ModdingToolsMode::Hull)
+    if (moddingModeUsesCollider(activeMode))
     {
         for (int i = 0; i < static_cast<int>(collider.size()); ++i)
         {
@@ -1813,6 +1889,9 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
                     SelectableObjectType::ColliderVertex, i, kPickImplicitZ);
             }
         }
+    }
+    if (activeMode == ModdingToolsMode::Hull)
+    {
         for (int i = 0; i < static_cast<int>(slots.size()); ++i)
         {
             if (hitSlot(worldPos, slots[static_cast<size_t>(i)], renderer))
@@ -1839,7 +1918,7 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
             }
         }
     }
-    else if (activeMode == ModdingToolsMode::StationPart)
+    else if (moddingModeUsesConnectors(activeMode))
     {
         for (int i = 0; i < static_cast<int>(connectors.size()); ++i)
         {
@@ -1848,16 +1927,6 @@ void ModdingTools::onSingleClick(const glm::vec2& worldPos,
             if (hitDisc(worldPos, c, connectorPickR))
             {
                 consider(SelectableObjectType::Connector, i, kPickImplicitZ);
-            }
-        }
-        for (int i = 0; i < static_cast<int>(collider.size()); ++i)
-        {
-            const glm::vec2 v(collider[static_cast<size_t>(i)].xVal,
-                              collider[static_cast<size_t>(i)].yVal);
-            if (hitDisc(worldPos, v, colliderPickR))
-            {
-                consider(
-                    SelectableObjectType::ColliderVertex, i, kPickImplicitZ);
             }
         }
     }
@@ -2031,15 +2100,6 @@ void ModdingTools::onLeftMouseDrag(const glm::vec2& worldPos,
                 worldPos.x;
             collider[static_cast<size_t>(selectedObjectIndex)].yVal =
                 worldPos.y;
-            floatToString(
-                collider[static_cast<size_t>(selectedObjectIndex)].xVal,
-                collider[static_cast<size_t>(selectedObjectIndex)].x,
-                2);
-            floatToString(
-                collider[static_cast<size_t>(selectedObjectIndex)].yVal,
-                collider[static_cast<size_t>(selectedObjectIndex)].y,
-                2);
-            rmlModel_.DirtyVariable("collider");
             break;
         case SelectableObjectType::Connector:
             if (selectedObjectIndex >= static_cast<int>(connectors.size()))
@@ -2095,6 +2155,9 @@ void ModdingTools::onLeftMouseUp(const glm::vec2& worldPos,
                                  gfx::RenderEngine* renderer,
                                  bool shiftAlignTextures)
 {
+    const bool syncColliderUiAfterDrag =
+        dragSelectedObject && lmbPastDragDeadzone
+        && selectedObjectType == SelectableObjectType::ColliderVertex;
     if (lmbWorldPressTracked
         && (!lmbHadSelectionOnPress || !lmbPastDragDeadzone))
     {
@@ -2104,6 +2167,10 @@ void ModdingTools::onLeftMouseUp(const glm::vec2& worldPos,
     lmbPastDragDeadzone = false;
     lmbHadSelectionOnPress = false;
     lmbWorldPressTracked = false;
+    if (syncColliderUiAfterDrag && rmlModel_)
+    {
+        rmlModel_.DirtyVariable("collider");
+    }
 }
 
 void ModdingTools::onRightMouseDown(const glm::vec2& worldPos,
@@ -2114,9 +2181,7 @@ void ModdingTools::onRightMouseDown(const glm::vec2& worldPos,
     rmbPastDragDeadzone = false;
     rmbRotatePrevWorld = worldPos;
     rmbRotateGesture = false;
-    if (activeMode != ModdingToolsMode::Hull
-        && activeMode != ModdingToolsMode::Module
-        && activeMode != ModdingToolsMode::StationPart)
+    if (!moddingModeUsesTextures(activeMode))
     {
         return;
     }
@@ -2297,6 +2362,10 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
         &ModdingTools::onModdingNewStationPart,
         this);
     moddingToolsConstructor.BindEventCallback(
+        "onModdingNewProjectile", &ModdingTools::onModdingNewProjectile, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onModdingNewMissile", &ModdingTools::onModdingNewMissile, this);
+    moddingToolsConstructor.BindEventCallback(
         "onModdingFileSave", &ModdingTools::onModdingFileSave, this);
     moddingToolsConstructor.BindEventCallback(
         "onModdingFileLoad", &ModdingTools::onModdingFileLoad, this);
@@ -2410,6 +2479,28 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
                                          &StationPartInfo::storageVolumes);
     }
     moddingToolsConstructor.Bind("stationPart", &stationPartInfo);
+    if (auto projectileHandle =
+            moddingToolsConstructor.RegisterStruct<ProjectileInfo>())
+    {
+        projectileHandle.RegisterMember("description",
+                                          &ProjectileInfo::description);
+        projectileHandle.RegisterMember("dmg", &ProjectileInfo::dmg);
+        projectileHandle.RegisterMember("lifetime", &ProjectileInfo::lifetime);
+        projectileHandle.RegisterMember("damageType",
+                                        &ProjectileInfo::damageType);
+    }
+    moddingToolsConstructor.Bind("projectile", &projectileInfo);
+    if (auto missileHandle =
+            moddingToolsConstructor.RegisterStruct<MissileInfo>())
+    {
+        missileHandle.RegisterMember("description", &MissileInfo::description);
+        missileHandle.RegisterMember("dmg", &MissileInfo::dmg);
+        missileHandle.RegisterMember("detonationRadius",
+                                     &MissileInfo::detonationRadius);
+        missileHandle.RegisterMember("lifetime", &MissileInfo::lifetime);
+        missileHandle.RegisterMember("damageType", &MissileInfo::damageType);
+    }
+    moddingToolsConstructor.Bind("missile", &missileInfo);
     if (auto moduleHandle =
             moddingToolsConstructor.RegisterStruct<ModuleInfo>())
     {
@@ -2426,6 +2517,9 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
         moduleHandle.RegisterMember("turretType", &ModuleInfo::turretType);
         moduleHandle.RegisterMember("turretDamageType",
                                     &ModuleInfo::turretDamageType);
+        moduleHandle.RegisterMember("turretProjectile",
+                                    &ModuleInfo::turretProjectile);
+        moduleHandle.RegisterMember("turretMissile", &ModuleInfo::turretMissile);
         moduleHandle.RegisterMember("turretNumBarrels",
                                     &ModuleInfo::turretNumBarrels);
         moduleHandle.RegisterMember("turretRotSpeed",
@@ -2434,8 +2528,6 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
                                     &ModuleInfo::turretProjDmg);
         moduleHandle.RegisterMember("turretExitSpeed",
                                     &ModuleInfo::turretExitSpeed);
-        moduleHandle.RegisterMember("turretLifetime",
-                                    &ModuleInfo::turretLifetime);
         moduleHandle.RegisterMember("turretReloadTime",
                                     &ModuleInfo::turretReloadTime);
         moduleHandle.RegisterMember("turretDps", &ModuleInfo::turretDps);
@@ -2510,8 +2602,8 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     if (auto colliderHandle =
             moddingToolsConstructor.RegisterStruct<ColliderVertex>())
     {
-        colliderHandle.RegisterMember("x", &ColliderVertex::x);
-        colliderHandle.RegisterMember("y", &ColliderVertex::y);
+        colliderHandle.RegisterMember("xVal", &ColliderVertex::xVal);
+        colliderHandle.RegisterMember("yVal", &ColliderVertex::yVal);
     }
     moddingToolsConstructor.RegisterArray<std::vector<ColliderVertex>>();
     moddingToolsConstructor.Bind("collider", &collider);
@@ -2647,6 +2739,78 @@ void ModdingTools::onModdingNewStationPart(Rml::DataModelHandle handle,
     LG_D("Modding tools: new station part");
 }
 
+void ModdingTools::onModdingNewProjectile(Rml::DataModelHandle handle,
+                                          Rml::Event& event,
+                                          const Rml::VariantList& args)
+{
+    (void)event;
+    (void)args;
+    activeMode = ModdingToolsMode::Projectile;
+    openFilepath = "";
+    genInfo = GeneralInfo{};
+    projectileInfo = ProjectileInfo{};
+    stationPartInfo = StationPartInfo{};
+    moduleInfo = ModuleInfo{};
+    missileInfo = MissileInfo{};
+    textures.clear();
+    baseTextures.clear();
+    textureSizeAppliedForName.clear();
+    baseTextureSizeAppliedForName.clear();
+    resetNewTexturePickerState();
+    slots.clear();
+    collider.clear();
+    connectors.clear();
+    turretExits.clear();
+    genInfo.colliderRestitutionVal = 0.1f;
+    selectedObjectType = SelectableObjectType::None;
+    selectedObjectIndex = -1;
+    textureRowNameFocusIndex = -1;
+    syncModeToRml();
+    handle.DirtyVariable("openFilepath");
+    handle.DirtyVariable("hull");
+    handle.DirtyVariable("projectile");
+    handle.DirtyVariable("textures");
+    handle.DirtyVariable("collider");
+    syncListSelectionToRml();
+    LG_D("Modding tools: new projectile");
+}
+
+void ModdingTools::onModdingNewMissile(Rml::DataModelHandle handle,
+                                       Rml::Event& event,
+                                       const Rml::VariantList& args)
+{
+    (void)event;
+    (void)args;
+    activeMode = ModdingToolsMode::Missile;
+    openFilepath = "";
+    genInfo = GeneralInfo{};
+    missileInfo = MissileInfo{};
+    stationPartInfo = StationPartInfo{};
+    moduleInfo = ModuleInfo{};
+    projectileInfo = ProjectileInfo{};
+    textures.clear();
+    baseTextures.clear();
+    textureSizeAppliedForName.clear();
+    baseTextureSizeAppliedForName.clear();
+    resetNewTexturePickerState();
+    slots.clear();
+    collider.clear();
+    connectors.clear();
+    turretExits.clear();
+    genInfo.colliderRestitutionVal = 0.1f;
+    selectedObjectType = SelectableObjectType::None;
+    selectedObjectIndex = -1;
+    textureRowNameFocusIndex = -1;
+    syncModeToRml();
+    handle.DirtyVariable("openFilepath");
+    handle.DirtyVariable("hull");
+    handle.DirtyVariable("missile");
+    handle.DirtyVariable("textures");
+    handle.DirtyVariable("collider");
+    syncListSelectionToRml();
+    LG_D("Modding tools: new missile");
+}
+
 void ModdingTools::onModdingFileSave(Rml::DataModelHandle handle,
                                      Rml::Event& event,
                                      const Rml::VariantList& args)
@@ -2716,6 +2880,40 @@ void ModdingTools::onModdingFileSave(Rml::DataModelHandle handle,
             LG_D("Modding tools: saved station part to {}", openFilepath);
         }
         break;
+        case ModdingToolsMode::Projectile:
+        {
+            if (textures.empty())
+            {
+                LG_W("Modding tools: no textures to save");
+                return;
+            }
+            if (!saveProjectileDataToPath(path))
+            {
+                LG_W("Modding tools: failed to write {}", path);
+                return;
+            }
+            openFilepath = std::move(path);
+            handle.DirtyVariable("openFilepath");
+            LG_D("Modding tools: saved projectile to {}", openFilepath);
+        }
+        break;
+        case ModdingToolsMode::Missile:
+        {
+            if (textures.empty())
+            {
+                LG_W("Modding tools: no textures to save");
+                return;
+            }
+            if (!saveMissileDataToPath(path))
+            {
+                LG_W("Modding tools: failed to write {}", path);
+                return;
+            }
+            openFilepath = std::move(path);
+            handle.DirtyVariable("openFilepath");
+            LG_D("Modding tools: saved missile to {}", openFilepath);
+        }
+        break;
         default:
             return;
     }
@@ -2760,6 +2958,22 @@ void ModdingTools::onModdingFileLoad(Rml::DataModelHandle handle,
             }
             LG_D("Modding tools: loaded station part from {}", openFilepath);
             break;
+        case ModdingToolsMode::Projectile:
+            if (!loadProjectileDataFromPath(path))
+            {
+                LG_W("Modding tools: failed to load projectile from {}", path);
+                return;
+            }
+            LG_D("Modding tools: loaded projectile from {}", openFilepath);
+            break;
+        case ModdingToolsMode::Missile:
+            if (!loadMissileDataFromPath(path))
+            {
+                LG_W("Modding tools: failed to load missile from {}", path);
+                return;
+            }
+            LG_D("Modding tools: loaded missile from {}", openFilepath);
+            break;
         default:
             LG_W("Modding tools: unsupported asset type: {}", path);
             return;
@@ -2775,6 +2989,8 @@ void ModdingTools::onModdingFileLoad(Rml::DataModelHandle handle,
     handle.DirtyVariable("connectors");
     handle.DirtyVariable("turretExits");
     handle.DirtyVariable("stationPart");
+    handle.DirtyVariable("projectile");
+    handle.DirtyVariable("missile");
     handle.DirtyVariable("mode");
     textureSizeAppliedForName.resize(textures.size());
     for (size_t i = 0; i < textures.size(); ++i)
@@ -2974,9 +3190,7 @@ void ModdingTools::onPickNewTextureNameFromPicker(Rml::DataModelHandle handle,
     {
         return;
     }
-    if (activeMode != ModdingToolsMode::Hull
-        && activeMode != ModdingToolsMode::Module
-        && activeMode != ModdingToolsMode::StationPart)
+    if (!moddingModeUsesTextures(activeMode))
     {
         return;
     }
@@ -3241,9 +3455,7 @@ void ModdingTools::onClearColliderVertices(Rml::DataModelHandle handle,
 void ModdingTools::generateColliderFromVisibleTextures(
     gfx::RenderEngine& renderer)
 {
-    if (activeMode != ModdingToolsMode::Hull
-        && activeMode != ModdingToolsMode::Module
-        && activeMode != ModdingToolsMode::StationPart)
+    if (!moddingModeUsesTextures(activeMode))
     {
         return;
     }
@@ -3560,7 +3772,6 @@ void ModdingTools::parseEditorNumericFields()
         floatToString(texture.rotVal, texture.rot, 2);
         intToString(texture.zIndexVal, texture.zIndex);
         syncTextureTileStrings(texture);
-        rmlModel_.DirtyVariable("texture");
     }
     for (auto& texture : baseTextures)
     {
@@ -3602,15 +3813,6 @@ void ModdingTools::parseEditorNumericFields()
         }
         slot.hasAngleLimits =
             gobj::moduleSlotTypeHasAngleLimits(slot.slotTypeVal);
-        rmlModel_.DirtyVariable("slot");
-    }
-    for (auto& vertex : collider)
-    {
-        tryParseFloat(vertex.x, vertex.xVal);
-        tryParseFloat(vertex.y, vertex.yVal);
-        floatToString(vertex.xVal, vertex.x, 2);
-        floatToString(vertex.yVal, vertex.y, 2);
-        rmlModel_.DirtyVariable("collider");
     }
     auto partType =
         magic_enum::enum_cast<gobj::StationPartType>(stationPartInfo.partType);
@@ -3620,6 +3822,8 @@ void ModdingTools::parseEditorNumericFields()
     }
     parseStorageVolumesInfoStrings(stationPartInfo.storageVolumes);
     parseModuleInfoNumericFields(moduleInfo);
+    parseProjectileInfoNumericFields(projectileInfo);
+    parseMissileInfoNumericFields(missileInfo);
     if (moduleInfo.moduleTypeVal == gobj::ModuleType::Turret)
     {
         syncTurretNumBarrelsFromExits();
@@ -3628,6 +3832,8 @@ void ModdingTools::parseEditorNumericFields()
     {
         rmlModel_.DirtyVariable("module");
         rmlModel_.DirtyVariable("stationPart");
+        rmlModel_.DirtyVariable("projectile");
+        rmlModel_.DirtyVariable("missile");
     }
 
     for (auto& connector : connectors)
@@ -3664,9 +3870,7 @@ void ModdingTools::parseEditorNumericFields()
 
 void ModdingTools::refreshPerRowTextureNameSuggestions()
 {
-    if (activeMode != ModdingToolsMode::Hull
-        && activeMode != ModdingToolsMode::Module
-        && activeMode != ModdingToolsMode::StationPart)
+    if (!moddingModeUsesTextures(activeMode))
     {
         return;
     }
@@ -3836,9 +4040,7 @@ void ModdingTools::resetNewTexturePickerState()
 
 void ModdingTools::syncTextureSizesFromNames(gfx::RenderEngine& renderer)
 {
-    if (activeMode != ModdingToolsMode::Hull
-        && activeMode != ModdingToolsMode::Module
-        && activeMode != ModdingToolsMode::StationPart)
+    if (!moddingModeUsesTextures(activeMode))
     {
         return;
     }
@@ -3924,10 +4126,7 @@ TextureInfo ModdingTools::makeNewTextureEntry()
     texture.zIndexVal = 0;
     intToString(texture.zIndexVal, texture.zIndex);
     syncTextureTileStrings(texture);
-    if ((activeMode == ModdingToolsMode::Hull
-         || activeMode == ModdingToolsMode::Module
-         || activeMode == ModdingToolsMode::StationPart)
-        && !textures.empty())
+    if (moddingModeUsesTextures(activeMode) && !textures.empty())
     {
         const TextureInfo* lowest = &textures.front();
         for (const auto& t : textures)
@@ -3970,9 +4169,7 @@ void ModdingTools::draw(gfx::RenderEngine& renderer)
         renderer.drawBlueprintGridBackground(
             0, blueprintGrid, kGridCellWorld, kMajorEveryCells);
     }
-    if (activeMode == ModdingToolsMode::Hull
-        || activeMode == ModdingToolsMode::Module
-        || activeMode == ModdingToolsMode::StationPart)
+    if (moddingModeIsActive(activeMode))
     {
         constexpr float kWorldAxesHalfExtent = 10000.0f;
         constexpr float kWorldAxesZ = 100.0f;
@@ -4034,6 +4231,11 @@ void ModdingTools::draw(gfx::RenderEngine& renderer)
             drawTextures(renderer, gfx::RenderEngine::zIdxStation);
             drawColliders(renderer);
             drawConnectors(renderer);
+            break;
+        case ModdingToolsMode::Projectile:
+        case ModdingToolsMode::Missile:
+            drawTextures(renderer, gfx::RenderEngine::zIdxShipHull);
+            drawColliders(renderer);
             break;
         default:
             // No drawing for other modes
@@ -4128,23 +4330,21 @@ void ModdingTools::drawColliders(gfx::RenderEngine& renderer)
     }
     if (collider.size() > 1)
     {
-        ColliderVertex& first = collider.back();
         for (size_t i = 0; i < collider.size(); ++i)
         {
-            ColliderVertex& current = collider[i];
+            const size_t next = (i + 1) % collider.size();
+            const ColliderVertex& a = collider[i];
+            const ColliderVertex& b = collider[next];
             const bool selSeg =
                 selectedObjectType == SelectableObjectType::ColliderVertex
                 && (selectedObjectIndex == static_cast<int>(i)
-                    || selectedObjectIndex == static_cast<int>(i - 1));
-            renderer.drawLine(glm::vec2(first.xVal, first.yVal),
-                              glm::vec2(current.xVal, current.yVal),
-                              tintIfSelected(kColliderColor,
-                                             selSeg),  // A nice sky blue color
+                    || selectedObjectIndex == static_cast<int>(next));
+            renderer.drawLine(glm::vec2(a.xVal, a.yVal),
+                              glm::vec2(b.xVal, b.yVal),
+                              tintIfSelected(kColliderColor, selSeg),
                               lineWidth,
                               0.0f,
                               0);
-
-            first = current;
         }
     }
 }
@@ -4470,6 +4670,16 @@ ModdingToolsMode ModdingTools::determineAssetType(const string& path)
     {
         return ModdingToolsMode::StationPart;
     }
+    const YAML::Node projectileMap = root["projectiles"];
+    if (projectileMap && projectileMap.IsMap() && projectileMap.size() > 0)
+    {
+        return ModdingToolsMode::Projectile;
+    }
+    const YAML::Node missileMap = root["missiles"];
+    if (missileMap && missileMap.IsMap() && missileMap.size() > 0)
+    {
+        return ModdingToolsMode::Missile;
+    }
     return ModdingToolsMode::None;
 }
 
@@ -4588,6 +4798,8 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
         moduleInfo.turretTypeVal = def::TurretType::Projectile;
         moduleInfo.turretDamageType = "Kinetic";
         moduleInfo.turretDamageTypeVal = def::DamageType::Kinetic;
+        moduleInfo.turretProjectile.clear();
+        moduleInfo.turretMissile.clear();
         moduleInfo.turretBeamColorVal = 0xFFFFFFFFu;
         moduleInfo.turretBeamColor = "4294967295";
         moduleInfo.turretArcColorVal = 0xFFFFFFFFu;
@@ -4655,6 +4867,16 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
                               moduleInfo.turretRotSpeed,
                               2);
             }
+            if (dataNode[kTurretProjectileYamlKey])
+            {
+                moduleInfo.turretProjectile =
+                    dataNode[kTurretProjectileYamlKey].as<string>();
+            }
+            if (dataNode[kTurretMissileYamlKey])
+            {
+                moduleInfo.turretMissile =
+                    dataNode[kTurretMissileYamlKey].as<string>();
+            }
             if (dataNode["proj-dmg"])
             {
                 moduleInfo.turretProjDmgVal = dataNode["proj-dmg"].as<float>();
@@ -4668,12 +4890,6 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
                 floatToString(moduleInfo.turretExitSpeedVal,
                               moduleInfo.turretExitSpeed,
                               2);
-            }
-            if (dataNode["lifetime"])
-            {
-                moduleInfo.turretLifetimeVal = dataNode["lifetime"].as<float>();
-                floatToString(
-                    moduleInfo.turretLifetimeVal, moduleInfo.turretLifetime, 2);
             }
             if (dataNode["reload-time"])
             {
@@ -5106,6 +5322,380 @@ bool ModdingTools::saveStationPartDataToPath(const string& path)
     root["collider"][key] = colEntry;
     root["station-part"] = YAML::Node(YAML::NodeType::Map);
     root["station-part"][key] = partNode;
+
+    std::ofstream out(path);
+    if (!out)
+    {
+        return false;
+    }
+    out << root;
+    return out.good();
+}
+
+bool ModdingTools::loadProjectileDataFromPath(const string& path)
+{
+    YAML::Node root;
+    try
+    {
+        root = YAML::LoadFile(path);
+    }
+    catch (const YAML::Exception& e)
+    {
+        LG_W("Modding tools: YAML error loading {}: {}", path, e.what());
+        return false;
+    }
+
+    const YAML::Node projectileMap = root["projectiles"];
+    if (!projectileMap || !projectileMap.IsMap() || projectileMap.size() == 0)
+    {
+        LG_W("Modding tools: {} has no projectiles map", path);
+        return false;
+    }
+
+    const auto projIt = projectileMap.begin();
+    const YAML::Node projNode = projIt->second;
+    if (!projNode || !projNode.IsMap())
+    {
+        LG_W("Modding tools: invalid projectile entry in {}", path);
+        return false;
+    }
+
+    activeMode = ModdingToolsMode::Projectile;
+    syncModeToRml();
+    textures.clear();
+    collider.clear();
+    connectors.clear();
+    slots.clear();
+    turretExits.clear();
+    projectileInfo = ProjectileInfo{};
+    missileInfo = MissileInfo{};
+    stationPartInfo = StationPartInfo{};
+    moduleInfo = ModuleInfo{};
+    genInfo = GeneralInfo{};
+    genInfo.colliderRestitutionVal = 0.1f;
+
+    const string mapKey = projIt->first.as<string>();
+
+    try
+    {
+        const bool yamlTextureBoundsBleed =
+            root[kYamlTextureBoundsBleedKey].IsDefined()
+            && root[kYamlTextureBoundsBleedKey].as<bool>();
+
+        if (projNode["name"])
+        {
+            genInfo.name = projNode["name"].as<string>();
+        }
+        if (genInfo.name.empty())
+        {
+            genInfo.name = mapKey;
+        }
+        if (projNode["description"])
+        {
+            projectileInfo.description = projNode["description"].as<string>();
+        }
+        if (projNode["dmg"])
+        {
+            projectileInfo.dmgVal = projNode["dmg"].as<float>();
+            floatToString(projectileInfo.dmgVal, projectileInfo.dmg, 2);
+        }
+        if (projNode["lifetime"])
+        {
+            projectileInfo.lifetimeVal = projNode["lifetime"].as<float>();
+            floatToString(
+                projectileInfo.lifetimeVal, projectileInfo.lifetime, 2);
+        }
+        if (projNode["damage-type"])
+        {
+            projectileInfo.damageType = projNode["damage-type"].as<string>();
+            if (auto dt = magic_enum::enum_cast<def::DamageType>(
+                    projectileInfo.damageType);
+                dt.has_value())
+            {
+                projectileInfo.damageTypeVal = dt.value();
+            }
+        }
+
+        string texKey;
+        if (projNode["textures"])
+        {
+            texKey = projNode["textures"].as<string>();
+        }
+        string colKey;
+        if (projNode["collider"])
+        {
+            colKey = projNode["collider"].as<string>();
+        }
+        if (colKey.empty())
+        {
+            colKey = mapKey;
+        }
+
+        TextureYamlLoadOptions texOpts;
+        texOpts.yamlTextureBoundsBleed = yamlTextureBoundsBleed;
+        texOpts.skipStationConnector = true;
+        loadTexturesFromRootBundle(root, texKey, textures, texOpts);
+
+        const YAML::Node colliderRoot = root["collider"];
+        if (colliderRoot && colliderRoot[colKey]
+            && colliderRoot[colKey].IsMap())
+        {
+            loadColliderVerticesFromEntry(
+                colliderRoot[colKey], collider, genInfo.colliderRestitutionVal);
+        }
+    }
+    catch (const YAML::Exception& e)
+    {
+        LG_W("Modding tools: error parsing projectile in {}: {}", path, e.what());
+        textures.clear();
+        collider.clear();
+        projectileInfo = ProjectileInfo{};
+        genInfo = GeneralInfo{};
+        activeMode = ModdingToolsMode::None;
+        syncModeToRml();
+        return false;
+    }
+
+    resetNewTexturePickerState();
+    parseEditorNumericFields();
+    return true;
+}
+
+bool ModdingTools::saveProjectileDataToPath(const string& path)
+{
+    parseEditorNumericFields();
+
+    const string key = sanitizeHullKey(
+        genInfo.name.empty() ? string("projectile") : genInfo.name);
+    const string displayName = genInfo.name.empty() ? key : genInfo.name;
+    const YAML::Node texBundle = buildTexturesYamlBundle(textures);
+
+    YAML::Node colEntry;
+    if (!collider.empty())
+    {
+        colEntry["restitution"] = genInfo.colliderRestitutionVal;
+        YAML::Node vertSeq(YAML::NodeType::Sequence);
+        for (const auto& v : collider)
+        {
+            YAML::Node pair(YAML::NodeType::Sequence);
+            pair.push_back(v.xVal);
+            pair.push_back(v.yVal);
+            vertSeq.push_back(pair);
+        }
+        colEntry["vertices"] = vertSeq;
+    }
+
+    YAML::Node projNode;
+    projNode["name"] = displayName;
+    if (!projectileInfo.description.empty())
+    {
+        projNode["description"] = projectileInfo.description;
+    }
+    projNode["dmg"] = projectileInfo.dmgVal;
+    projNode["lifetime"] = projectileInfo.lifetimeVal;
+    projNode["damage-type"] = projectileInfo.damageType;
+    projNode["textures"] = key;
+    projNode["collider"] = key;
+
+    YAML::Node root;
+    root[kYamlTextureBoundsBleedKey] = true;
+    root["textures"] = YAML::Node(YAML::NodeType::Map);
+    root["textures"][key] = texBundle;
+    root["collider"] = YAML::Node(YAML::NodeType::Map);
+    root["collider"][key] = colEntry;
+    root["projectiles"] = YAML::Node(YAML::NodeType::Map);
+    root["projectiles"][key] = projNode;
+
+    std::ofstream out(path);
+    if (!out)
+    {
+        return false;
+    }
+    out << root;
+    return out.good();
+}
+
+bool ModdingTools::loadMissileDataFromPath(const string& path)
+{
+    YAML::Node root;
+    try
+    {
+        root = YAML::LoadFile(path);
+    }
+    catch (const YAML::Exception& e)
+    {
+        LG_W("Modding tools: YAML error loading {}: {}", path, e.what());
+        return false;
+    }
+
+    const YAML::Node missileMap = root["missiles"];
+    if (!missileMap || !missileMap.IsMap() || missileMap.size() == 0)
+    {
+        LG_W("Modding tools: {} has no missiles map", path);
+        return false;
+    }
+
+    const auto missileIt = missileMap.begin();
+    const YAML::Node missileNode = missileIt->second;
+    if (!missileNode || !missileNode.IsMap())
+    {
+        LG_W("Modding tools: invalid missile entry in {}", path);
+        return false;
+    }
+
+    activeMode = ModdingToolsMode::Missile;
+    syncModeToRml();
+    textures.clear();
+    collider.clear();
+    connectors.clear();
+    slots.clear();
+    turretExits.clear();
+    missileInfo = MissileInfo{};
+    projectileInfo = ProjectileInfo{};
+    stationPartInfo = StationPartInfo{};
+    moduleInfo = ModuleInfo{};
+    genInfo = GeneralInfo{};
+    genInfo.colliderRestitutionVal = 0.1f;
+
+    const string mapKey = missileIt->first.as<string>();
+
+    try
+    {
+        const bool yamlTextureBoundsBleed =
+            root[kYamlTextureBoundsBleedKey].IsDefined()
+            && root[kYamlTextureBoundsBleedKey].as<bool>();
+
+        if (missileNode["name"])
+        {
+            genInfo.name = missileNode["name"].as<string>();
+        }
+        if (genInfo.name.empty())
+        {
+            genInfo.name = mapKey;
+        }
+        if (missileNode["description"])
+        {
+            missileInfo.description = missileNode["description"].as<string>();
+        }
+        if (missileNode["dmg"])
+        {
+            missileInfo.dmgVal = missileNode["dmg"].as<float>();
+            floatToString(missileInfo.dmgVal, missileInfo.dmg, 2);
+        }
+        if (missileNode["detonation-radius"])
+        {
+            missileInfo.detonationRadiusVal =
+                missileNode["detonation-radius"].as<float>();
+            floatToString(missileInfo.detonationRadiusVal,
+                          missileInfo.detonationRadius,
+                          2);
+        }
+        if (missileNode["lifetime"])
+        {
+            missileInfo.lifetimeVal = missileNode["lifetime"].as<float>();
+            floatToString(missileInfo.lifetimeVal, missileInfo.lifetime, 2);
+        }
+        if (missileNode["damage-type"])
+        {
+            missileInfo.damageType = missileNode["damage-type"].as<string>();
+            if (auto dt = magic_enum::enum_cast<def::DamageType>(
+                    missileInfo.damageType);
+                dt.has_value())
+            {
+                missileInfo.damageTypeVal = dt.value();
+            }
+        }
+
+        string texKey;
+        if (missileNode["textures"])
+        {
+            texKey = missileNode["textures"].as<string>();
+        }
+        string colKey;
+        if (missileNode["collider"])
+        {
+            colKey = missileNode["collider"].as<string>();
+        }
+        if (colKey.empty())
+        {
+            colKey = mapKey;
+        }
+
+        TextureYamlLoadOptions texOpts;
+        texOpts.yamlTextureBoundsBleed = yamlTextureBoundsBleed;
+        texOpts.skipStationConnector = true;
+        loadTexturesFromRootBundle(root, texKey, textures, texOpts);
+
+        const YAML::Node colliderRoot = root["collider"];
+        if (colliderRoot && colliderRoot[colKey]
+            && colliderRoot[colKey].IsMap())
+        {
+            loadColliderVerticesFromEntry(
+                colliderRoot[colKey], collider, genInfo.colliderRestitutionVal);
+        }
+    }
+    catch (const YAML::Exception& e)
+    {
+        LG_W("Modding tools: error parsing missile in {}: {}", path, e.what());
+        textures.clear();
+        collider.clear();
+        missileInfo = MissileInfo{};
+        genInfo = GeneralInfo{};
+        activeMode = ModdingToolsMode::None;
+        syncModeToRml();
+        return false;
+    }
+
+    resetNewTexturePickerState();
+    parseEditorNumericFields();
+    return true;
+}
+
+bool ModdingTools::saveMissileDataToPath(const string& path)
+{
+    parseEditorNumericFields();
+
+    const string key =
+        sanitizeHullKey(genInfo.name.empty() ? string("missile") : genInfo.name);
+    const string displayName = genInfo.name.empty() ? key : genInfo.name;
+    const YAML::Node texBundle = buildTexturesYamlBundle(textures);
+
+    YAML::Node colEntry;
+    if (!collider.empty())
+    {
+        colEntry["restitution"] = genInfo.colliderRestitutionVal;
+        YAML::Node vertSeq(YAML::NodeType::Sequence);
+        for (const auto& v : collider)
+        {
+            YAML::Node pair(YAML::NodeType::Sequence);
+            pair.push_back(v.xVal);
+            pair.push_back(v.yVal);
+            vertSeq.push_back(pair);
+        }
+        colEntry["vertices"] = vertSeq;
+    }
+
+    YAML::Node missileNode;
+    missileNode["name"] = displayName;
+    if (!missileInfo.description.empty())
+    {
+        missileNode["description"] = missileInfo.description;
+    }
+    missileNode["dmg"] = missileInfo.dmgVal;
+    missileNode["detonation-radius"] = missileInfo.detonationRadiusVal;
+    missileNode["lifetime"] = missileInfo.lifetimeVal;
+    missileNode["damage-type"] = missileInfo.damageType;
+    missileNode["textures"] = key;
+    missileNode["collider"] = key;
+
+    YAML::Node root;
+    root[kYamlTextureBoundsBleedKey] = true;
+    root["textures"] = YAML::Node(YAML::NodeType::Map);
+    root["textures"][key] = texBundle;
+    root["collider"] = YAML::Node(YAML::NodeType::Map);
+    root["collider"][key] = colEntry;
+    root["missiles"] = YAML::Node(YAML::NodeType::Map);
+    root["missiles"][key] = missileNode;
 
     std::ofstream out(path);
     if (!out)

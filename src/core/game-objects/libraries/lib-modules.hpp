@@ -7,6 +7,7 @@
 #include <std-inc.hpp>
 #include <turret-def.hpp>
 #include <yaml-cpp/yaml.h>
+#include <lib-projectile.hpp>
 
 namespace gobj
 {
@@ -125,8 +126,8 @@ struct Turret
     {
         float projDmg = 1.0f;
         float exitSpeed = 1000.0f;
-        float lifetime = 1.0f;
         float reloadTime = 1.0f;
+        ProjectileHandle projectile = ProjectileHandle::Invalid();
     };
     struct LaserData
     {
@@ -144,31 +145,30 @@ struct Turret
     };
     struct MissileData
     {
+        MissileHandle missile = MissileHandle::Invalid();
     };
     struct RailgunData
     {
         float projDmg = 1.0f;
         float exitSpeed = 1000.0f;
-        float lifetime = 1.0f;
-    };
-    struct MiningData
-    {
+        ProjectileHandle projectile = ProjectileHandle::Invalid();
     };
     typedef std::variant<ProjectileData,
                          LaserData,
                          ArcData,
                          MissileData,
-                         RailgunData,
-                         MiningData>
+                         RailgunData>
         TurretData;
     TurretData data = ProjectileData{};
     def::TurretType type = def::TurretType::Projectile;
-    def::DamageType damageType =
-        def::TurretTypeDefaultDamage[static_cast<size_t>(type)];
+    def::DamageType damageType = def::DamageType::Kinetic;
     uint8_t numBarrels = 1;
     vector<vec2> barrelExits;
     float rotSpeed = 1.0f;
-    static Turret fromYaml(const YAML::Node& node);
+    static Turret fromYaml(
+        const YAML::Node& node,
+        const con::ItemLib<gobj::Projectile>& projectileLib,
+        const con::ItemLib<gobj::Missile>& missileLib);
 };
 using Data =
     std::variant<MainThruster, ManeuverThruster, Storage, Hangar, Turret>;
@@ -186,8 +186,11 @@ struct Module
     float mass;
     mdata::Data data;
 
-    static Module fromYaml(const YAML::Node& node,
-                           const con::ItemLib<gobj::Textures>& texturesLib);
+    static Module fromYaml(
+        const YAML::Node& node,
+        const con::ItemLib<gobj::Textures>& texturesLib,
+        const con::ItemLib<gobj::Projectile>& projectileLib,
+        const con::ItemLib<gobj::Missile>& missileLib);
 };
 
 using ModuleHandle = typename con::ItemLib<Module>::Handle;

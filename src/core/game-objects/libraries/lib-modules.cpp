@@ -17,6 +17,26 @@ constexpr const char* kStorageVolumeYamlKeys[static_cast<size_t>(
     "volume-bulk",
 };
 
+ProjectileHandle resolveProjectileHandle(
+    const string& key, const con::ItemLib<gobj::Projectile>& projectileLib)
+{
+    if (key.empty())
+    {
+        return ProjectileHandle::Invalid();
+    }
+    return projectileLib.getHandle(key);
+}
+
+MissileHandle resolveMissileHandle(const string& key,
+                                   const con::ItemLib<gobj::Missile>& missileLib)
+{
+    if (key.empty())
+    {
+        return MissileHandle::Invalid();
+    }
+    return missileLib.getHandle(key);
+}
+
 }  // namespace
 
 MainThruster MainThruster::fromYaml(const YAML::Node& node)
@@ -68,7 +88,9 @@ Hangar Hangar::fromYaml(const YAML::Node& node)
     return hangar;
 }
 
-Turret Turret::fromYaml(const YAML::Node& node)
+Turret Turret::fromYaml(const YAML::Node& node,
+                        const con::ItemLib<gobj::Projectile>& projectileLib,
+                        const con::ItemLib<gobj::Missile>& missileLib)
 {
     Turret turret{};
     string turretTypeStr = string(magic_enum::enum_name(turret.type));
@@ -80,8 +102,8 @@ Turret Turret::fromYaml(const YAML::Node& node)
         def::TurretTypeDefaultDamage[static_cast<size_t>(turret.type)]));
     TRY_YAML_DICT(damageTypeStr, node["damage-type"], damageTypeStr);
     turret.damageType = magic_enum::enum_cast<def::DamageType>(damageTypeStr)
-                            .value_or(def::TurretTypeDefaultDamage[static_cast<size_t>(
-                                turret.type)]);
+                            .value_or(def::TurretTypeDefaultDamage[static_cast<
+                                size_t>(turret.type)]);
 
     const YAML::Node exitsNode = node["barrel-exits"];
     if (exitsNode && exitsNode.IsSequence())
@@ -104,6 +126,11 @@ Turret Turret::fromYaml(const YAML::Node& node)
         std::min<size_t>(255, turret.barrelExits.size()));
     TRY_YAML_DICT(turret.rotSpeed, node["rot-speed"], turret.rotSpeed);
 
+    string projectileKey;
+    TRY_YAML_DICT(projectileKey, node["projectile"], "");
+    string missileKey;
+    TRY_YAML_DICT(missileKey, node["missile"], "");
+
     switch (turret.type)
     {
         case def::TurretType::Projectile:
@@ -114,11 +141,11 @@ Turret Turret::fromYaml(const YAML::Node& node)
             TRY_YAML_DICT(
                 projectile.exitSpeed, node["exit-speed"], projectile.exitSpeed);
             TRY_YAML_DICT(
-                projectile.lifetime, node["lifetime"], projectile.lifetime);
-            TRY_YAML_DICT(
                 projectile.reloadTime,
                 node["reload-time"],
                 projectile.reloadTime);
+            projectile.projectile =
+                resolveProjectileHandle(projectileKey, projectileLib);
             turret.data = projectile;
             break;
         }
@@ -128,13 +155,16 @@ Turret Turret::fromYaml(const YAML::Node& node)
             TRY_YAML_DICT(railgun.projDmg, node["proj-dmg"], railgun.projDmg);
             TRY_YAML_DICT(
                 railgun.exitSpeed, node["exit-speed"], railgun.exitSpeed);
-            TRY_YAML_DICT(railgun.lifetime, node["lifetime"], railgun.lifetime);
+            railgun.projectile =
+                resolveProjectileHandle(projectileKey, projectileLib);
             turret.data = railgun;
             break;
         }
         case def::TurretType::Missile:
         {
-            turret.data = MissileData{};
+            MissileData missile{};
+            missile.missile = resolveMissileHandle(missileKey, missileLib);
+            turret.data = missile;
             break;
         }
         case def::TurretType::Laser:
@@ -157,9 +187,6 @@ Turret Turret::fromYaml(const YAML::Node& node)
             turret.data = arc;
             break;
         }
-        case def::TurretType::Mining:
-            turret.data = MiningData{};
-            break;
         default:
             break;
     }
@@ -169,7 +196,9 @@ Turret Turret::fromYaml(const YAML::Node& node)
 }  // namespace mdata
 
 Module Module::fromYaml(const YAML::Node& node,
-                        const con::ItemLib<gobj::Textures>& texturesLib)
+                        const con::ItemLib<gobj::Textures>& texturesLib,
+                        const con::ItemLib<gobj::Projectile>& projectileLib,
+                        const con::ItemLib<gobj::Missile>& missileLib)
 {
     Module module;
     TRY_YAML_DICT(module.name, node["name"], "");
@@ -213,7 +242,8 @@ Module Module::fromYaml(const YAML::Node& node,
                 module.data = mdata::Hangar::fromYaml(dataNode);
                 break;
             case ModuleType::Turret:
-                module.data = mdata::Turret::fromYaml(dataNode);
+                module.data =
+                    mdata::Turret::fromYaml(dataNode, projectileLib, missileLib);
                 break;
             default:
                 break;

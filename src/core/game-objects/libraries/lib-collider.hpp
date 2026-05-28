@@ -1,11 +1,10 @@
 #ifndef LIB_COLLIDER_HPP
 #define LIB_COLLIDER_HPP
 
+#include <std-inc.hpp>
 #include <item-lib.hpp>
-#include <lib-modules.hpp>
 #include <lib-textures.hpp>
 #include <magic_enum/magic_enum.hpp>
-#include <std-inc.hpp>
 
 namespace gobj
 {

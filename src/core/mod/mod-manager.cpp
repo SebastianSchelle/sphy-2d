@@ -423,7 +423,9 @@ bool ModManager::loadGameLibs(PtrHandles& ptrHandles, const ModInfo& modInfo)
     }
     std::sort(yamlPaths.begin(), yamlPaths.end());
     for (GameLibLoadPhase phase :
-         {GameLibLoadPhase::Dependencies, GameLibLoadPhase::GameObjects})
+         {GameLibLoadPhase::Dependencies,
+          GameLibLoadPhase::Ammunition,
+          GameLibLoadPhase::GameObjects})
     {
         for (const std::string& gameObjectPath : yamlPaths)
         {
@@ -490,13 +492,37 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
                              LG_I("Added collider: {}: {}", objName, collider);
                          });
     }
+    else if (phase == GameLibLoadPhase::Ammunition)
+    {
+        foreachObjectDef(libs["projectiles"],
+                         [&](const std::string& objName, const YAML::Node& node)
+                         {
+                             const gobj::Projectile projectile =
+                                 gobj::Projectile::fromYaml(
+                                     node, texturesLib, colliderLib);
+                             string key = projectile.name != "" ? projectile.name
+                                                                : objName;
+                             projectileLib.addItem(key, projectile);
+                             LG_I("Added projectile: {}: {}", key, projectile);
+                         });
+        foreachObjectDef(libs["missiles"],
+                         [&](const std::string& objName, const YAML::Node& node)
+                         {
+                             const gobj::Missile missile = gobj::Missile::fromYaml(
+                                 node, texturesLib, colliderLib);
+                             string key =
+                                 missile.name != "" ? missile.name : objName;
+                             missileLib.addItem(key, missile);
+                             LG_I("Added missile: {}: {}", key, missile);
+                         });
+    }
     else
     {
         foreachObjectDef(libs["module"],
                          [&](const std::string& objName, const YAML::Node& node)
                          {
-                             const gobj::Module module =
-                                 gobj::Module::fromYaml(node, texturesLib);
+                             const gobj::Module module = gobj::Module::fromYaml(
+                                 node, texturesLib, projectileLib, missileLib);
                              string key =
                                  module.name != "" ? module.name : objName;
                              moduleLib.addItem(key, module);

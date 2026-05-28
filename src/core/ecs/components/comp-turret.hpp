@@ -82,8 +82,6 @@ struct Turret
                 return MissileData{};
             case def::TurretType::Railgun:
                 return RailgunData{};
-            case def::TurretType::Mining:
-                return MiningData{};
             default:
                 return ProjectileData{0.0f};
         }

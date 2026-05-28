@@ -101,7 +101,6 @@ void sysTurretImpl(world::Sector* sector,
                 break;
                 case def::TurretType::Railgun:
                 case def::TurretType::Missile:
-                case def::TurretType::Mining:
                 default:
                     break;
             }

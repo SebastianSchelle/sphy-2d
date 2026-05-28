@@ -15,6 +15,7 @@ enum class DamageType : uint8_t
     Energy,
     Explosive,
     Ion,    
+    Mining,
     NumDamageTypes,
 };
 
@@ -26,7 +27,6 @@ enum class TurretType : uint8_t
     Arc,        // tesla coils, firing in a wide arc area
     Missile,    // guided warheads, torpedoes
     Railgun,    // rails, mass drivers, need to charge up
-    Mining,     // drills, salvagers
     NumTurretTypes,
 };
 
@@ -34,10 +34,9 @@ constexpr DamageType
     TurretTypeDefaultDamage[static_cast<size_t>(TurretType::NumTurretTypes)] = {
         DamageType::Kinetic,     // Projectile
         DamageType::Energy,      // Laser
-        DamageType::Thermal,     // Plasma
+        DamageType::Thermal,     // Arc
         DamageType::Explosive,   // Missile
         DamageType::Kinetic,     // Railgun
-        DamageType::Kinetic,     // Mining
 };
 
 }  // namespace def
