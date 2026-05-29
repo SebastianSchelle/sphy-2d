@@ -10,6 +10,7 @@
 #include <comp-ai.hpp>
 #include <comp-storage.hpp>
 #include <comp-turret.hpp>
+#include <comp-lifetime.hpp>
 
 namespace ecs
 {
@@ -62,6 +63,7 @@ void ComponentFactory::registerAllComponents()
     registerComponent<ecs::Storage>();
     registerComponent<ecs::Turret>();
     registerComponent<ecs::Projectile>();
+    registerComponent<ecs::Lifetime>();
 }
 
 AssetFactory::AssetFactory() {}

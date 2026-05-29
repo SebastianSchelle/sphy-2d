@@ -24,7 +24,8 @@ typedef std::function<void(const EntityId& entityId)> IterateEntitiesCallback;
 enum class SystemType : uint8_t
 {
     SectorForeachEntitiy,
-    SectorOnce,
+    SectorEarly,
+    SectorLate,
 };
 
 using SystemFunction = std::variant<SFSectorForeach, SFSectorOnce>;
@@ -56,10 +57,11 @@ class Ecs
     Ecs();
     ~Ecs();
     EntityId createEntity();
-    void destroyEntity(EntityId entityId);
+    bool destroyEntity(EntityId entityId);
     bool validId(EntityId entityId);
     entt::entity getEntity(EntityId entityId);
     EntityId getEntityIdFromIdx(uint32_t index);
+    EntityId getEntityId(entt::entity entity);
     const vector<System>& getRegisteredSystems();
     void registerSystem(const System system);
     EntityId spawnEntityFromAsset(const std::string& assetId,
@@ -68,6 +70,7 @@ class Ecs
     entt::entity insertOrReplaceByExistingEntityId(EntityId entityId);
     void iterateEntities(IterateEntitiesCallback callback);
     uint32_t getNumEntities() const;
+
   private:
     entt::registry registry;
     vector<Slot> idMap;
@@ -86,10 +89,13 @@ class EcsClient
     bool validId(EntityId entityId);
     void clearSession();
     uint32_t getNumClientEntities() const;
-    
+    void destroyServerEntity(EntityId entityId);
+
     uint32_t numServerEntities = 0;
 
   private:
+    void destroyClientEntity(uint32_t index);
+
     entt::registry registry;
     std::unordered_map<uint32_t, Slot> idMap;
     uint32_t numClientEntities = 0;

@@ -962,7 +962,6 @@ void parseModuleInfoNumericFields(ModuleInfo& info)
             string(magic_enum::enum_name(info.turretDamageTypeVal));
     }
     tryParseFloat(info.turretRotSpeed, info.turretRotSpeedVal);
-    tryParseFloat(info.turretProjDmg, info.turretProjDmgVal);
     tryParseFloat(info.turretExitSpeed, info.turretExitSpeedVal);
     tryParseFloat(info.turretReloadTime, info.turretReloadTimeVal);
     tryParseFloat(info.turretDps, info.turretDpsVal);
@@ -973,7 +972,6 @@ void parseModuleInfoNumericFields(ModuleInfo& info)
     tryParseUint32Text(info.turretBeamColor, info.turretBeamColorVal);
     tryParseUint32Text(info.turretArcColor, info.turretArcColorVal);
     floatToString(info.turretRotSpeedVal, info.turretRotSpeed, 2);
-    floatToString(info.turretProjDmgVal, info.turretProjDmg, 2);
     floatToString(info.turretExitSpeedVal, info.turretExitSpeed, 2);
     floatToString(info.turretReloadTimeVal, info.turretReloadTime, 2);
     floatToString(info.turretDpsVal, info.turretDps, 2);
@@ -1058,7 +1056,6 @@ void writeModuleDataYaml(YAML::Node& dataNode, const ModuleInfo& info)
                     dataNode[kTurretArcColorYamlKey] = info.turretArcColorVal;
                     break;
                 case def::TurretType::Projectile:
-                    dataNode["proj-dmg"] = info.turretProjDmgVal;
                     dataNode["exit-speed"] = info.turretExitSpeedVal;
                     dataNode["reload-time"] = info.turretReloadTimeVal;
                     if (!info.turretProjectile.empty())
@@ -1067,7 +1064,6 @@ void writeModuleDataYaml(YAML::Node& dataNode, const ModuleInfo& info)
                     }
                     break;
                 case def::TurretType::Railgun:
-                    dataNode["proj-dmg"] = info.turretProjDmgVal;
                     dataNode["exit-speed"] = info.turretExitSpeedVal;
                     if (!info.turretProjectile.empty())
                     {
@@ -2524,8 +2520,6 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
                                     &ModuleInfo::turretNumBarrels);
         moduleHandle.RegisterMember("turretRotSpeed",
                                     &ModuleInfo::turretRotSpeed);
-        moduleHandle.RegisterMember("turretProjDmg",
-                                    &ModuleInfo::turretProjDmg);
         moduleHandle.RegisterMember("turretExitSpeed",
                                     &ModuleInfo::turretExitSpeed);
         moduleHandle.RegisterMember("turretReloadTime",
@@ -4876,12 +4870,6 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
             {
                 moduleInfo.turretMissile =
                     dataNode[kTurretMissileYamlKey].as<string>();
-            }
-            if (dataNode["proj-dmg"])
-            {
-                moduleInfo.turretProjDmgVal = dataNode["proj-dmg"].as<float>();
-                floatToString(
-                    moduleInfo.turretProjDmgVal, moduleInfo.turretProjDmg, 2);
             }
             if (dataNode["exit-speed"])
             {

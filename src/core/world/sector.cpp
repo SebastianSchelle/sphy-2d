@@ -5,6 +5,9 @@
 #include <sector.hpp>
 #include <type_traits>
 #include <variant>
+#ifdef SERVER
+#include <engine.hpp>
+#endif
 
 namespace world
 {
@@ -49,42 +52,52 @@ void Sector::update(float dt, ecs::PtrHandle* ptrHandle)
 
     for (const auto& system : *ptrHandle->systems)
     {
-        switch (system.type)
+        if (system.type == ecs::SystemType::SectorEarly)
         {
-            case ecs::SystemType::SectorOnce:
-                std::visit(
-                    [&](auto&& fn)
-                    {
-                        using Fn = std::decay_t<decltype(fn)>;
-                        if constexpr (std::is_same_v<Fn, ecs::SFSectorOnce>)
-                        {
-                            fn(this, dt, ptrHandle);
-                        }
-                    },
-                    system.function);
-                break;
-            case ecs::SystemType::SectorForeachEntitiy:
-                for (size_t i = 0; i < entityIds.size(); i++)
+            std::visit(
+                [&](auto&& fn)
                 {
-                    std::visit(
-                        [&](auto&& fn)
-                        {
-                            using Fn = std::decay_t<decltype(fn)>;
-                            if constexpr (std::is_same_v<Fn,
-                                                         ecs::SFSectorForeach>)
-                            {
-                                fn(this,
-                                   entities[i],
-                                   entityIds[i],
-                                   dt,
-                                   ptrHandle);
-                            }
-                        },
-                        system.function);
-                }
-                break;
-            default:
-                break;
+                    using Fn = std::decay_t<decltype(fn)>;
+                    if constexpr (std::is_same_v<Fn, ecs::SFSectorOnce>)
+                    {
+                        fn(this, dt, ptrHandle);
+                    }
+                },
+                system.function);
+        }
+    }
+
+    for (size_t i = 0; i < entityIds.size(); i++)
+    {
+        for (const auto& system : *ptrHandle->systems)
+        {
+            std::visit(
+                [&](auto&& fn)
+                {
+                    using Fn = std::decay_t<decltype(fn)>;
+                    if constexpr (std::is_same_v<Fn, ecs::SFSectorForeach>)
+                    {
+                        fn(this, entities[i], entityIds[i], dt, ptrHandle);
+                    }
+                },
+                system.function);
+        }
+    }
+
+    for (const auto& system : *ptrHandle->systems)
+    {
+        if (system.type == ecs::SystemType::SectorLate)
+        {
+            std::visit(
+                [&](auto&& fn)
+                {
+                    using Fn = std::decay_t<decltype(fn)>;
+                    if constexpr (std::is_same_v<Fn, ecs::SFSectorOnce>)
+                    {
+                        fn(this, dt, ptrHandle);
+                    }
+                },
+                system.function);
         }
     }
 }
@@ -136,7 +149,7 @@ bool Sector::removeEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
 {
     if (!ptrHandle->ecs->validId(entityId))
     {
-        LG_W("Entity not valid: {}", entityId);
+        //LG_W("Entity not valid: {}", entityId);
         return false;
     }
     auto reg = ptrHandle->registry;
@@ -190,6 +203,31 @@ void Sector::markPlayerSector(bool player)
     playerSector = player;
 }
 
+#ifdef SERVER
+
+void Sector::markEntityForDestruction(ecs::EntityId entityId)
+{
+    entitiesToDestroy.push_back(entityId);
+}
+
+void Sector::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
+{
+    for (const auto& entityId : entitiesToDestroy)
+    {
+        destroyEntity(ptrHandle, entityId);
+    }
+    entitiesToDestroy.clear();
+}
+
+void Sector::destroyEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
+{
+    // Remove entity from sector
+    removeEntity(ptrHandle, entityId);
+    // Destroy entity
+    ptrHandle->engine->destroyEntity(entityId);
+}
+#endif
+
 #ifdef CLIENT
 void Sector::drawDebug(gfx::RenderEngine& renderer, float zoom)
 {
@@ -223,7 +261,7 @@ void Sector::drawThirdPerson(gfx::RenderEngine& renderer,
 {
 }
 
-
 #endif
+
 
 }  // namespace world

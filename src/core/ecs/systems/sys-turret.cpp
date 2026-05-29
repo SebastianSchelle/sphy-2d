@@ -7,10 +7,10 @@ namespace ecs
 {
 
 void sysTurretImpl(world::Sector* sector,
-               const entt::entity entity,
-               const ecs::EntityId& entityId,
-               const float dt,
-               PtrHandle* ptrHandle)
+                   const entt::entity entity,
+                   const ecs::EntityId& entityId,
+                   const float dt,
+                   PtrHandle* ptrHandle)
 {
     auto reg = ptrHandle->registry;
     auto* turret = reg->try_get<Turret>(entity);
@@ -86,15 +86,26 @@ void sysTurretImpl(world::Sector* sector,
                             transform->rot + turret->currentAngle;
                         const float s = sinf(firingRot);
                         const float c = cosf(firingRot);
+                        const vec2 exit = smath::rotateVec2(
+                            libTurretData.barrelExits[0], s, c);
                         const vec2 fireDir =
                             smath::rotateVec2(vec2(0.0f, 1.0f), s, c);
-                        const vec2 fireVel =
-                            fireDir * projectileData.exitSpeed;
-                        LG_I("Firing projectile");
-                        ptrHandle->engine->spawnProjectile(sectorId->id,
-                                                           transform->pos,
-                                                           fireVel,
-                                                           moduleItem->textures);
+                        vec2 fireVel = fireDir * projectileData.exitSpeed;
+                        entt::entity parentEntt = ptrHandle->ecs->getEntity(module->parent);
+                        if(parentEntt != entt::null)
+                        {
+                            auto* physBody = reg->try_get<PhysicsBody>(parentEntt);
+                            if(physBody)
+                            {
+                                fireVel += physBody->vel;
+                            }
+                        }
+                        ptrHandle->engine->spawnProjectile(
+                            sectorId->id,
+                            transform->pos + exit,
+                            fireVel,
+                            projectileData.projectile,
+                            module->parent);
 #endif
                     }
                 }

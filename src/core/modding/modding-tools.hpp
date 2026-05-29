@@ -214,8 +214,6 @@ struct ModuleInfo
     string turretRotSpeed = "1";
     float turretRotSpeedVal = 1.0f;
     /** Projectile-like turret params (`proj-dmg`, `exit-speed`, `reload-time`). */
-    string turretProjDmg = "1";
-    float turretProjDmgVal = 1.0f;
     string turretExitSpeed = "1000";
     float turretExitSpeedVal = 1000.0f;
     string turretReloadTime = "1";

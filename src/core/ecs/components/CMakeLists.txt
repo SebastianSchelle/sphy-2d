@@ -10,6 +10,7 @@ target_sources(sphy_core_ecs_components INTERFACE
     comp-storage.cpp
     comp-struct.hpp
     comp-tag.hpp
+    comp-lifetime.hpp
 )
 
 target_include_directories(sphy_core_ecs_components

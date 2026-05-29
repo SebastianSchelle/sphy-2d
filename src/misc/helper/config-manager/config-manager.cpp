@@ -61,4 +61,18 @@ void ConfigManager::clear()
     root = nullptr;
     cfgStructFiles.clear();
 }
+
+void ConfigManager::iterateThroughChildren(
+    std::vector<string> path,
+    std::function<void(const ConfigNode& node)> callback) const
+{
+    std::reverse(path.begin(), path.end());
+    if(!root)
+    {
+        LG_E("Config manager root is not initialized");
+        return;
+    }
+    root->iterateThroughChildren(path, callback);
+}
+
 }  // namespace cfg

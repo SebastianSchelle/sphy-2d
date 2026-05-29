@@ -1,9 +1,9 @@
 #ifndef COMP_IDENT_HPP
 #define COMP_IDENT_HPP
 
+#include <entt/entt.hpp>
 #include <std-inc.hpp>
 #include <yaml-cpp/yaml.h>
-#include <entt/entt.hpp>
 
 namespace mod
 {
@@ -15,6 +15,16 @@ namespace ecs
 
 struct EntityId
 {
+    EntityId() : index(0), generation(0) {}
+    EntityId(uint32_t index, uint16_t generation)
+        : index(index), generation(generation)
+    {
+    }
+    EntityId(GenericHandle32 genericHandle32)
+        : index(genericHandle32.idx), generation(genericHandle32.gen)
+    {
+    }
+
     uint32_t index;
     uint16_t generation;
     bool operator==(const EntityId& other) const
@@ -29,9 +39,15 @@ struct EntityId
     {
         return {0, 0};
     }
+    GenericHandle32 toGenericHandle32() const
+    {
+        return {index, generation};
+    }
 };
 
-#define SER_ENTITY_ID S4b(o.index); S2b(o.generation);
+#define SER_ENTITY_ID                                                          \
+    S4b(o.index);                                                              \
+    S2b(o.generation);
 EXT_SER(EntityId, SER_ENTITY_ID)
 EXT_DES(EntityId, SER_ENTITY_ID)
 

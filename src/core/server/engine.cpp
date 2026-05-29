@@ -4,6 +4,7 @@
 #include "lib-station-part.hpp"
 #include "sector.hpp"
 #include "std-inc.hpp"
+#include "task-basic.hpp"
 #include <comp-gfx.hpp>
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
@@ -17,6 +18,7 @@
 #include <random>
 #include <server.hpp>
 #include <sys-ai.hpp>
+#include <sys-lifetime.hpp>
 #include <sys-phy.hpp>
 #include <sys-turret.hpp>
 #include <thread>
@@ -44,6 +46,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->colliderLib = &modManager.getColliderLib();
     ptrHandle->modManager = &modManager;
     ptrHandle->frameCnt = 0;
+    ptrHandle->collisionLayerMat = &collisionLayerMat;
     ptrHandle->kpThrust =
         CFG_FLOAT(config, 25.0f, "engine", "physics", "kp-thrust");
     ptrHandle->kpTurn =
@@ -78,6 +81,7 @@ void Engine::start()
 {
     assetFactory.componentFactory.registerAllComponents();
 
+    ecs.registerSystem(ecs::sysLifetime);
     ecs.registerSystem(ecs::sysMoveCtrl);
     ecs.registerSystem(ecs::sysPhyThrust);
     ecs.registerSystem(ecs::sysPhysics);
@@ -86,6 +90,7 @@ void Engine::start()
     ecs.registerSystem(ecs::sysAi);
     ecs.registerSystem(ecs::sysTurret);
 
+    loadCollisionMatrix();
     registerConsoleCommands();
 
     registerSlowDumpComponent<ecs::Transform>();
@@ -1170,7 +1175,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 10000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1203,6 +1208,12 @@ void Engine::testSpawn()
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 1);
             spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
+            spawnModule(
+                ent, modManager.getModuleLib().getHandle("Polter Mk1"), 3);
+            spawnModule(
+                ent, modManager.getModuleLib().getHandle("Polter Mk1"), 4);
+            spawnModule(
+                ent, modManager.getModuleLib().getHandle("Polter Mk1"), 5);
         }
         else if (i % 4 == 2)
         {
@@ -1237,6 +1248,12 @@ void Engine::testSpawn()
                 spawnShipHull(modManager.getHullLib().getHandle("Caterpillar"),
                               sectorId,
                               ecs::Transform{pos, rot});
+
+            for (int i = 0; i < 8; i++)
+            {
+                spawnModule(
+                    ent, modManager.getModuleLib().getHandle("Polter Mk1"), i);
+            }
             for (int i = 8; i < 16; i++)
             {
                 spawnModule(
@@ -1270,6 +1287,17 @@ void Engine::testSpawn()
         if (storage)
         {
             storage->updateStatsFromEntity(ecs.getEntity(ent), ptrHandle);
+        }
+        auto* ai = reg.try_get<ecs::Ai>(ecs.getEntity(ent));
+        if (ai)
+        {
+            auto* taskStack = taskSystem.getTaskStack(ai->stackHandle);
+            if (taskStack)
+            {
+                taskStack->setDefaultTask(ai::taskdata::UniversePatrol{
+                    .config = {.allowedPosError = 100.0f,
+                               .allowedRotError = M_PIf}});
+            }
         }
     }
 
@@ -1497,8 +1525,23 @@ ecs::Hull* Engine::makeHull(entt::entity entity,
                   hullHandle.toGenericHandle()));
 }
 
+ecs::Module* Engine::makeModule(entt::entity entity, const ecs::Module& module)
+{
+    auto& reg = ecs.getRegistry();
+    return &reg.emplace_or_replace<ecs::Module>(entity, module);
+}
+
+ecs::Lifetime* Engine::makeLifetime(entt::entity entity, float lifetime)
+{
+    auto& reg = ecs.getRegistry();
+    return &reg.emplace_or_replace<ecs::Lifetime>(
+        entity, ecs::Lifetime{.lifetime = lifetime});
+}
+
 ecs::Collider* Engine::makeCollider(entt::entity entity,
-                                    const gobj::ColliderHandle& colliderHandle)
+                                    const gobj::ColliderHandle& colliderHandle,
+                                    ecs::CollisionLayer colliderType,
+                                    const ecs::EntityId& exceptEntity)
 {
     auto& reg = ecs.getRegistry();
     auto collider = modManager.getColliderLib().getItem(colliderHandle);
@@ -1506,10 +1549,28 @@ ecs::Collider* Engine::makeCollider(entt::entity entity,
     {
         return nullptr;
     }
-    ecs::Collider colliderComp;
-    colliderComp.colliderHandle = colliderHandle.toGenericHandle();
     ecs::Broadphase& br = reg.emplace_or_replace<ecs::Broadphase>(entity);
-    return &reg.emplace_or_replace<ecs::Collider>(entity, colliderComp);
+    return &reg.emplace_or_replace<ecs::Collider>(
+        entity,
+        ecs::Collider{.colliderHandle = colliderHandle.toGenericHandle(),
+                      .exceptEntity = exceptEntity,
+                      .colliderType = colliderType});
+}
+
+ecs::Projectile*
+Engine::makeProjectile(entt::entity entity,
+                       const gobj::ProjectileHandle& projectileHandle)
+{
+    auto& reg = ecs.getRegistry();
+    auto projectile = modManager.getProjectileLib().getItem(projectileHandle);
+    if (!projectile)
+    {
+        return nullptr;
+    }
+    return &reg.emplace_or_replace<ecs::Projectile>(
+        entity,
+        ecs::Projectile{.projectileHandle =
+                            projectileHandle.toGenericHandle()});
 }
 
 ecs::MapIcon* Engine::makeMapIcon(entt::entity entity)
@@ -1716,7 +1777,7 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
         LG_E("Failed to make hull component");
         success = false;
     }
-    if (!makeCollider(entt, hull->collider))
+    if (!makeCollider(entt, hull->collider, ecs::CollisionLayer::Ship))
     {
         LG_E("Failed to make collider component");
         success = false;
@@ -1756,10 +1817,7 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
         LG_E("Failed to make move ctrl component");
         success = false;
     }
-    if (!makeAi(
-            entt,
-            ai::taskdata::SectorPatrol{.config = {.allowedPosError = 100.0f,
-                                                  .allowedRotError = M_PIf}}))
+    if (!makeAi(entt, ai::taskdata::Idle()))
     {
         LG_E("Failed to make ai component");
         success = false;
@@ -1839,7 +1897,7 @@ Engine::addFirstStationPart(ecs::EntityId stationId,
         ecs.destroyEntity(ent);
         return ecs::EntityId::Invalid();
     }
-    if (!makeCollider(entt, part->collider))
+    if (!makeCollider(entt, part->collider, ecs::CollisionLayer::Station))
     {
         LG_E("Failed to make collider component");
         ecs.destroyEntity(ent);
@@ -1951,7 +2009,7 @@ ecs::EntityId Engine::addStationPart(ecs::EntityId stationId,
         ecs.destroyEntity(ent);
         return ecs::EntityId::Invalid();
     }
-    if (!makeCollider(entt, libPart2->collider))
+    if (!makeCollider(entt, libPart2->collider, ecs::CollisionLayer::Station))
     {
         LG_E("Failed to make collider component");
         ecs.destroyEntity(ent);
@@ -2026,8 +2084,9 @@ ecs::EntityId Engine::spawnModule(ecs::EntityId parent,
     makeAnchorFixed(
         entt,
         ecs::AnchorFixed{.pos = slot.pos, .rot = slot.rot, .ref = parent});
-    reg.emplace_or_replace<ecs::Module>(
-        entt, ecs::Module{moduleHandle.toGenericHandle()});
+    makeModule(entt,
+               ecs::Module{moduleHandle.toGenericHandle(),
+                           parent.toGenericHandle32()});
     switch (module->type)
     {
         case gobj::ModuleType::MainThruster:
@@ -2112,8 +2171,16 @@ void Engine::handleThirdPersonControl(def::ClientInfo* clientInfo,
 void Engine::spawnProjectile(uint32_t sectorId,
                              vec2 pos,
                              vec2 vel,
-                             gobj::TexturesHandle texturesHandle)
+                             gobj::ProjectileHandle projectileHandle,
+                             const ecs::EntityId& exceptEntity)
 {
+    auto projectile = modManager.getProjectileLib().getItem(projectileHandle);
+    if (!projectile)
+    {
+        LG_E("Projectile {} not found", projectileHandle.toGenericHandle());
+        return;
+    }
+
     auto& reg = ecs.getRegistry();
     auto ent = ecs.createEntity();
     entt::entity entt = ecs.getEntity(ent);
@@ -2123,24 +2190,78 @@ void Engine::spawnProjectile(uint32_t sectorId,
         return;
     }
     makeSelectable(entt);
-    reg.emplace_or_replace<ecs::Projectile>(
-        entt, ecs::Projectile{.dmg = 1.0f});
-    makePhysicsBody(
-        entt,
-        ecs::PhysicsBody{.mass = 1.0f,
-                         .vel = vel,
-                         .acc = vec2(0.0f, 0.0f),
-                         .inertia = 1.0f,
-                         .rotVel = 0.0f,
-                         .rotAcc = 0.0f});
-    if (!placeInSector(ent, entt, sectorId, {pos, 0.0f}))
+    makeProjectile(entt, projectileHandle);
+    makeLifetime(entt, projectile->lifetime);
+    makeTextures(entt, projectile->textures);
+    makeCollider(entt,
+                 projectile->collider,
+                 ecs::CollisionLayer::Projectile,
+                 exceptEntity);
+    makePhysicsBody(entt,
+                    ecs::PhysicsBody{.mass = 1.0f,
+                                     .vel = vel,
+                                     .acc = vec2(0.0f, 0.0f),
+                                     .inertia = 1.0f,
+                                     .rotVel = 0.0f,
+                                     .rotAcc = 0.0f});
+    float rot = atan2f(-vel.x, vel.y);
+    if (!placeInSector(ent, entt, sectorId, {pos, rot}))
     {
         LG_E("Failed to place projectile in sector");
         ecs.destroyEntity(ent);
         return;
     }
-    LG_I("Spawning projectile: {}", ent);
     broadcastEntityToClients(ent);
+}
+
+void Engine::loadCollisionMatrix()
+{
+    config.iterateThroughChildren(
+        {"engine", "collision-layer-mat"},
+        [this](const cfg::ConfigNode& node)
+        {
+            const string& pair = node.getName();
+            size_t delim = pair.find('-');
+            std::string first, second;
+            if (delim != std::string::npos)
+            {
+                first = pair.substr(0, delim);
+                second = pair.substr(delim + 1);
+                std::vector<string> path = {"enabled"};
+                bool enabled = static_cast<bool>(
+                    std::get<float>(node.get(path, cfg::nodeVal_t(1.0f))));
+                collisionLayerMat.setInteraction(
+                    magic_enum::enum_cast<ecs::CollisionLayer>(first).value(),
+                    magic_enum::enum_cast<ecs::CollisionLayer>(second).value(),
+                    ecs::CollisionLayerMat::Interaction{.enabled = enabled});
+            }
+        });
+}
+
+void Engine::destroyEntity(ecs::EntityId entityId)
+{
+    if (ecs.destroyEntity(entityId))
+    {
+        forActiveClients(
+            [this, entityId](def::ClientInfo* clientInfo)
+            {
+                prot::MsgComposer mcomp(net::SendType::TCP,
+                                        clientInfo->clientInfo.connection);
+                mcomp.startCommand(prot::cmd::DESTROY_ENTITY, 0);
+                mcomp.ser->object(entityId);
+                mcomp.execute(sendQueue);
+            });
+    }
+}
+
+void Engine::forActiveClients(
+    std::function<void(def::ClientInfo* clientInfo)> callback)
+{
+    for (auto& clientHandle : activeClientHandles)
+    {
+        def::ClientInfo* clientInfo = clientLib.getItem(clientHandle);
+        callback(clientInfo);
+    }
 }
 
 }  // namespace sphys

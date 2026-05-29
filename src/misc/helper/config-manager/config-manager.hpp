@@ -29,6 +29,9 @@ class ConfigManager
     nodeVal_t get(std::vector<string> path,
                   const nodeVal_t& def = nodeVal_t(0.0f)) const;
     void set(std::vector<string> path, nodeVal_t value);
+    void iterateThroughChildren(
+        std::vector<string> path,
+        std::function<void(const ConfigNode& node)> callback) const;
     void addDefs(const string& file);
 
   private:

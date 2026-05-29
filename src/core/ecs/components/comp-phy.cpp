@@ -7,6 +7,29 @@
 namespace ecs
 {
 
+const CollisionLayerMat::Interaction&
+CollisionLayerMat::getInteraction(CollisionLayer layer1,
+                                  CollisionLayer layer2) const
+{
+    return interactions[static_cast<size_t>(layer1)]
+                       [static_cast<size_t>(layer2)];
+}
+
+void CollisionLayerMat::setInteraction(CollisionLayer layer1,
+                                       CollisionLayer layer2,
+                                       Interaction interaction)
+{
+    interactions[static_cast<size_t>(layer1)][static_cast<size_t>(layer2)] =
+        interaction;
+    interactions[static_cast<size_t>(layer2)][static_cast<size_t>(layer1)] =
+        interaction;
+    LG_I("Set collision between {} and {} to {}",
+         magic_enum::enum_name(layer1),
+         magic_enum::enum_name(layer2),
+         interaction);
+}
+
+
 void PhyThrust::updateStatsFromEntity(entt::entity entity,
                                       ecs::PtrHandle* ptrHandle)
 {

@@ -30,6 +30,7 @@
 #include <comp-storage.hpp>
 #include <comp-struct.hpp>
 #include <comp-turret.hpp>
+#include <comp-lifetime.hpp>
 
 namespace ecs
 {
@@ -93,15 +94,18 @@ class Engine
     ecs::EntityId spawnEntityFromAsset(const std::string& assetId,
                                        uint32_t sectorId,
                                        const ecs::Transform& transform);
-    void spawnProjectile(uint32_t sectorId,
-                         vec2 pos,
-                         vec2 vel,
-                         gobj::TexturesHandle texturesHandle);
+    void spawnProjectile(
+        uint32_t sectorId,
+        vec2 pos,
+        vec2 vel,
+        gobj::ProjectileHandle projectileHandle,
+        const ecs::EntityId& exceptEntity = ecs::EntityId::Invalid());
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
     template <class T> void registerSlowDumpComponent();
     template <class T>
     void registerActiveSectorDumpComponent(DumpFilter filter = DumpFilter::All);
+    void destroyEntity(ecs::EntityId entityId);
 
   private:
     void engineLoop();
@@ -159,8 +163,14 @@ class Engine
     ecs::Hull* makeHull(entt::entity entity,
                         const gobj::HullHandle& hullHandle);
     ecs::Station* makeStation(entt::entity entity);
-    ecs::Collider* makeCollider(entt::entity entity,
-                                const gobj::ColliderHandle& colliderHandle);
+    ecs::Collider*
+    makeCollider(entt::entity entity,
+                 const gobj::ColliderHandle& colliderHandle,
+                 ecs::CollisionLayer colliderType,
+                 const ecs::EntityId& exceptEntity = ecs::EntityId::Invalid());
+    ecs::Projectile*
+    makeProjectile(entt::entity entity,
+                   const gobj::ProjectileHandle& projectileHandle);
     ecs::MapIcon* makeMapIcon(entt::entity entity);
     ecs::Textures* makeTextures(entt::entity entity,
                                 const gobj::TexturesHandle& texturesHandle);
@@ -169,7 +179,9 @@ class Engine
     ecs::MoveCtrl* makeMoveCtrl(entt::entity entity,
                                 const ecs::PhyThrust& phyThrust,
                                 const ecs::MoveCtrl& moveCtrl);
+    ecs::Module* makeModule(entt::entity entity, const ecs::Module& module);
     ecs::Storage* makeStorage(entt::entity entity, const ecs::Storage& storage);
+    ecs::Lifetime* makeLifetime(entt::entity entity, float lifetime);
     ecs::StationPart*
     makeStationPart(entt::entity entity,
                     const gobj::StationPartHandle& partHandle);
@@ -188,6 +200,8 @@ class Engine
     ecs::EntityId spawnModule(ecs::EntityId parent,
                               const gobj::ModuleHandle& moduleHandle,
                               uint16_t slotIndex);
+    void loadCollisionMatrix();
+    void forActiveClients(std::function<void(def::ClientInfo* clientInfo)> callback);
 
     const sphy::CmdLinOptionsServer& options;
     std::atomic<bool> stopRequested{false};
@@ -215,6 +229,8 @@ class Engine
     vector<CompClientDump> slowDumpComponents;
     vector<CompActiveSectorUpdate> activeSectorUpdates;
     float filteredFps = 0.0f;
+
+    ecs::CollisionLayerMat collisionLayerMat;
 
   public:
     ecs::Ecs ecs;

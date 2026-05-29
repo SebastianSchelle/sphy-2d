@@ -23,6 +23,7 @@ set(LIBS_PUB
     libDaScript
     sphy_core_world
     sphy_core_ecs
+    sphy_core_ecs_systems
     sphy_core_game_objects_libs
     sphy_core_mod_common
     sphy_misc_runtime

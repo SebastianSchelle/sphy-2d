@@ -3,14 +3,14 @@
 
 #include "comp-ident.hpp"
 #include "std-inc.hpp"
-#include <magic_enum/magic_enum.hpp>
 #include <lib-modules.hpp>
+#include <magic_enum/magic_enum.hpp>
 
 namespace gobj
 {
 enum class ModuleType : uint8_t;
 enum class StationPartType : uint8_t;
-}
+}  // namespace gobj
 
 namespace ecs
 {
@@ -24,7 +24,7 @@ struct ModuleRef
 
 #define SER_MODULE_REF                                                         \
     SOBJ(o.entityId);                                                          \
-    S1b(o.slotType);                                                            \
+    S1b(o.slotType);                                                           \
     S1b(o.moduleSlotType);
 EXT_SER(ModuleRef, SER_MODULE_REF)
 EXT_DES(ModuleRef, SER_MODULE_REF)
@@ -35,7 +35,8 @@ struct Hull
     static constexpr string NAME = "hull";
 
     Hull() : hp(0.0f) {}
-    Hull(size_t slotCnt, float hp, GenericHandle hullHandle) : hp(hp), hullHandle(hullHandle)
+    Hull(size_t slotCnt, float hp, GenericHandle hullHandle)
+        : hp(hp), hullHandle(hullHandle)
     {
         modules.resize(slotCnt);
         for (size_t i = 0; i < slotCnt; i++)
@@ -73,9 +74,12 @@ struct Module
     static constexpr string NAME = "module";
 
     GenericHandle moduleHandle;
+    EntityId parent;
 };
 
-#define SER_MODULE SOBJ(o.moduleHandle);
+#define SER_MODULE                                                             \
+    SOBJ(o.moduleHandle);                                                      \
+    SOBJ(o.parent);
 EXT_SER(Module, SER_MODULE)
 EXT_DES(Module, SER_MODULE)
 
@@ -85,7 +89,7 @@ struct StationPartRef
     gobj::StationPartType partType;
 };
 
-#define SER_STATION_PART_REF                                                         \
+#define SER_STATION_PART_REF                                                   \
     SOBJ(o.entityId);                                                          \
     S1b(o.partType);
 EXT_SER(StationPartRef, SER_STATION_PART_REF)
@@ -122,10 +126,10 @@ struct Projectile
 {
     static const uint16_t VERSION = 1;
     static constexpr string NAME = "projectile";
-    float dmg = 1.0f;
+    GenericHandle projectileHandle;
 };
 
-#define SER_PROJECTILE S4b(o.dmg);
+#define SER_PROJECTILE SOBJ(o.projectileHandle);
 EXT_SER(Projectile, SER_PROJECTILE)
 EXT_DES(Projectile, SER_PROJECTILE)
 
@@ -135,6 +139,6 @@ EXT_FMT(ecs::Hull, "(hullHandle: {}, hull: {})", o.hullHandle, o.hp);
 EXT_FMT(ecs::Module, "(moduleHandle: {})", o.moduleHandle);
 EXT_FMT(ecs::Station, "(hp: {})", o.hp);
 EXT_FMT(ecs::StationPart, "(stationPartHandle: {})", o.stationPartHandle);
-EXT_FMT(ecs::Projectile, "(dmg: {})", o.dmg);
+EXT_FMT(ecs::Projectile, "(projectileHandle: {})", o.projectileHandle);
 
 #endif

@@ -162,6 +162,7 @@ bool World::saveWorld(const std::string& savedir)
     return true;
 }
 
+#ifdef SERVER
 void World::update(float dt, ecs::PtrHandle* ptrHandle)
 {
     // todo: add multithreading
@@ -190,7 +191,9 @@ void World::update(float dt, ecs::PtrHandle* ptrHandle)
     ptrHandle->workDistributor->waitForEmptyQueues();
     ptrHandle->workDistributor->suspend();
     handleSectorMoveRequests(ptrHandle);
+    destroyMarkedEntities(ptrHandle);
 }
+#endif
 
 bool World::getNeighboringSectorPos(uint32_t sectorId,
                                     def::Direction dir,
@@ -592,6 +595,16 @@ void World::handleSectorMoveRequests(ecs::PtrHandle* ptrHandle)
         }
     }
 }
+
+#ifdef SERVER
+void World::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
+{
+    for (uint32_t sectorId = 0; sectorId < sectors.getSize(); sectorId++)
+    {
+        sectors.at(sectorId)->destroyMarkedEntities(ptrHandle);
+    }
+}
+#endif
 
 bool World::sectorIntersectsRect(uint32_t sectorId, const glm::vec4& rect) const
 {

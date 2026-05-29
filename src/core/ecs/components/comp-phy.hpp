@@ -2,7 +2,7 @@
 #define COMP_PHY_HPP
 
 #include "comp-ident.hpp"
-#include "ptr-handle.hpp"
+#include <ptr-handle.hpp>
 #include <aabb-tree.hpp>
 #include <algorithm>
 #include <climits>
@@ -95,12 +95,46 @@ struct ContactInfo
     float restitution;
 };
 
+enum class CollisionLayer : uint8_t
+{
+    All,
+    Projectile,
+    Missile,
+    Laser,
+    Ship,
+    Station,
+    Drone,
+    Asteroid,
+    NumColliderTypes,
+};
+
+class CollisionLayerMat
+{
+  public:
+    struct Interaction
+    {
+        uint8_t enabled : 1 = 1;
+    };
+    void setInteraction(CollisionLayer layer1,
+                        CollisionLayer layer2,
+                        Interaction interaction);
+    const Interaction& getInteraction(CollisionLayer layer1,
+                                      CollisionLayer layer2) const;
+
+  private:
+    Interaction
+        interactions[static_cast<size_t>(CollisionLayer::NumColliderTypes)]
+                    [static_cast<size_t>(CollisionLayer::NumColliderTypes)];
+};
+
 struct Collider
 {
     static const uint16_t VERSION = 1;
     static constexpr string NAME = "collider";
 
     GenericHandle colliderHandle;
+    EntityId exceptEntity;
+    CollisionLayer colliderType;
 
     const gobj::Collider*
     getColliderDef(con::ItemLib<gobj::Collider>* colliderLib) const
@@ -254,7 +288,10 @@ inline std::optional<Contact> collideCollidersWorld(const Collider& c1,
     return c;
 }
 
-#define SER_COLLIDER SOBJ(o.colliderHandle);
+#define SER_COLLIDER                                                           \
+    SOBJ(o.colliderHandle);                                                    \
+    S1b(o.colliderType);                                                        \
+    SOBJ(o.exceptEntity);
 EXT_SER(Collider, SER_COLLIDER)
 EXT_DES(Collider, SER_COLLIDER)
 
@@ -810,5 +847,6 @@ EXT_FMT(ecs::Broadphase, "(proxyId: {}, fatAABB: {})", o.proxyId, o.fatAABB);
 EXT_FMT(ecs::TransformCache, "(c: {}, s: {})", o.c, o.s);
 EXT_FMT(con::AABB, "(lower: {}, upper: {})", o.lower, o.upper);
 EXT_FMT(ecs::AnchorFixed, "(pos: {}, rot: {}, ref: {})", o.pos, o.rot, o.ref);
+EXT_FMT(ecs::CollisionLayerMat::Interaction, "(enabled: {})", o.enabled);
 
 #endif

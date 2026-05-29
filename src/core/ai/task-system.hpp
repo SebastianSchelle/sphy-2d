@@ -12,7 +12,7 @@ namespace ai
 
 namespace taskdata
 {
-using TaskData = std::variant<Idle, SectorPatrol, Patrol, Goto, DebugLog>;
+using TaskData = std::variant<Idle, UniversePatrol, SectorPatrol, Patrol, Goto, DebugLog>;
 }  // namespace taskdata
 
 class TaskStack

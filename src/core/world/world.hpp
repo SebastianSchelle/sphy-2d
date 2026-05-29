@@ -2,13 +2,13 @@
 #define WORLD_HPP
 
 #include "ecs.hpp"
+#include <components/comp-ident.hpp>
 #include <config-manager.hpp>
 #include <matrix2d.hpp>
 #include <sector.hpp>
 #include <std-inc.hpp>
-#include <components/comp-ident.hpp>
-#include <world-def.hpp>
 #include <work-distributor.hpp>
+#include <world-def.hpp>
 #ifdef CLIENT
 #include <render-engine.hpp>
 #endif
@@ -31,21 +31,34 @@ class World
     bool createFromConfig(cfg::ConfigManager& config);
     bool createFromSave(cfg::ConfigManager& config, const std::string& savedir);
     bool createFromServer(const def::WorldShape& worldShape);
-    bool getNeighboringSectorPos(uint32_t sectorId, def::Direction dir, def::SectorPos& newPos);
-    bool getNeighboringSectorPos(uint32_t sectorX, uint32_t sectorY, def::Direction dir, def::SectorPos& newPos);
+    bool getNeighboringSectorPos(uint32_t sectorId,
+                                 def::Direction dir,
+                                 def::SectorPos& newPos);
+    bool getNeighboringSectorPos(uint32_t sectorX,
+                                 uint32_t sectorY,
+                                 def::Direction dir,
+                                 def::SectorPos& newPos);
     Sector* getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir);
     bool saveWorld(const std::string& savedir);
+#ifdef SERVER
     void update(float dt, ecs::PtrHandle* ptrHandle);
+#endif
     void markPlayerSectors(const std::set<uint32_t>& playerSectors);
     const def::WorldShape& getWorldShape() const
     {
-      return worldShape;
+        return worldShape;
     }
 #ifdef CLIENT
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
-    void drawTacticalMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
-    void drawStrategicMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
-    void drawThirdPerson(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
+    void drawTacticalMap(gfx::RenderEngine& renderer,
+                         const glm::vec4& viewRect,
+                         float zoom);
+    void drawStrategicMap(gfx::RenderEngine& renderer,
+                          const glm::vec4& viewRect,
+                          float zoom);
+    void drawThirdPerson(gfx::RenderEngine& renderer,
+                         const glm::vec4& viewRect,
+                         float zoom);
 #endif
     bool moveEntityTo(ecs::PtrHandle* ptrHandle,
                       ecs::EntityId entityId,
@@ -78,8 +91,10 @@ class World
                               ecs::EntityId entityId,
                               uint32_t newSectorId);
     bool sectorIntersectsRect(uint32_t sectorId, const glm::vec4& rect) const;
-    bool sectorIntersectsRect(
-        int32_t sectorX, int32_t sectorY, const glm::vec4& rect) const;
+    bool sectorIntersectsRect(int32_t sectorX,
+                              int32_t sectorY,
+                              const glm::vec4& rect) const;
+
   private:
     bool initWorld();
     bool initSectors(bool fromSave);
@@ -87,6 +102,9 @@ class World
                               uint16_t version,
                               bitsery::Deserializer<InputAdapter>& des_);
     void handleSectorMoveRequests(ecs::PtrHandle* ptrHandle);
+#ifdef SERVER
+    void destroyMarkedEntities(ecs::PtrHandle* ptrHandle);
+#endif
 
     def::WorldShape worldShape;
     con::Matrix2D<Sector> sectors;

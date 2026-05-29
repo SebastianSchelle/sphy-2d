@@ -8,7 +8,7 @@ namespace ecs
 
 struct Ai
 {
-    static const uint16_t VERSION = 2;
+    static const uint16_t VERSION = 1;
     static constexpr string NAME = "ai";
 
     GenericHandle stackHandle;

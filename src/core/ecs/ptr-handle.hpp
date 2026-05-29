@@ -12,6 +12,10 @@ namespace ai
 {
 class TaskSystem;
 }
+namespace ecs
+{
+class CollisionLayerMat;
+}
 #elif CLIENT
 namespace sphyc
 {
@@ -68,6 +72,7 @@ struct PtrHandle
     float linDrag;
     float minFaceTargetDist;
     ai::TaskSystem* taskSystem;
+    ecs::CollisionLayerMat* collisionLayerMat;
 #elif CLIENT
     sphyc::Client* client;
 #endif

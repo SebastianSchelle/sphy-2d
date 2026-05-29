@@ -161,6 +161,8 @@ class Model
     void reqAllComponents(ecs::EntityId entity);
     void handleReqAllComponentsResp(bitsery::Deserializer<InputAdapter>& cmddes,
                                     size_t dataEndPos);
+    void handleDestroyEntity(bitsery::Deserializer<InputAdapter>& cmddes,
+                             size_t dataEndPos);
     void notifyReady();
     void handleGetAabbTreeResp(bitsery::Deserializer<InputAdapter>& cmddes,
                                size_t dataEndPos);

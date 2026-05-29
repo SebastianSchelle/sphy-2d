@@ -36,8 +36,15 @@ class ConfigNode
   public:
     ConfigNode(const string& name);
     virtual ~ConfigNode();
-    virtual nodeVal_t get(std::vector<string>& path, const nodeVal_t& def = nodeVal_t(0.0f)) const = 0;
+    virtual nodeVal_t get(std::vector<string>& path,
+                          const nodeVal_t& def = nodeVal_t(0.0f)) const = 0;
     virtual void set(std::vector<string>& path, nodeVal_t value) = 0;
+    virtual void iterateThroughChildren(
+        std::vector<string>& path,
+        std::function<void(const ConfigNode& node)> callback) const;
+
+    const string& getName() const { return name; }
+
   protected:
     const string name;
 };
@@ -47,11 +54,16 @@ class ConfigBranch : public ConfigNode
   public:
     ConfigBranch(const string& file, const string& name, YAML::Node& node);
     ~ConfigBranch();
-    nodeVal_t get(std::vector<string>& path, const nodeVal_t& def = nodeVal_t(0.0f)) const override;
+    nodeVal_t get(std::vector<string>& path,
+                  const nodeVal_t& def = nodeVal_t(0.0f)) const override;
     void set(std::vector<string>& path, nodeVal_t value) override;
+    void iterateThroughChildren(
+        std::vector<string>& path,
+        std::function<void(const ConfigNode& node)> callback) const override;
     void addDefs(YAML::Node& node, const string& file);
+
   private:
-    std::unordered_map<string, std::shared_ptr<ConfigNode>> children;
+    std::unordered_map<string, ConfigNode*> children;
 };
 
 class ConfigLeaf : public ConfigNode
@@ -59,8 +71,12 @@ class ConfigLeaf : public ConfigNode
   public:
     ConfigLeaf(const string& file, const string& name, const YAML::Node& node);
     ~ConfigLeaf();
-    nodeVal_t get(std::vector<string>& path, const nodeVal_t& def = nodeVal_t(0.0f)) const override;
+    nodeVal_t get(std::vector<string>& path,
+                  const nodeVal_t& def = nodeVal_t(0.0f)) const override;
     void set(std::vector<string>& path, nodeVal_t value) override;
+    void iterateThroughChildren(
+        std::vector<string>& path,
+        std::function<void(const ConfigNode& node)> callback) const override;
   private:
     nodeVal_t valueDefault;
     nodeVal_t value;

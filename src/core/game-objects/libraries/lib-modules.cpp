@@ -22,9 +22,16 @@ ProjectileHandle resolveProjectileHandle(
 {
     if (key.empty())
     {
+        LG_E("Projectile key is empty");
         return ProjectileHandle::Invalid();
     }
-    return projectileLib.getHandle(key);
+    auto handle = projectileLib.getHandle(key);
+    if (!handle.isValid())
+    {
+        LG_E("Projectile {} not found", key);
+        return ProjectileHandle::Invalid();
+    }
+    return handle;
 }
 
 MissileHandle resolveMissileHandle(const string& key,
@@ -32,9 +39,16 @@ MissileHandle resolveMissileHandle(const string& key,
 {
     if (key.empty())
     {
+        LG_E("Missile key is empty");
         return MissileHandle::Invalid();
     }
-    return missileLib.getHandle(key);
+    auto handle = missileLib.getHandle(key);
+    if (!handle.isValid())
+    {
+        LG_E("Missile {} not found", key);
+        return MissileHandle::Invalid();
+    }
+    return handle;
 }
 
 }  // namespace

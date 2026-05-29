@@ -24,8 +24,7 @@ class Sector
     bool saveSector(const std::string& savedir);
     void update(float dt, ecs::PtrHandle* ptrHandle);
     bool addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
-    bool removeEntity(ecs::PtrHandle* ptrHandle,
-                      ecs::EntityId entityId);
+    bool removeEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
     void moveAabbProxy(int32_t proxyId, con::AABB& newAabb);
     void getAllAABBs(std::vector<con::AABB>& aabbs) const;
     void queryBroadphase(const con::AABB& aabb,
@@ -33,6 +32,10 @@ class Sector
     vec2 getWorldPosSectorOffset(int32_t sectorOffsetX,
                                  int32_t sectorOffsetY) const;
     void markPlayerSector(bool player);
+#ifdef SERVER
+    void markEntityForDestruction(ecs::EntityId entityId);
+    void destroyMarkedEntities(ecs::PtrHandle* ptrHandle);
+#endif
     const float getWorldPosX() const
     {
         return worldPosX;
@@ -79,6 +82,10 @@ class Sector
     vector<ecs::ContactInfo> contactInfos;
 
   private:
+#ifdef SERVER
+    void destroyEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
+#endif
+
     int32_t coordX;        // Sector coord X
     int32_t coordY;        // Sector coord Y
     float sectorSize;      // Sector size
@@ -90,6 +97,7 @@ class Sector
 
     vector<ecs::EntityId> entityIds;
     vector<entt::entity> entities;
+    vector<ecs::EntityId> entitiesToDestroy;
     con::DynamicAABBTree<entt::entity> aabbTree;
     bool playerSector = false;
 };

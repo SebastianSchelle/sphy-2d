@@ -37,6 +37,12 @@ ConfigNode::ConfigNode(const string& name) : name(name) {}
 
 ConfigNode::~ConfigNode() {}
 
+void ConfigNode::iterateThroughChildren(
+    std::vector<string>& path,
+    std::function<void(const ConfigNode& node)> callback) const
+{
+}
+
 ConfigBranch::ConfigBranch(const string& file,
                            const string& name,
                            YAML::Node& node)
@@ -50,7 +56,13 @@ ConfigBranch::ConfigBranch(const string& file,
     addDefs(node, file);
 }
 
-ConfigBranch::~ConfigBranch() {}
+ConfigBranch::~ConfigBranch()
+{
+    for (auto& child : children)
+    {
+        delete child.second;
+    }
+}
 
 nodeVal_t ConfigBranch::get(std::vector<string>& path,
                             const nodeVal_t& def) const
@@ -82,6 +94,28 @@ void ConfigBranch::set(std::vector<string>& path, nodeVal_t value)
     LG_E("Config branch {} not found", name.c_str());
 }
 
+void ConfigBranch::iterateThroughChildren(
+    std::vector<string>& path,
+    std::function<void(const ConfigNode& node)> callback) const
+{
+    if (!path.empty())
+    {
+        const auto& child = children.find(path.back());
+        if (child != children.end())
+        {
+            path.pop_back();
+            child->second->iterateThroughChildren(path, callback);
+        }
+    }
+    else
+    {
+        for (const auto& child : children)
+        {
+            callback(*child.second);
+        }
+    }
+}
+
 void ConfigBranch::addDefs(YAML::Node& node, const string& file)
 {
     for (auto it = node.begin(); it != node.end(); ++it)
@@ -90,7 +124,7 @@ void ConfigBranch::addDefs(YAML::Node& node, const string& file)
         if (it->second.IsMap())
         {
             children[branchName] =
-                std::make_shared<ConfigBranch>(file, branchName, it->second);
+                new ConfigBranch(file, branchName, it->second);
         }
         else if (it->second.IsScalar())
         {
@@ -102,13 +136,13 @@ void ConfigBranch::addDefs(YAML::Node& node, const string& file)
                     std::filesystem::path currentPath(file);
                     YAML::Node cfgBranch =
                         YAML::LoadFile(currentPath.parent_path() / value);
-                    children[branchName] = std::make_shared<ConfigBranch>(
-                        file, branchName, cfgBranch);
+                    children[branchName] =
+                        new ConfigBranch(file, branchName, cfgBranch);
                     continue;
                 }
             }
             children[branchName] =
-                std::make_shared<ConfigLeaf>(file, branchName, it->second);
+                new ConfigLeaf(file, branchName, it->second);
         }
         else
         {
@@ -171,6 +205,13 @@ void ConfigLeaf::set(std::vector<string>& path, nodeVal_t value)
 {
     this->value = value;
     LG_D("Set config leaf {} to {}", name.c_str(), std::get<float>(value));
+}
+
+void ConfigLeaf::iterateThroughChildren(
+    std::vector<string>& path,
+    std::function<void(const ConfigNode& node)> callback) const
+{
+    callback(*this);
 }
 
 }  // namespace cfg

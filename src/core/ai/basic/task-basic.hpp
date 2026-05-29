@@ -17,6 +17,26 @@ struct Idle
     TaskFunResult function(TaskFunArgs* args);
 };
 
+struct UniversePatrol
+{
+    TASK_HEADER("universe-patrol", 600);
+    TaskFunResult function(TaskFunArgs* args);
+    void makeRandomPos(TaskFunArgs* args);
+
+    struct Config
+    {
+        float allowedPosError = 100.0f;
+        float allowedRotError = M_PIf;
+    };
+    struct State
+    {
+        def::SectorCoords randomPos = {0, 0};
+        bool initialized = false;
+    };
+    Config config;
+    State state;
+};
+
 struct SectorPatrol
 {
     TASK_HEADER("sector-patrol", 600);

@@ -29,17 +29,17 @@ EntityId Ecs::createEntity()
     return entityId;
 }
 
-void Ecs::destroyEntity(EntityId entityId)
+bool Ecs::destroyEntity(EntityId entityId)
 {
     if (!validId(entityId))
     {
-        return;
+        return false;
     }
     Slot& slot = idMap[entityId.index];
     registry.destroy(slot.entity);
-    slot.generation++;
     slot.entity = entt::null;
     idMapFreeSlots.push_back(entityId.index);
+    return true;
 }
 
 void Ecs::iterateEntities(IterateEntitiesCallback callback)
@@ -75,6 +75,11 @@ EntityId Ecs::getEntityIdFromIdx(uint32_t index)
     return {0, 0};
 }
 
+EntityId Ecs::getEntityId(entt::entity entity)
+{
+    return registry.get<EntityId>(entity);
+}
+
 const vector<System>& Ecs::getRegisteredSystems()
 {
     return registeredSystems;
@@ -102,6 +107,11 @@ entt::registry& Ecs::getRegistry()
     return registry;
 }
 
+uint32_t Ecs::getNumEntities() const
+{
+    return idMap.size() - idMapFreeSlots.size();
+}
+
 EcsClient::EcsClient() {}
 
 EcsClient::~EcsClient() {}
@@ -120,9 +130,13 @@ entt::entity EcsClient::enttFromServerId(const EntityId& entityId)
     else if (it->second.generation != entityId.generation)
     {
         // Generation mismatch, destroy old entity and create new one
-        registry.destroy(it->second.entity);
+        if (it->second.entity != entt::null)
+        {
+            destroyClientEntity(entityId.index);
+        }
         auto e = registry.create();
         idMap[entityId.index] = {e, entityId.generation};
+        numClientEntities++;
         return e;
     }
     else
@@ -169,9 +183,21 @@ void EcsClient::clearSession()
     idMap.clear();
 }
 
-uint32_t Ecs::getNumEntities() const
+void EcsClient::destroyServerEntity(EntityId entityId)
 {
-    return idMap.size() - idMapFreeSlots.size();
+    auto it = idMap.find(entityId.index);
+    if (it != idMap.end() && it->second.generation == entityId.generation
+        && it->second.entity != entt::null)
+    {
+        destroyClientEntity(entityId.index);
+    }
+}
+
+void EcsClient::destroyClientEntity(uint32_t index)
+{
+    registry.destroy(idMap[index].entity);
+    idMap[index].entity = entt::null;
+    numClientEntities--;
 }
 
 }  // namespace ecs

@@ -468,7 +468,6 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         {
             if (flags & CMD_FLAG_RESP)
             {
-                LG_I("Received all components response");
                 handleReqAllComponentsResp(cmddes, dataEndPos);
             }
             break;
@@ -500,6 +499,11 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         case prot::cmd::TOTAL_NUM_ENTITIES:
         {
             cmddes.value4b(ecs.numServerEntities);
+            break;
+        }
+        case prot::cmd::DESTROY_ENTITY:
+        {
+            handleDestroyEntity(cmddes, dataEndPos);
             break;
         }
         default:
@@ -796,33 +800,33 @@ void Model::drawProjectiles(gfx::RenderEngine& renderer,
                             uint32_t activeSectorId)
 {
     auto& reg = ecs.getRegistry();
-    reg.view<ecs::Transform, ecs::SectorId, ecs::Projectile>().each(
-        [this, &renderer, &viewRect, &reg, activeSectorId](
-            ecs::Transform& transform,
-            ecs::SectorId& sectorId,
-            ecs::Projectile& projectile)
-        {
-            LG_I("Drawing projectile: {}", projectile.dmg);
-            bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
-                                || sectorId.id == activeSectorId;
-            if (sectorFilter)
+    reg.view<ecs::Transform, ecs::SectorId, ecs::Projectile, ecs::Textures>()
+        .each(
+            [this, &renderer, &viewRect, &reg, activeSectorId](
+                ecs::Transform& transform,
+                ecs::SectorId& sectorId,
+                ecs::Projectile& projectile,
+                ecs::Textures& textures)
             {
-                glm::vec2 worldPos =
-                    world.getWorldPosSectorOffset(sectorId.id,
-                                                  renderer.getSectorOffsetX(),
-                                                  renderer.getSectorOffsetY())
-                    + transform.pos;
-                if (smath::pointInsideRect(worldPos, viewRect))
+                bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
+                                    || sectorId.id == activeSectorId;
+                if (sectorFilter)
                 {
-                    renderer.drawEllipse(worldPos,
-                                         glm::vec2(0.5f, 0.5f),
-                                         0xffffffff,
-                                         0.0f,
-                                         0.0f,
-                                         0);
+                    glm::vec2 worldPos = world.getWorldPosSectorOffset(
+                                             sectorId.id,
+                                             renderer.getSectorOffsetX(),
+                                             renderer.getSectorOffsetY())
+                                         + transform.pos;
+                    if (smath::pointInsideRect(worldPos, viewRect))
+                    {
+                        drawTextures(renderer,
+                                     textures,
+                                     transform.rot,
+                                     gfx::RenderEngine::zIdxProjectile,
+                                     worldPos);
+                    }
                 }
-            }
-        });
+            });
 }
 
 void Model::drawStationTextures(gfx::RenderEngine& renderer,
@@ -1434,6 +1438,15 @@ void Model::setupDataModelConnecting()
         connectingConstructor.Bind("info", &connectingData.info);
     }
     rmlModelConnecting = connectingConstructor.GetModelHandle();
+}
+
+void Model::handleDestroyEntity(bitsery::Deserializer<InputAdapter>& cmddes,
+                                size_t dataEndPos)
+{
+    (void)dataEndPos;
+    ecs::EntityId entityId;
+    cmddes.object(entityId);
+    ecs.destroyServerEntity(entityId);
 }
 
 }  // namespace sphyc

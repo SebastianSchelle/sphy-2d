@@ -19,6 +19,7 @@
 #include <boost/uuid/uuid_io.hpp>
 #include <cmath>
 #include <concurrentqueue.h>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <glm/glm.hpp>
@@ -689,6 +690,12 @@ struct GenericHandle
     uint16_t gen;
 };
 
+struct GenericHandle32
+{
+    uint32_t idx;
+    uint16_t gen;
+};
+
 bool tryParseFloat(const string& text, float& outValue);
 bool tryParseInt(const string& text, int& outValue);
 void floatToString(float value, string& outText, int precision = 2);
@@ -702,6 +709,12 @@ EXT_SER(GenericHandle, SER_GENERIC_HANDLE)
 EXT_DES(GenericHandle, SER_GENERIC_HANDLE)
 
 EXT_FMT(GenericHandle, "({}, {})", o.idx, o.gen);
+
+#define SER_GENERIC_HANDLE_32 S4b(o.idx); S2b(o.gen);
+EXT_SER(GenericHandle32, SER_GENERIC_HANDLE_32)
+EXT_DES(GenericHandle32, SER_GENERIC_HANDLE_32)
+
+EXT_FMT(GenericHandle32, "({}, {})", o.idx, o.gen);
 
 template <typename T, typename Pred>
 typename std::vector<T>::iterator
