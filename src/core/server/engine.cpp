@@ -67,6 +67,8 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
         CFG_FLOAT(config, 0.01f, "engine", "mining", "mining-rate");
     int updThreads = CFG_UINT(config, 2.0f, "engine", "upd", "threads");
 
+    itemLifetime = CFG_FLOAT(config, 600.0f, "engine", "items", "item-lifetime");
+    
     updThreads = std::clamp(updThreads, 1, 16);
     workDistributor.init(updThreads);
 }
@@ -2371,6 +2373,7 @@ void Engine::spawnItem(uint32_t sectorId,
                                      .inertia = 1.0f,
                                      .rotVel = 0.0f,
                                      .rotAcc = 0.0f});
+    makeLifetime(entt, itemLifetime);
     if (!placeInSector(ent, entt, sectorId, transform))
     {
         LG_E("Failed to place item in sector");

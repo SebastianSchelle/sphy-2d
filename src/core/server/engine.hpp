@@ -257,6 +257,8 @@ class Engine
     ecs::CollisionLayerMat collisionLayerMat;
     gobj::ColliderHandle itemColliderHandle;
 
+    float itemLifetime;
+
   public:
     ecs::Ecs ecs;
 };
