@@ -1308,7 +1308,12 @@ bool RenderEngine::getTexturePixelSize(const std::string& name,
     {
         return false;
     }
-    Texture* texture = textureLoader.getTextureLib().getItem(handle);
+    return getTexturePixelSize(handle, sizePx);
+}
+
+bool RenderEngine::getTexturePixelSize(TextureHandle textureHandle, glm::vec2& sizePx)
+{
+    Texture* texture = textureLoader.getTextureLib().getItem(textureHandle);
     if (texture == nullptr)
     {
         return false;

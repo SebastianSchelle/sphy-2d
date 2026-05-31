@@ -43,6 +43,7 @@ enum class ModdingToolsMode
     StationPart,
     Projectile,
     Missile,
+    Asteroid,
 };
 
 enum class ModdingEditorKey
@@ -178,6 +179,27 @@ struct MissileInfo
     def::DamageType damageTypeVal = def::DamageType::Explosive;
 };
 
+struct CompositionEntryInfo
+{
+    string itemName;
+    /** UI percent (0–100); saved to YAML as fraction 0–1. */
+    string fraction = "0";
+    float fractionVal = 0.0f;
+};
+
+struct DebrisEntryInfo
+{
+    string asteroidName;
+    /** Weight 0–255 (typically sum to 100). */
+    string weight = "0";
+    uint8_t weightVal = 0;
+};
+
+struct AsteroidInfo
+{
+    string description;
+};
+
 struct ModuleInfo
 {
     string moduleType = "MainThruster";
@@ -200,11 +222,9 @@ struct ModuleInfo
     def::ShipClass hangarMaxShipClassVal = def::ShipClass::Drone;
     string hangarSpace = "0";
     float hangarSpaceVal = 0.0f;
-    /** `data.turret-type` / `data.damage-type` / `data.num-barrels` for Turret modules. */
+    /** `data.turret-type` / `data.num-barrels` for Turret modules. */
     string turretType = "Projectile";
     def::TurretType turretTypeVal = def::TurretType::Projectile;
-    string turretDamageType = "Kinetic";
-    def::DamageType turretDamageTypeVal = def::DamageType::Kinetic;
     /** `data.projectile` / `data.missile` lib keys. */
     string turretProjectile;
     string turretMissile;
@@ -307,6 +327,27 @@ class ModdingTools
                                 Rml::Event& event,
                                 const Rml::VariantList& args);
     void onModdingNewMissile(Rml::DataModelHandle handle,
+                             Rml::Event& event,
+                             const Rml::VariantList& args);
+    void onModdingNewAsteroid(Rml::DataModelHandle handle,
+                              Rml::Event& event,
+                              const Rml::VariantList& args);
+    void onAddCompositionEntry(Rml::DataModelHandle handle,
+                               Rml::Event& event,
+                               const Rml::VariantList& args);
+    void onClearComposition(Rml::DataModelHandle handle,
+                            Rml::Event& event,
+                            const Rml::VariantList& args);
+    void onRemoveCompositionEntry(Rml::DataModelHandle handle,
+                                  Rml::Event& event,
+                                  const Rml::VariantList& args);
+    void onAddDebrisEntry(Rml::DataModelHandle handle,
+                          Rml::Event& event,
+                          const Rml::VariantList& args);
+    void onClearDebris(Rml::DataModelHandle handle,
+                       Rml::Event& event,
+                       const Rml::VariantList& args);
+    void onRemoveDebrisEntry(Rml::DataModelHandle handle,
                              Rml::Event& event,
                              const Rml::VariantList& args);
     void onModdingFileSave(Rml::DataModelHandle handle,
@@ -446,6 +487,8 @@ class ModdingTools
     bool loadProjectileDataFromPath(const string& path);
     bool saveMissileDataToPath(const string& path);
     bool loadMissileDataFromPath(const string& path);
+    bool saveAsteroidDataToPath(const string& path);
+    bool loadAsteroidDataFromPath(const string& path);
     /** Drops any station-connector rows and appends one per connector (StationPart mode). */
     void syncStationPartConnectorTextures();
     void parseEditorNumericFields();
@@ -469,7 +512,10 @@ class ModdingTools
     StationPartInfo stationPartInfo;
     ProjectileInfo projectileInfo;
     MissileInfo missileInfo;
+    AsteroidInfo asteroidInfo;
     ModuleInfo moduleInfo;
+    vector<CompositionEntryInfo> compositionEntries;
+    vector<DebrisEntryInfo> debrisEntries;
     float hpVal = 0.0f;
     vector<TextureInfo> textures;
     vector<TextureInfo> baseTextures;
@@ -491,6 +537,8 @@ class ModdingTools
     bool extendSlots = true;
     bool extendCollider = true;
     bool extendConnectors = true;
+    bool extendComposition = true;
+    bool extendDebris = true;
     int activeTextureIndex = -1;
     /** For RML row highlight / expressions (`magic_enum::enum_name`). */
     string selectedListKind = "None";

@@ -5,6 +5,10 @@
 #include <optional>
 #include <sys-phy.hpp>
 
+#ifdef SERVER
+#include <engine.hpp>
+#endif
+
 namespace ecs
 {
 
@@ -460,13 +464,43 @@ void sysCollisionDetectionImpl(world::Sector* sector,
             {
                 ecs::EntityId entProj =
                     reg->get<ecs::EntityId>(collision.first);
+                ecs::EntityId entOther =
+                    reg->get<ecs::EntityId>(collision.second);
+#ifdef SERVER
+                bool destroyed =
+                    ptrHandle->engine->projectileCollision(entProj,
+                                                           collision.first,
+                                                           entOther,
+                                                           collision.second,
+                                                           *contact,
+                                                           collision.first);
+                if (destroyed)
+                {
+                    sector->markEntityForDestruction(entOther);
+                }
                 sector->markEntityForDestruction(entProj);
+#endif
             }
             else if (collider2.colliderType == CollisionLayer::Projectile)
             {
                 ecs::EntityId entProj =
                     reg->get<ecs::EntityId>(collision.second);
+                ecs::EntityId entOther =
+                    reg->get<ecs::EntityId>(collision.first);
+#ifdef SERVER
+                bool destroyed =
+                    ptrHandle->engine->projectileCollision(entProj,
+                                                           collision.second,
+                                                           entOther,
+                                                           collision.first,
+                                                           *contact,
+                                                           collision.first);
+                if (destroyed)
+                {
+                    sector->markEntityForDestruction(entOther);
+                }
                 sector->markEntityForDestruction(entProj);
+#endif
             }
             else
             {

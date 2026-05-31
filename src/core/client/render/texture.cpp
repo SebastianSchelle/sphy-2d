@@ -76,6 +76,20 @@ std::vector<uint8_t> makePaddedImage(const uint8_t* rgbaData,
     return padded;
 }
 
+/// CPU mip chain is RGBA8; atlas storage is BGRA8.
+static const bgfx::Memory* copyRgba8AsBgra8(const uint8_t* rgba, uint32_t byteCount)
+{
+    std::vector<uint8_t> bgra(byteCount);
+    for (uint32_t i = 0; i < byteCount; i += 4)
+    {
+        bgra[i + 0] = rgba[i + 2];
+        bgra[i + 1] = rgba[i + 1];
+        bgra[i + 2] = rgba[i + 0];
+        bgra[i + 3] = rgba[i + 3];
+    }
+    return bgfx::copy(bgra.data(), byteCount);
+}
+
 /// Straight RGBA8 → premultiplied RGBA8 (GPU-friendly mips and filtering).
 static void premultiplyRgba8InPlace(std::vector<uint8_t>& rgba)
 {
@@ -231,7 +245,7 @@ static uint16_t uploadMipRightExtrusion(bgfx::TextureHandle texHandle,
         }
     }
 
-    const bgfx::Memory* mem = bgfx::copy(gapPixels.data(), uint32_t(bytes));
+    const bgfx::Memory* mem = copyRgba8AsBgra8(gapPixels.data(), uint32_t(bytes));
     bgfx::updateTexture2D(texHandle,
                           layer,
                           mip,
@@ -301,7 +315,7 @@ static void uploadMipBottomExtrusion(bgfx::TextureHandle texHandle,
         }
     }
 
-    const bgfx::Memory* mem = bgfx::copy(gapPixels.data(), uint32_t(bytes));
+    const bgfx::Memory* mem = copyRgba8AsBgra8(gapPixels.data(), uint32_t(bytes));
     bgfx::updateTexture2D(texHandle,
                           layer,
                           mip,
@@ -479,32 +493,56 @@ TextureHandle TextureLoader::loadTexture(const std::string& name,
         return TextureHandle::Invalid();
     }
     bx::DefaultAllocator alloc;
-    bimg::ImageContainer* image =
+    bimg::ImageContainer* parsed =
         bimg::imageParseDds(&alloc, buffer.data(), sizef, &err);
-    if (!image)
+    if (!parsed || !err.isOk() || parsed->m_data == nullptr)
     {
         LG_E("Failed to parse image: {}", path);
+        if (parsed)
+        {
+            bimg::imageFree(parsed);
+        }
         return TextureHandle::Invalid();
     }
 
-    dimensions.x = image->m_width;
-    dimensions.y = image->m_height;
+    const bimg::TextureFormat::Enum srcFormat = parsed->m_format;
+    bimg::ImageContainer* rgbaImage = parsed;
+    if (srcFormat != bimg::TextureFormat::RGBA8)
+    {
+        rgbaImage = bimg::imageConvert(
+            &alloc, bimg::TextureFormat::RGBA8, *parsed, true);
+        bimg::imageFree(parsed);
+        if (!rgbaImage || rgbaImage->m_data == nullptr)
+        {
+            LG_E("Failed to decode {} to RGBA8 (source format {})",
+                 path,
+                 static_cast<int>(srcFormat));
+            if (rgbaImage)
+            {
+                bimg::imageFree(rgbaImage);
+            }
+            return TextureHandle::Invalid();
+        }
+    }
+
+    dimensions.x = static_cast<float>(rgbaImage->m_width);
+    dimensions.y = static_cast<float>(rgbaImage->m_height);
 
     LG_D("Read image file {} successfully", path);
-    LG_D("alpha {}", image->m_hasAlpha);
-    LG_D("width {}", image->m_width);
-    LG_D("height {}", image->m_height);
-    LG_D("format {}", (int)image->m_format);
-    LG_D("size {}", image->m_size);
+    LG_D("alpha {}", rgbaImage->m_hasAlpha);
+    LG_D("width {}", rgbaImage->m_width);
+    LG_D("height {}", rgbaImage->m_height);
+    LG_D("format {}", static_cast<int>(rgbaImage->m_format));
+    LG_D("size {}", rgbaImage->m_size);
 
-    if (!err.isOk() || image->m_data == nullptr)
-    {
-        LG_E("Failed to parse image: {}", path);
-        bimg::imageFree(image);
-        return TextureHandle::Invalid();
-    }
-    return generateTexture(
-        name, type, image->m_data, image->m_width, image->m_height, path);
+    const TextureHandle handle = generateTexture(name,
+                                                 type,
+                                                 rgbaImage->m_data,
+                                                 static_cast<int>(rgbaImage->m_width),
+                                                 static_cast<int>(rgbaImage->m_height),
+                                                 path);
+    bimg::imageFree(rgbaImage);
+    return handle;
 }
 
 TextureHandle TextureLoader::loadTexture(const std::string& name,
@@ -677,14 +715,15 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
         if (upW == 0 || upH == 0)
             continue;
 
+        const uint32_t uploadBytes = upW * upH * 4u;
         const bgfx::Memory* mem = nullptr;
         if (upW == uint32_t(level.width) && upH == uint32_t(level.height))
         {
-            mem = bgfx::copy(level.pixels.data(), uint32_t(level.pixels.size()));
+            mem = copyRgba8AsBgra8(level.pixels.data(), uploadBytes);
         }
         else
         {
-            std::vector<uint8_t> sub(upW * upH * 4u);
+            std::vector<uint8_t> sub(uploadBytes);
             for (uint32_t y = 0; y < upH; ++y)
             {
                 std::memcpy(sub.data() + y * upW * 4u,
@@ -692,7 +731,7 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
                                 + (y * uint32_t(level.width)) * 4u,
                             upW * 4u);
             }
-            mem = bgfx::copy(sub.data(), uint32_t(sub.size()));
+            mem = copyRgba8AsBgra8(sub.data(), uploadBytes);
         }
 
         bgfx::updateTexture2D(texIdent.texHandle,

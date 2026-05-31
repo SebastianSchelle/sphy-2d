@@ -5,6 +5,7 @@ add_library(sphy_core_ecs INTERFACE)
 target_sources(sphy_core_ecs INTERFACE
     ecs.cpp
     asset-factory.cpp
+    comp-struct.cpp
     ptr-handle.hpp
 )
 

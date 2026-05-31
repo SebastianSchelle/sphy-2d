@@ -21,7 +21,7 @@ class ClientInfo
     ClientInfo(const std::string& name,
                const net::ClientInfo& clientInfo,
                uint8_t flags)
-        : workSequencer(100000)
+        : workSequencer(100)
     {
         this->name = name;
         this->clientInfo = clientInfo;

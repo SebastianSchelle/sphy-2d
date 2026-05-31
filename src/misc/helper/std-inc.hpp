@@ -404,6 +404,37 @@ inline bool pointInsideRect(const vec2& point, const Rect& rect)
            && point.y <= rect.w;
 }
 
+inline vec2 colliderLocalExtents(const vector<vec2>& vertices)
+{
+    if (vertices.empty())
+    {
+        return vec2(0.5f, 0.5f);
+    }
+    vec2 lower = vertices.front();
+    vec2 upper = vertices.front();
+    for (const vec2& v : vertices)
+    {
+        lower.x = std::min(lower.x, v.x);
+        lower.y = std::min(lower.y, v.y);
+        upper.x = std::max(upper.x, v.x);
+        upper.y = std::max(upper.y, v.y);
+    }
+    return upper - lower;
+}
+
+inline float approximateInertiaMassFactor(float width, float length)
+{
+    const float w = std::max(width, 1e-6f);
+    const float l = std::max(length, 1e-6f);
+    return (w * w + l * l) / 12.0f;
+}
+
+inline float approximateInertia(float mass, float width, float length)
+{
+    const float m = std::max(mass, 1e-6f);
+    return m * approximateInertiaMassFactor(width, length);
+}
+
 }  // namespace smath
 
 namespace ctrl
@@ -686,12 +717,14 @@ inline bool convexConvex(const std::vector<vec2>& a, const std::vector<vec2>& b)
 
 struct GenericHandle
 {
+    static constexpr GenericHandle Invalid() { return {0, 0}; }
     uint16_t idx;
     uint16_t gen;
 };
 
 struct GenericHandle32
 {
+    static constexpr GenericHandle32 Invalid() { return {0, 0}; }
     uint32_t idx;
     uint16_t gen;
 };

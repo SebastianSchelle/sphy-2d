@@ -95,6 +95,32 @@ struct ContactInfo
     float restitution;
 };
 
+/** Spawn position / velocity from a contact, ejecting off `surfaceEnt`. */
+struct ContactEjectSpawn
+{
+    vec2 pos;
+    vec2 vel;
+    std::optional<float> rot;
+};
+
+struct ContactEjectParams
+{
+    float spawnClearance = 0.12f;
+    float baseEjectSpeed = 4.0f;
+    /** Fraction of `sourceVel` along the eject normal added to `baseEjectSpeed`. */
+    float sourceVelAlongFactor = 0.25f;
+    bool computeRot = false;
+};
+
+/** `collisionEntFirst` is broadphase pair `collision.first` (SAT normal base). */
+ContactEjectSpawn computeContactEjectSpawn(
+    const Contact& contact,
+    entt::entity surfaceEnt,
+    entt::entity collisionEntFirst,
+    vec2 sourceVel,
+    const vec2* surfaceCenterFallback,
+    const ContactEjectParams& params = {});
+
 enum class CollisionLayer : uint8_t
 {
     All,
@@ -105,6 +131,7 @@ enum class CollisionLayer : uint8_t
     Station,
     Drone,
     Asteroid,
+    Item,
     NumColliderTypes,
 };
 

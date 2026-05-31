@@ -12,8 +12,15 @@ enum class ModuleType : uint8_t;
 enum class StationPartType : uint8_t;
 }  // namespace gobj
 
+namespace gobj
+{
+struct Item;
+using ItemHandle = typename con::ItemLib<Item>::Handle;
+}  // namespace gobj
+
 namespace ecs
 {
+struct PtrHandle;
 
 struct ModuleRef
 {
@@ -133,6 +140,38 @@ struct Projectile
 EXT_SER(Projectile, SER_PROJECTILE)
 EXT_DES(Projectile, SER_PROJECTILE)
 
+struct Asteroid
+{
+    static const uint16_t VERSION = 1;
+    static constexpr string NAME = "asteroid";
+    GenericHandle asteroidHandle;
+    float hp;
+    float harvestProgress;
+
+#ifdef SERVER
+    void damage(PtrHandle* ptrHandle, float damage, std::function<void(gobj::ItemHandle handle)> harvestCallback);
+#endif
+};
+
+#define SER_ASTEROID                                                           \
+    SOBJ(o.asteroidHandle);                                                    \
+    S4b(o.hp);                                                                 \
+    S4b(o.harvestProgress);
+EXT_SER(Asteroid, SER_ASTEROID)
+EXT_DES(Asteroid, SER_ASTEROID)
+
+struct Item
+{
+    static const uint16_t VERSION = 1;
+    static constexpr string NAME = "item";
+    GenericHandle itemHandle;
+    float quantity;
+};
+
+#define SER_ITEM SOBJ(o.itemHandle); S4b(o.quantity);
+EXT_SER(Item, SER_ITEM)
+EXT_DES(Item, SER_ITEM)
+
 }  // namespace ecs
 
 EXT_FMT(ecs::Hull, "(hullHandle: {}, hull: {})", o.hullHandle, o.hp);
@@ -140,5 +179,11 @@ EXT_FMT(ecs::Module, "(moduleHandle: {})", o.moduleHandle);
 EXT_FMT(ecs::Station, "(hp: {})", o.hp);
 EXT_FMT(ecs::StationPart, "(stationPartHandle: {})", o.stationPartHandle);
 EXT_FMT(ecs::Projectile, "(projectileHandle: {})", o.projectileHandle);
+EXT_FMT(ecs::Asteroid,
+        "(asteroidHandle: {}, hp: {}, harvestProgress: {})",
+        o.asteroidHandle,
+        o.hp,
+        o.harvestProgress);
+EXT_FMT(ecs::Item, "(itemHandle: {}, quantity: {})", o.itemHandle, o.quantity);
 
 #endif

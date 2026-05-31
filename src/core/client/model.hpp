@@ -196,6 +196,14 @@ class Model
                          const glm::vec4& viewRect,
                          float zoom,
                          uint32_t activeSectorId = world::INVALID_SECTOR_ID);
+    void drawAsteroids(gfx::RenderEngine& renderer,
+                       const glm::vec4& viewRect,
+                       float zoom,
+                       uint32_t activeSectorId = world::INVALID_SECTOR_ID);
+    void drawItems(gfx::RenderEngine& renderer,
+                   const glm::vec4& viewRect,
+                   float zoom,
+                   uint32_t activeSectorId = world::INVALID_SECTOR_ID);
     void registerConnectSequence();
     uint32_t getActiveSectorId();
     entt::entity getActiveEntity();

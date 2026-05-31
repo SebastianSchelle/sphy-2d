@@ -22,7 +22,6 @@ namespace
 {
 
 constexpr uint32_t kSelectionTintAbgr = 0xff50ff80u;
-constexpr float kTexturePixelToWorld = 0.15f;
 constexpr float kModdingPasteNudgeWorld = 0.5f;
 /** Extra size on each axis: fractional + world add (matches ~0.25/zoom at
  * default zoom 2). */
@@ -111,7 +110,6 @@ constexpr const char* kStationStorageCapYamlKeys[static_cast<size_t>(
 };
 
 constexpr const char* kTurretTypeYamlKey = "turret-type";
-constexpr const char* kTurretDamageTypeYamlKey = "damage-type";
 constexpr const char* kTurretProjectileYamlKey = "projectile";
 constexpr const char* kTurretMissileYamlKey = "missile";
 constexpr const char* kTurretNumBarrelsYamlKey = "num-barrels";
@@ -130,6 +128,7 @@ bool moddingModeUsesTextures(modding::ModdingToolsMode mode)
         case modding::ModdingToolsMode::StationPart:
         case modding::ModdingToolsMode::Projectile:
         case modding::ModdingToolsMode::Missile:
+        case modding::ModdingToolsMode::Asteroid:
             return true;
         default:
             return false;
@@ -144,6 +143,7 @@ bool moddingModeUsesCollider(modding::ModdingToolsMode mode)
         case modding::ModdingToolsMode::StationPart:
         case modding::ModdingToolsMode::Projectile:
         case modding::ModdingToolsMode::Missile:
+        case modding::ModdingToolsMode::Asteroid:
             return true;
         default:
             return false;
@@ -442,7 +442,7 @@ bool exampleTextureWorldSize(gfx::RenderEngine& renderer,
     {
         return false;
     }
-    worldSizeOut = kTexturePixelToWorld * texSizePx;
+    worldSizeOut = gfx::kTexturePixelToWorld * texSizePx;
     return true;
 }
 
@@ -948,19 +948,6 @@ void parseModuleInfoNumericFields(ModuleInfo& info)
         info.turretTypeVal = def::TurretType::Projectile;
         info.turretType = string(magic_enum::enum_name(info.turretTypeVal));
     }
-    if (auto damageType =
-            magic_enum::enum_cast<def::DamageType>(info.turretDamageType);
-        damageType.has_value())
-    {
-        info.turretDamageTypeVal = damageType.value();
-    }
-    else
-    {
-        info.turretDamageTypeVal =
-            def::TurretTypeDefaultDamage[static_cast<size_t>(info.turretTypeVal)];
-        info.turretDamageType =
-            string(magic_enum::enum_name(info.turretDamageTypeVal));
-    }
     tryParseFloat(info.turretRotSpeed, info.turretRotSpeedVal);
     tryParseFloat(info.turretExitSpeed, info.turretExitSpeedVal);
     tryParseFloat(info.turretReloadTime, info.turretReloadTimeVal);
@@ -1021,6 +1008,120 @@ void parseMissileInfoNumericFields(MissileInfo& info)
     floatToString(info.lifetimeVal, info.lifetime, 2);
 }
 
+float compositionPercentFromYamlFraction(float yamlFraction)
+{
+    return yamlFraction <= 1.0f ? yamlFraction * 100.0f : yamlFraction;
+}
+
+float compositionFractionToYaml(float percent)
+{
+    return percent / 100.0f;
+}
+
+void parseCompositionEntryFields(CompositionEntryInfo& entry)
+{
+    tryParseFloat(entry.fraction, entry.fractionVal);
+    floatToString(entry.fractionVal, entry.fraction, 2);
+}
+
+void parseDebrisEntryFields(DebrisEntryInfo& entry)
+{
+    int weight = 0;
+    try
+    {
+        size_t pos = 0;
+        const long parsed = std::stol(entry.weight, &pos, 10);
+        if (pos == entry.weight.size())
+        {
+            weight = static_cast<int>(parsed);
+        }
+    }
+    catch (...)
+    {
+        weight = 0;
+    }
+    entry.weightVal = static_cast<uint8_t>(std::clamp(weight, 0, 255));
+    entry.weight = std::to_string(static_cast<int>(entry.weightVal));
+}
+
+YAML::Node buildCompositionYaml(const vector<CompositionEntryInfo>& entries)
+{
+    YAML::Node compositionNode(YAML::NodeType::Map);
+    for (const CompositionEntryInfo& entry : entries)
+    {
+        if (entry.itemName.empty())
+        {
+            continue;
+        }
+        compositionNode[entry.itemName] =
+            compositionFractionToYaml(entry.fractionVal);
+    }
+    return compositionNode;
+}
+
+YAML::Node buildDebrisYaml(const vector<DebrisEntryInfo>& entries)
+{
+    YAML::Node debrisNode(YAML::NodeType::Map);
+    for (const DebrisEntryInfo& entry : entries)
+    {
+        if (entry.asteroidName.empty())
+        {
+            continue;
+        }
+        debrisNode[entry.asteroidName] = static_cast<int>(entry.weightVal);
+    }
+    return debrisNode;
+}
+
+void loadCompositionFromYaml(const YAML::Node& compositionNode,
+                             vector<CompositionEntryInfo>& entries)
+{
+    entries.clear();
+    if (!compositionNode || !compositionNode.IsMap())
+    {
+        return;
+    }
+    for (const auto& entry : compositionNode)
+    {
+        if (!entry.first.IsScalar())
+        {
+            continue;
+        }
+        CompositionEntryInfo row;
+        row.itemName = entry.first.as<string>();
+        float yamlFraction = 0.0f;
+        TRY_YAML_DICT(yamlFraction, entry.second, yamlFraction);
+        row.fractionVal = compositionPercentFromYamlFraction(yamlFraction);
+        floatToString(row.fractionVal, row.fraction, 2);
+        entries.push_back(row);
+    }
+}
+
+void loadDebrisFromYaml(const YAML::Node& debrisNode,
+                        vector<DebrisEntryInfo>& entries)
+{
+    entries.clear();
+    if (!debrisNode || !debrisNode.IsMap())
+    {
+        return;
+    }
+    for (const auto& entry : debrisNode)
+    {
+        if (!entry.first.IsScalar())
+        {
+            continue;
+        }
+        DebrisEntryInfo row;
+        row.asteroidName = entry.first.as<string>();
+        float weightRaw = 0.0f;
+        TRY_YAML_DICT(weightRaw, entry.second, weightRaw);
+        row.weightVal = static_cast<uint8_t>(
+            std::clamp<int>(static_cast<int>(std::lround(weightRaw)), 0, 255));
+        row.weight = std::to_string(static_cast<int>(row.weightVal));
+        entries.push_back(row);
+    }
+}
+
 void writeModuleDataYaml(YAML::Node& dataNode, const ModuleInfo& info)
 {
     switch (info.moduleTypeVal)
@@ -1038,7 +1139,6 @@ void writeModuleDataYaml(YAML::Node& dataNode, const ModuleInfo& info)
             break;
         case gobj::ModuleType::Turret:
             dataNode[kTurretTypeYamlKey] = info.turretType;
-            dataNode[kTurretDamageTypeYamlKey] = info.turretDamageType;
             dataNode[kTurretNumBarrelsYamlKey] = info.turretNumBarrelsVal;
             dataNode[kTurretRotSpeedYamlKey] = info.turretRotSpeedVal;
             switch (info.turretTypeVal)
@@ -1140,7 +1240,7 @@ bool tryTextureBaseTileSize(gfx::RenderEngine& renderer,
     {
         return false;
     }
-    baseOut = kTexturePixelToWorld * texSizePx;
+    baseOut = gfx::kTexturePixelToWorld * texSizePx;
     return true;
 }
 
@@ -2362,6 +2462,22 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     moddingToolsConstructor.BindEventCallback(
         "onModdingNewMissile", &ModdingTools::onModdingNewMissile, this);
     moddingToolsConstructor.BindEventCallback(
+        "onModdingNewAsteroid", &ModdingTools::onModdingNewAsteroid, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onAddCompositionEntry", &ModdingTools::onAddCompositionEntry, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onClearComposition", &ModdingTools::onClearComposition, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onRemoveCompositionEntry",
+        &ModdingTools::onRemoveCompositionEntry,
+        this);
+    moddingToolsConstructor.BindEventCallback(
+        "onAddDebrisEntry", &ModdingTools::onAddDebrisEntry, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onClearDebris", &ModdingTools::onClearDebris, this);
+    moddingToolsConstructor.BindEventCallback(
+        "onRemoveDebrisEntry", &ModdingTools::onRemoveDebrisEntry, this);
+    moddingToolsConstructor.BindEventCallback(
         "onModdingFileSave", &ModdingTools::onModdingFileSave, this);
     moddingToolsConstructor.BindEventCallback(
         "onModdingFileLoad", &ModdingTools::onModdingFileLoad, this);
@@ -2497,6 +2613,33 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
         missileHandle.RegisterMember("damageType", &MissileInfo::damageType);
     }
     moddingToolsConstructor.Bind("missile", &missileInfo);
+    if (auto asteroidHandle =
+            moddingToolsConstructor.RegisterStruct<AsteroidInfo>())
+    {
+        asteroidHandle.RegisterMember("description",
+                                      &AsteroidInfo::description);
+    }
+    moddingToolsConstructor.Bind("asteroid", &asteroidInfo);
+    if (auto compositionHandle =
+            moddingToolsConstructor.RegisterStruct<CompositionEntryInfo>())
+    {
+        compositionHandle.RegisterMember("itemName",
+                                       &CompositionEntryInfo::itemName);
+        compositionHandle.RegisterMember("fraction",
+                                       &CompositionEntryInfo::fraction);
+    }
+    moddingToolsConstructor.RegisterArray<std::vector<CompositionEntryInfo>>();
+    moddingToolsConstructor.Bind("composition", &compositionEntries);
+    if (auto debrisHandle =
+            moddingToolsConstructor.RegisterStruct<DebrisEntryInfo>())
+    {
+        debrisHandle.RegisterMember("asteroidName", &DebrisEntryInfo::asteroidName);
+        debrisHandle.RegisterMember("weight", &DebrisEntryInfo::weight);
+    }
+    moddingToolsConstructor.RegisterArray<std::vector<DebrisEntryInfo>>();
+    moddingToolsConstructor.Bind("debris", &debrisEntries);
+    moddingToolsConstructor.Bind("extendComposition", &extendComposition);
+    moddingToolsConstructor.Bind("extendDebris", &extendDebris);
     if (auto moduleHandle =
             moddingToolsConstructor.RegisterStruct<ModuleInfo>())
     {
@@ -2511,8 +2654,6 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
                                     &ModuleInfo::hangarMaxShipClass);
         moduleHandle.RegisterMember("hangarSpace", &ModuleInfo::hangarSpace);
         moduleHandle.RegisterMember("turretType", &ModuleInfo::turretType);
-        moduleHandle.RegisterMember("turretDamageType",
-                                    &ModuleInfo::turretDamageType);
         moduleHandle.RegisterMember("turretProjectile",
                                     &ModuleInfo::turretProjectile);
         moduleHandle.RegisterMember("turretMissile", &ModuleInfo::turretMissile);
@@ -2805,6 +2946,125 @@ void ModdingTools::onModdingNewMissile(Rml::DataModelHandle handle,
     LG_D("Modding tools: new missile");
 }
 
+void ModdingTools::onModdingNewAsteroid(Rml::DataModelHandle handle,
+                                        Rml::Event& event,
+                                        const Rml::VariantList& args)
+{
+    (void)event;
+    (void)args;
+    activeMode = ModdingToolsMode::Asteroid;
+    openFilepath = "";
+    genInfo = GeneralInfo{};
+    genInfo.hp = "1000";
+    genInfo.mass = "1";
+    asteroidInfo = AsteroidInfo{};
+    projectileInfo = ProjectileInfo{};
+    missileInfo = MissileInfo{};
+    stationPartInfo = StationPartInfo{};
+    moduleInfo = ModuleInfo{};
+    compositionEntries.clear();
+    debrisEntries.clear();
+    textures.clear();
+    baseTextures.clear();
+    textureSizeAppliedForName.clear();
+    baseTextureSizeAppliedForName.clear();
+    resetNewTexturePickerState();
+    slots.clear();
+    collider.clear();
+    connectors.clear();
+    turretExits.clear();
+    genInfo.colliderRestitutionVal = 0.1f;
+    selectedObjectType = SelectableObjectType::None;
+    selectedObjectIndex = -1;
+    textureRowNameFocusIndex = -1;
+    syncModeToRml();
+    handle.DirtyVariable("openFilepath");
+    handle.DirtyVariable("hull");
+    handle.DirtyVariable("asteroid");
+    handle.DirtyVariable("composition");
+    handle.DirtyVariable("debris");
+    handle.DirtyVariable("textures");
+    handle.DirtyVariable("collider");
+    syncListSelectionToRml();
+    LG_D("Modding tools: new asteroid");
+}
+
+void ModdingTools::onAddCompositionEntry(Rml::DataModelHandle handle,
+                                         Rml::Event& event,
+                                         const Rml::VariantList& args)
+{
+    (void)event;
+    (void)args;
+    compositionEntries.push_back(CompositionEntryInfo{});
+    rmlModel_.DirtyVariable("composition");
+}
+
+void ModdingTools::onClearComposition(Rml::DataModelHandle handle,
+                                      Rml::Event& event,
+                                      const Rml::VariantList& args)
+{
+    (void)event;
+    (void)args;
+    compositionEntries.clear();
+    rmlModel_.DirtyVariable("composition");
+}
+
+void ModdingTools::onRemoveCompositionEntry(Rml::DataModelHandle handle,
+                                            Rml::Event& event,
+                                            const Rml::VariantList& args)
+{
+    (void)event;
+    if (args.size() != 1)
+    {
+        return;
+    }
+    const int idx = args[0].Get<int>(0);
+    if (idx < 0 || idx >= static_cast<int>(compositionEntries.size()))
+    {
+        return;
+    }
+    compositionEntries.erase(compositionEntries.begin() + idx);
+    rmlModel_.DirtyVariable("composition");
+}
+
+void ModdingTools::onAddDebrisEntry(Rml::DataModelHandle handle,
+                                    Rml::Event& event,
+                                    const Rml::VariantList& args)
+{
+    (void)event;
+    (void)args;
+    debrisEntries.push_back(DebrisEntryInfo{});
+    rmlModel_.DirtyVariable("debris");
+}
+
+void ModdingTools::onClearDebris(Rml::DataModelHandle handle,
+                                 Rml::Event& event,
+                                 const Rml::VariantList& args)
+{
+    (void)event;
+    (void)args;
+    debrisEntries.clear();
+    rmlModel_.DirtyVariable("debris");
+}
+
+void ModdingTools::onRemoveDebrisEntry(Rml::DataModelHandle handle,
+                                       Rml::Event& event,
+                                       const Rml::VariantList& args)
+{
+    (void)event;
+    if (args.size() != 1)
+    {
+        return;
+    }
+    const int idx = args[0].Get<int>(0);
+    if (idx < 0 || idx >= static_cast<int>(debrisEntries.size()))
+    {
+        return;
+    }
+    debrisEntries.erase(debrisEntries.begin() + idx);
+    rmlModel_.DirtyVariable("debris");
+}
+
 void ModdingTools::onModdingFileSave(Rml::DataModelHandle handle,
                                      Rml::Event& event,
                                      const Rml::VariantList& args)
@@ -2908,6 +3168,23 @@ void ModdingTools::onModdingFileSave(Rml::DataModelHandle handle,
             LG_D("Modding tools: saved missile to {}", openFilepath);
         }
         break;
+        case ModdingToolsMode::Asteroid:
+        {
+            if (textures.empty())
+            {
+                LG_W("Modding tools: no textures to save");
+                return;
+            }
+            if (!saveAsteroidDataToPath(path))
+            {
+                LG_W("Modding tools: failed to write {}", path);
+                return;
+            }
+            openFilepath = std::move(path);
+            handle.DirtyVariable("openFilepath");
+            LG_D("Modding tools: saved asteroid to {}", openFilepath);
+        }
+        break;
         default:
             return;
     }
@@ -2968,6 +3245,14 @@ void ModdingTools::onModdingFileLoad(Rml::DataModelHandle handle,
             }
             LG_D("Modding tools: loaded missile from {}", openFilepath);
             break;
+        case ModdingToolsMode::Asteroid:
+            if (!loadAsteroidDataFromPath(path))
+            {
+                LG_W("Modding tools: failed to load asteroid from {}", path);
+                return;
+            }
+            LG_D("Modding tools: loaded asteroid from {}", openFilepath);
+            break;
         default:
             LG_W("Modding tools: unsupported asset type: {}", path);
             return;
@@ -2985,6 +3270,9 @@ void ModdingTools::onModdingFileLoad(Rml::DataModelHandle handle,
     handle.DirtyVariable("stationPart");
     handle.DirtyVariable("projectile");
     handle.DirtyVariable("missile");
+    handle.DirtyVariable("asteroid");
+    handle.DirtyVariable("composition");
+    handle.DirtyVariable("debris");
     handle.DirtyVariable("mode");
     textureSizeAppliedForName.resize(textures.size());
     for (size_t i = 0; i < textures.size(); ++i)
@@ -3719,7 +4007,7 @@ void ModdingTools::updateHullDerivedFromCollider()
     {
         verts.push_back(vec2(v.xVal, v.yVal));
     }
-    const std::optional<vec2> ext = gobj::colliderLocalExtents(verts);
+    const std::optional<vec2> ext = smath::colliderLocalExtents(verts);
     if (ext.has_value())
     {
         genInfo.widthVal = ext->x;
@@ -3734,7 +4022,7 @@ void ModdingTools::updateHullDerivedFromCollider()
     floatToString(genInfo.lengthVal, genInfo.length, 2);
     genInfo.shipClassVal = gobj::inferShipClassFromColliderVertices(verts);
     genInfo.shipClass = string(magic_enum::enum_name(genInfo.shipClassVal));
-    genInfo.inertiaVal = gobj::approximateHullInertia(
+    genInfo.inertiaVal = smath::approximateInertia(
         genInfo.massVal, genInfo.widthVal, genInfo.lengthVal);
     formatModdingInertiaKString(genInfo.inertiaVal, genInfo.inertia);
     if (rmlModel_)
@@ -3818,6 +4106,14 @@ void ModdingTools::parseEditorNumericFields()
     parseModuleInfoNumericFields(moduleInfo);
     parseProjectileInfoNumericFields(projectileInfo);
     parseMissileInfoNumericFields(missileInfo);
+    for (auto& entry : compositionEntries)
+    {
+        parseCompositionEntryFields(entry);
+    }
+    for (auto& entry : debrisEntries)
+    {
+        parseDebrisEntryFields(entry);
+    }
     if (moduleInfo.moduleTypeVal == gobj::ModuleType::Turret)
     {
         syncTurretNumBarrelsFromExits();
@@ -3828,6 +4124,9 @@ void ModdingTools::parseEditorNumericFields()
         rmlModel_.DirtyVariable("stationPart");
         rmlModel_.DirtyVariable("projectile");
         rmlModel_.DirtyVariable("missile");
+        rmlModel_.DirtyVariable("asteroid");
+        rmlModel_.DirtyVariable("composition");
+        rmlModel_.DirtyVariable("debris");
     }
 
     for (auto& connector : connectors)
@@ -4228,11 +4527,11 @@ void ModdingTools::draw(gfx::RenderEngine& renderer)
             break;
         case ModdingToolsMode::Projectile:
         case ModdingToolsMode::Missile:
+        case ModdingToolsMode::Asteroid:
             drawTextures(renderer, gfx::RenderEngine::zIdxShipHull);
             drawColliders(renderer);
             break;
         default:
-            // No drawing for other modes
             break;
     }
 }
@@ -4674,6 +4973,11 @@ ModdingToolsMode ModdingTools::determineAssetType(const string& path)
     {
         return ModdingToolsMode::Missile;
     }
+    const YAML::Node asteroidMap = root["asteroids"];
+    if (asteroidMap && asteroidMap.IsMap() && asteroidMap.size() > 0)
+    {
+        return ModdingToolsMode::Asteroid;
+    }
     return ModdingToolsMode::None;
 }
 
@@ -4790,8 +5094,6 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
         moduleInfo.storageVolumes = StorageVolumesInfo{};
         moduleInfo.turretType = "Projectile";
         moduleInfo.turretTypeVal = def::TurretType::Projectile;
-        moduleInfo.turretDamageType = "Kinetic";
-        moduleInfo.turretDamageTypeVal = def::DamageType::Kinetic;
         moduleInfo.turretProjectile.clear();
         moduleInfo.turretMissile.clear();
         moduleInfo.turretBeamColorVal = 0xFFFFFFFFu;
@@ -4841,17 +5143,6 @@ bool ModdingTools::loadModuleDataFromPath(const string& path)
                 tt.has_value())
             {
                 moduleInfo.turretTypeVal = tt.value();
-            }
-            if (dataNode[kTurretDamageTypeYamlKey])
-            {
-                moduleInfo.turretDamageType =
-                    dataNode[kTurretDamageTypeYamlKey].as<string>();
-            }
-            if (auto dt = magic_enum::enum_cast<def::DamageType>(
-                    moduleInfo.turretDamageType);
-                dt.has_value())
-            {
-                moduleInfo.turretDamageTypeVal = dt.value();
             }
             if (dataNode[kTurretRotSpeedYamlKey])
             {
@@ -5758,6 +6049,192 @@ bool ModdingTools::saveHullDataToPath(const string& path)
     root["collider"][key] = colEntry;
     root["hull"] = YAML::Node(YAML::NodeType::Map);
     root["hull"][key] = hullNode;
+
+    std::ofstream out(path);
+    if (!out)
+    {
+        return false;
+    }
+    out << root;
+    return out.good();
+}
+
+bool ModdingTools::loadAsteroidDataFromPath(const string& path)
+{
+    YAML::Node root;
+    try
+    {
+        root = YAML::LoadFile(path);
+    }
+    catch (const YAML::Exception& e)
+    {
+        LG_W("Modding tools: YAML error loading {}: {}", path, e.what());
+        return false;
+    }
+
+    const YAML::Node asteroidMap = root["asteroids"];
+    if (!asteroidMap || !asteroidMap.IsMap() || asteroidMap.size() == 0)
+    {
+        LG_W("Modding tools: {} has no asteroids map", path);
+        return false;
+    }
+
+    const auto asteroidIt = asteroidMap.begin();
+    const YAML::Node asteroidNode = asteroidIt->second;
+    if (!asteroidNode || !asteroidNode.IsMap())
+    {
+        LG_W("Modding tools: invalid asteroid entry in {}", path);
+        return false;
+    }
+
+    activeMode = ModdingToolsMode::Asteroid;
+    syncModeToRml();
+    textures.clear();
+    collider.clear();
+    connectors.clear();
+    slots.clear();
+    turretExits.clear();
+    asteroidInfo = AsteroidInfo{};
+    compositionEntries.clear();
+    debrisEntries.clear();
+    projectileInfo = ProjectileInfo{};
+    missileInfo = MissileInfo{};
+    stationPartInfo = StationPartInfo{};
+    moduleInfo = ModuleInfo{};
+    genInfo = GeneralInfo{};
+    genInfo.colliderRestitutionVal = 0.1f;
+
+    const string mapKey = asteroidIt->first.as<string>();
+
+    try
+    {
+        const bool yamlTextureBoundsBleed =
+            root[kYamlTextureBoundsBleedKey].IsDefined()
+            && root[kYamlTextureBoundsBleedKey].as<bool>();
+
+        if (asteroidNode["name"])
+        {
+            genInfo.name = asteroidNode["name"].as<string>();
+        }
+        if (genInfo.name.empty())
+        {
+            genInfo.name = mapKey;
+        }
+        if (asteroidNode["description"])
+        {
+            asteroidInfo.description = asteroidNode["description"].as<string>();
+        }
+        if (asteroidNode["mass"])
+        {
+            genInfo.massVal = asteroidNode["mass"].as<float>();
+            formatModdingMassTonsString(genInfo.massVal, genInfo.mass);
+        }
+        if (asteroidNode["max-hp"])
+        {
+            hpVal = asteroidNode["max-hp"].as<float>();
+            floatToString(hpVal, genInfo.hp, 2);
+        }
+        string texKey;
+        if (asteroidNode["textures"])
+        {
+            texKey = asteroidNode["textures"].as<string>();
+        }
+        string colKey;
+        if (asteroidNode["collider"])
+        {
+            colKey = asteroidNode["collider"].as<string>();
+        }
+        if (colKey.empty())
+        {
+            colKey = mapKey;
+        }
+
+        TextureYamlLoadOptions texOpts;
+        texOpts.yamlTextureBoundsBleed = yamlTextureBoundsBleed;
+        texOpts.skipStationConnector = true;
+        loadTexturesFromRootBundle(root, texKey, textures, texOpts);
+
+        const YAML::Node colliderRoot = root["collider"];
+        if (colliderRoot && colliderRoot[colKey]
+            && colliderRoot[colKey].IsMap())
+        {
+            loadColliderVerticesFromEntry(
+                colliderRoot[colKey], collider, genInfo.colliderRestitutionVal);
+        }
+
+        loadCompositionFromYaml(asteroidNode["composition"], compositionEntries);
+        loadDebrisFromYaml(asteroidNode["debris"], debrisEntries);
+    }
+    catch (const YAML::Exception& e)
+    {
+        LG_W("Modding tools: error parsing asteroid in {}: {}", path, e.what());
+        textures.clear();
+        collider.clear();
+        asteroidInfo = AsteroidInfo{};
+        compositionEntries.clear();
+        debrisEntries.clear();
+        genInfo = GeneralInfo{};
+        activeMode = ModdingToolsMode::None;
+        syncModeToRml();
+        return false;
+    }
+
+    resetNewTexturePickerState();
+    parseEditorNumericFields();
+    return true;
+}
+
+bool ModdingTools::saveAsteroidDataToPath(const string& path)
+{
+    parseEditorNumericFields();
+
+    const string key =
+        sanitizeHullKey(genInfo.name.empty() ? string("asteroid") : genInfo.name);
+    const string displayName = genInfo.name.empty() ? key : genInfo.name;
+    const YAML::Node texBundle = buildTexturesYamlBundle(textures);
+
+    YAML::Node colEntry;
+    if (!collider.empty())
+    {
+        colEntry["restitution"] = genInfo.colliderRestitutionVal;
+        YAML::Node vertSeq(YAML::NodeType::Sequence);
+        for (const auto& v : collider)
+        {
+            YAML::Node pair(YAML::NodeType::Sequence);
+            pair.push_back(v.xVal);
+            pair.push_back(v.yVal);
+            vertSeq.push_back(pair);
+        }
+        colEntry["vertices"] = vertSeq;
+    }
+
+    YAML::Node asteroidNode;
+    asteroidNode["name"] = displayName;
+    if (!asteroidInfo.description.empty())
+    {
+        asteroidNode["description"] = asteroidInfo.description;
+    }
+    asteroidNode["mass"] = genInfo.massVal;
+    asteroidNode["max-hp"] = hpVal;
+    asteroidNode["textures"] = key;
+    asteroidNode["collider"] = key;
+    if (!compositionEntries.empty())
+    {
+        asteroidNode["composition"] = buildCompositionYaml(compositionEntries);
+    }
+    if (!debrisEntries.empty())
+    {
+        asteroidNode["debris"] = buildDebrisYaml(debrisEntries);
+    }
+
+    YAML::Node root;
+    root[kYamlTextureBoundsBleedKey] = true;
+    root["textures"] = YAML::Node(YAML::NodeType::Map);
+    root["textures"][key] = texBundle;
+    root["collider"] = YAML::Node(YAML::NodeType::Map);
+    root["collider"][key] = colEntry;
+    root["asteroids"] = YAML::Node(YAML::NodeType::Map);
+    root["asteroids"][key] = asteroidNode;
 
     std::ofstream out(path);
     if (!out)

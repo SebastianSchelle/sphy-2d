@@ -16,24 +16,6 @@ constexpr const char* kHullVolumeYamlKeys[static_cast<size_t>(
 
 }  // namespace
 
-std::optional<vec2> colliderLocalExtents(const vector<vec2>& vertices)
-{
-    if (vertices.empty())
-    {
-        return std::nullopt;
-    }
-    vec2 lower = vertices.front();
-    vec2 upper = vertices.front();
-    for (const vec2& v : vertices)
-    {
-        lower.x = std::min(lower.x, v.x);
-        lower.y = std::min(lower.y, v.y);
-        upper.x = std::max(upper.x, v.x);
-        upper.y = std::max(upper.y, v.y);
-    }
-    return upper - lower;
-}
-
 def::ShipClass inferShipClassFromColliderExtents(float width, float length)
 {
     for (size_t i = 0; i < static_cast<size_t>(def::ShipClass::NumShipClasses); ++i)
@@ -48,12 +30,8 @@ def::ShipClass inferShipClassFromColliderExtents(float width, float length)
 
 def::ShipClass inferShipClassFromColliderVertices(const vector<vec2>& vertices)
 {
-    const std::optional<vec2> ext = colliderLocalExtents(vertices);
-    if (!ext.has_value())
-    {
-        return def::ShipClass::Titan;
-    }
-    return inferShipClassFromColliderExtents(ext->x, ext->y);
+    const vec2 ext = smath::colliderLocalExtents(vertices);
+    return inferShipClassFromColliderExtents(ext.x, ext.y);
 }
 
 def::ShipClass inferShipClassFromCollider(const Collider* collider)
@@ -65,36 +43,16 @@ def::ShipClass inferShipClassFromCollider(const Collider* collider)
     return inferShipClassFromColliderVertices(collider->vertices);
 }
 
-float approximateHullInertiaMassFactor(float width, float length)
-{
-    const float w = std::max(width, 1e-6f);
-    const float l = std::max(length, 1e-6f);
-    return (w * w + l * l) / 12.0f;
-}
-
-float approximateHullInertia(float mass, float width, float length)
-{
-    const float m = std::max(mass, 1e-6f);
-    return m * approximateHullInertiaMassFactor(width, length);
-}
-
 void applyColliderDerivedHullStats(Hull& hull, const Collider* collider)
 {
-    const std::optional<vec2> ext =
-        collider != nullptr ? colliderLocalExtents(collider->vertices)
-                            : std::nullopt;
-    if (ext.has_value())
-    {
-        hull.size = ext.value();
-    }
-    else
-    {
-        hull.size = vec2(0.0f);
-    }
+    const vec2 ext =
+        collider != nullptr ? smath::colliderLocalExtents(collider->vertices)
+                            : vec2(0.5f, 0.5f);
+    hull.size = ext;
     hull.shipClass = inferShipClassFromCollider(collider);
     hull.inertiaMassFactor =
-        approximateHullInertiaMassFactor(hull.size.x, hull.size.y);
-    hull.inertia = approximateHullInertia(hull.mass, hull.size.x, hull.size.y);
+        smath::approximateInertiaMassFactor(hull.size.x, hull.size.y);
+    hull.inertia = smath::approximateInertia(hull.mass, hull.size.x, hull.size.y);
 }
 
 Hull Hull::fromYaml(const YAML::Node& node,

@@ -719,9 +719,11 @@ void Model::drawObjects(gfx::RenderEngine& renderer,
                         float zoom,
                         uint32_t activeSectorId)
 {
+    drawItems(renderer, viewRect, zoom, activeSectorId);
     drawProjectiles(renderer, viewRect, zoom, activeSectorId);
     drawStations(renderer, viewRect, zoom, activeSectorId);
     drawShips(renderer, viewRect, zoom, activeSectorId);
+    drawAsteroids(renderer, viewRect, zoom, activeSectorId);
 }
 
 void Model::drawShips(gfx::RenderEngine& renderer,
@@ -824,6 +826,91 @@ void Model::drawProjectiles(gfx::RenderEngine& renderer,
                                      transform.rot,
                                      gfx::RenderEngine::zIdxProjectile,
                                      worldPos);
+                    }
+                }
+            });
+}
+
+void Model::drawAsteroids(gfx::RenderEngine& renderer,
+                          const glm::vec4& viewRect,
+                          float zoom,
+                          uint32_t activeSectorId)
+{
+    auto& reg = ecs.getRegistry();
+    reg.view<ecs::Transform, ecs::SectorId, ecs::Asteroid, ecs::Textures>()
+        .each(
+            [this, &renderer, &viewRect, &reg, activeSectorId](
+                ecs::Transform& transform,
+                ecs::SectorId& sectorId,
+                ecs::Asteroid& asteroid,
+                ecs::Textures& textures)
+            {
+                bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
+                                    || sectorId.id == activeSectorId;
+                if (sectorFilter)
+                {
+                    glm::vec2 worldPos = world.getWorldPosSectorOffset(
+                                             sectorId.id,
+                                             renderer.getSectorOffsetX(),
+                                             renderer.getSectorOffsetY())
+                                         + transform.pos;
+                    if (smath::pointInsideRect(worldPos, viewRect))
+                    {
+                        drawTextures(renderer,
+                                     textures,
+                                     transform.rot,
+                                     gfx::RenderEngine::zIdxAsteroid,
+                                     worldPos);
+                    }
+                }
+            });
+}
+
+void Model::drawItems(gfx::RenderEngine& renderer,
+                      const glm::vec4& viewRect,
+                      float zoom,
+                      uint32_t activeSectorId)
+{
+    auto& reg = ecs.getRegistry();
+    reg.view<ecs::Transform, ecs::SectorId, ecs::Item, ecs::SimpleTexture>()
+        .each(
+            [this, &renderer, &viewRect, &reg, activeSectorId](
+                ecs::Transform& transform,
+                ecs::SectorId& sectorId,
+                ecs::Item& item,
+                ecs::SimpleTexture& simpleTexture)
+            {
+                bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
+                                    || sectorId.id == activeSectorId;
+                if (sectorFilter)
+                {
+                    glm::vec2 worldPos = world.getWorldPosSectorOffset(
+                                             sectorId.id,
+                                             renderer.getSectorOffsetX(),
+                                             renderer.getSectorOffsetY())
+                                         + transform.pos;
+                    if (smath::pointInsideRect(worldPos, viewRect))
+                    {
+                        mod::MappedTextureHandle mTexHandle =
+                            *(mod::MappedTextureHandle*)&simpleTexture
+                                 .textureHandle;
+                        const mod::MappedTexture* mappedTexture =
+                            modManager->getResourceMap().getMappedTexture(
+                                mTexHandle);
+                        gfx::TextureHandle texHandle =
+                            gfx::TextureHandle::Invalid();
+                        if (mappedTexture)
+                        {
+                            texHandle = mappedTexture->texHandle;
+                        }
+                        vec2 size = vec2(0.5f, 0.5f);
+                        renderer.getTexturePixelSize(texHandle, size);
+                        renderer.queueTexRect(worldPos,
+                                              size * gfx::kTexturePixelToWorld,
+                                              texHandle,
+                                              transform.rot,
+                                              gfx::RenderEngine::zIdxItem,
+                                              0xffffffff);
                     }
                 }
             });

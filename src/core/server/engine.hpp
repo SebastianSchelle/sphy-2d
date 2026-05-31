@@ -26,11 +26,11 @@
 
 #include <comp-ai.hpp>
 #include <comp-gfx.hpp>
+#include <comp-lifetime.hpp>
 #include <comp-phy.hpp>
 #include <comp-storage.hpp>
 #include <comp-struct.hpp>
 #include <comp-turret.hpp>
-#include <comp-lifetime.hpp>
 
 namespace ecs
 {
@@ -100,12 +100,27 @@ class Engine
         vec2 vel,
         gobj::ProjectileHandle projectileHandle,
         const ecs::EntityId& exceptEntity = ecs::EntityId::Invalid());
+    void spawnAsteroid(uint32_t sectorId,
+                       const ecs::Transform& transform,
+                       const gobj::AsteroidHandle& asteroidHandle,
+                       float rotVel);
+    void spawnItem(uint32_t sectorId,
+                   const ecs::Transform& transform,
+                   const gobj::ItemHandle& itemHandle,
+                   float quantity,
+                   vec2 initialVel = vec2(0.0f, 0.0f));
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
     template <class T> void registerSlowDumpComponent();
     template <class T>
     void registerActiveSectorDumpComponent(DumpFilter filter = DumpFilter::All);
     void destroyEntity(ecs::EntityId entityId);
+    bool projectileCollision(ecs::EntityId projId,
+                             entt::entity projEnt,
+                             ecs::EntityId otherId,
+                             entt::entity otherEnt,
+                             const ecs::Contact& contact,
+                             entt::entity collisionEntFirst);
 
   private:
     void engineLoop();
@@ -122,6 +137,7 @@ class Engine
                       uint8_t flags,
                       size_t dataEndPos);
     // void parseCommand(const net::CmdQueueData& cmdData);
+    void initPost();
     bool loadFromFolder();
     bool createFromConfig();
     bool loadWorld();
@@ -172,6 +188,8 @@ class Engine
     makeProjectile(entt::entity entity,
                    const gobj::ProjectileHandle& projectileHandle);
     ecs::MapIcon* makeMapIcon(entt::entity entity);
+    ecs::SimpleTexture* makeSimpleTexture(entt::entity entity,
+                                          const ecs::SimpleTexture& texture);
     ecs::Textures* makeTextures(entt::entity entity,
                                 const gobj::TexturesHandle& texturesHandle);
     ecs::PhysicsBody* makePhysicsBody(entt::entity entity,
@@ -179,7 +197,12 @@ class Engine
     ecs::MoveCtrl* makeMoveCtrl(entt::entity entity,
                                 const ecs::PhyThrust& phyThrust,
                                 const ecs::MoveCtrl& moveCtrl);
+    ecs::Asteroid* makeAsteroid(entt::entity entity,
+                                const gobj::AsteroidHandle& asteroidHandle);
     ecs::Module* makeModule(entt::entity entity, const ecs::Module& module);
+    ecs::Item* makeItem(entt::entity entity,
+                        const gobj::ItemHandle& itemHandle,
+                        float quantity);
     ecs::Storage* makeStorage(entt::entity entity, const ecs::Storage& storage);
     ecs::Lifetime* makeLifetime(entt::entity entity, float lifetime);
     ecs::StationPart*
@@ -201,7 +224,8 @@ class Engine
                               const gobj::ModuleHandle& moduleHandle,
                               uint16_t slotIndex);
     void loadCollisionMatrix();
-    void forActiveClients(std::function<void(def::ClientInfo* clientInfo)> callback);
+    void
+    forActiveClients(std::function<void(def::ClientInfo* clientInfo)> callback);
 
     const sphy::CmdLinOptionsServer& options;
     std::atomic<bool> stopRequested{false};
@@ -231,6 +255,7 @@ class Engine
     float filteredFps = 0.0f;
 
     ecs::CollisionLayerMat collisionLayerMat;
+    gobj::ColliderHandle itemColliderHandle;
 
   public:
     ecs::Ecs ecs;

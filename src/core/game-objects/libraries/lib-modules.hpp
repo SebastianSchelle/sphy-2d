@@ -161,7 +161,6 @@ struct Turret
         TurretData;
     TurretData data = ProjectileData{};
     def::TurretType type = def::TurretType::Projectile;
-    def::DamageType damageType = def::DamageType::Kinetic;
     uint8_t numBarrels = 1;
     vector<vec2> barrelExits;
     float rotSpeed = 1.0f;

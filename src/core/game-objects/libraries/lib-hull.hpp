@@ -40,20 +40,12 @@ struct Hull
 
 using HullHandle = typename con::ItemLib<Hull>::Handle;
 
-/** Local-space AABB extents from collider vertices (width = x, length = y). */
-std::optional<vec2> colliderLocalExtents(const vector<vec2>& vertices);
-
 /** Smallest ship class whose max width/length fit the given extents. */
 def::ShipClass inferShipClassFromColliderExtents(float width, float length);
 
 def::ShipClass inferShipClassFromColliderVertices(const vector<vec2>& vertices);
 
 def::ShipClass inferShipClassFromCollider(const Collider* collider);
-
-/** Inertia/mass factor for a uniform rectangle (width × length). */
-float approximateHullInertiaMassFactor(float width, float length);
-
-float approximateHullInertia(float mass, float width, float length);
 
 void applyColliderDerivedHullStats(Hull& hull, const Collider* collider);
 

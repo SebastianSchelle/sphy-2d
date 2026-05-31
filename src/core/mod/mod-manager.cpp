@@ -491,6 +491,14 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
                              colliderLib.addItem(objName, collider);
                              LG_I("Added collider: {}: {}", objName, collider);
                          });
+        foreachObjectDef(libs["items"],
+                         [&](const std::string& objName, const YAML::Node& node)
+                         {
+                             const gobj::Item item = gobj::Item::fromYaml(node, resourceMap);
+                             string key = item.name != "" ? item.name : objName;
+                             itemLib.addItem(key, item);
+                             LG_I("Added item: {}: {}", key, item);
+                         });
     }
     else if (phase == GameLibLoadPhase::Ammunition)
     {
@@ -548,6 +556,32 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
                 stationPartLib.addItem(key, stationPart);
                 LG_I("Added station part: {}: {}", key, stationPart);
             });
+        std::vector<std::pair<std::string, YAML::Node>> asteroidYamlEntries;
+        foreachObjectDef(libs["asteroids"],
+                         [&](const std::string& objName, const YAML::Node& node)
+                         {
+                             gobj::Asteroid asteroid = gobj::Asteroid::fromYaml(
+                                 node,
+                                 itemLib,
+                                 texturesLib,
+                                 colliderLib,
+                                 asteroidLib);
+                             string key =
+                                 asteroid.name != "" ? asteroid.name : objName;
+                             asteroidLib.addItem(key, asteroid);
+                             asteroidYamlEntries.emplace_back(key, node);
+                             LG_I("Added asteroid: {}: {}", key, asteroid);
+                         });
+        for (const auto& [key, node] : asteroidYamlEntries)
+        {
+            const gobj::AsteroidHandle handle = asteroidLib.getHandle(key);
+            gobj::Asteroid* asteroid = asteroidLib.getItem(handle);
+            if (asteroid == nullptr)
+            {
+                continue;
+            }
+            gobj::Asteroid::loadDebrisFromYaml(*asteroid, node, asteroidLib);
+        }
     }
     return true;
 }

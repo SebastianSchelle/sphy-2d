@@ -112,13 +112,6 @@ Turret Turret::fromYaml(const YAML::Node& node,
     turret.type = magic_enum::enum_cast<def::TurretType>(turretTypeStr)
                       .value_or(def::TurretType::Projectile);
 
-    string damageTypeStr = string(magic_enum::enum_name(
-        def::TurretTypeDefaultDamage[static_cast<size_t>(turret.type)]));
-    TRY_YAML_DICT(damageTypeStr, node["damage-type"], damageTypeStr);
-    turret.damageType = magic_enum::enum_cast<def::DamageType>(damageTypeStr)
-                            .value_or(def::TurretTypeDefaultDamage[static_cast<
-                                size_t>(turret.type)]);
-
     const YAML::Node exitsNode = node["barrel-exits"];
     if (exitsNode && exitsNode.IsSequence())
     {

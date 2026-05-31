@@ -6,6 +6,8 @@ target_sources(sphy_core_game_objects_libs INTERFACE
     lib-collider.cpp
     lib-station-part.cpp
     lib-projectile.cpp
+    lib-item.cpp
+    lib-asteroid.cpp
 )
 
 target_include_directories(sphy_core_game_objects_libs

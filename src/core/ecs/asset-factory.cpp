@@ -63,7 +63,10 @@ void ComponentFactory::registerAllComponents()
     registerComponent<ecs::Storage>();
     registerComponent<ecs::Turret>();
     registerComponent<ecs::Projectile>();
+    registerComponent<ecs::Asteroid>();
     registerComponent<ecs::Lifetime>();
+    registerComponent<ecs::Item>();
+    registerComponent<ecs::SimpleTexture>();
 }
 
 AssetFactory::AssetFactory() {}

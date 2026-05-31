@@ -33,9 +33,21 @@ struct Textures
 EXT_SER(Textures, SER_TEXTURES)
 EXT_DES(Textures, SER_TEXTURES)
 
+struct SimpleTexture
+{
+    static const uint16_t VERSION = 1;
+    static constexpr string NAME = "simple-texture";
+    GenericHandle textureHandle;
+};
+
+#define SER_SIMPLE_TEXTURE SOBJ(o.textureHandle);
+EXT_SER(SimpleTexture, SER_SIMPLE_TEXTURE)
+EXT_DES(SimpleTexture, SER_SIMPLE_TEXTURE)
+
 }  // namespace ecs
 
 EXT_FMT(ecs::MapIcon, "mapIconHandle: {}", o.mapIconHandle);
 EXT_FMT(ecs::Textures, "texturesHandle: {}", o.texturesHandle);
+EXT_FMT(ecs::SimpleTexture, "textureHandle: {}", o.textureHandle);
 
 #endif

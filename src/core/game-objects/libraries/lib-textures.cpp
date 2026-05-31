@@ -19,7 +19,7 @@ Textures Textures::fromYaml(const YAML::Node& node, mod::ResourceMap& resourceMa
         if (!mTexHandle.isValid())
         {
             LG_W("Texture not found: {}", texName);
-            texture.texHandle = *(GenericHandle*)&mTexHandle;
+            texture.texHandle = GenericHandle::Invalid();
         }
         else
         {

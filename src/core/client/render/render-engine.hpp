@@ -26,6 +26,8 @@ namespace gfx
 #define SHAPE_TYPE_TRIANGLE 3.0f
 #define SHAPE_TYPE_LINE 4.0f
 
+constexpr float kTexturePixelToWorld = 0.15f;
+
 enum class GameViewMode
 {
     ThirdPerson,
@@ -115,10 +117,12 @@ class RenderEngine
     constexpr static const int8_t zIdxMapIconHull = 0;
     constexpr static const int8_t zIdxMapIconStation = 100;
 
+    constexpr static const int8_t zIdxItem = -100;
+    constexpr static const int8_t zIdxAsteroid = -50;
     constexpr static const int8_t zIdxShipHull = 0;
     constexpr static const int8_t zIdxStation = 50;
-    constexpr static const int8_t zIdxDrone = 100;
     constexpr static const int8_t zIdxProjectile = 99;
+    constexpr static const int8_t zIdxDrone = 100;
 
     enum class RenderState
     {
@@ -209,6 +213,7 @@ class RenderEngine
                                   const std::string& path = "");
     TextureHandle getTextureHandle(const std::string& name);
     bool getTexturePixelSize(const std::string& name, glm::vec2& sizePx);
+    bool getTexturePixelSize(TextureHandle textureHandle, glm::vec2& sizePx);
     bool getTextureFilePath(const std::string& name, std::string& pathOut);
     std::vector<std::string> getTextureNames() const;
     TextureHandle getFallbackTextureHandle() const

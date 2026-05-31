@@ -25,6 +25,8 @@ class UserInterface;
 #include <lib-collider.hpp>
 #include <lib-station-part.hpp>
 #include <lib-projectile.hpp>
+#include <lib-item.hpp>
+#include <lib-asteroid.hpp>
 
 #ifdef FMT_THROW
 #pragma push_macro("FMT_THROW")
@@ -200,6 +202,14 @@ class ModManager
     {
         return missileLib;
     }
+    con::ItemLib<gobj::Item>& getItemLib()
+    {
+        return itemLib;
+    }
+    con::ItemLib<gobj::Asteroid>& getAsteroidLib()
+    {
+        return asteroidLib;
+    }
   private:
     bool checkDependency(const std::string& modId,
                          std::vector<std::string>& modList,
@@ -251,6 +261,8 @@ class ModManager
     con::ItemLib<gobj::StationPart> stationPartLib;
     con::ItemLib<gobj::Projectile> projectileLib;
     con::ItemLib<gobj::Missile> missileLib;
+    con::ItemLib<gobj::Item> itemLib;
+    con::ItemLib<gobj::Asteroid> asteroidLib;
 };
 
 }  // namespace mod
