@@ -561,11 +561,7 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
                          [&](const std::string& objName, const YAML::Node& node)
                          {
                              gobj::Asteroid asteroid = gobj::Asteroid::fromYaml(
-                                 node,
-                                 itemLib,
-                                 texturesLib,
-                                 colliderLib,
-                                 asteroidLib);
+                                 node, itemLib, texturesLib, colliderLib);
                              string key =
                                  asteroid.name != "" ? asteroid.name : objName;
                              asteroidLib.addItem(key, asteroid);
@@ -580,7 +576,7 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
             {
                 continue;
             }
-            gobj::Asteroid::loadDebrisFromYaml(*asteroid, node, asteroidLib);
+            gobj::Asteroid::loadChildrenFromYaml(*asteroid, node, asteroidLib);
         }
     }
     return true;

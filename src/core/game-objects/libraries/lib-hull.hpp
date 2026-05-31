@@ -28,7 +28,7 @@ struct Hull
     vector<ModuleSlot> slots;
     TexturesHandle textures = TexturesHandle::Invalid();
     ColliderHandle collider = ColliderHandle::Invalid();
-    float volume[static_cast<size_t>(gobj::StorageType::NumStorageTypes)] = {
+    float volume[static_cast<size_t>(gobj::ItemStorageType::NumStorageTypes)] = {
         0.0f};
     /** Built-in attitude torque limit (N·m); `internal-gyro-torque` in YAML. */
     float internalGyroTorque = 10000.0f;

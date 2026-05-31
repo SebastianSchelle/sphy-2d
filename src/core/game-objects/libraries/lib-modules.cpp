@@ -10,7 +10,7 @@ namespace
 {
 
 constexpr const char* kStorageVolumeYamlKeys[static_cast<size_t>(
-    StorageType::NumStorageTypes)] = {
+    gobj::ItemStorageType::NumStorageTypes)] = {
     "volume-container-s",
     "volume-container-l",
     "volume-tank",
@@ -70,13 +70,13 @@ ManeuverThruster ManeuverThruster::fromYaml(const YAML::Node& node)
 Storage Storage::fromYaml(const YAML::Node& node)
 {
     Storage storage{};
-    for (size_t i = 0; i < static_cast<size_t>(StorageType::NumStorageTypes); ++i)
+    for (size_t i = 0; i < static_cast<size_t>(gobj::ItemStorageType::NumStorageTypes); ++i)
     {
         storage.volume[i] = 0.0f;
     }
 
     bool anyPerType = false;
-    for (size_t i = 0; i < static_cast<size_t>(StorageType::NumStorageTypes); ++i)
+    for (size_t i = 0; i < static_cast<size_t>(gobj::ItemStorageType::NumStorageTypes); ++i)
     {
         if (node[kStorageVolumeYamlKeys[i]])
         {

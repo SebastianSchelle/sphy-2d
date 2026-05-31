@@ -94,7 +94,7 @@ void formatModdingTorqueKNmString(float gameTorque, string& torqueKNmStr)
 }
 
 constexpr const char* kModuleStorageVolumeYamlKeys[static_cast<size_t>(
-    gobj::StorageType::NumStorageTypes)] = {
+    gobj::ItemStorageType::NumStorageTypes)] = {
     "volume-container-s",
     "volume-container-l",
     "volume-tank",
@@ -102,7 +102,7 @@ constexpr const char* kModuleStorageVolumeYamlKeys[static_cast<size_t>(
 };
 
 constexpr const char* kStationStorageCapYamlKeys[static_cast<size_t>(
-    gobj::StorageType::NumStorageTypes)] = {
+    gobj::ItemStorageType::NumStorageTypes)] = {
     "cap-container-s",
     "cap-container-l",
     "cap-tank",
@@ -209,7 +209,7 @@ void loadModuleStorageVolumesFromYaml(const YAML::Node& dataNode,
 
     bool anyPerType = false;
     for (size_t i = 0;
-         i < static_cast<size_t>(gobj::StorageType::NumStorageTypes);
+         i < static_cast<size_t>(gobj::ItemStorageType::NumStorageTypes);
          ++i)
     {
         if (dataNode[kModuleStorageVolumeYamlKeys[i]])
@@ -224,7 +224,7 @@ void loadModuleStorageVolumesFromYaml(const YAML::Node& dataNode,
     {
         const float legacy = dataNode["volume"].as<float>();
         for (size_t i = 0;
-             i < static_cast<size_t>(gobj::StorageType::NumStorageTypes);
+             i < static_cast<size_t>(gobj::ItemStorageType::NumStorageTypes);
              ++i)
         {
             *vals[i] = legacy;
@@ -260,7 +260,7 @@ void loadStationStorageVolumesFromYaml(const YAML::Node& dataNode,
 
     bool anyPerType = false;
     for (size_t i = 0;
-         i < static_cast<size_t>(gobj::StorageType::NumStorageTypes);
+         i < static_cast<size_t>(gobj::ItemStorageType::NumStorageTypes);
          ++i)
     {
         if (dataNode[kStationStorageCapYamlKeys[i]])
@@ -275,7 +275,7 @@ void loadStationStorageVolumesFromYaml(const YAML::Node& dataNode,
     {
         const float legacy = dataNode["volume"].as<float>();
         for (size_t i = 0;
-             i < static_cast<size_t>(gobj::StorageType::NumStorageTypes);
+             i < static_cast<size_t>(gobj::ItemStorageType::NumStorageTypes);
              ++i)
         {
             *vals[i] = legacy;
@@ -1024,24 +1024,24 @@ void parseCompositionEntryFields(CompositionEntryInfo& entry)
     floatToString(entry.fractionVal, entry.fraction, 2);
 }
 
-void parseDebrisEntryFields(DebrisEntryInfo& entry)
+void parseChildEntryFields(ChildEntryInfo& entry)
 {
-    int weight = 0;
+    int count = 0;
     try
     {
         size_t pos = 0;
-        const long parsed = std::stol(entry.weight, &pos, 10);
-        if (pos == entry.weight.size())
+        const long parsed = std::stol(entry.count, &pos, 10);
+        if (pos == entry.count.size())
         {
-            weight = static_cast<int>(parsed);
+            count = static_cast<int>(parsed);
         }
     }
     catch (...)
     {
-        weight = 0;
+        count = 0;
     }
-    entry.weightVal = static_cast<uint8_t>(std::clamp(weight, 0, 255));
-    entry.weight = std::to_string(static_cast<int>(entry.weightVal));
+    entry.countVal = static_cast<uint8_t>(std::clamp(count, 0, 255));
+    entry.count = std::to_string(static_cast<int>(entry.countVal));
 }
 
 YAML::Node buildCompositionYaml(const vector<CompositionEntryInfo>& entries)
@@ -1059,18 +1059,18 @@ YAML::Node buildCompositionYaml(const vector<CompositionEntryInfo>& entries)
     return compositionNode;
 }
 
-YAML::Node buildDebrisYaml(const vector<DebrisEntryInfo>& entries)
+YAML::Node buildChildrenYaml(const vector<ChildEntryInfo>& entries)
 {
-    YAML::Node debrisNode(YAML::NodeType::Map);
-    for (const DebrisEntryInfo& entry : entries)
+    YAML::Node childrenNode(YAML::NodeType::Map);
+    for (const ChildEntryInfo& entry : entries)
     {
-        if (entry.asteroidName.empty())
+        if (entry.asteroidName.empty() || entry.countVal == 0)
         {
             continue;
         }
-        debrisNode[entry.asteroidName] = static_cast<int>(entry.weightVal);
+        childrenNode[entry.asteroidName] = static_cast<int>(entry.countVal);
     }
-    return debrisNode;
+    return childrenNode;
 }
 
 void loadCompositionFromYaml(const YAML::Node& compositionNode,
@@ -1097,29 +1097,46 @@ void loadCompositionFromYaml(const YAML::Node& compositionNode,
     }
 }
 
-void loadDebrisFromYaml(const YAML::Node& debrisNode,
-                        vector<DebrisEntryInfo>& entries)
+void loadChildrenFromYaml(const YAML::Node& childrenNode,
+                        vector<ChildEntryInfo>& entries)
 {
     entries.clear();
-    if (!debrisNode || !debrisNode.IsMap())
+    if (!childrenNode || !childrenNode.IsMap())
     {
         return;
     }
-    for (const auto& entry : debrisNode)
+    for (const auto& entry : childrenNode)
     {
         if (!entry.first.IsScalar())
         {
             continue;
         }
-        DebrisEntryInfo row;
+        ChildEntryInfo row;
         row.asteroidName = entry.first.as<string>();
-        float weightRaw = 0.0f;
-        TRY_YAML_DICT(weightRaw, entry.second, weightRaw);
-        row.weightVal = static_cast<uint8_t>(
-            std::clamp<int>(static_cast<int>(std::lround(weightRaw)), 0, 255));
-        row.weight = std::to_string(static_cast<int>(row.weightVal));
+        float countRaw = 0.0f;
+        TRY_YAML_DICT(countRaw, entry.second, countRaw);
+        row.countVal = static_cast<uint8_t>(
+            std::clamp<int>(static_cast<int>(std::lround(countRaw)), 0, 255));
+        row.count = std::to_string(static_cast<int>(row.countVal));
         entries.push_back(row);
     }
+}
+
+float moddingAsteroidVolumeFromCollider(const vector<ColliderVertex>& vertices)
+{
+    if (vertices.empty())
+    {
+        return 0.0f;
+    }
+    vector<vec2> pts;
+    pts.reserve(vertices.size());
+    for (const auto& v : vertices)
+    {
+        pts.emplace_back(v.xVal, v.yVal);
+    }
+    const vec2 ext = smath::colliderLocalExtents(pts);
+    const float r = 0.5f * (ext.x + ext.y);
+    return (4.0f / 3.0f) * static_cast<float>(M_PI) * r * r * r;
 }
 
 void writeModuleDataYaml(YAML::Node& dataNode, const ModuleInfo& info)
@@ -2472,11 +2489,11 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
         &ModdingTools::onRemoveCompositionEntry,
         this);
     moddingToolsConstructor.BindEventCallback(
-        "onAddDebrisEntry", &ModdingTools::onAddDebrisEntry, this);
+        "onAddChildEntry", &ModdingTools::onAddChildEntry, this);
     moddingToolsConstructor.BindEventCallback(
-        "onClearDebris", &ModdingTools::onClearDebris, this);
+        "onClearChildren", &ModdingTools::onClearChildren, this);
     moddingToolsConstructor.BindEventCallback(
-        "onRemoveDebrisEntry", &ModdingTools::onRemoveDebrisEntry, this);
+        "onRemoveChildEntry", &ModdingTools::onRemoveChildEntry, this);
     moddingToolsConstructor.BindEventCallback(
         "onModdingFileSave", &ModdingTools::onModdingFileSave, this);
     moddingToolsConstructor.BindEventCallback(
@@ -2618,6 +2635,9 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     {
         asteroidHandle.RegisterMember("description",
                                       &AsteroidInfo::description);
+        asteroidHandle.RegisterMember("asteroidType",
+                                      &AsteroidInfo::asteroidType);
+        asteroidHandle.RegisterMember("volume", &AsteroidInfo::volume);
     }
     moddingToolsConstructor.Bind("asteroid", &asteroidInfo);
     if (auto compositionHandle =
@@ -2630,16 +2650,16 @@ void ModdingTools::setupDataModel(ui::UserInterface& userInterface)
     }
     moddingToolsConstructor.RegisterArray<std::vector<CompositionEntryInfo>>();
     moddingToolsConstructor.Bind("composition", &compositionEntries);
-    if (auto debrisHandle =
-            moddingToolsConstructor.RegisterStruct<DebrisEntryInfo>())
+    if (auto childHandle =
+            moddingToolsConstructor.RegisterStruct<ChildEntryInfo>())
     {
-        debrisHandle.RegisterMember("asteroidName", &DebrisEntryInfo::asteroidName);
-        debrisHandle.RegisterMember("weight", &DebrisEntryInfo::weight);
+        childHandle.RegisterMember("asteroidName", &ChildEntryInfo::asteroidName);
+        childHandle.RegisterMember("count", &ChildEntryInfo::count);
     }
-    moddingToolsConstructor.RegisterArray<std::vector<DebrisEntryInfo>>();
-    moddingToolsConstructor.Bind("debris", &debrisEntries);
+    moddingToolsConstructor.RegisterArray<std::vector<ChildEntryInfo>>();
+    moddingToolsConstructor.Bind("children", &childrenEntries);
     moddingToolsConstructor.Bind("extendComposition", &extendComposition);
-    moddingToolsConstructor.Bind("extendDebris", &extendDebris);
+    moddingToolsConstructor.Bind("extendChildren", &extendChildren);
     if (auto moduleHandle =
             moddingToolsConstructor.RegisterStruct<ModuleInfo>())
     {
@@ -2955,15 +2975,13 @@ void ModdingTools::onModdingNewAsteroid(Rml::DataModelHandle handle,
     activeMode = ModdingToolsMode::Asteroid;
     openFilepath = "";
     genInfo = GeneralInfo{};
-    genInfo.hp = "1000";
-    genInfo.mass = "1";
     asteroidInfo = AsteroidInfo{};
     projectileInfo = ProjectileInfo{};
     missileInfo = MissileInfo{};
     stationPartInfo = StationPartInfo{};
     moduleInfo = ModuleInfo{};
     compositionEntries.clear();
-    debrisEntries.clear();
+    childrenEntries.clear();
     textures.clear();
     baseTextures.clear();
     textureSizeAppliedForName.clear();
@@ -2982,7 +3000,7 @@ void ModdingTools::onModdingNewAsteroid(Rml::DataModelHandle handle,
     handle.DirtyVariable("hull");
     handle.DirtyVariable("asteroid");
     handle.DirtyVariable("composition");
-    handle.DirtyVariable("debris");
+    handle.DirtyVariable("children");
     handle.DirtyVariable("textures");
     handle.DirtyVariable("collider");
     syncListSelectionToRml();
@@ -3027,29 +3045,29 @@ void ModdingTools::onRemoveCompositionEntry(Rml::DataModelHandle handle,
     rmlModel_.DirtyVariable("composition");
 }
 
-void ModdingTools::onAddDebrisEntry(Rml::DataModelHandle handle,
-                                    Rml::Event& event,
-                                    const Rml::VariantList& args)
+void ModdingTools::onAddChildEntry(Rml::DataModelHandle handle,
+                                   Rml::Event& event,
+                                   const Rml::VariantList& args)
 {
     (void)event;
     (void)args;
-    debrisEntries.push_back(DebrisEntryInfo{});
-    rmlModel_.DirtyVariable("debris");
+    childrenEntries.push_back(ChildEntryInfo{});
+    rmlModel_.DirtyVariable("children");
 }
 
-void ModdingTools::onClearDebris(Rml::DataModelHandle handle,
-                                 Rml::Event& event,
-                                 const Rml::VariantList& args)
+void ModdingTools::onClearChildren(Rml::DataModelHandle handle,
+                                   Rml::Event& event,
+                                   const Rml::VariantList& args)
 {
     (void)event;
     (void)args;
-    debrisEntries.clear();
-    rmlModel_.DirtyVariable("debris");
+    childrenEntries.clear();
+    rmlModel_.DirtyVariable("children");
 }
 
-void ModdingTools::onRemoveDebrisEntry(Rml::DataModelHandle handle,
-                                       Rml::Event& event,
-                                       const Rml::VariantList& args)
+void ModdingTools::onRemoveChildEntry(Rml::DataModelHandle handle,
+                                      Rml::Event& event,
+                                      const Rml::VariantList& args)
 {
     (void)event;
     if (args.size() != 1)
@@ -3057,12 +3075,12 @@ void ModdingTools::onRemoveDebrisEntry(Rml::DataModelHandle handle,
         return;
     }
     const int idx = args[0].Get<int>(0);
-    if (idx < 0 || idx >= static_cast<int>(debrisEntries.size()))
+    if (idx < 0 || idx >= static_cast<int>(childrenEntries.size()))
     {
         return;
     }
-    debrisEntries.erase(debrisEntries.begin() + idx);
-    rmlModel_.DirtyVariable("debris");
+    childrenEntries.erase(childrenEntries.begin() + idx);
+    rmlModel_.DirtyVariable("children");
 }
 
 void ModdingTools::onModdingFileSave(Rml::DataModelHandle handle,
@@ -3272,7 +3290,7 @@ void ModdingTools::onModdingFileLoad(Rml::DataModelHandle handle,
     handle.DirtyVariable("missile");
     handle.DirtyVariable("asteroid");
     handle.DirtyVariable("composition");
-    handle.DirtyVariable("debris");
+    handle.DirtyVariable("children");
     handle.DirtyVariable("mode");
     textureSizeAppliedForName.resize(textures.size());
     for (size_t i = 0; i < textures.size(); ++i)
@@ -3716,6 +3734,7 @@ void ModdingTools::onAddColliderVertex(Rml::DataModelHandle handle,
 {
     collider.push_back(ColliderVertex{});
     updateHullDerivedFromCollider();
+    updateAsteroidDerivedFromCollider();
     rmlModel_.DirtyVariable("collider");
 }
 
@@ -3730,6 +3749,7 @@ void ModdingTools::onClearColliderVertices(Rml::DataModelHandle handle,
         selectedObjectIndex = -1;
     }
     updateHullDerivedFromCollider();
+    updateAsteroidDerivedFromCollider();
     rmlModel_.DirtyVariable("collider");
     syncListSelectionToRml();
 }
@@ -3797,6 +3817,7 @@ void ModdingTools::generateColliderFromVisibleTextures(
     }
 
     updateHullDerivedFromCollider();
+    updateAsteroidDerivedFromCollider();
     if (rmlModel_)
     {
         rmlModel_.DirtyVariable("collider");
@@ -3834,6 +3855,7 @@ void ModdingTools::onRemoveColliderVertex(Rml::DataModelHandle handle,
         collider.erase(collider.begin() + static_cast<size_t>(i));
         fixSelectionAfterErase(SelectableObjectType::ColliderVertex, i);
         updateHullDerivedFromCollider();
+        updateAsteroidDerivedFromCollider();
         handle.DirtyVariable("collider");
         syncListSelectionToRml();
     }
@@ -4031,6 +4053,20 @@ void ModdingTools::updateHullDerivedFromCollider()
     }
 }
 
+void ModdingTools::updateAsteroidDerivedFromCollider()
+{
+    if (activeMode != ModdingToolsMode::Asteroid)
+    {
+        return;
+    }
+    asteroidInfo.volumeVal = moddingAsteroidVolumeFromCollider(collider);
+    floatToString(asteroidInfo.volumeVal, asteroidInfo.volume, 2);
+    if (rmlModel_)
+    {
+        rmlModel_.DirtyVariable("asteroid");
+    }
+}
+
 void ModdingTools::parseEditorNumericFields()
 {
     parseGeneralInfoNumericFields(genInfo, hpVal);
@@ -4110,10 +4146,18 @@ void ModdingTools::parseEditorNumericFields()
     {
         parseCompositionEntryFields(entry);
     }
-    for (auto& entry : debrisEntries)
+    for (auto& entry : childrenEntries)
     {
-        parseDebrisEntryFields(entry);
+        parseChildEntryFields(entry);
     }
+    auto astType =
+        magic_enum::enum_cast<gobj::AsteroidType>(asteroidInfo.asteroidType);
+    if (astType.has_value())
+    {
+        asteroidInfo.asteroidTypeVal = astType.value();
+    }
+    asteroidInfo.asteroidType =
+        std::string(magic_enum::enum_name(asteroidInfo.asteroidTypeVal));
     if (moduleInfo.moduleTypeVal == gobj::ModuleType::Turret)
     {
         syncTurretNumBarrelsFromExits();
@@ -4126,7 +4170,7 @@ void ModdingTools::parseEditorNumericFields()
         rmlModel_.DirtyVariable("missile");
         rmlModel_.DirtyVariable("asteroid");
         rmlModel_.DirtyVariable("composition");
-        rmlModel_.DirtyVariable("debris");
+        rmlModel_.DirtyVariable("children");
     }
 
     for (auto& connector : connectors)
@@ -4152,6 +4196,10 @@ void ModdingTools::parseEditorNumericFields()
     if (activeMode == ModdingToolsMode::Hull)
     {
         updateHullDerivedFromCollider();
+    }
+    if (activeMode == ModdingToolsMode::Asteroid)
+    {
+        updateAsteroidDerivedFromCollider();
     }
     if (activeMode == ModdingToolsMode::StationPart)
     {
@@ -6096,7 +6144,7 @@ bool ModdingTools::loadAsteroidDataFromPath(const string& path)
     turretExits.clear();
     asteroidInfo = AsteroidInfo{};
     compositionEntries.clear();
-    debrisEntries.clear();
+    childrenEntries.clear();
     projectileInfo = ProjectileInfo{};
     missileInfo = MissileInfo{};
     stationPartInfo = StationPartInfo{};
@@ -6124,15 +6172,15 @@ bool ModdingTools::loadAsteroidDataFromPath(const string& path)
         {
             asteroidInfo.description = asteroidNode["description"].as<string>();
         }
-        if (asteroidNode["mass"])
+        if (asteroidNode["type"])
         {
-            genInfo.massVal = asteroidNode["mass"].as<float>();
-            formatModdingMassTonsString(genInfo.massVal, genInfo.mass);
-        }
-        if (asteroidNode["max-hp"])
-        {
-            hpVal = asteroidNode["max-hp"].as<float>();
-            floatToString(hpVal, genInfo.hp, 2);
+            asteroidInfo.asteroidType = asteroidNode["type"].as<string>();
+            auto parsed =
+                magic_enum::enum_cast<gobj::AsteroidType>(asteroidInfo.asteroidType);
+            if (parsed.has_value())
+            {
+                asteroidInfo.asteroidTypeVal = parsed.value();
+            }
         }
         string texKey;
         if (asteroidNode["textures"])
@@ -6162,8 +6210,15 @@ bool ModdingTools::loadAsteroidDataFromPath(const string& path)
                 colliderRoot[colKey], collider, genInfo.colliderRestitutionVal);
         }
 
-        loadCompositionFromYaml(asteroidNode["composition"], compositionEntries);
-        loadDebrisFromYaml(asteroidNode["debris"], debrisEntries);
+        if (asteroidInfo.asteroidTypeVal == gobj::AsteroidType::Fragment)
+        {
+            loadCompositionFromYaml(
+                asteroidNode["composition"], compositionEntries);
+        }
+        else
+        {
+            loadChildrenFromYaml(asteroidNode["children"], childrenEntries);
+        }
     }
     catch (const YAML::Exception& e)
     {
@@ -6172,7 +6227,7 @@ bool ModdingTools::loadAsteroidDataFromPath(const string& path)
         collider.clear();
         asteroidInfo = AsteroidInfo{};
         compositionEntries.clear();
-        debrisEntries.clear();
+        childrenEntries.clear();
         genInfo = GeneralInfo{};
         activeMode = ModdingToolsMode::None;
         syncModeToRml();
@@ -6181,6 +6236,7 @@ bool ModdingTools::loadAsteroidDataFromPath(const string& path)
 
     resetNewTexturePickerState();
     parseEditorNumericFields();
+    updateAsteroidDerivedFromCollider();
     return true;
 }
 
@@ -6214,17 +6270,21 @@ bool ModdingTools::saveAsteroidDataToPath(const string& path)
     {
         asteroidNode["description"] = asteroidInfo.description;
     }
-    asteroidNode["mass"] = genInfo.massVal;
-    asteroidNode["max-hp"] = hpVal;
+    asteroidNode["type"] =
+        std::string(magic_enum::enum_name(asteroidInfo.asteroidTypeVal));
     asteroidNode["textures"] = key;
     asteroidNode["collider"] = key;
-    if (!compositionEntries.empty())
+    if (asteroidInfo.asteroidTypeVal == gobj::AsteroidType::Fragment)
     {
-        asteroidNode["composition"] = buildCompositionYaml(compositionEntries);
+        if (!compositionEntries.empty())
+        {
+            asteroidNode["composition"] =
+                buildCompositionYaml(compositionEntries);
+        }
     }
-    if (!debrisEntries.empty())
+    else if (!childrenEntries.empty())
     {
-        asteroidNode["debris"] = buildDebrisYaml(debrisEntries);
+        asteroidNode["children"] = buildChildrenYaml(childrenEntries);
     }
 
     YAML::Node root;

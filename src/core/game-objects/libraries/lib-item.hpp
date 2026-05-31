@@ -1,9 +1,9 @@
 #ifndef LIB_ITEM_HPP
 #define LIB_ITEM_HPP
 
-#include <std-inc.hpp>
 #include <item-lib.hpp>
 #include <magic_enum/magic_enum.hpp>
+#include <std-inc.hpp>
 
 #ifdef CLIENT
 #include <texture.hpp>
@@ -19,10 +19,11 @@ namespace gobj
 
 enum class ItemStorageType : uint8_t
 {
-    Cargo,
-    Tank,
     ContainerS,
     ContainerL,
+    Tank,
+    Bulk,
+    NumStorageTypes,
 };
 
 enum class ItemType : uint8_t

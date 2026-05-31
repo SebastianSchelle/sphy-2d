@@ -8,18 +8,10 @@
 #include <turret-def.hpp>
 #include <yaml-cpp/yaml.h>
 #include <lib-projectile.hpp>
+#include <lib-item.hpp>
 
 namespace gobj
 {
-
-enum class StorageType : uint8_t
-{
-    ContainerS,
-    ContainerL,
-    Tank,
-    Bulk,
-    NumStorageTypes,
-};
 
 enum class ModuleSlotType : uint8_t
 {
@@ -111,7 +103,7 @@ struct ManeuverThruster
 };
 struct Storage
 {
-    float volume[static_cast<size_t>(gobj::StorageType::NumStorageTypes)];
+    float volume[static_cast<size_t>(gobj::ItemStorageType::NumStorageTypes)];
     static Storage fromYaml(const YAML::Node& node);
 };
 struct Hangar
@@ -196,7 +188,6 @@ using ModuleHandle = typename con::ItemLib<Module>::Handle;
 
 }  // namespace gobj
 
-EXT_FMT(gobj::StorageType, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::ModuleSlotType, "{}", magic_enum::enum_name(o));
 EXT_FMT(gobj::ModuleSlot,
         "(modType: {}, pos: {}, rot: {}, minAngle: {}, maxAngle: {})",

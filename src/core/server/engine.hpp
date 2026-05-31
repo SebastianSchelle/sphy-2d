@@ -115,12 +115,6 @@ class Engine
     template <class T>
     void registerActiveSectorDumpComponent(DumpFilter filter = DumpFilter::All);
     void destroyEntity(ecs::EntityId entityId);
-    bool projectileCollision(ecs::EntityId projId,
-                             entt::entity projEnt,
-                             ecs::EntityId otherId,
-                             entt::entity otherEnt,
-                             const ecs::Contact& contact,
-                             entt::entity collisionEntFirst);
 
   private:
     void engineLoop();

@@ -9,6 +9,7 @@
 #include <lib-modules.hpp>
 #include <lib-station-part.hpp>
 #include <lib-projectile.hpp>
+#include <lib-asteroid.hpp>
 #include <turret-def.hpp>
 #include <ship-def.hpp>
 
@@ -187,17 +188,22 @@ struct CompositionEntryInfo
     float fractionVal = 0.0f;
 };
 
-struct DebrisEntryInfo
+struct ChildEntryInfo
 {
     string asteroidName;
-    /** Weight 0–255 (typically sum to 100). */
-    string weight = "0";
-    uint8_t weightVal = 0;
+    /** How many of this child asteroid spawn when the parent breaks apart. */
+    string count = "1";
+    uint8_t countVal = 1;
 };
 
 struct AsteroidInfo
 {
     string description;
+    string asteroidType = "Fragment";
+    gobj::AsteroidType asteroidTypeVal = gobj::AsteroidType::Fragment;
+    /** Read-only: (4/3)πr³ from collider extents. */
+    string volume = "0";
+    float volumeVal = 0.0f;
 };
 
 struct ModuleInfo
@@ -341,15 +347,15 @@ class ModdingTools
     void onRemoveCompositionEntry(Rml::DataModelHandle handle,
                                   Rml::Event& event,
                                   const Rml::VariantList& args);
-    void onAddDebrisEntry(Rml::DataModelHandle handle,
-                          Rml::Event& event,
-                          const Rml::VariantList& args);
-    void onClearDebris(Rml::DataModelHandle handle,
-                       Rml::Event& event,
-                       const Rml::VariantList& args);
-    void onRemoveDebrisEntry(Rml::DataModelHandle handle,
-                             Rml::Event& event,
-                             const Rml::VariantList& args);
+    void onAddChildEntry(Rml::DataModelHandle handle,
+                         Rml::Event& event,
+                         const Rml::VariantList& args);
+    void onClearChildren(Rml::DataModelHandle handle,
+                         Rml::Event& event,
+                         const Rml::VariantList& args);
+    void onRemoveChildEntry(Rml::DataModelHandle handle,
+                            Rml::Event& event,
+                            const Rml::VariantList& args);
     void onModdingFileSave(Rml::DataModelHandle handle,
                            Rml::Event& event,
                            const Rml::VariantList& args);
@@ -493,6 +499,7 @@ class ModdingTools
     void syncStationPartConnectorTextures();
     void parseEditorNumericFields();
     void updateHullDerivedFromCollider();
+    void updateAsteroidDerivedFromCollider();
     void refreshPerRowTextureNameSuggestions();
     void applyTextureNameToRow(int rowIndex, const string& pickedName);
     void refreshNewTexturePickerSuggestions();
@@ -515,7 +522,7 @@ class ModdingTools
     AsteroidInfo asteroidInfo;
     ModuleInfo moduleInfo;
     vector<CompositionEntryInfo> compositionEntries;
-    vector<DebrisEntryInfo> debrisEntries;
+    vector<ChildEntryInfo> childrenEntries;
     float hpVal = 0.0f;
     vector<TextureInfo> textures;
     vector<TextureInfo> baseTextures;
@@ -538,7 +545,7 @@ class ModdingTools
     bool extendCollider = true;
     bool extendConnectors = true;
     bool extendComposition = true;
-    bool extendDebris = true;
+    bool extendChildren = true;
     int activeTextureIndex = -1;
     /** For RML row highlight / expressions (`magic_enum::enum_name`). */
     string selectedListKind = "None";

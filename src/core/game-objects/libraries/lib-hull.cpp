@@ -7,7 +7,7 @@ namespace
 {
 
 constexpr const char* kHullVolumeYamlKeys[static_cast<size_t>(
-    StorageType::NumStorageTypes)] = {
+    ItemStorageType::NumStorageTypes)] = {
     "volume-container-s",
     "volume-container-l",
     "volume-tank",
@@ -80,7 +80,7 @@ Hull Hull::fromYaml(const YAML::Node& node,
     applyColliderDerivedHullStats(
         hull,
         hull.collider.isValid() ? colliderLib.getItem(hull.collider) : nullptr);
-    for (size_t i = 0; i < static_cast<size_t>(StorageType::NumStorageTypes); ++i)
+    for (size_t i = 0; i < static_cast<size_t>(ItemStorageType::NumStorageTypes); ++i)
     {
         if (node[kHullVolumeYamlKeys[i]])
         {

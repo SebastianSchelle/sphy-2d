@@ -16,6 +16,8 @@ namespace gobj
 {
 struct Item;
 using ItemHandle = typename con::ItemLib<Item>::Handle;
+struct Asteroid;
+using AsteroidHandle = typename con::ItemLib<Asteroid>::Handle;
 }  // namespace gobj
 
 namespace ecs
@@ -145,17 +147,20 @@ struct Asteroid
     static const uint16_t VERSION = 1;
     static constexpr string NAME = "asteroid";
     GenericHandle asteroidHandle;
-    float hp;
+    float volume;
     float harvestProgress;
 
 #ifdef SERVER
-    void damage(PtrHandle* ptrHandle, float damage, std::function<void(gobj::ItemHandle handle)> harvestCallback);
+    void damage(PtrHandle* ptrHandle,
+                float damage,
+                std::function<void(gobj::ItemHandle handle, uint32_t quantity)>
+                    harvestCallback);
 #endif
 };
 
 #define SER_ASTEROID                                                           \
     SOBJ(o.asteroidHandle);                                                    \
-    S4b(o.hp);                                                                 \
+    S4b(o.volume);                                                               \
     S4b(o.harvestProgress);
 EXT_SER(Asteroid, SER_ASTEROID)
 EXT_DES(Asteroid, SER_ASTEROID)
@@ -180,9 +185,9 @@ EXT_FMT(ecs::Station, "(hp: {})", o.hp);
 EXT_FMT(ecs::StationPart, "(stationPartHandle: {})", o.stationPartHandle);
 EXT_FMT(ecs::Projectile, "(projectileHandle: {})", o.projectileHandle);
 EXT_FMT(ecs::Asteroid,
-        "(asteroidHandle: {}, hp: {}, harvestProgress: {})",
+        "(asteroidHandle: {}, mass: {}, harvestProgress: {})",
         o.asteroidHandle,
-        o.hp,
+        o.volume,
         o.harvestProgress);
 EXT_FMT(ecs::Item, "(itemHandle: {}, quantity: {})", o.itemHandle, o.quantity);
 

@@ -16,7 +16,7 @@ Item Item::fromYaml(const YAML::Node& node, mod::ResourceMap& resourceMap)
     string storageTypeStr = string(magic_enum::enum_name(item.storageType));
     TRY_YAML_DICT(storageTypeStr, node["storage-type"], storageTypeStr);
     item.storageType = magic_enum::enum_cast<ItemStorageType>(storageTypeStr)
-                           .value_or(ItemStorageType::Cargo);
+                           .value_or(ItemStorageType::ContainerS);
     TRY_YAML_DICT(item.volume, node["volume"], item.volume);
     TRY_YAML_DICT(item.density, node["density"], item.density);
     if (node["price-range"] && node["price-range"].IsMap())

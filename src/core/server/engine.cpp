@@ -1186,7 +1186,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 100; ++i)
+    for (int i = 0; i < 1; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1211,7 +1211,7 @@ void Engine::testSpawn()
                 modManager.getModuleLib().getHandle("Small Mining Turret"),
                 4);
             spawnModule(
-                ent, modManager.getModuleLib().getHandle("Terran Tank S"), 5);
+                ent, modManager.getModuleLib().getHandle("Terran Bulk S"), 5);
         }
         else if (i % 4 == 1)
         {
@@ -1396,7 +1396,7 @@ void Engine::testSpawn()
         //                    0);
     }
 
-    for (int i = 0; i < 100; ++i)
+    for (int i = 0; i < 500; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1575,7 +1575,7 @@ ecs::Asteroid* Engine::makeAsteroid(entt::entity entity,
     return &reg.emplace_or_replace<ecs::Asteroid>(
         entity,
         ecs::Asteroid{.asteroidHandle = asteroidHandle.toGenericHandle(),
-                      .hp = asteroid->maxHp,
+                      .volume = asteroid->volume,
                       .harvestProgress = 0.0f});
 }
 
@@ -2315,7 +2315,7 @@ void Engine::spawnAsteroid(uint32_t sectorId,
     vec2 extends = vec2(0.5f, 0.5f);
     if (colliderData)
     {
-        vec2 extends = smath::colliderLocalExtents(colliderData->vertices);
+        extends = smath::colliderLocalExtents(colliderData->vertices);
     }
     else
     {
@@ -2323,9 +2323,9 @@ void Engine::spawnAsteroid(uint32_t sectorId,
              asteroid->collider.toGenericHandle());
     }
     float inertia =
-        smath::approximateInertia(asteroid->mass, extends.x, extends.y);
+        smath::approximateInertia(asteroid->volume, extends.x, extends.y);
     makePhysicsBody(entt,
-                    ecs::PhysicsBody{.mass = asteroid->mass,
+                    ecs::PhysicsBody{.mass = asteroid->volume,
                                      .vel = vec2(0.0f, 0.0f),
                                      .acc = vec2(0.0f, 0.0f),
                                      .inertia = inertia,
@@ -2431,81 +2431,6 @@ void Engine::forActiveClients(
         def::ClientInfo* clientInfo = clientLib.getItem(clientHandle);
         callback(clientInfo);
     }
-}
-
-bool Engine::projectileCollision(ecs::EntityId projId,
-                                 entt::entity projEnt,
-                                 ecs::EntityId otherId,
-                                 entt::entity otherEnt,
-                                 const ecs::Contact& contact,
-                                 entt::entity collisionEntFirst)
-{
-    auto& reg = ecs.getRegistry();
-    auto* projectile = reg.try_get<ecs::Projectile>(projEnt);
-    if (!projectile)
-    {
-        LG_E("Projectile not found");
-        return false;
-    }
-    auto* projectileData =
-        modManager.getProjectileLib().getItem(projectile->projectileHandle);
-    if (!projectileData)
-    {
-        LG_E("Projectile data not found");
-        return false;
-    }
-    // Hitting Asteroid
-    auto* asteroid = reg.try_get<ecs::Asteroid>(otherEnt);
-    if (asteroid)
-    {
-        float dmg = projectileData->damageType == def::DamageType::Mining
-                        ? projectileData->dmg
-                        : projectileData->dmg * 0.01f;
-
-        asteroid->damage(
-            ptrHandle,
-            dmg,
-            [this, otherEnt, contact, projEnt, collisionEntFirst](
-                gobj::ItemHandle handle)
-            {
-                gobj::Item* item = modManager.getItemLib().getItem(handle);
-                if (!item)
-                {
-                    return;
-                }
-                LG_I("Harvested item: {}", item->name);
-                auto& reg = ecs.getRegistry();
-                auto* sectorId = reg.try_get<ecs::SectorId>(otherEnt);
-                if (!sectorId)
-                {
-                    LG_E("Sector id not found");
-                    return;
-                }
-                vec2 sourceVel = vec2(0.0f, 0.0f);
-                if (auto* projBody = reg.try_get<ecs::PhysicsBody>(projEnt))
-                {
-                    sourceVel = projBody->vel;
-                }
-                const ecs::Transform* astTransform =
-                    reg.try_get<ecs::Transform>(otherEnt);
-                ecs::ContactEjectParams ejectParams;
-                ejectParams.computeRot = true;
-                const ecs::ContactEjectSpawn eject =
-                    ecs::computeContactEjectSpawn(
-                        contact,
-                        otherEnt,
-                        collisionEntFirst,
-                        sourceVel,
-                        astTransform != nullptr ? &astTransform->pos : nullptr,
-                        ejectParams);
-                ecs::Transform spawnTransform{.pos = eject.pos,
-                                              .rot = eject.rot.value_or(0.0f)};
-                spawnItem(
-                    sectorId->id, spawnTransform, handle, 1.0f, eject.vel);
-            });
-        return asteroid->hp <= 0.0f;
-    }
-    return false;
 }
 
 }  // namespace sphys

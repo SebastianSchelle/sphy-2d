@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cmath>
+#include <comp-struct.hpp>
 #include <components/comp-ident.hpp>
 #include <components/comp-phy.hpp>
 #include <optional>
@@ -374,6 +375,282 @@ void sysPhysicsImpl(world::Sector* sector,
     }
 }
 
+struct ColResolveParams
+{
+    PtrHandle* ptrHandle;
+    world::Sector* sector;
+    const Contact& contact;
+    const std::pair<entt::entity, entt::entity>& collision;
+    entt::entity actionEnt;
+    entt::entity otherEnt;
+};
+
+#ifdef SERVER
+
+namespace
+{
+
+constexpr float kGoldenAngleRad = 2.39996323f;
+
+float parentBreakupSpreadRadius(PtrHandle* ptrHandle,
+                              const gobj::Asteroid& parentDef)
+{
+    if (!parentDef.collider.isValid())
+    {
+        return 1.0f;
+    }
+    const gobj::Collider* collider =
+        ptrHandle->modManager->getColliderLib().getItem(parentDef.collider);
+    if (collider == nullptr || collider->vertices.empty())
+    {
+        return 1.0f;
+    }
+    const vec2 ext = smath::colliderLocalExtents(collider->vertices);
+    return std::max(0.35f, 0.45f * std::max(ext.x, ext.y));
+}
+
+void spawnParentAsteroidChildren(const ColResolveParams& p,
+                                 uint32_t sectorId,
+                                 const Transform& parentTransform,
+                                 const gobj::AsteroidParentdata& parentData,
+                                 const gobj::Asteroid& parentDef)
+{
+    size_t totalSpawns = 0;
+    for (const gobj::AsteroidChildSpawn& entry : parentData.children)
+    {
+        if (entry.first.isValid() && entry.second > 0)
+        {
+            totalSpawns += entry.second;
+        }
+    }
+    if (totalSpawns == 0)
+    {
+        return;
+    }
+
+    const float spreadRadius = parentBreakupSpreadRadius(p.ptrHandle, parentDef);
+    const vec2 center = parentTransform.pos;
+    size_t spawnIndex = 0;
+
+    for (const gobj::AsteroidChildSpawn& entry : parentData.children)
+    {
+        if (!entry.first.isValid() || entry.second == 0)
+        {
+            continue;
+        }
+        for (uint8_t n = 0; n < entry.second; ++n)
+        {
+            vec2 offset = vec2(0.0f, 0.0f);
+            if (totalSpawns > 1)
+            {
+                const float ring =
+                    std::sqrt((static_cast<float>(spawnIndex) + 0.5f)
+                              / static_cast<float>(totalSpawns));
+                const float theta =
+                    static_cast<float>(spawnIndex) * kGoldenAngleRad;
+                offset = vec2(std::cos(theta), std::sin(theta)) * spreadRadius
+                         * ring;
+            }
+
+            Transform childTransform = parentTransform;
+            childTransform.pos = center + offset;
+            if (offset.x != 0.0f || offset.y != 0.0f)
+            {
+                childTransform.rot =
+                    std::atan2(offset.x, offset.y);
+            }
+
+            float rotVel = 0.0f;
+            if (auto* parentBody =
+                    p.ptrHandle->registry->try_get<PhysicsBody>(p.otherEnt))
+            {
+                rotVel = parentBody->rotVel * 0.5f;
+            }
+
+            p.ptrHandle->engine->spawnAsteroid(
+                sectorId, childTransform, entry.first, rotVel);
+            ++spawnIndex;
+        }
+    }
+}
+
+}  // namespace
+
+static bool itemCollision(const ColResolveParams& p)
+{
+    auto reg = p.ptrHandle->registry;
+    auto* item = reg->try_get<Item>(p.actionEnt);
+    auto* storage = reg->try_get<Storage>(p.otherEnt);
+    if (!storage || !item)
+    {
+        return false;
+    }
+    auto* itemData =
+        p.ptrHandle->modManager->getItemLib().getItem(item->itemHandle);
+    if (!itemData)
+    {
+        LG_E("Item data not found");
+        return false;
+    }
+    uint32_t amountAdded =
+        storage->tryAddItem(item->itemHandle, *itemData, item->quantity);
+    item->quantity -= amountAdded;
+    if (item->quantity <= 0)
+    {
+        ecs::EntityId actionEntId = reg->get<ecs::EntityId>(p.actionEnt);
+        p.sector->markEntityForDestruction(actionEntId);
+        return true;
+    }
+    return false;
+}
+
+static bool projectileCollision(const ColResolveParams& p)
+{
+    auto reg = p.ptrHandle->registry;
+    auto* projectile = reg->try_get<Projectile>(p.actionEnt);
+    if (!projectile)
+    {
+        LG_E("Projectile not found");
+        return false;
+    }
+    auto* projectileData = p.ptrHandle->modManager->getProjectileLib().getItem(
+        projectile->projectileHandle);
+    if (!projectileData)
+    {
+        LG_E("Projectile data not found");
+        return false;
+    }
+    auto* asteroid = reg->try_get<Asteroid>(p.otherEnt);
+    if (asteroid)
+    {
+        float dmg = (projectileData->damageType == def::DamageType::Mining
+                        ? projectileData->dmg
+                        : projectileData->dmg * 0.001f) * p.ptrHandle->miningRate;
+
+        asteroid->damage(
+            p.ptrHandle,
+            dmg,
+            [p](gobj::ItemHandle handle, uint32_t quantity)
+            {
+                gobj::Item* item =
+                    p.ptrHandle->modManager->getItemLib().getItem(handle);
+                if (!item)
+                {
+                    return;
+                }
+                auto reg = p.ptrHandle->registry;
+                auto* sectorId = reg->try_get<SectorId>(p.otherEnt);
+                if (!sectorId)
+                {
+                    LG_E("Sector id not found");
+                    return;
+                }
+                vec2 sourceVel = vec2(0.0f, 0.0f);
+                if (auto* projBody = reg->try_get<PhysicsBody>(p.actionEnt))
+                {
+                    sourceVel = projBody->vel;
+                }
+                const Transform* astTransform =
+                    reg->try_get<Transform>(p.otherEnt);
+                ContactEjectParams ejectParams;
+                ejectParams.computeRot = true;
+                const ContactEjectSpawn eject = computeContactEjectSpawn(
+                    p.contact,
+                    p.otherEnt,
+                    p.collision.first,
+                    sourceVel,
+                    astTransform != nullptr ? &astTransform->pos : nullptr,
+                    ejectParams);
+                Transform spawnTransform{.pos = eject.pos,
+                                         .rot = eject.rot.value_or(0.0f)};
+                p.ptrHandle->engine->spawnItem(
+                    sectorId->id, spawnTransform, handle, quantity, eject.vel);
+            });
+        ecs::EntityId actionEntId = reg->get<ecs::EntityId>(p.actionEnt);
+        ecs::EntityId otherEntId = reg->get<ecs::EntityId>(p.otherEnt);
+        if (asteroid->volume <= 0.0f)
+        {
+            auto* asteroidData =
+                p.ptrHandle->modManager->getAsteroidLib().getItem(
+                    gobj::AsteroidHandle(asteroid->asteroidHandle));
+            if (asteroidData)
+            {
+                if (asteroidData->type == gobj::AsteroidType::Parent)
+                {
+                    auto& parentData =
+                        std::get<gobj::AsteroidParentdata>(asteroidData->content);
+                    auto* sectorId = reg->try_get<SectorId>(p.otherEnt);
+                    auto* transform = reg->try_get<Transform>(p.otherEnt);
+                    if (sectorId && transform)
+                    {
+                        spawnParentAsteroidChildren(
+                            p,
+                            sectorId->id,
+                            *transform,
+                            parentData,
+                            *asteroidData);
+                    }
+                }
+            }
+            p.sector->markEntityForDestruction(otherEntId);
+        }
+        p.sector->markEntityForDestruction(actionEntId);
+    }
+    return true;
+}
+#endif
+
+static inline bool
+colliderAction(PtrHandle* ptrHandle,
+               world::Sector* sector,
+               const Contact& contact,
+               const Collider& collider1,
+               const Collider& collider2,
+               const std::pair<entt::entity, entt::entity>& collision)
+{
+    auto reg = ptrHandle->registry;
+    ColResolveParams p{.ptrHandle = ptrHandle,
+                       .sector = sector,
+                       .contact = contact,
+                       .collision = collision};
+
+    switch (collider1.colliderType)
+    {
+        case CollisionLayer::Projectile:
+        {
+            p.actionEnt = collision.first;
+            p.otherEnt = collision.second;
+            return projectileCollision(p);
+        }
+        case CollisionLayer::Item:
+        {
+            p.actionEnt = collision.first;
+            p.otherEnt = collision.second;
+            return itemCollision(p);
+        }
+        default:
+            break;
+    }
+    switch (collider2.colliderType)
+    {
+        case CollisionLayer::Projectile:
+        {
+            p.actionEnt = collision.second;
+            p.otherEnt = collision.first;
+            return projectileCollision(p);
+        }
+        case CollisionLayer::Item:
+        {
+            p.actionEnt = collision.second;
+            p.otherEnt = collision.first;
+            return itemCollision(p);
+        }
+        default:
+            break;
+    }
+    return false;
+}
+
 void sysCollisionDetectionImpl(world::Sector* sector,
                                float dt,
                                PtrHandle* ptrHandle)
@@ -390,23 +667,13 @@ void sysCollisionDetectionImpl(world::Sector* sector,
             broadphase.fatAABB,
             [sector, entity](entt::entity entityOther)
             {
-                if (entity != entityOther)
+                if (entity != entityOther && entity < entityOther)
                 {
                     sector->broadphaseCollisions.push_back(
                         std::make_pair(entity, entityOther));
                 }
             });
     }
-    // Erase duplicates from the broadphase collisions
-    std::sort(sector->broadphaseCollisions.begin(),
-              sector->broadphaseCollisions.end(),
-              [](const std::pair<entt::entity, entt::entity>& a,
-                 const std::pair<entt::entity, entt::entity>& b)
-              { return a.first < b.first; });
-    sector->broadphaseCollisions.erase(
-        std::unique(sector->broadphaseCollisions.begin(),
-                    sector->broadphaseCollisions.end()),
-        sector->broadphaseCollisions.end());
     for (const auto& collision : sector->broadphaseCollisions)
     {
         auto& collider1 = reg->get<Collider>(collision.first);
@@ -460,49 +727,9 @@ void sysCollisionDetectionImpl(world::Sector* sector,
                                          transformCache2);
         if (contact)
         {
-            if (collider1.colliderType == CollisionLayer::Projectile)
-            {
-                ecs::EntityId entProj =
-                    reg->get<ecs::EntityId>(collision.first);
-                ecs::EntityId entOther =
-                    reg->get<ecs::EntityId>(collision.second);
-#ifdef SERVER
-                bool destroyed =
-                    ptrHandle->engine->projectileCollision(entProj,
-                                                           collision.first,
-                                                           entOther,
-                                                           collision.second,
-                                                           *contact,
-                                                           collision.first);
-                if (destroyed)
-                {
-                    sector->markEntityForDestruction(entOther);
-                }
-                sector->markEntityForDestruction(entProj);
-#endif
-            }
-            else if (collider2.colliderType == CollisionLayer::Projectile)
-            {
-                ecs::EntityId entProj =
-                    reg->get<ecs::EntityId>(collision.second);
-                ecs::EntityId entOther =
-                    reg->get<ecs::EntityId>(collision.first);
-#ifdef SERVER
-                bool destroyed =
-                    ptrHandle->engine->projectileCollision(entProj,
-                                                           collision.second,
-                                                           entOther,
-                                                           collision.first,
-                                                           *contact,
-                                                           collision.first);
-                if (destroyed)
-                {
-                    sector->markEntityForDestruction(entOther);
-                }
-                sector->markEntityForDestruction(entProj);
-#endif
-            }
-            else
+            bool skipContactSolver = colliderAction(
+                ptrHandle, sector, *contact, collider1, collider2, collision);
+            if (!skipContactSolver)
             {
                 sector->contactInfos.push_back(
                     {*contact,
