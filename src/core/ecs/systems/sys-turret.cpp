@@ -91,13 +91,16 @@ void sysTurretImpl(world::Sector* sector,
                         const vec2 fireDir =
                             smath::rotateVec2(vec2(0.0f, 1.0f), s, c);
                         vec2 fireVel = fireDir * projectileData.exitSpeed;
-                        entt::entity parentEntt = ptrHandle->ecs->getEntity(module->parent);
-                        if(parentEntt != entt::null)
+                        entt::entity parentEntt =
+                            ptrHandle->ecs->getEntity(module->parent);
+                        vec2 parVel = vec2(0.0f, 0.0f);
+                        if (parentEntt != entt::null)
                         {
-                            auto* physBody = reg->try_get<PhysicsBody>(parentEntt);
-                            if(physBody)
+                            auto* physBody =
+                                reg->try_get<PhysicsBody>(parentEntt);
+                            if (physBody)
                             {
-                                fireVel += physBody->vel;
+                                parVel = physBody->vel;
                             }
                         }
                         ptrHandle->engine->spawnProjectile(
@@ -105,7 +108,8 @@ void sysTurretImpl(world::Sector* sector,
                             transform->pos + exit,
                             fireVel,
                             projectileData.projectile,
-                            module->parent);
+                            module->parent,
+                            parVel);
 #endif
                     }
                 }

@@ -67,8 +67,9 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
         CFG_FLOAT(config, 0.01f, "engine", "mining", "mining-rate");
     int updThreads = CFG_UINT(config, 2.0f, "engine", "upd", "threads");
 
-    itemLifetime = CFG_FLOAT(config, 600.0f, "engine", "items", "item-lifetime");
-    
+    itemLifetime =
+        CFG_FLOAT(config, 600.0f, "engine", "items", "item-lifetime");
+
     updThreads = std::clamp(updThreads, 1, 16);
     workDistributor.init(updThreads);
 }
@@ -2244,7 +2245,8 @@ void Engine::spawnProjectile(uint32_t sectorId,
                              vec2 pos,
                              vec2 vel,
                              gobj::ProjectileHandle projectileHandle,
-                             const ecs::EntityId& exceptEntity)
+                             const ecs::EntityId& exceptEntity,
+                             vec2 parVel)
 {
     auto projectile = modManager.getProjectileLib().getItem(projectileHandle);
     if (!projectile)
@@ -2271,7 +2273,7 @@ void Engine::spawnProjectile(uint32_t sectorId,
                  exceptEntity);
     makePhysicsBody(entt,
                     ecs::PhysicsBody{.mass = 1.0f,
-                                     .vel = vel,
+                                     .vel = vel + parVel,
                                      .acc = vec2(0.0f, 0.0f),
                                      .inertia = 1.0f,
                                      .rotVel = 0.0f,
@@ -2325,7 +2327,7 @@ void Engine::spawnAsteroid(uint32_t sectorId,
     float inertia =
         smath::approximateInertia(asteroid->volume, extends.x, extends.y);
     makePhysicsBody(entt,
-                    ecs::PhysicsBody{.mass = asteroid->volume,
+                    ecs::PhysicsBody{.mass = asteroid->volume * 3000.0f,
                                      .vel = vec2(0.0f, 0.0f),
                                      .acc = vec2(0.0f, 0.0f),
                                      .inertia = inertia,
@@ -2344,7 +2346,8 @@ void Engine::spawnItem(uint32_t sectorId,
                        const ecs::Transform& transform,
                        const gobj::ItemHandle& itemHandle,
                        float quantity,
-                       vec2 initialVel)
+                       vec2 initialVel,
+                       ecs::EntityId collexcept)
 {
     auto item = modManager.getItemLib().getItem(itemHandle);
     if (!item)
@@ -2365,7 +2368,8 @@ void Engine::spawnItem(uint32_t sectorId,
     makeSelectable(entt);
     makeSimpleTexture(entt,
                       ecs::SimpleTexture{.textureHandle = item->worldTexture});
-    makeCollider(entt, itemColliderHandle, ecs::CollisionLayer::Item);
+    makeCollider(
+        entt, itemColliderHandle, ecs::CollisionLayer::Item, collexcept);
     makePhysicsBody(entt,
                     ecs::PhysicsBody{.mass = 100.0f,
                                      .vel = initialVel,

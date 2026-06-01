@@ -1,6 +1,7 @@
 #ifndef ENGINE_HPP
 #define ENGINE_HPP
 
+#include "comp-ident.hpp"
 #include "ecs.hpp"
 #include "world-def.hpp"
 #include <asset-factory.hpp>
@@ -99,7 +100,8 @@ class Engine
         vec2 pos,
         vec2 vel,
         gobj::ProjectileHandle projectileHandle,
-        const ecs::EntityId& exceptEntity = ecs::EntityId::Invalid());
+        const ecs::EntityId& exceptEntity = ecs::EntityId::Invalid(),
+        vec2 parVel = vec2(0.0f, 0.0f));
     void spawnAsteroid(uint32_t sectorId,
                        const ecs::Transform& transform,
                        const gobj::AsteroidHandle& asteroidHandle,
@@ -108,7 +110,8 @@ class Engine
                    const ecs::Transform& transform,
                    const gobj::ItemHandle& itemHandle,
                    float quantity,
-                   vec2 initialVel = vec2(0.0f, 0.0f));
+                   vec2 initialVel = vec2(0.0f, 0.0f),
+                   ecs::EntityId collexcept = ecs::EntityId::Invalid());
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
     template <class T> void registerSlowDumpComponent();

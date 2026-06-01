@@ -27,7 +27,6 @@ constexpr float kContactBaumgarte = 0.25f;
 constexpr float kContactPenetrationSlop = 0.005f;
 constexpr float kContactMaxBiasSpeed = 3.0f;
 constexpr int kContactSolverIterations = 5;
-
 void sysMoveCtrlImpl(world::Sector* sector,
                      entt::entity entity,
                      const ecs::EntityId& entityId,
@@ -393,7 +392,7 @@ namespace
 constexpr float kGoldenAngleRad = 2.39996323f;
 
 float parentBreakupSpreadRadius(PtrHandle* ptrHandle,
-                              const gobj::Asteroid& parentDef)
+                                const gobj::Asteroid& parentDef)
 {
     if (!parentDef.collider.isValid())
     {
@@ -428,7 +427,8 @@ void spawnParentAsteroidChildren(const ColResolveParams& p,
         return;
     }
 
-    const float spreadRadius = parentBreakupSpreadRadius(p.ptrHandle, parentDef);
+    const float spreadRadius =
+        parentBreakupSpreadRadius(p.ptrHandle, parentDef);
     const vec2 center = parentTransform.pos;
     size_t spawnIndex = 0;
 
@@ -456,8 +456,7 @@ void spawnParentAsteroidChildren(const ColResolveParams& p,
             childTransform.pos = center + offset;
             if (offset.x != 0.0f || offset.y != 0.0f)
             {
-                childTransform.rot =
-                    std::atan2(offset.x, offset.y);
+                childTransform.rot = std::atan2(offset.x, offset.y);
             }
 
             float rotVel = 0.0f;
@@ -524,8 +523,9 @@ static bool projectileCollision(const ColResolveParams& p)
     if (asteroid)
     {
         float dmg = (projectileData->damageType == def::DamageType::Mining
-                        ? projectileData->dmg
-                        : projectileData->dmg * 0.001f) * p.ptrHandle->miningRate;
+                         ? projectileData->dmg
+                         : projectileData->dmg * 0.001f)
+                    * p.ptrHandle->miningRate;
 
         asteroid->damage(
             p.ptrHandle,
@@ -552,19 +552,21 @@ static bool projectileCollision(const ColResolveParams& p)
                 }
                 const Transform* astTransform =
                     reg->try_get<Transform>(p.otherEnt);
-                ContactEjectParams ejectParams;
-                ejectParams.computeRot = true;
-                const ContactEjectSpawn eject = computeContactEjectSpawn(
-                    p.contact,
-                    p.otherEnt,
-                    p.collision.first,
-                    sourceVel,
-                    astTransform != nullptr ? &astTransform->pos : nullptr,
-                    ejectParams);
-                Transform spawnTransform{.pos = eject.pos,
-                                         .rot = eject.rot.value_or(0.0f)};
-                p.ptrHandle->engine->spawnItem(
-                    sectorId->id, spawnTransform, handle, quantity, eject.vel);
+                ecs::EntityId otherEntId = reg->get<ecs::EntityId>(p.otherEnt);
+                
+                ecs::Transform trOth = reg->get<ecs::Transform>(p.otherEnt);
+                ecs::Transform& trAct = reg->get<ecs::Transform>(p.actionEnt);
+                vec2 dir = trAct.pos - trOth.pos;
+                vec2 vel = glm::normalize(dir) * 20.0f;
+                vel.x += rand() % 10 - 5;
+                vel.y += rand() % 10 - 5;
+                trOth.rot = (rand() % 360) / 180.0f * M_PIf;
+                p.ptrHandle->engine->spawnItem(sectorId->id,
+                                               trOth,
+                                               handle,
+                                               quantity,
+                                               vel,
+                                               otherEntId);
             });
         ecs::EntityId actionEntId = reg->get<ecs::EntityId>(p.actionEnt);
         ecs::EntityId otherEntId = reg->get<ecs::EntityId>(p.otherEnt);
@@ -577,26 +579,26 @@ static bool projectileCollision(const ColResolveParams& p)
             {
                 if (asteroidData->type == gobj::AsteroidType::Parent)
                 {
-                    auto& parentData =
-                        std::get<gobj::AsteroidParentdata>(asteroidData->content);
+                    auto& parentData = std::get<gobj::AsteroidParentdata>(
+                        asteroidData->content);
                     auto* sectorId = reg->try_get<SectorId>(p.otherEnt);
                     auto* transform = reg->try_get<Transform>(p.otherEnt);
                     if (sectorId && transform)
                     {
-                        spawnParentAsteroidChildren(
-                            p,
-                            sectorId->id,
-                            *transform,
-                            parentData,
-                            *asteroidData);
+                        spawnParentAsteroidChildren(p,
+                                                    sectorId->id,
+                                                    *transform,
+                                                    parentData,
+                                                    *asteroidData);
                     }
                 }
             }
             p.sector->markEntityForDestruction(otherEntId);
         }
         p.sector->markEntityForDestruction(actionEntId);
+        return true;
     }
-    return true;
+    return false;
 }
 #endif
 
@@ -667,13 +669,28 @@ void sysCollisionDetectionImpl(world::Sector* sector,
             broadphase.fatAABB,
             [sector, entity](entt::entity entityOther)
             {
-                if (entity != entityOther && entity < entityOther)
+                if (entity == entityOther)
                 {
-                    sector->broadphaseCollisions.push_back(
-                        std::make_pair(entity, entityOther));
+                    return;
                 }
+                // Canonical pair order; dedupe below. Only movers query, so we
+                // must not require entity < entityOther (new spawns have higher
+                // entt ids and would never collide with older static bodies).
+                entt::entity lo = entity;
+                entt::entity hi = entityOther;
+                if (hi < lo)
+                {
+                    std::swap(lo, hi);
+                }
+                sector->broadphaseCollisions.push_back({lo, hi});
             });
     }
+    std::sort(sector->broadphaseCollisions.begin(),
+              sector->broadphaseCollisions.end());
+    sector->broadphaseCollisions.erase(
+        std::unique(sector->broadphaseCollisions.begin(),
+                    sector->broadphaseCollisions.end()),
+        sector->broadphaseCollisions.end());
     for (const auto& collision : sector->broadphaseCollisions)
     {
         auto& collider1 = reg->get<Collider>(collision.first);
