@@ -1,6 +1,7 @@
 set(SPHY_AI_INC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/basic
+    ${CMAKE_CURRENT_SOURCE_DIR}/module
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs
     ${CMAKE_CURRENT_SOURCE_DIR}/../ecs/components
     ${CMAKE_CURRENT_SOURCE_DIR}/../world
@@ -19,6 +20,7 @@ add_library(sphy_misc_ai INTERFACE)
 target_sources(sphy_misc_ai INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/task-system.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/basic/task-basic.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/module/task-turret.cpp
 )
 
 target_include_directories(sphy_misc_ai INTERFACE ${SPHY_AI_INC})

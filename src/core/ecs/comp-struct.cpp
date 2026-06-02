@@ -57,7 +57,6 @@ void Asteroid::damage(
     std::function<void(gobj::ItemHandle handle, uint32_t quantity)> harvestCallback)
 {
     volume -= damage;
-    LG_I("Asteroid health: {}", volume);
     gobj::Asteroid* asteroidData =
         ptrHandle->modManager->getAsteroidLib().getItem(
             gobj::AsteroidHandle(asteroidHandle));

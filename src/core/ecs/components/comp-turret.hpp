@@ -2,9 +2,9 @@
 #define COMP_TURRET_HPP
 
 #include "comp-ident.hpp"
+#include <lib-modules.hpp>
 #include <std-inc.hpp>
 #include <turret-def.hpp>
-#include <lib-modules.hpp>
 
 namespace ecs
 {
@@ -20,7 +20,15 @@ struct Turret
         Angle,
         Point,
         Entity,
+        Player,
         NumAimModes,
+    };
+    enum class FireMode : uint8_t
+    {
+        None,
+        Manual,
+        AutoAngle,
+        NumFireModes,
     };
 
     struct AngleData
@@ -68,26 +76,11 @@ struct Turret
                          MiningData>
         TurretData;
 
-    static TurretData fromGobjTurretData(const gobj::mdata::Turret& turretData)
-    {
-        switch (turretData.type)
-        {
-            case def::TurretType::Projectile:
-                return ProjectileData{0.0f};
-            case def::TurretType::Laser:
-                return LaserData{};
-            case def::TurretType::Arc:
-                return ArcData{};
-            case def::TurretType::Missile:
-                return MissileData{};
-            case def::TurretType::Railgun:
-                return RailgunData{};
-            default:
-                return ProjectileData{0.0f};
-        }
-    }
+    static TurretData fromGobjTurretData(const gobj::mdata::Turret& turretData);
+    void setAimMode(AimMode aimMode);
 
     AimMode aimMode = AimMode::None;
+    FireMode fireMode = FireMode::None;
     def::TurretType type = def::TurretType::Projectile;
     AimData aimData = AngleData{0.0f};
     TurretData data = ProjectileData{};
@@ -113,6 +106,11 @@ EXT_DES(Turret::EntityData, SER_TURRET_ENTITY_DATA)
         uint8_t aimModeRaw = static_cast<uint8_t>(o.aimMode);                  \
         s.value1b(aimModeRaw);                                                 \
         o.aimMode = static_cast<Turret::AimMode>(aimModeRaw);                  \
+    }                                                                          \
+    {                                                                          \
+        uint8_t fireModeRaw = static_cast<uint8_t>(o.fireMode);                \
+        s.value1b(fireModeRaw);                                                \
+        o.fireMode = static_cast<Turret::FireMode>(fireModeRaw);               \
     }                                                                          \
     S4b(o.currentAngle);                                                       \
     switch (o.aimMode)                                                         \
@@ -147,6 +145,16 @@ EXT_DES(Turret::EntityData, SER_TURRET_ENTITY_DATA)
                 std::holds_alternative<Turret::EntityData>(o.aimData)          \
                     ? std::get<Turret::EntityData>(o.aimData)                  \
                     : Turret::EntityData{ecs::EntityId::Invalid()};            \
+            s.object(data);                                                    \
+            o.aimData = data;                                                  \
+            break;                                                             \
+        }                                                                      \
+        case Turret::AimMode::Player:                                          \
+        {                                                                      \
+            Turret::PointData data =                                           \
+                std::holds_alternative<Turret::PointData>(o.aimData)           \
+                    ? std::get<Turret::PointData>(o.aimData)                   \
+                    : Turret::PointData{vec2(0.0f, 0.0f)};                     \
             s.object(data);                                                    \
             o.aimData = data;                                                  \
             break;                                                             \

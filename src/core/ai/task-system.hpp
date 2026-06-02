@@ -5,6 +5,7 @@
 #include <ptr-handle.hpp>
 #include <std-inc.hpp>
 #include <task-basic.hpp>
+#include <task-turret.hpp>
 #include <task.hpp>
 
 namespace ai
@@ -12,7 +13,8 @@ namespace ai
 
 namespace taskdata
 {
-using TaskData = std::variant<Idle, UniversePatrol, SectorPatrol, Patrol, Goto, DebugLog>;
+using TaskData = std::
+    variant<Idle, UniversePatrol, SectorPatrol, Patrol, Goto, DebugLog, Turret>;
 }  // namespace taskdata
 
 class TaskStack
@@ -44,9 +46,14 @@ class TaskSystem
 
     TaskStack* getTaskStack(TaskStackHandle handle);
     TaskFunResult runTask(TaskStackHandle stackHandle, TaskFunArgs* args);
-    void addTaskFirst(TaskStackHandle stackHandle, const taskdata::TaskData& task);
-    void addTaskLast(TaskStackHandle stackHandle, const taskdata::TaskData& task);
-    void addTaskReplaceAll(TaskStackHandle stackHandle, const taskdata::TaskData& task);
+    void addTaskFirst(TaskStackHandle stackHandle,
+                      const taskdata::TaskData& task);
+    void addTaskLast(TaskStackHandle stackHandle,
+                     const taskdata::TaskData& task);
+    void addTaskReplaceAll(TaskStackHandle stackHandle,
+                           const taskdata::TaskData& task);
+    TaskStackHandle moveTaskStackTo(TaskStackHandle stackHandle,
+                                    TaskSystem& targetSystem);
 
   private:
     con::FreeVec<TaskStack> taskStacks;

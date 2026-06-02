@@ -1,4 +1,5 @@
 #include "comp-phy.hpp"
+#include <comp-ai.hpp>
 #include <comp-ident.hpp>
 #include <config-manager.hpp>
 #include <ptr-handle.hpp>
@@ -291,6 +292,7 @@ Sector* World::getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir)
     return sectors.at(newPos.x, newPos.y);
 }
 
+#ifdef SERVER
 bool World::moveEntityTo(ecs::PtrHandle* ptrHandle,
                          ecs::EntityId entityId,
                          uint32_t sectorId,
@@ -326,67 +328,49 @@ bool World::switchSector(ecs::PtrHandle* ptrHandle,
 
     auto reg = ptrHandle->registry;
     entt::entity entity = ptrHandle->ecs->getEntity(entityId);
+    auto* ai = reg->try_get<ecs::Ai>(entity);
     auto sector = reg->try_get<ecs::SectorId>(entity);
     if (sector && sector->id != INVALID_SECTOR_ID && sector->id != newSectorId)
     {
         Sector* oldSector = sectors.at(sector->id);
         if (oldSector)
         {
+            if (ai)
+            {
+                ai::TaskStackHandle stackHandle(ai->stackHandle);
+                if (stackHandle.isValid())
+                {
+                    ai::TaskSystem* sourceSystem = &oldSector->getTaskSystem();
+                    if (!sourceSystem->getTaskStack(stackHandle)
+                        && ptrHandle->taskSystem)
+                    {
+                        sourceSystem = ptrHandle->taskSystem;
+                    }
+                    auto newStackHandle = sourceSystem->moveTaskStackTo(
+                        stackHandle, newSector->getTaskSystem());
+                    if (newStackHandle.isValid())
+                    {
+                        LG_D("Moved task stack for entity {} to sector {}",
+                             entityId, newSectorId);
+                        ai->stackHandle = newStackHandle.toGenericHandle();
+                    }
+                    else
+                    {
+                        LG_W("Failed to move task stack for entity {}, "
+                             "creating new stack",
+                             entityId);
+                        auto newStackHandle =
+                            newSector->getTaskSystem().createTaskStack(
+                                ai::taskdata::Idle());
+                        ai->stackHandle = newStackHandle.toGenericHandle();
+                    }
+                }
+            }
             oldSector->removeEntity(ptrHandle, entityId);
         }
     }
     newSector->addEntity(ptrHandle, entityId);
     return true;
-}
-
-Sector* World::getSector(uint32_t sectorId)
-{
-    return sectors.at(sectorId);
-}
-
-def::SectorPos World::idToSectorCoords(uint32_t sectorId) const
-{
-    return def::SectorPos{sectorId % worldShape.numSectorX,
-                          sectorId / worldShape.numSectorX};
-}
-
-uint32_t World::sectorCoordsToId(uint32_t sectorX, uint32_t sectorY) const
-{
-    return sectorX + sectorY * worldShape.numSectorX;
-}
-
-vec2 World::getWorldPosSectorOffset(uint32_t sectorX,
-                                    uint32_t sectorY,
-                                    int32_t sectorOffsetX,
-                                    int32_t sectorOffsetY) const
-{
-    return vec2((int32_t)sectorX - sectorOffsetX,
-                (int32_t)sectorY - sectorOffsetY)
-           * worldShape.sectorSize;
-}
-
-vec2 World::getWorldPosSectorOffset(uint32_t sectorId,
-                                    int32_t sectorOffsetX,
-                                    int32_t sectorOffsetY) const
-{
-    auto [sectorX, sectorY] = idToSectorCoords(sectorId);
-    return getWorldPosSectorOffset(
-        sectorX, sectorY, sectorOffsetX, sectorOffsetY);
-}
-
-void World::markPlayerSectors(const std::set<uint32_t>& playerSectors)
-{
-    for (uint sId = 0; sId < sectors.getSize(); sId++)
-    {
-        sectors.at(sId)->markPlayerSector(false);
-    }
-    for (auto& sectorId : playerSectors)
-    {
-        if (sectorId < sectors.getSize())
-        {
-            sectors.at(sectorId)->markPlayerSector(true);
-        }
-    }
 }
 
 void World::checkSectorSwitchAfterMove(ecs::EntityId entityId,
@@ -582,6 +566,14 @@ void World::addSectorMoveRequest(ecs::PtrHandle* ptrHandle,
     sectorMoveRequests.enqueue(SectorMoveRequest{entityId, newSectorId});
 }
 
+void World::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
+{
+    for (uint32_t sectorId = 0; sectorId < sectors.getSize(); sectorId++)
+    {
+        sectors.at(sectorId)->destroyMarkedEntities(ptrHandle);
+    }
+}
+
 void World::handleSectorMoveRequests(ecs::PtrHandle* ptrHandle)
 {
     SectorMoveRequest request;
@@ -595,16 +587,57 @@ void World::handleSectorMoveRequests(ecs::PtrHandle* ptrHandle)
         }
     }
 }
+#endif
 
-#ifdef SERVER
-void World::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
+Sector* World::getSector(uint32_t sectorId)
 {
-    for (uint32_t sectorId = 0; sectorId < sectors.getSize(); sectorId++)
+    return sectors.at(sectorId);
+}
+
+def::SectorPos World::idToSectorCoords(uint32_t sectorId) const
+{
+    return def::SectorPos{sectorId % worldShape.numSectorX,
+                          sectorId / worldShape.numSectorX};
+}
+
+uint32_t World::sectorCoordsToId(uint32_t sectorX, uint32_t sectorY) const
+{
+    return sectorX + sectorY * worldShape.numSectorX;
+}
+
+vec2 World::getWorldPosSectorOffset(uint32_t sectorX,
+                                    uint32_t sectorY,
+                                    int32_t sectorOffsetX,
+                                    int32_t sectorOffsetY) const
+{
+    return vec2((int32_t)sectorX - sectorOffsetX,
+                (int32_t)sectorY - sectorOffsetY)
+           * worldShape.sectorSize;
+}
+
+vec2 World::getWorldPosSectorOffset(uint32_t sectorId,
+                                    int32_t sectorOffsetX,
+                                    int32_t sectorOffsetY) const
+{
+    auto [sectorX, sectorY] = idToSectorCoords(sectorId);
+    return getWorldPosSectorOffset(
+        sectorX, sectorY, sectorOffsetX, sectorOffsetY);
+}
+
+void World::markPlayerSectors(const std::set<uint32_t>& playerSectors)
+{
+    for (uint sId = 0; sId < sectors.getSize(); sId++)
     {
-        sectors.at(sectorId)->destroyMarkedEntities(ptrHandle);
+        sectors.at(sId)->markPlayerSector(false);
+    }
+    for (auto& sectorId : playerSectors)
+    {
+        if (sectorId < sectors.getSize())
+        {
+            sectors.at(sectorId)->markPlayerSector(true);
+        }
     }
 }
-#endif
 
 bool World::sectorIntersectsRect(uint32_t sectorId, const glm::vec4& rect) const
 {

@@ -15,6 +15,7 @@
 #include <control-def.hpp>
 #include <functional>
 #include <item-lib.hpp>
+#include <lib-hull.hpp>
 #include <mod-manager.hpp>
 #include <net-shared.hpp>
 #include <ptr-handle.hpp>
@@ -22,8 +23,6 @@
 #include <task-system.hpp>
 #include <work-distributor.hpp>
 #include <world.hpp>
-
-#include <lib-hull.hpp>
 
 #include <comp-ai.hpp>
 #include <comp-gfx.hpp>
@@ -205,7 +204,9 @@ class Engine
     ecs::StationPart*
     makeStationPart(entt::entity entity,
                     const gobj::StationPartHandle& partHandle);
-    ecs::Turret* makeTurret(entt::entity entity, const ecs::Turret& turret);
+    ecs::Turret* makeTurret(entt::entity entity,
+                            const ecs::Turret& turret,
+                            ai::taskdata::Turret defaultTask);
     void makeSelectable(entt::entity entity);
     ecs::AnchorFixed* makeAnchorFixed(entt::entity entity,
                                       const ecs::AnchorFixed& anchorFixed);
@@ -232,7 +233,6 @@ class Engine
     std::vector<def::ClientInfoHandle> activeClientHandles;
     mod::ModManager modManager;
     sthread::WorkDistributor workDistributor;
-    ai::TaskSystem taskSystem;
 
     EngineState state;
     world::World world;
@@ -255,6 +255,7 @@ class Engine
     gobj::ColliderHandle itemColliderHandle;
 
     float itemLifetime;
+    ai::TaskSystem taskSystem;
 
   public:
     ecs::Ecs ecs;

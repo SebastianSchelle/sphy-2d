@@ -6,6 +6,11 @@
 #include <ptr-handle.hpp>
 #include <world-def.hpp>
 
+namespace world
+{
+class Sector;
+}
+
 #define TASK_HEADER(name, defaultInterval)                                     \
     static constexpr string NAME = name;                                       \
     static constexpr uint32_t ID = hashConst(NAME.c_str());                    \
@@ -31,6 +36,7 @@ struct TaskFunArgs
     entt::entity entity;
     ecs::PtrHandle* ptrHandle;
     uint32_t* nextRunFrame;
+    world::Sector* sector;
 };
 
 typedef TaskFunResult (*TaskFunction)(TaskFunArgs* args);

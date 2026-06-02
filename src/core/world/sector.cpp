@@ -221,6 +221,7 @@ void Sector::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
 
 void Sector::destroyEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
 {
+    // todo: delete taskstack if has ai
     // Remove entity from sector
     removeEntity(ptrHandle, entityId);
     // Destroy entity

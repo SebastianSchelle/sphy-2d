@@ -57,8 +57,8 @@ void UniversePatrol::makeRandomPos(TaskFunArgs* args)
         * vec2(
             (rand() % (int)worldShape.sectorSize) - worldShape.sectorSize / 2,
             (rand() % (int)worldShape.sectorSize) - worldShape.sectorSize / 2);
-    state.randomPos.pos.x = (rand() % (int)worldShape.numSectorX) - worldShape.numSectorX / 2;
-    state.randomPos.pos.y = (rand() % (int)worldShape.numSectorY) - worldShape.numSectorY / 2;
+    state.randomPos.pos.x = (rand() % (int)worldShape.numSectorX);
+    state.randomPos.pos.y = (rand() % (int)worldShape.numSectorY);
 }
 
 TaskFunResult SectorPatrol::function(TaskFunArgs* args)

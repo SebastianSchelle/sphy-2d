@@ -6,6 +6,26 @@
 namespace ecs
 {
 
+constexpr float kAngleErrorThreshold = 2.0f * M_PIf / 180.0f;
+
+static inline float aimToTarget(const Transform& trSelf, const vec2& tgtPos)
+{
+    const vec2 turretPos = trSelf.pos;
+    const vec2 dir = tgtPos - turretPos;
+    const float tgtAngle = atan2f(-dir.x, dir.y) - trSelf.rot;
+    return tgtAngle;
+}
+
+static inline float gotoAngle(gobj::mdata::Turret& libTurretData,
+                              float& currentAngle,
+                              float tgtAngle,
+                              float dt)
+{
+    const float maxStep = libTurretData.rotSpeed * dt;
+    const float delta = smath::angleError(tgtAngle, currentAngle);
+    return currentAngle + std::clamp(delta, -maxStep, maxStep);
+}
+
 void sysTurretImpl(world::Sector* sector,
                    const entt::entity entity,
                    const ecs::EntityId& entityId,
@@ -26,7 +46,6 @@ void sysTurretImpl(world::Sector* sector,
         {
             gobj::mdata::Turret libTurretData =
                 std::get<gobj::mdata::Turret>(moduleItem->data);
-
             // Turret rotation
             switch (turret->aimMode)
             {
@@ -37,27 +56,48 @@ void sysTurretImpl(world::Sector* sector,
                     turret->currentAngle = angleData.angle;
                 }
                 break;
+                case Turret::AimMode::Player:
                 case Turret::AimMode::Point:
                 {
                     Turret::PointData& pointData =
                         std::get<Turret::PointData>(turret->aimData);
-                    const vec2 turretPos = transform->pos;
-                    const vec2 targetPos = pointData.pos;
-                    const vec2 dir = targetPos - turretPos;
-                    const float tgtAngle =
-                        atan2f(-dir.x, dir.y) - transform->rot;
-                    const float maxStep = libTurretData.rotSpeed * dt;
-                    const float delta =
-                        smath::angleError(tgtAngle, turret->currentAngle);
-                    turret->currentAngle +=
-                        std::clamp(delta, -maxStep, maxStep);
+                    const vec2 tgtPos = pointData.pos;
+                    const float tgtAngle = aimToTarget(*transform, tgtPos);
+                    turret->currentAngle = gotoAngle(
+                        libTurretData, turret->currentAngle, tgtAngle, dt);
                 }
                 break;
                 case Turret::AimMode::Entity:
                 {
-                    // Turret::EntityData& entityData =
-                    // std::get<Turret::EntityData>(turret->aimData);
-                    // turret->currentAngle = entityData.entityId;
+                    Turret::EntityData& entityData =
+                        std::get<Turret::EntityData>(turret->aimData);
+                    entt::entity entity =
+                        ptrHandle->ecs->getEntity(entityData.entityId);
+                    if (entity == entt::null)
+                    {
+                        LG_E("Entity not found for turret target");
+                        return;
+                    }
+                    auto* trTgt =
+                        ptrHandle->registry->try_get<ecs::Transform>(entity);
+                    if (trTgt)
+                    {
+                        const vec2 tgtPos = trTgt->pos;
+                        const float tgtAngle = aimToTarget(*transform, tgtPos);
+                        turret->currentAngle = gotoAngle(
+                            libTurretData, turret->currentAngle, tgtAngle, dt);
+                        switch (turret->fireMode)
+                        {
+                            case Turret::FireMode::AutoAngle:
+                                turret->isFiring =
+                                    fabsf(smath::angleError(
+                                        tgtAngle, turret->currentAngle))
+                                    < kAngleErrorThreshold;
+                                break;
+                            default:
+                                break;
+                        }
+                    }
                 }
                 break;
                 default:
@@ -78,7 +118,8 @@ void sysTurretImpl(world::Sector* sector,
                     {
                         ballisticData.reloadTimer -= dt;
                     }
-                    else if (turret->isFiring)
+                    else if (turret->fireMode != Turret::FireMode::None
+                             && turret->isFiring)
                     {
                         ballisticData.reloadTimer = projectileData.reloadTime;
 #ifdef SERVER

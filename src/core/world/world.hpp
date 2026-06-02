@@ -40,9 +40,6 @@ class World
                                  def::SectorPos& newPos);
     Sector* getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir);
     bool saveWorld(const std::string& savedir);
-#ifdef SERVER
-    void update(float dt, ecs::PtrHandle* ptrHandle);
-#endif
     void markPlayerSectors(const std::set<uint32_t>& playerSectors);
     const def::WorldShape& getWorldShape() const
     {
@@ -60,14 +57,6 @@ class World
                          const glm::vec4& viewRect,
                          float zoom);
 #endif
-    bool moveEntityTo(ecs::PtrHandle* ptrHandle,
-                      ecs::EntityId entityId,
-                      uint32_t sectorId,
-                      glm::vec2 position,
-                      float rotation);
-    bool switchSector(ecs::PtrHandle* ptrHandle,
-                      ecs::EntityId entityId,
-                      uint32_t newSectorId);
     Sector* getSector(uint32_t sectorId);
     uint32_t getSectorCount() const
     {
@@ -82,6 +71,11 @@ class World
                                  uint32_t sectorY,
                                  int32_t sectorOffsetX,
                                  int32_t sectorOffsetY) const;
+#ifdef SERVER
+    void update(float dt, ecs::PtrHandle* ptrHandle);
+    bool switchSector(ecs::PtrHandle* ptrHandle,
+                      ecs::EntityId entityId,
+                      uint32_t newSectorId);
     void checkSectorSwitchAfterMove(ecs::EntityId entityId,
                                     entt::entity entity,
                                     ecs::SectorId* sectorId,
@@ -90,6 +84,12 @@ class World
     void addSectorMoveRequest(ecs::PtrHandle* ptrHandle,
                               ecs::EntityId entityId,
                               uint32_t newSectorId);
+    bool moveEntityTo(ecs::PtrHandle* ptrHandle,
+                      ecs::EntityId entityId,
+                      uint32_t sectorId,
+                      glm::vec2 position,
+                      float rotation);
+#endif
     bool sectorIntersectsRect(uint32_t sectorId, const glm::vec4& rect) const;
     bool sectorIntersectsRect(int32_t sectorX,
                               int32_t sectorY,
@@ -101,8 +101,8 @@ class World
     bool loadWorldProcessData(uint32_t typeId,
                               uint16_t version,
                               bitsery::Deserializer<InputAdapter>& des_);
-    void handleSectorMoveRequests(ecs::PtrHandle* ptrHandle);
 #ifdef SERVER
+    void handleSectorMoveRequests(ecs::PtrHandle* ptrHandle);
     void destroyMarkedEntities(ecs::PtrHandle* ptrHandle);
 #endif
 

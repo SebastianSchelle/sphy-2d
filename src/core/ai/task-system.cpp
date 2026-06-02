@@ -125,4 +125,27 @@ void TaskSystem::addTaskReplaceAll(TaskStackHandle stackHandle,
     taskStack->addTaskReplaceAll(task);
 }
 
+TaskStackHandle TaskSystem::moveTaskStackTo(TaskStackHandle stackHandle,
+                                            TaskSystem& targetSystem)
+{
+    if (!stackHandle.isValid())
+    {
+        return TaskStackHandle::Invalid();
+    }
+    if (this == &targetSystem)
+    {
+        return stackHandle;
+    }
+    auto* taskStack = getTaskStack(stackHandle);
+    if (!taskStack)
+    {
+        LG_E("No task stack for handle: {}", stackHandle.toGenericHandle());
+        return TaskStackHandle::Invalid();
+    }
+    TaskStack copiedStack = *taskStack;
+    const TaskStackHandle newHandle = targetSystem.taskStacks.addItem(copiedStack);
+    taskStacks.removeItem(stackHandle);
+    return newHandle;
+}
+
 }  // namespace ai

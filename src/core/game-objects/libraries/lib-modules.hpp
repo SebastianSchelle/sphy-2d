@@ -156,9 +156,10 @@ struct Turret
     uint8_t numBarrels = 1;
     vector<vec2> barrelExits;
     float rotSpeed = 1.0f;
+    float range = 1.0f;
     static Turret fromYaml(
         const YAML::Node& node,
-        const con::ItemLib<gobj::Projectile>& projectileLib,
+        con::ItemLib<gobj::Projectile>& projectileLib,
         const con::ItemLib<gobj::Missile>& missileLib);
 };
 using Data =
@@ -180,7 +181,7 @@ struct Module
     static Module fromYaml(
         const YAML::Node& node,
         const con::ItemLib<gobj::Textures>& texturesLib,
-        const con::ItemLib<gobj::Projectile>& projectileLib,
+        con::ItemLib<gobj::Projectile>& projectileLib,
         const con::ItemLib<gobj::Missile>& missileLib);
 };
 

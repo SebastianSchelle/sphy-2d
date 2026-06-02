@@ -4,6 +4,7 @@
 #include <components/comp-ai.hpp>
 #include <ecs.hpp>
 #include <task-system.hpp>
+#include <sector.hpp>
 
 namespace ecs
 {
@@ -29,16 +30,16 @@ const System sysAi = {
                     //      ptrHandle->frameCnt);
                     return;
                 }
-                auto* taskSystem = ptrHandle->taskSystem;
-                if (taskSystem)
+                auto& taskSystem = sector->getTaskSystem();
+                auto* taskStack = taskSystem.getTaskStack(ai->stackHandle);
+                if (taskStack)
                 {
-                    auto* taskStack = taskSystem->getTaskStack(ai->stackHandle);
-                    if (taskStack)
-                    {
-                        ai::TaskFunArgs args = {
-                            entityId, entity, ptrHandle, &ai->nextRunFrame};
-                        taskStack->runTask(&args);
-                    }
+                    ai::TaskFunArgs args = {entityId,
+                                            entity,
+                                            ptrHandle,
+                                            &ai->nextRunFrame,
+                                            sector};
+                    taskStack->runTask(&args);
                 }
             }
         }}};

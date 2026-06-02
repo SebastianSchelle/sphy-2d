@@ -11,6 +11,8 @@ target_sources(sphy_core_ecs_components INTERFACE
     comp-struct.hpp
     comp-tag.hpp
     comp-lifetime.hpp
+    comp-turret.cpp
+    comp-turret.hpp
 )
 
 target_include_directories(sphy_core_ecs_components

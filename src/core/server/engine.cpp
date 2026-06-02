@@ -5,6 +5,7 @@
 #include "sector.hpp"
 #include "std-inc.hpp"
 #include "task-basic.hpp"
+#include "task-system.hpp"
 #include <comp-gfx.hpp>
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
@@ -749,10 +750,22 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 auto* ai = ptrHandle->registry->try_get<ecs::Ai>(ent);
                 if (ai)
                 {
+                    ai::TaskSystem* entityTaskSystem = &taskSystem;
+                    if (auto* sectorId =
+                            ptrHandle->registry->try_get<ecs::SectorId>(ent))
+                    {
+                        if (sectorId->id != world::INVALID_SECTOR_ID)
+                        {
+                            if (auto* sector = world.getSector(sectorId->id))
+                            {
+                                entityTaskSystem = &sector->getTaskSystem();
+                            }
+                        }
+                    }
                     ai::TaskStackHandle stackHandle(ai->stackHandle);
                     if (moveToFlags.queue)
                     {
-                        taskSystem.addTaskLast(
+                        entityTaskSystem->addTaskLast(
                             stackHandle,
                             ai::taskdata::Goto{
                                 .config = {.target = sectorCoords,
@@ -761,7 +774,7 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                     }
                     else
                     {
-                        taskSystem.addTaskReplaceAll(
+                        entityTaskSystem->addTaskReplaceAll(
                             stackHandle,
                             ai::taskdata::Goto{
                                 .config = {.target = sectorCoords,
@@ -1187,7 +1200,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 1; ++i)
+    for (int i = 0; i < 100; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1225,11 +1238,11 @@ void Engine::testSpawn()
             spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
             spawnModule(
-                ent, modManager.getModuleLib().getHandle("Polter Mk1"), 3);
+                ent, modManager.getModuleLib().getHandle("Small Mining Turret"), 3);
             spawnModule(
-                ent, modManager.getModuleLib().getHandle("Polter Mk1"), 4);
+                ent, modManager.getModuleLib().getHandle("Small Mining Turret"), 4);
             spawnModule(
-                ent, modManager.getModuleLib().getHandle("Polter Mk1"), 5);
+                ent, modManager.getModuleLib().getHandle("Small Mining Turret"), 5);
         }
         else if (i % 4 == 2)
         {
@@ -1268,7 +1281,7 @@ void Engine::testSpawn()
             for (int i = 0; i < 8; i++)
             {
                 spawnModule(
-                    ent, modManager.getModuleLib().getHandle("Polter Mk1"), i);
+                    ent, modManager.getModuleLib().getHandle("Small Mining Turret"), i);
             }
             for (int i = 8; i < 16; i++)
             {
@@ -1307,10 +1320,22 @@ void Engine::testSpawn()
         auto* ai = reg.try_get<ecs::Ai>(ecs.getEntity(ent));
         if (ai)
         {
-            auto* taskStack = taskSystem.getTaskStack(ai->stackHandle);
+            ai::TaskSystem* entityTaskSystem = &taskSystem;
+            if (auto* sectorId =
+                    reg.try_get<ecs::SectorId>(ecs.getEntity(ent)))
+            {
+                if (sectorId->id != world::INVALID_SECTOR_ID)
+                {
+                    if (auto* sector = world.getSector(sectorId->id))
+                    {
+                        entityTaskSystem = &sector->getTaskSystem();
+                    }
+                }
+            }
+            auto* taskStack = entityTaskSystem->getTaskStack(ai->stackHandle);
             if (taskStack)
             {
-                taskStack->setDefaultTask(ai::taskdata::SectorPatrol{
+                taskStack->setDefaultTask(ai::taskdata::UniversePatrol{
                     .config = {.allowedPosError = 100.0f,
                                .allowedRotError = M_PIf}});
             }
@@ -1744,10 +1769,14 @@ Engine::makeStationPart(entt::entity entity,
         entity, partHandle.toGenericHandle());
 }
 
-ecs::Turret* Engine::makeTurret(entt::entity entity, const ecs::Turret& turret)
+ecs::Turret* Engine::makeTurret(entt::entity entity,
+                                const ecs::Turret& turret,
+                                ai::taskdata::Turret defaultTask)
 {
     auto& reg = ecs.getRegistry();
-    return &reg.emplace_or_replace<ecs::Turret>(entity, turret);
+    auto* turretComp = &reg.emplace_or_replace<ecs::Turret>(entity, turret);
+    makeAi(entity, defaultTask);
+    return turretComp;
 }
 
 ecs::AnchorFixed* Engine::makeAnchorFixed(entt::entity entity,
@@ -1768,9 +1797,37 @@ ecs::Ai* Engine::makeAi(entt::entity entity,
                         const ai::taskdata::TaskData& defaultTask)
 {
     auto& reg = ecs.getRegistry();
-    auto stackHandle = taskSystem.createTaskStack(defaultTask);
-    return &reg.emplace_or_replace<ecs::Ai>(
-        entity, ecs::Ai{.stackHandle = stackHandle.toGenericHandle()});
+    auto* sectorId = reg.try_get<ecs::SectorId>(entity);
+    ai::TaskSystem* ts = &taskSystem;
+    if (sectorId && sectorId->id != world::INVALID_SECTOR_ID)
+    {
+        auto* sector = world.getSector(sectorId->id);
+        if (!sector)
+        {
+            LG_E("Sector not found");
+            return nullptr;
+        }
+        ts = &sector->getTaskSystem();
+    }
+
+    auto& aiComp = reg.get_or_emplace<ecs::Ai>(entity);
+    if (ai::TaskStackHandle(aiComp.stackHandle).isValid())
+    {
+        auto* taskStack = ts->getTaskStack(aiComp.stackHandle);
+        if (!taskStack)
+        {
+            LG_W("Task stack not found for entity, creating new stack");
+            aiComp.stackHandle = GenericHandle::Invalid();
+        }
+        else
+        {
+            taskStack->setDefaultTask(defaultTask);
+            return &aiComp;
+        }
+    }
+    auto stackHandle = ts->createTaskStack(defaultTask);
+    aiComp.stackHandle = stackHandle.toGenericHandle();
+    return &aiComp;
 }
 
 void Engine::makeSelectable(entt::entity entity)
@@ -1806,11 +1863,6 @@ ecs::EntityId Engine::spawnStation(uint32_t sectorId,
         LG_E("Failed to make map icon component");
         success = false;
     }
-    if (!makeAi(entt, ai::taskdata::Idle()))
-    {
-        LG_E("Failed to make ai component");
-        success = false;
-    }
     makeSelectable(entt);
     if (!success)
     {
@@ -1821,6 +1873,11 @@ ecs::EntityId Engine::spawnStation(uint32_t sectorId,
     if (!placeInSector(ent, entt, sectorId, transform))
     {
         LG_E("Failed to place in sector");
+        success = false;
+    }
+    if (!makeAi(entt, ai::taskdata::Idle()))
+    {
+        LG_E("Failed to make ai component");
         success = false;
     }
     if (!success)
@@ -1890,11 +1947,6 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
         LG_E("Failed to make move ctrl component");
         success = false;
     }
-    if (!makeAi(entt, ai::taskdata::Idle()))
-    {
-        LG_E("Failed to make ai component");
-        success = false;
-    }
     if (!makeMapIcon(entt))
     {
         LG_E("Failed to make map icon component");
@@ -1903,6 +1955,11 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
     if (!placeInSector(ent, entt, sectorId, transform))
     {
         LG_E("Failed to place in sector");
+        success = false;
+    }
+    if (!makeAi(entt, ai::taskdata::Idle()))
+    {
+        LG_E("Failed to make ai component");
         success = false;
     }
     if (!success)
@@ -2180,7 +2237,9 @@ ecs::EntityId Engine::spawnModule(ecs::EntityId parent,
                         .data = ecs::Turret::fromGobjTurretData(libTurretData),
                         .currentAngle = 0.0f,
                         .isFiring = false,
-                    }))
+                    },
+                    ai::taskdata::Turret{ai::taskdata::Turret::Mode::Mine,
+                                         ai::taskdata::Turret::ConfigMine{}}))
             {
                 LG_E("Failed to make turret component");
             }
@@ -2227,13 +2286,14 @@ void Engine::handleThirdPersonControl(def::ClientInfo* clientInfo,
                 {
                     auto* turret =
                         ptrHandle->registry->try_get<ecs::Turret>(turretEntt);
-                    if (turret)
+                    if (turret && turret->aimMode == ecs::Turret::AimMode::Player)
                     {
+                        turret->fireMode = ecs::Turret::FireMode::Manual;
                         turret->isFiring =
                             tpc.flags
                             & def::ThirdPersonControl::FLG_FIRE_WEAPONS;
-                        turret->aimMode = ecs::Turret::AimMode::Point;
-                        turret->aimData = ecs::Turret::PointData{tpc.ptrPos};
+                        auto &aimData = std::get<ecs::Turret::PointData>(turret->aimData);
+                        aimData.pos = tpc.ptrPos;
                     }
                 }
             }

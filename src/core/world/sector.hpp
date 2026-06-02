@@ -8,6 +8,9 @@
 #include <render-engine.hpp>
 #endif
 #include <aabb-tree.hpp>
+#ifdef SERVER
+#include <task-system.hpp>
+#endif
 
 namespace world
 {
@@ -52,6 +55,12 @@ class Sector
     {
         return id;
     }
+#ifdef SERVER
+    ai::TaskSystem& getTaskSystem()
+    {
+        return taskSystem;
+    }
+#endif
     const vector<entt::entity>& getEntities() const
     {
         return entities;
@@ -100,6 +109,9 @@ class Sector
     vector<ecs::EntityId> entitiesToDestroy;
     con::DynamicAABBTree<entt::entity> aabbTree;
     bool playerSector = false;
+#ifdef SERVER
+    ai::TaskSystem taskSystem;
+#endif
 };
 
 }  // namespace world
