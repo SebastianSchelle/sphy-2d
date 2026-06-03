@@ -42,11 +42,11 @@ template <typename Component> void Engine::registerSlowDumpComponent()
                 // Go through entities in sector and append component if it
                 // exists
                 uint16_t entityCntSector = 0;
-                auto& entityIds = sector->getEntityIds();
-                for (int entIdx = 0; entIdx < entityIds.size(); ++entIdx)
+                auto& entityRefs = sector->getEntityRefs();
+                for (int entIdx = 0; entIdx < entityRefs.size(); ++entIdx)
                 {
-                    auto& entityId = entityIds[entIdx];
-                    entt::entity entity = ptrHandle->ecs->getEntity(entityId);
+                    auto& entityRef = entityRefs[entIdx];
+                    entt::entity entity = entityRef.entity;
 
                     if (entity != entt::null)
                     {
@@ -57,7 +57,7 @@ template <typename Component> void Engine::registerSlowDumpComponent()
                                 entity);
                         if (component && selectable)
                         {
-                            mcomp.ser->object(entityId);
+                            mcomp.ser->object(entityRef.entityId);
                             mcomp.ser->object(*component);
                             entityCntSector++;
                             entityCntMessage++;
@@ -146,11 +146,11 @@ void Engine::registerActiveSectorDumpComponent(DumpFilter filter)
 
             // Go through entities in sector and append component if it
             // exists
-            auto& entityIds = sector->getEntityIds();
-            for (int entIdx = 0; entIdx < entityIds.size(); ++entIdx)
+            auto& entityRefs = sector->getEntityRefs();
+            for (int entIdx = 0; entIdx < entityRefs.size(); ++entIdx)
             {
-                auto& entityId = entityIds[entIdx];
-                entt::entity entity = ptrHandle->ecs->getEntity(entityId);
+                auto& entityRef = entityRefs[entIdx];
+                entt::entity entity = entityRef.entity;
 
                 if (entity != entt::null)
                 {
@@ -174,7 +174,7 @@ void Engine::registerActiveSectorDumpComponent(DumpFilter filter)
                     }
                     if (component)
                     {
-                        mcomp.ser->object(entityId);
+                        mcomp.ser->object(entityRef.entityId);
                         mcomp.ser->object(*component);
                         entityCntMessage++;
 

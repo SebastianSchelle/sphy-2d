@@ -308,8 +308,9 @@ struct Broadphase
 {
     static const uint16_t VERSION = 1;
     static constexpr string NAME = "broadphase";
+    static constexpr int32_t INVALID_PROXY_ID = -1;
 
-    int32_t proxyId;
+    int32_t proxyId = INVALID_PROXY_ID;
     con::AABB fatAABB;
 
     static void fromYaml(entt::registry& registry,

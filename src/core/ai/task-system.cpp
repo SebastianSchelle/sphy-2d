@@ -148,4 +148,13 @@ TaskStackHandle TaskSystem::moveTaskStackTo(TaskStackHandle stackHandle,
     return newHandle;
 }
 
+void TaskSystem::destroyTaskStack(TaskStackHandle stackHandle)
+{
+    if (!stackHandle.isValid())
+    {
+        return;
+    }
+    taskStacks.removeItem(stackHandle);
+}
+
 }  // namespace ai

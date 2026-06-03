@@ -56,6 +56,10 @@ bool Turret::findBestTarget(TaskFunArgs* args,
         {transform->pos - range, transform->pos + range},
         [&, this](entt::entity entity)
         {
+            if (!reg->valid(entity) || !reg->all_of<ecs::EntityId>(entity))
+            {
+                return;
+            }
             // todo: don't use transform pos, use nearest collision point
             ScoreArgs scoreArgs = {
                 entity,
@@ -115,9 +119,6 @@ TaskFunResult Turret::funMine(TaskFunArgs* args)
             LG_E("No turret component");
             return TaskFunResult::Failed;
         }
-        LG_D("Found best target: {} with score {}",
-             bestTarget.entityId,
-             bestTarget.score);
         turret->fireMode = ecs::Turret::FireMode::AutoAngle;
         turret->aimMode = ecs::Turret::AimMode::Entity;
         turret->aimData = ecs::Turret::EntityData{bestTarget.entityId};

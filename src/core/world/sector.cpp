@@ -67,7 +67,7 @@ void Sector::update(float dt, ecs::PtrHandle* ptrHandle)
         }
     }
 
-    for (size_t i = 0; i < entityIds.size(); i++)
+    for (const auto& entityRef : entityRefs)
     {
         for (const auto& system : *ptrHandle->systems)
         {
@@ -77,7 +77,15 @@ void Sector::update(float dt, ecs::PtrHandle* ptrHandle)
                     using Fn = std::decay_t<decltype(fn)>;
                     if constexpr (std::is_same_v<Fn, ecs::SFSectorForeach>)
                     {
-                        fn(this, entities[i], entityIds[i], dt, ptrHandle);
+                        if (entityRef.flags & EntRef::FLAG_DESTROYED)
+                        {
+                            return;
+                        }
+                        fn(this,
+                           entityRef.entity,
+                           entityRef.entityId,
+                           dt,
+                           ptrHandle);
                     }
                 },
                 system.function);
@@ -110,15 +118,17 @@ bool Sector::addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
         return false;
     }
     auto reg = ptrHandle->registry;
-    auto it = std::find(entityIds.begin(), entityIds.end(), entityId);
-    if (it != entityIds.end())
+    auto it = std::find_if(entityRefs.begin(),
+                           entityRefs.end(),
+                           [entityId](const EntRef& ref)
+                           { return ref.entityId == entityId; });
+    if (it != entityRefs.end())
     {
         LG_W("Entity already in sector: {}", entityId);
         return false;
     }
     entt::entity entity = ptrHandle->ecs->getEntity(entityId);
-    entityIds.push_back(entityId);
-    entities.push_back(entity);
+    entityRefs.push_back(EntRef{entityId, entity, 0});
     auto& sector = reg->get<ecs::SectorId>(entity);
     sector.id = id;
     sector.x = (uint32_t)coordX;
@@ -139,39 +149,54 @@ bool Sector::addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
         }
         con::AABB aabb = ecs::calculateAABB(
             transform, {c, s}, *collider, ptrHandle->colliderLib);
-        broadphase->proxyId = aabbTree.createProxy(aabb, entity);
-        broadphase->fatAABB = aabb;
+        if (broadphase->proxyId <= ecs::Broadphase::INVALID_PROXY_ID)
+        {
+            broadphase->proxyId = aabbTree.createProxy(aabb, entity);
+            broadphase->fatAABB = aabb;
+        }
     }
     return true;
+}
+
+void Sector::destroyBroadphaseProxy(con::DynamicAABBTree<entt::entity>& tree,
+                                    ecs::Broadphase* broadphase)
+{
+    if (!broadphase || broadphase->proxyId <= ecs::Broadphase::INVALID_PROXY_ID)
+    {
+        if (broadphase)
+        {
+            broadphase->proxyId = ecs::Broadphase::INVALID_PROXY_ID;
+        }
+        return;
+    }
+    tree.destroyProxy(broadphase->proxyId);
+    broadphase->proxyId = ecs::Broadphase::INVALID_PROXY_ID;
 }
 
 bool Sector::removeEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
 {
     if (!ptrHandle->ecs->validId(entityId))
     {
-        //LG_W("Entity not valid: {}", entityId);
+        // LG_W("Entity not valid: {}", entityId);
         return false;
     }
     auto reg = ptrHandle->registry;
-    auto it = std::find(entityIds.begin(), entityIds.end(), entityId);
-    if (it == entityIds.end())
+    auto it = std::find_if(entityRefs.begin(),
+                           entityRefs.end(),
+                           [entityId](const EntRef& ref)
+                           { return ref.entityId == entityId; });
+    if (it == entityRefs.end())
     {
         LG_W("Entity not in sector: {}", entityId);
         return false;
     }
-    entityIds.erase(it);
-    entities.erase(std::find(
-        entities.begin(), entities.end(), ptrHandle->ecs->getEntity(entityId)));
-    auto& sector = reg->get<ecs::SectorId>(ptrHandle->ecs->getEntity(entityId));
+    entt::entity entity = it->entity;
+    auto& sector = reg->get<ecs::SectorId>(entity);
     sector.id = INVALID_SECTOR_ID;
     sector.x = 0;
     sector.y = 0;
-    auto broadphase =
-        reg->try_get<ecs::Broadphase>(ptrHandle->ecs->getEntity(entityId));
-    if (broadphase)
-    {
-        aabbTree.destroyProxy(broadphase->proxyId);
-    }
+    destroyBroadphaseProxy(aabbTree, reg->try_get<ecs::Broadphase>(entity));
+    entityRefs.erase(it);
     return true;
 }
 
@@ -184,6 +209,10 @@ vec2 Sector::getWorldPosSectorOffset(int32_t sectorOffsetX,
 
 void Sector::moveAabbProxy(int32_t proxyId, con::AABB& newAabb)
 {
+    if (proxyId <= ecs::Broadphase::INVALID_PROXY_ID)
+    {
+        return;
+    }
     aabbTree.moveProxy(proxyId, newAabb);
 }
 
@@ -207,7 +236,12 @@ void Sector::markPlayerSector(bool player)
 
 void Sector::markEntityForDestruction(ecs::EntityId entityId)
 {
-    entitiesToDestroy.push_back(entityId);
+    if (!entitiesToDestroy.insert(entityId).second)
+    {
+        return;
+    }
+    visitEntityRef(entityId,
+                   [](EntRef& ref) { ref.flags |= EntRef::FLAG_DESTROYED; });
 }
 
 void Sector::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
@@ -221,12 +255,30 @@ void Sector::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
 
 void Sector::destroyEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
 {
-    // todo: delete taskstack if has ai
-    // Remove entity from sector
-    removeEntity(ptrHandle, entityId);
-    // Destroy entity
+    entt::entity entity = ptrHandle->ecs->getEntity(entityId);
+    if (entity != entt::null)
+    {
+        auto* ai = ptrHandle->registry->try_get<ecs::Ai>(entity);
+        auto* sectorId = ptrHandle->registry->try_get<ecs::SectorId>(entity);
+        if (ai && sectorId && sectorId->id == id)
+        {
+            auto stackHandle = ai::TaskStackHandle(ai->stackHandle);
+            if (stackHandle.isValid())
+            {
+                taskSystem.destroyTaskStack(stackHandle);
+            }
+        }
+    }
+
+    if (!removeEntity(ptrHandle, entityId) && entity != entt::null)
+    {
+        destroyBroadphaseProxy(
+            aabbTree, ptrHandle->registry->try_get<ecs::Broadphase>(entity));
+    }
+
     ptrHandle->engine->destroyEntity(entityId);
 }
+
 #endif
 
 #ifdef CLIENT
@@ -264,5 +316,30 @@ void Sector::drawThirdPerson(gfx::RenderEngine& renderer,
 
 #endif
 
+void Sector::visitEntityRef(ecs::EntityId entityId,
+                            std::function<void(EntRef& ref)> callback)
+{
+    auto it = std::find_if(entityRefs.begin(),
+                           entityRefs.end(),
+                           [entityId](const EntRef& ref)
+                           { return ref.entityId == entityId; });
+    if (it != entityRefs.end())
+    {
+        callback(*it);
+    }
+}
+
+void Sector::visitEntityRef(entt::entity entity,
+                            std::function<void(EntRef& ref)> callback)
+{
+    auto it = std::find_if(entityRefs.begin(),
+                           entityRefs.end(),
+                           [entity](const EntRef& ref)
+                           { return ref.entity == entity; });
+    if (it != entityRefs.end())
+    {
+        callback(*it);
+    }
+}
 
 }  // namespace world

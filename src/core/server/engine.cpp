@@ -1153,7 +1153,7 @@ void Engine::broadcastEntityToClients(ecs::EntityId entityId)
 void Engine::sendAllComponents(ecs::EntityId entityId, net::TcpConnection* conn)
 {
     entt::entity ent = ecs.getEntity(entityId);
-    if (ent == entt::null)
+    if (!ecs.getRegistry().valid(ent))
     {
         // todo: reply needed in error case?
         return;
@@ -1200,7 +1200,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 100; ++i)
+    for (int i = 0; i < 10000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1422,19 +1422,19 @@ void Engine::testSpawn()
         //                    0);
     }
 
-    for (int i = 0; i < 500; ++i)
+    for (int i = 0; i < 10000; ++i)
     {
-        vec2 pos = vec2{posDist(gen), posDist(gen)};
-        float rot = rotDist(gen);
+        vec2 pos1 = vec2{posDist(gen), posDist(gen)};
+        vec2 pos2 = vec2{posDist(gen), posDist(gen)};
         uint32_t sectorId = sectorPick(gen);
         float rot1 = rotDist(gen) / 10.0f;
         float rot2 = rotDist(gen) / 10.0f;
         spawnAsteroid(sectorId,
-                      ecs::Transform{pos, rot},
+                      ecs::Transform{pos1, rot1},
                       modManager.getAsteroidLib().getHandle("Small Asteroid 1"),
                       rot1);
         spawnAsteroid(sectorId,
-                      ecs::Transform{pos, rot},
+                      ecs::Transform{pos2, rot2},
                       modManager.getAsteroidLib().getHandle("Small Asteroid 2"),
                       rot2);
     }
@@ -1623,7 +1623,10 @@ ecs::Collider* Engine::makeCollider(entt::entity entity,
     {
         return nullptr;
     }
-    ecs::Broadphase& br = reg.emplace_or_replace<ecs::Broadphase>(entity);
+    if (!reg.all_of<ecs::Broadphase>(entity))
+    {
+        reg.emplace<ecs::Broadphase>(entity);
+    }
     return &reg.emplace_or_replace<ecs::Collider>(
         entity,
         ecs::Collider{.colliderHandle = colliderHandle.toGenericHandle(),

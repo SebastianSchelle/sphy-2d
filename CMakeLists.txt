@@ -63,7 +63,8 @@ set(DAS_STBIMAGE_DISABLED ON CACHE BOOL "" FORCE)
 set(DAS_TOOLS_DISABLED OFF CACHE BOOL "" FORCE)
 set(DAS_TUTORIAL_DISABLED ON CACHE BOOL "" FORCE)
 set(DAS_TESTS_DISABLED ON CACHE BOOL "" FORCE)
-add_subdirectory(thirdparty/dascript)
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SphyDaScript.cmake")
+sphy_add_dascript_subdirectory()
 add_subdirectory(src)
 
 set(DEPLOY_SCRIPT ${CMAKE_SOURCE_DIR}/scripts/deploy.sh)
@@ -128,8 +129,4 @@ target_include_directories(
 
 include(GoogleTest)
 gtest_discover_tests(test-shelf-allocator)
-# Match Debug fusion level in Release (see cmake/SphyDaScriptFusionFix.cmake);
-# do not modify thirdparty/daScript/CMake.
-#include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SphyDaScriptFusionFix.cmake")
-#sphy_das_fusion_zero_release(libDaScript game-server game-client)
 

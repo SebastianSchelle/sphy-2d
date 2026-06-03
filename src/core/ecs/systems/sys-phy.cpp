@@ -308,7 +308,7 @@ void sysPhysicsImpl(world::Sector* sector,
     auto* transformCache = reg->try_get<TransformCache>(entity);
     auto* physicsBody = reg->try_get<PhysicsBody>(entity);
     auto* broadphase = reg->try_get<Broadphase>(entity);
-    if (transform && physicsBody && transformCache)
+    if (transform && physicsBody && transformCache && broadphase && sectorId)
     {
         physicsBody->acc += -ptrHandle->linDrag * physicsBody->vel;
         physicsBody->rotAcc += -ptrHandle->angDrag * physicsBody->rotVel;
@@ -343,13 +343,12 @@ void sysPhysicsImpl(world::Sector* sector,
                 collider->getColliderDef(ptrHandle->colliderLib);
             con::AABB newAabb = calculateAABB(
                 *transform, *transformCache, *collider, colliderDef);
-            auto* sector = ptrHandle->world->getSector(sectorId->id);
-            if (sector)
+            if (broadphase->proxyId > Broadphase::INVALID_PROXY_ID)
             {
                 sector->moveAabbProxy(broadphase->proxyId, newAabb);
-                broadphase->fatAABB = newAabb;
-                sector->addBroadphaseQueryEntity(entity);
             }
+            broadphase->fatAABB = newAabb;
+            sector->addBroadphaseQueryEntity(entity);
         }
 
         // Check for sector switch
@@ -553,7 +552,7 @@ static bool projectileCollision(const ColResolveParams& p)
                 const Transform* astTransform =
                     reg->try_get<Transform>(p.otherEnt);
                 ecs::EntityId otherEntId = reg->get<ecs::EntityId>(p.otherEnt);
-                
+
                 ecs::Transform trOth = reg->get<ecs::Transform>(p.otherEnt);
                 ecs::Transform& trAct = reg->get<ecs::Transform>(p.actionEnt);
                 vec2 dir = trAct.pos - trOth.pos;
@@ -561,12 +560,8 @@ static bool projectileCollision(const ColResolveParams& p)
                 vel.x += rand() % 10 - 5;
                 vel.y += rand() % 10 - 5;
                 trOth.rot = (rand() % 360) / 180.0f * M_PIf;
-                p.ptrHandle->engine->spawnItem(sectorId->id,
-                                               trOth,
-                                               handle,
-                                               quantity,
-                                               vel,
-                                               otherEntId);
+                p.ptrHandle->engine->spawnItem(
+                    sectorId->id, trOth, handle, quantity, vel, otherEntId);
             });
         ecs::EntityId actionEntId = reg->get<ecs::EntityId>(p.actionEnt);
         ecs::EntityId otherEntId = reg->get<ecs::EntityId>(p.otherEnt);
@@ -662,20 +657,50 @@ void sysCollisionDetectionImpl(world::Sector* sector,
     sector->broadphaseCollisions.clear();
     sector->contactInfos.clear();
 
+    auto entityMarkedDestroyed = [sector](entt::entity ent)
+    {
+        bool destroyed = false;
+        sector->visitEntityRef(
+            ent,
+            [&destroyed](world::Sector::EntRef& ref)
+            {
+                if (ref.flags & world::Sector::EntRef::FLAG_DESTROYED)
+                {
+                    destroyed = true;
+                }
+            });
+        return destroyed;
+    };
+
     for (auto entity : sector->broadphaseQueryEntities)
     {
+        if (!reg->valid(entity) || !reg->all_of<Broadphase>(entity))
+        {
+            continue;
+        }
         auto& broadphase = reg->get<Broadphase>(entity);
+        if (broadphase.proxyId <= Broadphase::INVALID_PROXY_ID)
+        {
+            continue;
+        }
         sector->queryBroadphase(
             broadphase.fatAABB,
-            [sector, entity](entt::entity entityOther)
+            [sector, entity, reg, entityMarkedDestroyed](
+                entt::entity entityOther)
             {
                 if (entity == entityOther)
                 {
                     return;
                 }
-                // Canonical pair order; dedupe below. Only movers query, so we
-                // must not require entity < entityOther (new spawns have higher
-                // entt ids and would never collide with older static bodies).
+                if (!reg->valid(entityOther) || !reg->all_of<Collider>(entityOther))
+                {
+                    return;
+                }
+                if (entityMarkedDestroyed(entity)
+                    || entityMarkedDestroyed(entityOther))
+                {
+                    return;
+                }
                 entt::entity lo = entity;
                 entt::entity hi = entityOther;
                 if (hi < lo)
@@ -693,18 +718,26 @@ void sysCollisionDetectionImpl(world::Sector* sector,
         sector->broadphaseCollisions.end());
     for (const auto& collision : sector->broadphaseCollisions)
     {
-        auto& collider1 = reg->get<Collider>(collision.first);
-        auto& collider2 = reg->get<Collider>(collision.second);
+        if (!reg->valid(collision.first) || !reg->valid(collision.second))
+        {
+            continue;
+        }
+        auto* collider1 = reg->try_get<Collider>(collision.first);
+        auto* collider2 = reg->try_get<Collider>(collision.second);
+        if (!collider1 || !collider2)
+        {
+            continue;
+        }
 
         auto& Interaction = ptrHandle->collisionLayerMat->getInteraction(
-            collider1.colliderType, collider2.colliderType);
+            collider1->colliderType, collider2->colliderType);
         if (!Interaction.enabled)
         {
             continue;
         }
 
         const ecs::EntityId* exceptEntity1 =
-            (ecs::EntityId*)&collider1.exceptEntity;
+            (ecs::EntityId*)&collider1->exceptEntity;
         if (*exceptEntity1 != ecs::EntityId::Invalid())
         {
             entt::entity except = ptrHandle->ecs->getEntity(*exceptEntity1);
@@ -714,7 +747,7 @@ void sysCollisionDetectionImpl(world::Sector* sector,
             }
         }
         const ecs::EntityId* exceptEntity2 =
-            (ecs::EntityId*)&collider2.exceptEntity;
+            (ecs::EntityId*)&collider2->exceptEntity;
         if (*exceptEntity2 != ecs::EntityId::Invalid())
         {
             entt::entity except = ptrHandle->ecs->getEntity(*exceptEntity2);
@@ -729,31 +762,35 @@ void sysCollisionDetectionImpl(world::Sector* sector,
         auto& transformCache1 = reg->get<TransformCache>(collision.first);
         auto& transformCache2 = reg->get<TransformCache>(collision.second);
         const gobj::Collider* colliderDef1 =
-            collider1.getColliderDef(ptrHandle->colliderLib);
+            collider1->getColliderDef(ptrHandle->colliderLib);
         const gobj::Collider* colliderDef2 =
-            collider2.getColliderDef(ptrHandle->colliderLib);
+            collider2->getColliderDef(ptrHandle->colliderLib);
 
         const std::optional<Contact> contact =
-            ::ecs::collideCollidersWorld(collider1,
+            ::ecs::collideCollidersWorld(*collider1,
                                          colliderDef1,
                                          transform1,
                                          transformCache1,
-                                         collider2,
+                                         *collider2,
                                          colliderDef2,
                                          transform2,
                                          transformCache2);
         if (contact)
         {
-            bool skipContactSolver = colliderAction(
-                ptrHandle, sector, *contact, collider1, collider2, collision);
+            bool skipContactSolver = colliderAction(ptrHandle,
+                                                    sector,
+                                                    *contact,
+                                                    *collider1,
+                                                    *collider2,
+                                                    collision);
             if (!skipContactSolver)
             {
                 sector->contactInfos.push_back(
                     {*contact,
                      collision.first,
                      collision.second,
-                     std::fmin(collider1.getRestitution(colliderDef1),
-                               collider2.getRestitution(colliderDef2))});
+                     std::fmin(collider1->getRestitution(colliderDef1),
+                               collider2->getRestitution(colliderDef2))});
             }
         }
     }
@@ -867,6 +904,11 @@ void sysAnchorFixedImpl(world::Sector* sector,
                 ptrHandle->world->addSectorMoveRequest(
                     ptrHandle, entityId, parentSectorId.id);
             }
+        }
+        else
+        {
+            LG_W("AnchorFixed parent not found for entity {}", entityId);
+            sector->markEntityForDestruction(entityId);
         }
     }
 }

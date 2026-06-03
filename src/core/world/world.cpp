@@ -301,6 +301,11 @@ bool World::moveEntityTo(ecs::PtrHandle* ptrHandle,
 {
     auto reg = ptrHandle->registry;
     entt::entity entity = ptrHandle->ecs->getEntity(entityId);
+    if (entity == entt::null)
+    {
+        LG_W("Entity not valid for moveEntityTo: {}", entityId);
+        return false;
+    }
 
     ecs::Transform& transform = reg->get<ecs::Transform>(entity);
     transform.pos = position;
@@ -328,8 +333,17 @@ bool World::switchSector(ecs::PtrHandle* ptrHandle,
 
     auto reg = ptrHandle->registry;
     entt::entity entity = ptrHandle->ecs->getEntity(entityId);
+    if (entity == entt::null)
+    {
+        LG_W("Entity not valid for switchSector: {}", entityId);
+        return false;
+    }
     auto* ai = reg->try_get<ecs::Ai>(entity);
-    auto sector = reg->try_get<ecs::SectorId>(entity);
+    auto* sector = reg->try_get<ecs::SectorId>(entity);
+    if (sector && sector->id == newSectorId)
+    {
+        return true;
+    }
     if (sector && sector->id != INVALID_SECTOR_ID && sector->id != newSectorId)
     {
         Sector* oldSector = sectors.at(sector->id);
@@ -350,8 +364,6 @@ bool World::switchSector(ecs::PtrHandle* ptrHandle,
                         stackHandle, newSector->getTaskSystem());
                     if (newStackHandle.isValid())
                     {
-                        LG_D("Moved task stack for entity {} to sector {}",
-                             entityId, newSectorId);
                         ai->stackHandle = newStackHandle.toGenericHandle();
                     }
                     else
@@ -369,7 +381,13 @@ bool World::switchSector(ecs::PtrHandle* ptrHandle,
             oldSector->removeEntity(ptrHandle, entityId);
         }
     }
-    newSector->addEntity(ptrHandle, entityId);
+    if (!newSector->addEntity(ptrHandle, entityId))
+    {
+        LG_E("switchSector: failed to add entity {} to sector {}",
+             entityId,
+             newSectorId);
+        return false;
+    }
     return true;
 }
 

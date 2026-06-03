@@ -54,6 +54,7 @@ class TaskSystem
                            const taskdata::TaskData& task);
     TaskStackHandle moveTaskStackTo(TaskStackHandle stackHandle,
                                     TaskSystem& targetSystem);
+    void destroyTaskStack(TaskStackHandle stackHandle);
 
   private:
     con::FreeVec<TaskStack> taskStacks;

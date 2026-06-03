@@ -25,7 +25,7 @@ index 2b6ce1c44..208ace246 100644
  	ELSE()
  		MESSAGE(STATUS "BISON `${BISON_VERSION}` found" )
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 423eb61be..88de83edf 100644
+index 423eb61be..54571bf47 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -83,6 +83,17 @@ if (CMAKE_HOST_SYSTEM_NAME MATCHES "Darwin")
@@ -46,6 +46,18 @@ index 423eb61be..88de83edf 100644
  ENDIF()
  
  SETUP_COMPILER()
+@@ -291,8 +302,9 @@ FILE(WRITE ${DAS_MODULES_DECLARE_INC}.temp "")
+ FILE(WRITE ${DAS_MODULES_PULL_INC}.temp "")
+ 
+ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${EXECUTABLE_OUTPUT_PATH})
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
++# Keep libs under this CMake build dir so Debug/Release trees do not share one archive.
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+ 
+ # All dynamic modules libraries will be added here (files like dasModuleAudio.shared_module).
+ SET(DAS_DYN_MODULES_LIBS)
 diff --git a/include/daScript/das_config.h b/include/daScript/das_config.h
 index f9059f5ad..795dbc97f 100644
 --- a/include/daScript/das_config.h

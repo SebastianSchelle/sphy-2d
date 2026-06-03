@@ -114,12 +114,20 @@ template <typename T> class DynamicAABBTree
 
     void destroyProxy(int node)
     {
+        if (node <= 0 || node >= (int)nodes.size())
+        {
+            return;
+        }
         removeLeaf(node);
         freeNode(node);
     }
 
     void moveProxy(int node, AABB newBox)
     {
+        if (node <= 0 || node >= (int)nodes.size())
+        {
+            return;
+        }
         if (nodes[node].box.contains(newBox))
         {
             return;
@@ -328,7 +336,17 @@ template <typename T> class DynamicAABBTree
     {
         while (index != -1)
         {
+            if (index <= 0 || index >= (int)nodes.size()
+                || nodes[index].isLeaf())
+            {
+                break;
+            }
             index = balance(index);
+            if (index <= 0 || index >= (int)nodes.size()
+                || nodes[index].isLeaf())
+            {
+                break;
+            }
 
             int left = nodes[index].left;
             int right = nodes[index].right;

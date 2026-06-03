@@ -8,6 +8,7 @@
 #include <render-engine.hpp>
 #endif
 #include <aabb-tree.hpp>
+#include <unordered_set>
 #ifdef SERVER
 #include <task-system.hpp>
 #endif
@@ -20,6 +21,15 @@ const uint32_t INVALID_SECTOR_ID = 0xFFFFFFFF;
 class Sector
 {
   public:
+    struct EntRef
+    {
+        static constexpr uint8_t FLAG_DESTROYED = 1 << 0;
+        static constexpr uint8_t FLAG_MOVED = 1 << 1;
+        ecs::EntityId entityId;
+        entt::entity entity;
+        uint8_t flags = 0;
+    };
+
     Sector();
     ~Sector();
     void
@@ -29,6 +39,8 @@ class Sector
     bool addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
     bool removeEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
     void moveAabbProxy(int32_t proxyId, con::AABB& newAabb);
+    static void destroyBroadphaseProxy(con::DynamicAABBTree<entt::entity>& tree,
+                                     ecs::Broadphase* broadphase);
     void getAllAABBs(std::vector<con::AABB>& aabbs) const;
     void queryBroadphase(const con::AABB& aabb,
                          std::function<void(entt::entity)> callback);
@@ -61,13 +73,9 @@ class Sector
         return taskSystem;
     }
 #endif
-    const vector<entt::entity>& getEntities() const
+    const vector<EntRef>& getEntityRefs() const
     {
-        return entities;
-    }
-    const vector<ecs::EntityId>& getEntityIds() const
-    {
-        return entityIds;
+        return entityRefs;
     }
     inline void addBroadphaseQueryEntity(entt::entity entity)
     {
@@ -85,6 +93,10 @@ class Sector
                          const glm::vec4& viewRect,
                          float zoom);
 #endif
+    void visitEntityRef(ecs::EntityId entityId,
+                        std::function<void(EntRef& ref)> callback);
+    void visitEntityRef(entt::entity entity,
+                        std::function<void(EntRef& ref)> callback);
 
     std::vector<std::pair<entt::entity, entt::entity>> broadphaseCollisions;
     std::vector<entt::entity> broadphaseQueryEntities;
@@ -104,9 +116,10 @@ class Sector
     Sector* neighbors[8];  // Neighboring Sectors (8 neighbors)
     bool dirty;            // Sector dirty flag
 
-    vector<ecs::EntityId> entityIds;
-    vector<entt::entity> entities;
-    vector<ecs::EntityId> entitiesToDestroy;
+    vector<EntRef> entityRefs;
+#ifdef SERVER
+    std::unordered_set<ecs::EntityId, ecs::EntityIdHash> entitiesToDestroy;
+#endif
     con::DynamicAABBTree<entt::entity> aabbTree;
     bool playerSector = false;
 #ifdef SERVER

@@ -45,6 +45,15 @@ struct EntityId
     }
 };
 
+struct EntityIdHash
+{
+    std::size_t operator()(ecs::EntityId const& id) const noexcept
+    {
+        return std::hash<uint64_t>{}(
+            (uint64_t{id.index} << 32) | id.generation);
+    }
+};
+
 #define SER_ENTITY_ID                                                          \
     S4b(o.index);                                                              \
     S2b(o.generation);
