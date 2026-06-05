@@ -649,7 +649,7 @@ struct MoveCtrl
 
     MoveMode moveMode;
     def::SectorCoords spPos;
-    float allowedPosError;
+    float allowedPosError = 100.0f;
     bool posReached = false;
 
     TurnMode turnMode;
@@ -657,10 +657,10 @@ struct MoveCtrl
     // lookAt only works in sector
     vec2 lookAt;
     float spRot;
-    float allowedRotError;
+    float allowedRotError = M_PIf;
 
     std::variant<MCForwardData, MCTargetPointData> faceDirData =
-        MCForwardData{100.0f};
+        MCForwardData{10.0f};
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,

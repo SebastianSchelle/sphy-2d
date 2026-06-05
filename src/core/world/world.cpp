@@ -191,6 +191,7 @@ void World::update(float dt, ecs::PtrHandle* ptrHandle)
     ptrHandle->workDistributor->awaken();
     ptrHandle->workDistributor->waitForEmptyQueues();
     ptrHandle->workDistributor->suspend();
+    executeSingleThreadedTasks(ptrHandle);
     handleSectorMoveRequests(ptrHandle);
     destroyMarkedEntities(ptrHandle);
 }
@@ -368,9 +369,10 @@ bool World::switchSector(ecs::PtrHandle* ptrHandle,
                     }
                     else
                     {
-                        LG_W("Failed to move task stack for entity {}, "
-                             "creating new stack",
-                             entityId);
+                        LG_W(
+                            "Failed to move task stack for entity {}, "
+                            "creating new stack",
+                            entityId);
                         auto newStackHandle =
                             newSector->getTaskSystem().createTaskStack(
                                 ai::taskdata::Idle());
@@ -503,7 +505,14 @@ void World::checkSectorSwitchAfterMove(ecs::EntityId entityId,
         if (getNeighboringSectorPos(sectorId->id, dir, newPos))
         {
             uint32_t newSectorId = sectorCoordsToId(newPos.x, newPos.y);
-            addSectorMoveRequest(ptrHandle, entityId, newSectorId);
+            Sector* sector = sectors.at(sectorId->id);
+            if (!sector)
+            {
+                LG_W("Sector not found: {}", sectorId->id);
+                return;
+            }
+            sector->addSectorMoveRequest(
+                SectorMoveRequest{entityId, newSectorId});
             switch (dir)
             {
                 case def::Direction::N:
@@ -577,13 +586,6 @@ void World::checkSectorSwitchAfterMove(ecs::EntityId entityId,
     }
 }
 
-void World::addSectorMoveRequest(ecs::PtrHandle* ptrHandle,
-                                 ecs::EntityId entityId,
-                                 uint32_t newSectorId)
-{
-    sectorMoveRequests.enqueue(SectorMoveRequest{entityId, newSectorId});
-}
-
 void World::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
 {
     for (uint32_t sectorId = 0; sectorId < sectors.getSize(); sectorId++)
@@ -594,17 +596,30 @@ void World::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
 
 void World::handleSectorMoveRequests(ecs::PtrHandle* ptrHandle)
 {
-    SectorMoveRequest request;
-    while (sectorMoveRequests.try_dequeue(request))
+    for (uint32_t sectorId = 0; sectorId < sectors.getSize(); sectorId++)
     {
-        if (!switchSector(ptrHandle, request.entityId, request.newSectorId))
-        {
-            LG_E("Failed to switch sector for entity: {} to sector: {}",
-                 request.entityId,
-                 request.newSectorId);
-        }
+        sectors.at(sectorId)->forSectorMoveRequests(
+            [this, ptrHandle](const SectorMoveRequest& request)
+            {
+                if (!switchSector(
+                        ptrHandle, request.entityId, request.newSectorId))
+                {
+                    LG_E("Failed to switch sector for entity: {} to sector: {}",
+                         request.entityId,
+                         request.newSectorId);
+                }
+            });
     }
 }
+
+void World::executeSingleThreadedTasks(ecs::PtrHandle* ptrHandle)
+{
+    for (uint32_t sectorId = 0; sectorId < sectors.getSize(); sectorId++)
+    {
+        sectors.at(sectorId)->executeSingleThreadedTasks(ptrHandle);
+    }
+}
+
 #endif
 
 Sector* World::getSector(uint32_t sectorId)

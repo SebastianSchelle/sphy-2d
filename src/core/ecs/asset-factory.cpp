@@ -1,16 +1,20 @@
 #include "ecs.hpp"
 #include <asset-factory.hpp>
-#include <components/comp-ident.hpp>
-#include <ecs.hpp>
+#include <comp-ai.hpp>
 #include <comp-gfx.hpp>
 #include <comp-ident.hpp>
+#include <comp-lifetime.hpp>
 #include <comp-phy.hpp>
+#include <comp-storage.hpp>
 #include <comp-struct.hpp>
 #include <comp-tag.hpp>
-#include <comp-ai.hpp>
-#include <comp-storage.hpp>
 #include <comp-turret.hpp>
-#include <comp-lifetime.hpp>
+#include <components/comp-ident.hpp>
+#include <ecs.hpp>
+#ifdef SERVER
+#include <task-system.hpp>
+#endif
+#include <world.hpp>
 
 namespace ecs
 {
@@ -41,12 +45,37 @@ void ComponentFactory::loadComponent(const std::string& name,
 void ComponentFactory::registerAllComponents()
 {
     registerComponent<ecs::Transform>();
+    registerComponent<ecs::SectorId>([](ecs::PtrHandle* ptrHandle, entt::entity entity) {
+        auto* reg = ptrHandle->registry;
+        auto* sectorId = reg->try_get<ecs::SectorId>(entity);
+        auto& entityId = reg->get<ecs::EntityId>(entity);
+        if (sectorId && sectorId->id != world::INVALID_SECTOR_ID)
+        {
+            world::Sector* sector = ptrHandle->world->getSector(sectorId->id);
+            if (sector)
+            {
+                sector->removeEntity(ptrHandle, entityId);
+            }
+        }
+    });
     registerComponent<ecs::PhysicsBody>();
     registerComponent<ecs::AssetId>();
     registerComponent<ecs::PhyThrust>();
     registerComponent<ecs::MoveCtrl>();
     registerComponent<ecs::Collider>();
-    registerComponent<ecs::Broadphase>();
+    registerComponent<ecs::Broadphase>([](ecs::PtrHandle* ptrHandle, entt::entity entity) {
+        auto* reg = ptrHandle->registry;
+        auto* broadphase = reg->try_get<ecs::Broadphase>(entity);
+        auto* sectorId = reg->try_get<ecs::SectorId>(entity);
+        if (broadphase && sectorId && sectorId->id != world::INVALID_SECTOR_ID)
+        {
+            world::Sector* sector = ptrHandle->world->getSector(sectorId->id);
+            if (sector)
+            {
+                sector->destroyBroadphaseProxy(broadphase);
+            }
+        }
+    });
     registerComponent<ecs::TransformCache>();
     registerComponent<ecs::MapIcon>();
     registerComponent<ecs::Textures>();
@@ -56,7 +85,31 @@ void ComponentFactory::registerAllComponents()
     registerComponent<ecs::tag::obj::Ship>();
     registerComponent<ecs::tag::mod::MainThruster>();
     registerComponent<ecs::tag::mod::ManeuverThruster>();
+#ifdef SERVER
+    registerComponent<ecs::Ai>(
+        [](ecs::PtrHandle* ptrHandle, entt::entity entity)
+        {
+            auto* reg = ptrHandle->registry;
+            auto* ai = reg->try_get<ecs::Ai>(entity);
+            if (ai && ai::TaskStackHandle(ai->stackHandle).isValid())
+            {
+                auto* sector = reg->try_get<ecs::SectorId>(entity);
+                ai::TaskSystem* taskSystem = ptrHandle->taskSystem;
+                if (sector && sector->id != world::INVALID_SECTOR_ID)
+                {
+                    taskSystem =
+                        &ptrHandle->world->getSector(sector->id)->getTaskSystem();
+                }
+                auto stackHandle = ai::TaskStackHandle(ai->stackHandle);
+                if (stackHandle.isValid())
+                {
+                    taskSystem->destroyTaskStack(stackHandle);
+                }
+            }
+        });
+#else
     registerComponent<ecs::Ai>();
+#endif
     registerComponent<ecs::Station>();
     registerComponent<ecs::StationPart>();
     registerComponent<ecs::Module>();

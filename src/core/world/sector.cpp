@@ -158,18 +158,14 @@ bool Sector::addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
     return true;
 }
 
-void Sector::destroyBroadphaseProxy(con::DynamicAABBTree<entt::entity>& tree,
-                                    ecs::Broadphase* broadphase)
+void Sector::destroyBroadphaseProxy(ecs::Broadphase* broadphase)
 {
-    if (!broadphase || broadphase->proxyId <= ecs::Broadphase::INVALID_PROXY_ID)
+    if (!broadphase)
     {
-        if (broadphase)
-        {
-            broadphase->proxyId = ecs::Broadphase::INVALID_PROXY_ID;
-        }
+        LG_W("broadphase is null");
         return;
     }
-    tree.destroyProxy(broadphase->proxyId);
+    aabbTree.destroyProxy(broadphase->proxyId);
     broadphase->proxyId = ecs::Broadphase::INVALID_PROXY_ID;
 }
 
@@ -191,11 +187,11 @@ bool Sector::removeEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
         return false;
     }
     entt::entity entity = it->entity;
-    auto& sector = reg->get<ecs::SectorId>(entity);
-    sector.id = INVALID_SECTOR_ID;
-    sector.x = 0;
-    sector.y = 0;
-    destroyBroadphaseProxy(aabbTree, reg->try_get<ecs::Broadphase>(entity));
+    auto* broadphase = reg->try_get<ecs::Broadphase>(entity);
+    if (broadphase)
+    {
+        destroyBroadphaseProxy(broadphase);
+    }
     entityRefs.erase(it);
     return true;
 }
@@ -236,47 +232,74 @@ void Sector::markPlayerSector(bool player)
 
 void Sector::markEntityForDestruction(ecs::EntityId entityId)
 {
-    if (!entitiesToDestroy.insert(entityId).second)
-    {
-        return;
-    }
-    visitEntityRef(entityId,
-                   [](EntRef& ref) { ref.flags |= EntRef::FLAG_DESTROYED; });
+    visitEntityRef(
+        entityId,
+        [this, entityId](EntRef& ref)
+        {
+            if (ref.flags & EntRef::FLAG_DESTROYED)
+            {
+                return;
+            }
+            if (ref.flags & EntRef::FLAG_MOVED)
+            {
+                sectorMoveRequests.erase(
+                    std::remove_if(sectorMoveRequests.begin(),
+                                   sectorMoveRequests.end(),
+                                   [=](const SectorMoveRequest& request)
+                                   { return request.entityId == entityId; }),
+                    sectorMoveRequests.end());
+            }
+            ref.flags |= EntRef::FLAG_DESTROYED;
+        });
+    entitiesToDestroy.push_back(entityId);
 }
 
 void Sector::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
 {
     for (const auto& entityId : entitiesToDestroy)
     {
-        destroyEntity(ptrHandle, entityId);
+        ptrHandle->engine->destroyEntity(entityId);
     }
     entitiesToDestroy.clear();
 }
 
-void Sector::destroyEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
+void Sector::addSingleThreadedTask(SingleThreadedTaskFunction task)
 {
-    entt::entity entity = ptrHandle->ecs->getEntity(entityId);
-    if (entity != entt::null)
-    {
-        auto* ai = ptrHandle->registry->try_get<ecs::Ai>(entity);
-        auto* sectorId = ptrHandle->registry->try_get<ecs::SectorId>(entity);
-        if (ai && sectorId && sectorId->id == id)
-        {
-            auto stackHandle = ai::TaskStackHandle(ai->stackHandle);
-            if (stackHandle.isValid())
-            {
-                taskSystem.destroyTaskStack(stackHandle);
-            }
-        }
-    }
+    singleThreadedTasks.push_back(task);
+}
 
-    if (!removeEntity(ptrHandle, entityId) && entity != entt::null)
+void Sector::executeSingleThreadedTasks(ecs::PtrHandle* ptrHandle)
+{
+    for (const auto& task : singleThreadedTasks)
     {
-        destroyBroadphaseProxy(
-            aabbTree, ptrHandle->registry->try_get<ecs::Broadphase>(entity));
+        task(ptrHandle);
     }
+    singleThreadedTasks.clear();
+}
 
-    ptrHandle->engine->destroyEntity(entityId);
+void Sector::addSectorMoveRequest(const SectorMoveRequest& request)
+{
+    visitEntityRef(request.entityId,
+                   [=](EntRef& ref)
+                   {
+                       if (ref.flags & EntRef::FLAG_MOVED
+                           || ref.flags & EntRef::FLAG_DESTROYED)
+                       {
+                           return;
+                       }
+                       ref.flags |= EntRef::FLAG_MOVED;
+                   });
+    sectorMoveRequests.push_back(request);
+}
+
+void Sector::forSectorMoveRequests(
+    std::function<void(const SectorMoveRequest& request)> callback)
+{
+    for (const auto& request : sectorMoveRequests)
+    {
+        callback(request);
+    }
+    sectorMoveRequests.clear();
 }
 
 #endif

@@ -17,12 +17,6 @@
 namespace world
 {
 
-struct SectorMoveRequest
-{
-    ecs::EntityId entityId;
-    uint32_t newSectorId;
-};
-
 class World
 {
   public:
@@ -104,13 +98,13 @@ class World
 #ifdef SERVER
     void handleSectorMoveRequests(ecs::PtrHandle* ptrHandle);
     void destroyMarkedEntities(ecs::PtrHandle* ptrHandle);
+    void executeSingleThreadedTasks(ecs::PtrHandle* ptrHandle);
 #endif
 
     def::WorldShape worldShape;
     con::Matrix2D<Sector> sectors;
     bool dirty;
     float halfSectorSize;
-    ConcurrentQueue<SectorMoveRequest> sectorMoveRequests;
 };
 
 }  // namespace world

@@ -81,7 +81,6 @@ uint32_t Storage::tryAddItem(const gobj::ItemHandle& itemHandle, const gobj::Ite
     uint32_t quantityToAdd = std::min(spaceLeft, quantity);
     if(quantityToAdd <= 0)
     {
-        LG_D("No space left in storage for item: {}", item);
         return 0;
     }
 
@@ -97,14 +96,6 @@ uint32_t Storage::tryAddItem(const gobj::ItemHandle& itemHandle, const gobj::Ite
         slots.push_back(StorageSlot{itemHandle.toGenericHandle(), quantityToAdd});
     }
     cargo[static_cast<size_t>(storageType)].used += quantityToAdd * item.volume;
-    
-    // Debug list items
-    LG_D("Items in storage:");
-    for(const auto& slot : slots)
-    {
-        LG_I("Item: {} (quantity: {})", slot.itemHandle, slot.quantity);
-    }
-
     return quantityToAdd;
 }
 

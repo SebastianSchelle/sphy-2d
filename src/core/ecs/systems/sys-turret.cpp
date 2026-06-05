@@ -75,7 +75,8 @@ void sysTurretImpl(world::Sector* sector,
                         ptrHandle->ecs->getEntity(entityData.entityId);
                     if (entity == entt::null)
                     {
-                        LG_E("Entity not found for turret target");
+                        turret->aimMode = Turret::AimMode::None;
+                        turret->fireMode = Turret::FireMode::None;
                         return;
                     }
                     auto* trTgt =
@@ -144,13 +145,15 @@ void sysTurretImpl(world::Sector* sector,
                                 parVel = physBody->vel;
                             }
                         }
-                        ptrHandle->engine->spawnProjectile(
+                        sector->addSingleThreadedTask([=](ecs::PtrHandle* ptrHandle) {
+                            ptrHandle->engine->spawnProjectile(
                             sectorId->id,
                             transform->pos + exit,
                             fireVel,
                             projectileData.projectile,
                             module->parent,
                             parVel);
+                        });
 #endif
                     }
                 }

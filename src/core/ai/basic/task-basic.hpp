@@ -2,6 +2,7 @@
 #define TASK_DATA_HPP
 
 #include <cmath>
+#include <components/comp-phy.hpp>
 #include <std-inc.hpp>
 #include <world-def.hpp>
 #include <task.hpp>
@@ -10,6 +11,17 @@ namespace ai
 {
 namespace taskdata
 {
+
+struct MoveToTarget
+{
+    def::SectorCoords spPos;
+    float allowedPosError;
+    float allowedRotError;
+    float minFaceForwardDist = 10.0f;
+};
+
+// Drive toward spPos; returns true when pos/rot targets are reached.
+bool applyMoveToTarget(ecs::MoveCtrl* moveCtrl, const MoveToTarget& target);
 
 struct Idle
 {

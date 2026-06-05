@@ -18,6 +18,14 @@ namespace world
 
 const uint32_t INVALID_SECTOR_ID = 0xFFFFFFFF;
 
+typedef std::function<void(ecs::PtrHandle* ptrHandle)> SingleThreadedTaskFunction;
+
+struct SectorMoveRequest
+{
+    ecs::EntityId entityId;
+    uint32_t newSectorId;
+};
+
 class Sector
 {
   public:
@@ -39,8 +47,7 @@ class Sector
     bool addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
     bool removeEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
     void moveAabbProxy(int32_t proxyId, con::AABB& newAabb);
-    static void destroyBroadphaseProxy(con::DynamicAABBTree<entt::entity>& tree,
-                                     ecs::Broadphase* broadphase);
+    void destroyBroadphaseProxy(ecs::Broadphase* broadphase);
     void getAllAABBs(std::vector<con::AABB>& aabbs) const;
     void queryBroadphase(const con::AABB& aabb,
                          std::function<void(entt::entity)> callback);
@@ -50,6 +57,10 @@ class Sector
 #ifdef SERVER
     void markEntityForDestruction(ecs::EntityId entityId);
     void destroyMarkedEntities(ecs::PtrHandle* ptrHandle);
+    void addSingleThreadedTask(SingleThreadedTaskFunction task);
+    void executeSingleThreadedTasks(ecs::PtrHandle* ptrHandle);
+    void addSectorMoveRequest(const SectorMoveRequest& request);
+    void forSectorMoveRequests(std::function<void(const SectorMoveRequest& request)> callback);
 #endif
     const float getWorldPosX() const
     {
@@ -103,10 +114,6 @@ class Sector
     vector<ecs::ContactInfo> contactInfos;
 
   private:
-#ifdef SERVER
-    void destroyEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
-#endif
-
     int32_t coordX;        // Sector coord X
     int32_t coordY;        // Sector coord Y
     float sectorSize;      // Sector size
@@ -118,7 +125,9 @@ class Sector
 
     vector<EntRef> entityRefs;
 #ifdef SERVER
-    std::unordered_set<ecs::EntityId, ecs::EntityIdHash> entitiesToDestroy;
+    vector<ecs::EntityId> entitiesToDestroy;
+    vector<SingleThreadedTaskFunction> singleThreadedTasks;
+    vector<SectorMoveRequest> sectorMoveRequests;
 #endif
     con::DynamicAABBTree<entt::entity> aabbTree;
     bool playerSector = false;

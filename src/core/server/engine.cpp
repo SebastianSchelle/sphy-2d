@@ -1200,7 +1200,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 10000; ++i)
+    for (int i = 0; i < 5000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1298,15 +1298,6 @@ void Engine::testSpawn()
                         modManager.getModuleLib().getHandle("Breeze Maneuver"),
                         18);
         }
-        auto* moveCtrl = reg.try_get<ecs::MoveCtrl>(ecs.getEntity(ent));
-        if (moveCtrl)
-        {
-            moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::MoveTo;
-            moveCtrl->spPos.sectorPos.x = posDist(gen);
-            moveCtrl->spPos.sectorPos.y = posDist(gen);
-            moveCtrl->spPos.pos = world.idToSectorCoords(sectorPick(gen));
-            moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::Forward;
-        }
         auto* phyThrust = reg.try_get<ecs::PhyThrust>(ecs.getEntity(ent));
         if (phyThrust)
         {
@@ -1332,13 +1323,13 @@ void Engine::testSpawn()
                     }
                 }
             }
-            auto* taskStack = entityTaskSystem->getTaskStack(ai->stackHandle);
-            if (taskStack)
-            {
-                taskStack->setDefaultTask(ai::taskdata::UniversePatrol{
-                    .config = {.allowedPosError = 100.0f,
-                               .allowedRotError = M_PIf}});
-            }
+            // auto* taskStack = entityTaskSystem->getTaskStack(ai->stackHandle);
+            // if (taskStack)
+            // {
+            //     taskStack->setDefaultTask(ai::taskdata::UniversePatrol{
+            //         .config = {.allowedPosError = 100.0f,
+            //                    .allowedRotError = M_PIf}});
+            // }
         }
     }
 
@@ -1885,7 +1876,7 @@ ecs::EntityId Engine::spawnStation(uint32_t sectorId,
     }
     if (!success)
     {
-        ecs.destroyEntity(ent);
+        destroyEntity(ent);
         return ecs::EntityId::Invalid();
     }
     return ent;
@@ -1945,7 +1936,10 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
                                      .thrustManeuverMax = 1000.0f,
                                      .maxSpd = 1000.0f},
                       ecs::MoveCtrl{.moveMode = ecs::MoveCtrl::MoveMode::None,
-                                    .turnMode = ecs::MoveCtrl::TurnMode::None}))
+                                    .spPos = {},
+                                    .allowedPosError = 100.0f,
+                                    .turnMode = ecs::MoveCtrl::TurnMode::None,
+                                    .allowedRotError = M_PIf}))
     {
         LG_E("Failed to make move ctrl component");
         success = false;
@@ -2345,7 +2339,7 @@ void Engine::spawnProjectile(uint32_t sectorId,
     if (!placeInSector(ent, entt, sectorId, {pos, rot}))
     {
         LG_E("Failed to place projectile in sector");
-        ecs.destroyEntity(ent);
+        destroyEntity(ent);
         return;
     }
     broadcastEntityToClients(ent);
@@ -2476,6 +2470,15 @@ void Engine::loadCollisionMatrix()
 
 void Engine::destroyEntity(ecs::EntityId entityId)
 {
+    auto entt = ecs.getEntity(entityId);
+    for (auto compHelper : assetFactory.componentFactory.getComponentHelpers())
+    {
+        auto destroyFunc = compHelper.second.destroy;
+        if (destroyFunc)
+        {
+            destroyFunc(ptrHandle, entt);
+        }
+    }
     if (ecs.destroyEntity(entityId))
     {
         forActiveClients(

@@ -7,6 +7,30 @@ namespace ai
 namespace taskdata
 {
 
+bool applyMoveToTarget(ecs::MoveCtrl* moveCtrl, const MoveToTarget& target)
+{
+    moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::MoveTo;
+    moveCtrl->spPos = target.spPos;
+    moveCtrl->allowedPosError = target.allowedPosError;
+    moveCtrl->allowedRotError = target.allowedRotError;
+    moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::Forward;
+    moveCtrl->faceDirData =
+        ecs::MoveCtrl::MCForwardData{target.minFaceForwardDist};
+
+    if (moveCtrl->moveMode != ecs::MoveCtrl::MoveMode::Brake
+        && moveCtrl->posReached
+        && moveCtrl->turnMode != ecs::MoveCtrl::TurnMode::Brake
+        && moveCtrl->rotReached)
+    {
+        moveCtrl->posReached = false;
+        moveCtrl->rotReached = false;
+        moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::Brake;
+        moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::Brake;
+        return true;
+    }
+    return false;
+}
+
 TaskFunResult Idle::function(TaskFunArgs* args)
 {
     return TaskFunResult::Done;
@@ -29,20 +53,11 @@ TaskFunResult UniversePatrol::function(TaskFunArgs* args)
         makeRandomPos(args);
         state.initialized = true;
     }
-    moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::MoveTo;
-    moveCtrl->spPos = state.randomPos;
-    moveCtrl->allowedPosError = config.allowedPosError;
-    moveCtrl->allowedRotError = config.allowedRotError;
-    moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::Forward;
-    if (moveCtrl->moveMode != ecs::MoveCtrl::MoveMode::None
-        && moveCtrl->posReached
-        && moveCtrl->turnMode != ecs::MoveCtrl::TurnMode::None
-        && moveCtrl->rotReached)
+    if (applyMoveToTarget(moveCtrl,
+                          {.spPos = state.randomPos,
+                           .allowedPosError = config.allowedPosError,
+                           .allowedRotError = config.allowedRotError}))
     {
-        moveCtrl->posReached = false;
-        moveCtrl->rotReached = false;
-        moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::None;
-        moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::None;
         makeRandomPos(args);
     }
     SCHED_NEXT(DEFAULT_INTERVAL);
@@ -78,21 +93,13 @@ TaskFunResult SectorPatrol::function(TaskFunArgs* args)
         makeRandomPos(args);
         state.initialized = true;
     }
-    moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::MoveTo;
-    moveCtrl->spPos = {.pos = {sectorId->x, sectorId->y},
-                       .sectorPos = state.randomPos};
-    moveCtrl->allowedPosError = config.allowedPosError;
-    moveCtrl->allowedRotError = config.allowedRotError;
-    moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::Forward;
-    if (moveCtrl->moveMode != ecs::MoveCtrl::MoveMode::None
-        && moveCtrl->posReached
-        && moveCtrl->turnMode != ecs::MoveCtrl::TurnMode::None
-        && moveCtrl->rotReached)
+    if (applyMoveToTarget(
+            moveCtrl,
+            {.spPos = {.pos = {sectorId->x, sectorId->y},
+                       .sectorPos = state.randomPos},
+             .allowedPosError = config.allowedPosError,
+             .allowedRotError = config.allowedRotError}))
     {
-        moveCtrl->posReached = false;
-        moveCtrl->rotReached = false;
-        moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::None;
-        moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::None;
         makeRandomPos(args);
     }
     SCHED_NEXT(DEFAULT_INTERVAL);
@@ -126,20 +133,11 @@ TaskFunResult Patrol::function(TaskFunArgs* args)
         return TaskFunResult::EcsCompMissing;
     }
     auto& wayPoint = config.wayPoints[state.currentWayPointIndex];
-    moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::MoveTo;
-    moveCtrl->spPos = wayPoint;
-    moveCtrl->allowedPosError = config.allowedPosError;
-    moveCtrl->allowedRotError = config.allowedRotError;
-    moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::Forward;
-    if (moveCtrl->moveMode != ecs::MoveCtrl::MoveMode::None
-        && moveCtrl->posReached
-        && moveCtrl->turnMode != ecs::MoveCtrl::TurnMode::None
-        && moveCtrl->rotReached)
+    if (applyMoveToTarget(moveCtrl,
+                          {.spPos = wayPoint,
+                           .allowedPosError = config.allowedPosError,
+                           .allowedRotError = config.allowedRotError}))
     {
-        moveCtrl->posReached = false;
-        moveCtrl->rotReached = false;
-        moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::None;
-        moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::None;
         state.currentWayPointIndex++;
     }
     SCHED_NEXT(DEFAULT_INTERVAL);
@@ -157,28 +155,16 @@ TaskFunResult Goto::function(TaskFunArgs* args)
         SCHED_NEXT(DEFAULT_INTERVAL);
         return TaskFunResult::EcsCompMissing;
     }
-    moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::MoveTo;
-    moveCtrl->spPos = config.target;
-    moveCtrl->allowedPosError = config.allowedPosError;
-    moveCtrl->allowedRotError = config.allowedRotError;
-    moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::Forward;
-    if (moveCtrl->moveMode != ecs::MoveCtrl::MoveMode::None
-        && moveCtrl->posReached
-        && moveCtrl->turnMode != ecs::MoveCtrl::TurnMode::None
-        && moveCtrl->rotReached)
+    if (applyMoveToTarget(moveCtrl,
+                          {.spPos = config.target,
+                           .allowedPosError = config.allowedPosError,
+                           .allowedRotError = config.allowedRotError}))
     {
         SCHED_NEXT(DEFAULT_INTERVAL);
-        moveCtrl->moveMode = ecs::MoveCtrl::MoveMode::None;
-        moveCtrl->turnMode = ecs::MoveCtrl::TurnMode::None;
-        moveCtrl->posReached = false;
-        moveCtrl->rotReached = false;
         return TaskFunResult::Done;
     }
-    else
-    {
-        SCHED_NEXT(DEFAULT_INTERVAL);
-        return TaskFunResult::Continue;
-    }
+    SCHED_NEXT(DEFAULT_INTERVAL);
+    return TaskFunResult::Continue;
 }
 
 TaskFunResult DebugLog::function(TaskFunArgs* args)

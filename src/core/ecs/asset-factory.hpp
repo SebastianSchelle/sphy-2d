@@ -33,6 +33,8 @@ class ComponentFactory
         std::function<void(entt::registry&,
                            entt::entity,
                            bitsery::Serializer<OutputAdapter>&)>;
+    using DestroyFunc =
+        std::function<void(ecs::PtrHandle* ptrHandle, entt::entity)>;
 
     struct ComponentHelper
     {
@@ -41,6 +43,7 @@ class ComponentFactory
         AssetCopierFunc assetCopier;
         DeserializeIntoRegistryFunc deserializeIntoRegistry;
         SerializeFromRegistryFunc serializeFromRegistry;
+        DestroyFunc destroy;
     };
 
     void registerAllComponents();
@@ -51,7 +54,7 @@ class ComponentFactory
                        const YAML::Node& node,
                        mod::ResourceMap& resourceMap);
 
-    template <typename Component> void registerComponent()
+    template <typename Component> void registerComponent(DestroyFunc destroyFunc = nullptr)
     {
         const std::string name = Component::NAME;
         const uint32_t hash = hashConst(name.c_str());
@@ -69,11 +72,13 @@ class ComponentFactory
                                           registry, entity, node, resourceMap);
                                   })
                     {
-                        Component::fromYaml(registry, entity, node, resourceMap);
+                        Component::fromYaml(
+                            registry, entity, node, resourceMap);
                     }
                     else
                     {
-                        // Marker/empty components can be loaded by presence only.
+                        // Marker/empty components can be loaded by presence
+                        // only.
                         registry.emplace_or_replace<Component>(entity);
                     }
                 },
@@ -86,16 +91,18 @@ class ComponentFactory
                     {
                         if (srcRegistry.all_of<Component>(srcEntity))
                         {
-                            dstRegistry.emplace_or_replace<Component>(dstEntity);
+                            dstRegistry.emplace_or_replace<Component>(
+                                dstEntity);
                         }
                     }
                     else
                     {
-                        auto component = srcRegistry.try_get<Component>(srcEntity);
+                        auto component =
+                            srcRegistry.try_get<Component>(srcEntity);
                         if (component)
                         {
-                            dstRegistry.emplace_or_replace<Component>(dstEntity,
-                                                                      *component);
+                            dstRegistry.emplace_or_replace<Component>(
+                                dstEntity, *component);
                         }
                     }
                 },
@@ -111,7 +118,8 @@ class ComponentFactory
                     {
                         Component component;
                         s.object(component);
-                        registry.emplace_or_replace<Component>(entity, component);
+                        registry.emplace_or_replace<Component>(entity,
+                                                               component);
                     }
                 },
                 [name, hash](entt::registry& registry,
@@ -134,7 +142,8 @@ class ComponentFactory
                             s.object(*component);
                         }
                     }
-                }));
+                },
+                destroyFunc));
     }
 
     const std::unordered_map<uint32_t, ComponentHelper>&
@@ -164,7 +173,8 @@ class AssetFactory
     void copyComponentsIntoEntity(entt::registry& registry,
                                   entt::entity entity,
                                   const std::string& assetId) const;
-    ecs::EntityId createFromAsset(ecs::Ecs& ecs, const std::string& assetId) const;
+    ecs::EntityId createFromAsset(ecs::Ecs& ecs,
+                                  const std::string& assetId) const;
     string assetList(const string& assetId) const;
     string assetInfo(const string& assetId) const;
     bool hasAsset(const std::string& assetId) const;

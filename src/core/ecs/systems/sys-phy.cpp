@@ -82,7 +82,10 @@ void sysMoveCtrlImpl(world::Sector* sector,
             // target direction
             const float tm_x = phyThrust->thrustManeuverMax;
             const float tm_y = phyThrust->thrustMainMax;
-            const float k_t = std::min(tm_x / fabs(d_l.x), tm_y / fabs(d_l.y));
+            const float absX = fabsf(d_l.x);
+            const float absY = fabsf(d_l.y);
+            const float k_t =
+                std::min(tm_x / std::max(absX, 1e-4f), tm_y / std::max(absY, 1e-4f));
             const vec2 t_ml = k_t * d_l;
             // t_m: maximum thrust magnitude
             // a_m: maximum acceleration
@@ -101,9 +104,12 @@ void sysMoveCtrlImpl(world::Sector* sector,
         {
             phyThrust->setThrustNone();
         }
-        const vec2 err = v_des_l - v_vel_l;
-        const vec2 thrust = ptrHandle->kpThrust * m * err;
-        phyThrust->setThrustLocal(thrust, s, c);
+        else
+        {
+            const vec2 err = v_des_l - v_vel_l;
+            const vec2 thrust = ptrHandle->kpThrust * m * err;
+            phyThrust->setThrustLocal(thrust, s, c);
+        }
     };
 
     auto ctrlVelLoc = [&](vec2 trgt)
@@ -660,15 +666,15 @@ void sysCollisionDetectionImpl(world::Sector* sector,
     auto entityMarkedDestroyed = [sector](entt::entity ent)
     {
         bool destroyed = false;
-        sector->visitEntityRef(
-            ent,
-            [&destroyed](world::Sector::EntRef& ref)
-            {
-                if (ref.flags & world::Sector::EntRef::FLAG_DESTROYED)
-                {
-                    destroyed = true;
-                }
-            });
+        sector->visitEntityRef(ent,
+                               [&destroyed](world::Sector::EntRef& ref)
+                               {
+                                   if (ref.flags
+                                       & world::Sector::EntRef::FLAG_DESTROYED)
+                                   {
+                                       destroyed = true;
+                                   }
+                               });
         return destroyed;
     };
 
@@ -683,32 +689,33 @@ void sysCollisionDetectionImpl(world::Sector* sector,
         {
             continue;
         }
-        sector->queryBroadphase(
-            broadphase.fatAABB,
-            [sector, entity, reg, entityMarkedDestroyed](
-                entt::entity entityOther)
-            {
-                if (entity == entityOther)
-                {
-                    return;
-                }
-                if (!reg->valid(entityOther) || !reg->all_of<Collider>(entityOther))
-                {
-                    return;
-                }
-                if (entityMarkedDestroyed(entity)
-                    || entityMarkedDestroyed(entityOther))
-                {
-                    return;
-                }
-                entt::entity lo = entity;
-                entt::entity hi = entityOther;
-                if (hi < lo)
-                {
-                    std::swap(lo, hi);
-                }
-                sector->broadphaseCollisions.push_back({lo, hi});
-            });
+        sector->queryBroadphase(broadphase.fatAABB,
+                                [sector, entity, reg, entityMarkedDestroyed](
+                                    entt::entity entityOther)
+                                {
+                                    if (entity == entityOther)
+                                    {
+                                        return;
+                                    }
+                                    if (!reg->valid(entityOther)
+                                        || !reg->all_of<Collider>(entityOther))
+                                    {
+                                        return;
+                                    }
+                                    if (entityMarkedDestroyed(entity)
+                                        || entityMarkedDestroyed(entityOther))
+                                    {
+                                        return;
+                                    }
+                                    entt::entity lo = entity;
+                                    entt::entity hi = entityOther;
+                                    if (hi < lo)
+                                    {
+                                        std::swap(lo, hi);
+                                    }
+                                    sector->broadphaseCollisions.push_back(
+                                        {lo, hi});
+                                });
     }
     std::sort(sector->broadphaseCollisions.begin(),
               sector->broadphaseCollisions.end());
@@ -777,12 +784,8 @@ void sysCollisionDetectionImpl(world::Sector* sector,
                                          transformCache2);
         if (contact)
         {
-            bool skipContactSolver = colliderAction(ptrHandle,
-                                                    sector,
-                                                    *contact,
-                                                    *collider1,
-                                                    *collider2,
-                                                    collision);
+            bool skipContactSolver = colliderAction(
+                ptrHandle, sector, *contact, *collider1, *collider2, collision);
             if (!skipContactSolver)
             {
                 sector->contactInfos.push_back(
@@ -901,8 +904,8 @@ void sysAnchorFixedImpl(world::Sector* sector,
             transform->rot = parentTransform.rot + anchorFixed->rot;
             if (parentSectorId.id != sectorId->id)
             {
-                ptrHandle->world->addSectorMoveRequest(
-                    ptrHandle, entityId, parentSectorId.id);
+                sector->addSectorMoveRequest(
+                    world::SectorMoveRequest{entityId, parentSectorId.id});
             }
         }
         else
