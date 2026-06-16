@@ -12,6 +12,7 @@ set(SERVER_INC_PUBLIC
 
 set(SERVER_SOURCES
     engine.cpp
+    entity-spawner.cpp
     server.cpp
     main.cpp
 )

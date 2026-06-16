@@ -32,8 +32,7 @@ namespace sphys
 Engine::Engine(const sphy::CmdLinOptionsServer& options,
                cfg::ConfigManager& config)
     : options(options), config(config), state(EngineState::Init), saveConfig(),
-      saveFolder(options.savedir), commandManager(),
-      itemColliderHandle(gobj::ColliderHandle::Invalid())
+      saveFolder(options.savedir), commandManager()
 {
     ptrHandle = new ecs::PtrHandle();
     ptrHandle->ecs = &ecs;
@@ -73,6 +72,9 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
 
     updThreads = std::clamp(updThreads, 1, 16);
     workDistributor.init(updThreads);
+
+    entitySpawner = std::make_unique<EntitySpawner>(
+        ecs, modManager, world, ptrHandle, taskSystem);
 }
 
 Engine::~Engine()
@@ -227,7 +229,10 @@ void Engine::engineLoop()
 
 void Engine::initPost()
 {
-    itemColliderHandle = modManager.getColliderLib().getHandle("Item");
+    EntitySpawner::ItemSpawnConfig itemConfig;
+    itemConfig.colliderHandle = modManager.getColliderLib().getHandle("Item");
+    itemConfig.lifetime = itemLifetime;
+    entitySpawner->setItemSpawnConfig(itemConfig);
 }
 
 void Engine::update(float dt)
@@ -1247,101 +1252,101 @@ void Engine::testSpawn()
         ecs::EntityId ent;
         if (i % 4 == 0)
         {
-            ent = spawnShipHull(modManager.getHullLib().getHandle("Bee"),
+            ent = entitySpawner->spawnShipHull(modManager.getHullLib().getHandle("Bee"),
                                 sectorId,
                                 ecs::Transform{pos, rot});
-            spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 0);
-            spawnModule(
+            entitySpawner->spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 0);
+            entitySpawner->spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 1);
-            spawnModule(
+            entitySpawner->spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
-            spawnModule(
+            entitySpawner->spawnModule(
                 ent,
                 modManager.getModuleLib().getHandle("Small Mining Turret"),
                 3);
-            spawnModule(
+            entitySpawner->spawnModule(
                 ent,
                 modManager.getModuleLib().getHandle("Small Mining Turret"),
                 4);
-            spawnModule(
+            entitySpawner->spawnModule(
                 ent, modManager.getModuleLib().getHandle("Terran Bulk S"), 5);
         }
         else if (i % 4 == 1)
         {
-            ent = spawnShipHull(modManager.getHullLib().getHandle("Mosquito"),
+            ent = entitySpawner->spawnShipHull(modManager.getHullLib().getHandle("Mosquito"),
                                 sectorId,
                                 ecs::Transform{pos, rot});
-            spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 0);
-            spawnModule(
+            entitySpawner->spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 0);
+            entitySpawner->spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 1);
-            spawnModule(
+            entitySpawner->spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
-            spawnModule(
+            entitySpawner->spawnModule(
                 ent,
                 modManager.getModuleLib().getHandle("Small Mining Turret"),
                 3);
-            spawnModule(
+            entitySpawner->spawnModule(
                 ent,
                 modManager.getModuleLib().getHandle("Small Mining Turret"),
                 4);
-            spawnModule(
+            entitySpawner->spawnModule(
                 ent,
                 modManager.getModuleLib().getHandle("Small Mining Turret"),
                 5);
         }
         else if (i % 4 == 2)
         {
-            ent = spawnShipHull(modManager.getHullLib().getHandle("Bumblebee"),
+            ent = entitySpawner->spawnShipHull(modManager.getHullLib().getHandle("Bumblebee"),
                                 sectorId,
                                 ecs::Transform{pos, rot});
-            spawnModule(
+            entitySpawner->spawnModule(
                 ent,
                 modManager.getModuleLib().getHandle("Cargo Container S"),
                 0);
-            spawnModule(
+            entitySpawner->spawnModule(
                 ent,
                 modManager.getModuleLib().getHandle("Cargo Container S"),
                 1);
-            spawnModule(
+            entitySpawner->spawnModule(
                 ent,
                 modManager.getModuleLib().getHandle("Cargo Container S"),
                 2);
-            spawnModule(
+            entitySpawner->spawnModule(
                 ent,
                 modManager.getModuleLib().getHandle("Cargo Container S"),
                 3);
-            spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 4);
-            spawnModule(
+            entitySpawner->spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 4);
+            entitySpawner->spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 5);
-            spawnModule(
+            entitySpawner->spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 6);
         }
         else
         {
-            ent =
-                spawnShipHull(modManager.getHullLib().getHandle("Caterpillar"),
+            ent = entitySpawner->spawnShipHull(
+                modManager.getHullLib().getHandle("Caterpillar"),
                               sectorId,
                               ecs::Transform{pos, rot});
 
             for (int i = 0; i < 8; i++)
             {
-                spawnModule(
+                entitySpawner->spawnModule(
                     ent,
                     modManager.getModuleLib().getHandle("Small Mining Turret"),
                     i);
             }
             for (int i = 8; i < 16; i++)
             {
-                spawnModule(
+                entitySpawner->spawnModule(
                     ent,
                     modManager.getModuleLib().getHandle("Terran Bulk S"),
                     i);
             }
-            spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 16);
-            spawnModule(ent,
+            entitySpawner->spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 16);
+            entitySpawner->spawnModule(ent,
                         modManager.getModuleLib().getHandle("Breeze Maneuver"),
                         17);
-            spawnModule(ent,
+            entitySpawner->spawnModule(ent,
                         modManager.getModuleLib().getHandle("Breeze Maneuver"),
                         18);
         }
@@ -1394,7 +1399,7 @@ void Engine::testSpawn()
         float rot = rotDist(gen);
         uint32_t sectorId = sectorPick(gen);
         ecs::EntityId stationId =
-            spawnStation(sectorId, ecs::Transform{pos, rot});
+            entitySpawner->spawnStation(sectorId, ecs::Transform{pos, rot});
 
         const char* partName1 = kStationParts[rand() % kStationPartsCount];
         gobj::StationPartHandle partHandle1 =
@@ -1408,7 +1413,8 @@ void Engine::testSpawn()
                  partName1);
             continue;
         }
-        ecs::EntityId partId = addFirstStationPart(stationId, partHandle1, rot);
+        ecs::EntityId partId =
+            entitySpawner->addFirstStationPart(stationId, partHandle1, rot);
         if (partId == ecs::EntityId::Invalid())
         {
             continue;
@@ -1426,7 +1432,7 @@ void Engine::testSpawn()
             {
                 continue;
             }
-            addStationPart(stationId,
+            entitySpawner->addStationPart(stationId,
                            partId,
                            partHandle2,
                            j,
@@ -1604,705 +1610,6 @@ void Engine::markPlayerSectors()
 }
 
 
-ecs::Hull* Engine::makeHull(entt::entity entity,
-                            const gobj::HullHandle& hullHandle)
-{
-    auto& reg = ecs.getRegistry();
-    auto hull = modManager.getHullLib().getItem(hullHandle);
-    if (!hull)
-    {
-        return nullptr;
-    }
-    return &reg.emplace_or_replace<ecs::Hull>(
-        entity,
-        ecs::Hull(hull->slots.size(),
-                  hull->hullpoints,
-                  hullHandle.toGenericHandle()));
-}
-
-ecs::Module* Engine::makeModule(entt::entity entity, const ecs::Module& module)
-{
-    auto& reg = ecs.getRegistry();
-    return &reg.emplace_or_replace<ecs::Module>(entity, module);
-}
-
-ecs::Asteroid* Engine::makeAsteroid(entt::entity entity,
-                                    const gobj::AsteroidHandle& asteroidHandle)
-{
-    auto& reg = ecs.getRegistry();
-    auto asteroid = modManager.getAsteroidLib().getItem(asteroidHandle);
-    if (!asteroid)
-    {
-        return nullptr;
-    }
-    return &reg.emplace_or_replace<ecs::Asteroid>(
-        entity,
-        ecs::Asteroid{.asteroidHandle = asteroidHandle.toGenericHandle(),
-                      .volume = asteroid->volume,
-                      .harvestProgress = 0.0f});
-}
-
-ecs::Lifetime* Engine::makeLifetime(entt::entity entity, float lifetime)
-{
-    auto& reg = ecs.getRegistry();
-    return &reg.emplace_or_replace<ecs::Lifetime>(
-        entity, ecs::Lifetime{.lifetime = lifetime});
-}
-
-ecs::Collider* Engine::makeCollider(entt::entity entity,
-                                    const gobj::ColliderHandle& colliderHandle,
-                                    ecs::CollisionLayer colliderType,
-                                    const ecs::EntityId& exceptEntity)
-{
-    auto& reg = ecs.getRegistry();
-    auto collider = modManager.getColliderLib().getItem(colliderHandle);
-    if (!collider)
-    {
-        return nullptr;
-    }
-    if (!reg.all_of<ecs::Broadphase>(entity))
-    {
-        reg.emplace<ecs::Broadphase>(entity);
-    }
-    return &reg.emplace_or_replace<ecs::Collider>(
-        entity,
-        ecs::Collider{.colliderHandle = colliderHandle.toGenericHandle(),
-                      .exceptEntity = exceptEntity,
-                      .colliderType = colliderType});
-}
-
-ecs::Projectile*
-Engine::makeProjectile(entt::entity entity,
-                       const gobj::ProjectileHandle& projectileHandle)
-{
-    auto& reg = ecs.getRegistry();
-    auto projectile = modManager.getProjectileLib().getItem(projectileHandle);
-    if (!projectile)
-    {
-        return nullptr;
-    }
-    return &reg.emplace_or_replace<ecs::Projectile>(
-        entity,
-        ecs::Projectile{.projectileHandle =
-                            projectileHandle.toGenericHandle()});
-}
-
-ecs::MapIcon* Engine::makeMapIcon(entt::entity entity)
-{
-    auto& reg = ecs.getRegistry();
-    auto hull = reg.try_get<ecs::Hull>(entity);
-    auto station = reg.try_get<ecs::Station>(entity);
-
-    // todo: remove mapicon component and use simpletexture
-    gobj::MapIconHandle mapIconHandle = gobj::MapIconHandle::Invalid();
-    if (hull)
-    {
-        auto hullData = modManager.getHullLib().getItem(hull->hullHandle);
-        if (hullData)
-        {
-            switch (hullData->shipClass)
-            {
-                case def::ShipClass::Spark:
-                    mapIconHandle =
-                        modManager.getMapIconLib().getHandle("spark");
-                    break;
-                case def::ShipClass::Echo:
-                    mapIconHandle =
-                        modManager.getMapIconLib().getHandle("echo");
-                    break;
-                default:
-                    mapIconHandle =
-                        modManager.getMapIconLib().getHandle("echo");
-                    break;
-            }
-        }
-    }
-    else if (station)
-    {
-        mapIconHandle = modManager.getMapIconLib().getHandle("station");
-    }
-    if (mapIconHandle.isValid())
-    {
-        return &reg.emplace_or_replace<ecs::MapIcon>(
-            entity,
-            ecs::MapIcon{.mapIconHandle = mapIconHandle.toGenericHandle()});
-    }
-    LG_E("Failed to make map icon component");
-    return nullptr;
-}
-
-ecs::SimpleTexture* Engine::makeSimpleTexture(entt::entity entity,
-                                              const ecs::SimpleTexture& texture)
-{
-    auto& reg = ecs.getRegistry();
-    return &reg.emplace_or_replace<ecs::SimpleTexture>(entity, texture);
-}
-
-ecs::Textures* Engine::makeTextures(entt::entity entity,
-                                    const gobj::TexturesHandle& texturesHandle)
-{
-    auto& reg = ecs.getRegistry();
-    auto textures = modManager.getTexturesLib().getItem(texturesHandle);
-    if (!textures)
-    {
-        return nullptr;
-    }
-    ecs::Textures texturesComp;
-    texturesComp.texturesHandle = texturesHandle.toGenericHandle();
-    return &reg.emplace_or_replace<ecs::Textures>(entity, texturesComp);
-}
-
-void Engine::makeOOSSync(entt::entity entity)
-{
-    auto& reg = ecs.getRegistry();
-    reg.emplace<ecs::tag::OOSSync>(entity);
-}
-
-ecs::Item* Engine::makeItem(entt::entity entity,
-                            const gobj::ItemHandle& itemHandle,
-                            float quantity)
-{
-    auto& reg = ecs.getRegistry();
-    auto item = modManager.getItemLib().getItem(itemHandle);
-    if (!item)
-    {
-        return nullptr;
-    }
-    return &reg.emplace_or_replace<ecs::Item>(
-        entity,
-        ecs::Item{.itemHandle = itemHandle.toGenericHandle(),
-                  .quantity = quantity});
-}
-
-bool Engine::placeInSector(ecs::EntityId ent,
-                           entt::entity entity,
-                           uint32_t sectorId,
-                           const ecs::Transform& transform)
-{
-    auto& reg = ecs.getRegistry();
-    ecs::Transform& tr = reg.get_or_emplace<ecs::Transform>(entity);
-    ecs::TransformCache trC =
-        ecs::TransformCache{cosf(transform.rot), sinf(transform.rot)};
-    reg.emplace_or_replace<ecs::TransformCache>(entity, trC);
-    ecs::SectorId& sec = reg.get_or_emplace<ecs::SectorId>(
-        entity, ecs::SectorId{world::INVALID_SECTOR_ID, 0, 0});
-    return world.moveEntityTo(
-        ptrHandle, ent, sectorId, transform.pos, transform.rot);
-}
-
-ecs::PhysicsBody* Engine::makePhysicsBody(entt::entity entity,
-                                          const ecs::PhysicsBody& physicsBody)
-{
-    auto& reg = ecs.getRegistry();
-    return &reg.emplace_or_replace<ecs::PhysicsBody>(entity, physicsBody);
-}
-
-ecs::MoveCtrl* Engine::makeMoveCtrl(entt::entity entity,
-                                    const ecs::PhyThrust& phyThrust,
-                                    const ecs::MoveCtrl& moveCtrl)
-{
-    auto& reg = ecs.getRegistry();
-    reg.emplace_or_replace<ecs::PhyThrust>(entity, phyThrust);
-    return &reg.emplace_or_replace<ecs::MoveCtrl>(entity, moveCtrl);
-}
-
-ecs::StationPart*
-Engine::makeStationPart(entt::entity entity,
-                        const gobj::StationPartHandle& partHandle)
-{
-    auto& reg = ecs.getRegistry();
-    return &reg.emplace_or_replace<ecs::StationPart>(
-        entity, partHandle.toGenericHandle());
-}
-
-ecs::Turret* Engine::makeTurret(entt::entity entity,
-                                const ecs::Turret& turret,
-                                ai::taskdata::Turret defaultTask)
-{
-    auto& reg = ecs.getRegistry();
-    auto* turretComp = &reg.emplace_or_replace<ecs::Turret>(entity, turret);
-    makeAi(entity, defaultTask);
-    return turretComp;
-}
-
-ecs::AnchorFixed* Engine::makeAnchorFixed(entt::entity entity,
-                                          const ecs::AnchorFixed& anchorFixed)
-{
-    auto& reg = ecs.getRegistry();
-    return &reg.emplace_or_replace<ecs::AnchorFixed>(entity, anchorFixed);
-}
-
-ecs::Storage* Engine::makeStorage(entt::entity entity,
-                                  const ecs::Storage& storage)
-{
-    auto& reg = ecs.getRegistry();
-    return &reg.emplace_or_replace<ecs::Storage>(entity, storage);
-}
-
-ecs::Ai* Engine::makeAi(entt::entity entity,
-                        const ai::taskdata::TaskData& defaultTask)
-{
-    auto& reg = ecs.getRegistry();
-    auto* sectorId = reg.try_get<ecs::SectorId>(entity);
-    ai::TaskSystem* ts = &taskSystem;
-    if (sectorId && sectorId->id != world::INVALID_SECTOR_ID)
-    {
-        auto* sector = world.getSector(sectorId->id);
-        if (!sector)
-        {
-            LG_E("Sector not found");
-            return nullptr;
-        }
-        ts = &sector->getTaskSystem();
-    }
-
-    auto& aiComp = reg.get_or_emplace<ecs::Ai>(entity);
-    if (ai::TaskStackHandle(aiComp.stackHandle).isValid())
-    {
-        auto* taskStack = ts->getTaskStack(aiComp.stackHandle);
-        if (!taskStack)
-        {
-            LG_W("Task stack not found for entity, creating new stack");
-            aiComp.stackHandle = GenericHandle::Invalid();
-        }
-        else
-        {
-            taskStack->setDefaultTask(defaultTask);
-            return &aiComp;
-        }
-    }
-    auto stackHandle = ts->createTaskStack(defaultTask);
-    aiComp.stackHandle = stackHandle.toGenericHandle();
-    return &aiComp;
-}
-
-void Engine::makeSelectable(entt::entity entity)
-{
-    auto& reg = ecs.getRegistry();
-    reg.emplace_or_replace<ecs::tag::Selectable>(entity);
-}
-
-ecs::Station* Engine::makeStation(entt::entity entity)
-{
-    auto& reg = ecs.getRegistry();
-    return &reg.emplace_or_replace<ecs::Station>(entity);
-}
-
-ecs::EntityId Engine::spawnStation(uint32_t sectorId,
-                                   const ecs::Transform& transform)
-{
-    bool success = true;
-    auto ent = ecs.createEntity();
-    entt::entity entt = ecs.getEntity(ent);
-    if (entt == entt::null)
-    {
-        LG_E("Failed to create entity for station");
-        success = false;
-    }
-    if (!makeStation(entt))
-    {
-        LG_E("Failed to make station component");
-        success = false;
-    }
-    if (!makeMapIcon(entt))
-    {
-        LG_E("Failed to make map icon component");
-        success = false;
-    }
-    makeSelectable(entt);
-    if (!success)
-    {
-        LG_E("Failed to make selectable component");
-        ecs.destroyEntity(ent);
-        return ecs::EntityId::Invalid();
-    }
-    if (!placeInSector(ent, entt, sectorId, transform))
-    {
-        LG_E("Failed to place in sector");
-        success = false;
-    }
-    if (!makeAi(entt, ai::taskdata::Idle()))
-    {
-        LG_E("Failed to make ai component");
-        success = false;
-    }
-    makeOOSSync(entt);
-    if (!success)
-    {
-        destroyEntity(ent);
-        return ecs::EntityId::Invalid();
-    }
-    return ent;
-}
-
-ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
-                                    uint32_t sectorId,
-                                    const ecs::Transform& transform)
-{
-    bool success = true;
-    auto ent = ecs.createEntity();
-    entt::entity entt = ecs.getEntity(ent);
-    if (entt == entt::null)
-    {
-        LG_E("Failed to create entity for ship hull");
-        success = false;
-    }
-    gobj::Hull* hull = modManager.getHullLib().getItem(hullHandle);
-    makeSelectable(entt);
-    if (!makeHull(entt, hullHandle))
-    {
-        LG_E("Failed to make hull component");
-        success = false;
-    }
-    if (!makeCollider(entt, hull->collider, ecs::CollisionLayer::Ship))
-    {
-        LG_E("Failed to make collider component");
-        success = false;
-    }
-    if (!makeTextures(entt, hull->textures))
-    {
-        LG_E("Failed to make textures component");
-        success = false;
-    }
-    if (!makeStorage(entt, ecs::Storage{.cargo = {}}))
-    {
-        LG_E("Failed to make storage component");
-        success = false;
-    }
-    if (!makePhysicsBody(
-            entt,
-            ecs::PhysicsBody{.mass = hull->mass > 0.0f ? hull->mass : 1.0f,
-                             .vel = vec2(0.0f, 0.0f),
-                             .acc = vec2(0.0f, 0.0f),
-                             .inertia =
-                                 hull->inertia > 0.0f ? hull->inertia : 1.0f,
-                             .rotVel = 0.0f,
-                             .rotAcc = 0.0f}))
-    {
-        LG_E("Failed to make physics body component");
-        success = false;
-    }
-    if (!makeMoveCtrl(entt,
-                      ecs::PhyThrust{.maxTorque = 1000.0f,
-                                     .maxRotVel = 3.0f,
-                                     .thrustMainMax = 10000.0f,
-                                     .thrustManeuverMax = 1000.0f,
-                                     .maxSpd = 1000.0f},
-                      ecs::MoveCtrl{.moveMode = ecs::MoveCtrl::MoveMode::None,
-                                    .spPos = {},
-                                    .allowedPosError = 100.0f,
-                                    .turnMode = ecs::MoveCtrl::TurnMode::None,
-                                    .allowedRotError = M_PIf}))
-    {
-        LG_E("Failed to make move ctrl component");
-        success = false;
-    }
-    if (!makeMapIcon(entt))
-    {
-        LG_E("Failed to make map icon component");
-        success = false;
-    }
-    if (!placeInSector(ent, entt, sectorId, transform))
-    {
-        LG_E("Failed to place in sector");
-        success = false;
-    }
-    if (!makeAi(entt, ai::taskdata::Idle()))
-    {
-        LG_E("Failed to make ai component");
-        success = false;
-    }
-    makeOOSSync(entt);
-    if (!success)
-    {
-        ecs.destroyEntity(ent);
-        return ecs::EntityId::Invalid();
-    }
-    return ent;
-}
-
-ecs::EntityId
-Engine::addFirstStationPart(ecs::EntityId stationId,
-                            const gobj::StationPartHandle& partHandle,
-                            float rot)
-{
-    auto& reg = ecs.getRegistry();
-    entt::entity stationEntt = ecs.getEntity(stationId);
-    if (stationEntt == entt::null)
-    {
-        LG_E("Station entity not found");
-        return ecs::EntityId::Invalid();
-    }
-    ecs::Station* station = reg.try_get<ecs::Station>(stationEntt);
-    if (!station)
-    {
-        LG_E("Station entity has no station component");
-        return ecs::EntityId::Invalid();
-    }
-    ecs::Transform* stationTr = reg.try_get<ecs::Transform>(stationEntt);
-    if (!stationTr)
-    {
-        LG_E("Station entity has no transform component");
-        return ecs::EntityId::Invalid();
-    }
-    ecs::SectorId* stationSectorId = reg.try_get<ecs::SectorId>(stationEntt);
-    if (!stationSectorId)
-    {
-        LG_E("Station entity has no sector id component");
-        return ecs::EntityId::Invalid();
-    }
-    gobj::StationPart* part =
-        modManager.getStationPartLib().getItem(partHandle);
-    if (!part)
-    {
-        LG_E("Part not found");
-        return ecs::EntityId::Invalid();
-    }
-    auto ent = ecs.createEntity();
-    entt::entity entt = ecs.getEntity(ent);
-    if (entt == entt::null)
-    {
-        LG_E("Failed to create entity for station part");
-        ecs.destroyEntity(ent);
-        return ecs::EntityId::Invalid();
-    }
-    if (!makeStationPart(entt, partHandle))
-    {
-        LG_E("Failed to make station part component");
-        ecs.destroyEntity(ent);
-        return ecs::EntityId::Invalid();
-    }
-    if (!makeTextures(entt, part->textures))
-    {
-        LG_E("Failed to make textures component");
-        ecs.destroyEntity(ent);
-        return ecs::EntityId::Invalid();
-    }
-    if (!makeCollider(entt, part->collider, ecs::CollisionLayer::Station))
-    {
-        LG_E("Failed to make collider component");
-        ecs.destroyEntity(ent);
-        return ecs::EntityId::Invalid();
-    }
-    if (!placeInSector(ent, entt, stationSectorId->id, {stationTr->pos, rot}))
-    {
-        LG_E("Failed to place in sector");
-        ecs.destroyEntity(ent);
-        return ecs::EntityId::Invalid();
-    }
-    station->stationParts.push_back(ecs::StationPartRef{ent, part->type});
-    return ent;
-}
-
-ecs::EntityId Engine::addStationPart(ecs::EntityId stationId,
-                                     ecs::EntityId id1,
-                                     const gobj::StationPartHandle& partHandle,
-                                     uint16_t slot1,
-                                     uint16_t slot2)
-{
-    auto& reg = ecs.getRegistry();
-    entt::entity stationEntt = ecs.getEntity(stationId);
-    if (stationEntt == entt::null)
-    {
-        LG_E("Station entity not found");
-        return ecs::EntityId::Invalid();
-    }
-    entt::entity partEntt1 = ecs.getEntity(id1);
-    if (partEntt1 == entt::null)
-    {
-        LG_E("Part entity to connect to not found");
-        return ecs::EntityId::Invalid();
-    }
-    ecs::Station* station = reg.try_get<ecs::Station>(stationEntt);
-    if (!station)
-    {
-        LG_E("Station entity has no station component");
-        return ecs::EntityId::Invalid();
-    }
-    ecs::SectorId* stationSectorId = reg.try_get<ecs::SectorId>(stationEntt);
-    if (!stationSectorId)
-    {
-        LG_E("Station entity has no sector id component");
-        return ecs::EntityId::Invalid();
-    }
-    ecs::Transform* tr1 = reg.try_get<ecs::Transform>(partEntt1);
-    if (!tr1)
-    {
-        LG_E("Part entity to connect to has no transform component");
-        return ecs::EntityId::Invalid();
-    }
-    ecs::StationPart* part1 = reg.try_get<ecs::StationPart>(partEntt1);
-    if (!part1)
-    {
-        LG_E("Part entity to connect to has no station part component");
-        return ecs::EntityId::Invalid();
-    }
-    gobj::StationPart* libPart1 =
-        modManager.getStationPartLib().getItem(part1->stationPartHandle);
-    if (!libPart1)
-    {
-        LG_E("Library part 1 not found");
-        return ecs::EntityId::Invalid();
-    }
-    gobj::StationPart* libPart2 =
-        modManager.getStationPartLib().getItem(partHandle);
-    if (!libPart2)
-    {
-        LG_E("Library part 2 not found");
-        return ecs::EntityId::Invalid();
-    }
-
-    if (slot1 >= libPart1->connectors.size())
-    {
-        LG_E("Slot index 1 out of range");
-        return ecs::EntityId::Invalid();
-    }
-    gobj::Connector& connector1 = libPart1->connectors[slot1];
-    if (slot2 >= libPart2->connectors.size())
-    {
-        LG_E("Slot index 2 out of range");
-        return ecs::EntityId::Invalid();
-    }
-    gobj::Connector& connector2 = libPart2->connectors[slot2];
-    vec2 offset1 = smath::rotateVec2(connector1.pos, tr1->rot);
-
-    float rot2 = M_PIf + tr1->rot + connector1.rot - connector2.rot;
-    vec2 offset2 = smath::rotateVec2(connector2.pos, rot2);
-    vec2 part2Pos = tr1->pos + offset1 - offset2;
-
-    auto ent = ecs.createEntity();
-    entt::entity entt = ecs.getEntity(ent);
-    if (entt == entt::null)
-    {
-        LG_E("Failed to create entity for station part");
-        ecs.destroyEntity(ent);
-        return ecs::EntityId::Invalid();
-    }
-    if (!makeStationPart(entt, partHandle))
-    {
-        LG_E("Failed to make station part component");
-        ecs.destroyEntity(ent);
-        return ecs::EntityId::Invalid();
-    }
-    if (!makeTextures(entt, libPart2->textures))
-    {
-        LG_E("Failed to make textures component");
-        ecs.destroyEntity(ent);
-        return ecs::EntityId::Invalid();
-    }
-    if (!makeCollider(entt, libPart2->collider, ecs::CollisionLayer::Station))
-    {
-        LG_E("Failed to make collider component");
-        ecs.destroyEntity(ent);
-        return ecs::EntityId::Invalid();
-    }
-    if (!placeInSector(ent, entt, stationSectorId->id, {part2Pos, rot2}))
-    {
-        LG_E("Failed to place in sector");
-        ecs.destroyEntity(ent);
-        return ecs::EntityId::Invalid();
-    }
-    station->stationParts.push_back(ecs::StationPartRef{ent, libPart2->type});
-    return ent;
-}
-
-ecs::EntityId Engine::spawnModule(ecs::EntityId parent,
-                                  const gobj::ModuleHandle& moduleHandle,
-                                  uint16_t slotIndex)
-{
-    auto& reg = ecs.getRegistry();
-    entt::entity parentEntt = ecs.getEntity(parent);
-    if (parentEntt == entt::null)
-    {
-        LG_E("Parent entity not found for module");
-        return ecs::EntityId::Invalid();
-    }
-    ecs::SectorId* sectorId = reg.try_get<ecs::SectorId>(parentEntt);
-    if (!sectorId)
-    {
-        LG_E("Parent entity has no sector id component");
-        return ecs::EntityId::Invalid();
-    }
-    gobj::Module* module = modManager.getModuleLib().getItem(moduleHandle);
-    if (!module)
-    {
-        LG_E("Module with handle {} not found", moduleHandle.toGenericHandle());
-        return ecs::EntityId::Invalid();
-    }
-    auto hull = reg.try_get<ecs::Hull>(parentEntt);
-    if (!hull)
-    {
-        LG_E("Parent entity has no hull component");
-        return ecs::EntityId::Invalid();
-    }
-    gobj::Hull* hullItem = modManager.getHullLib().getItem(hull->hullHandle);
-    if (!hullItem)
-    {
-        LG_E("Hull item not found");
-        return ecs::EntityId::Invalid();
-    }
-    if (slotIndex >= hullItem->slots.size())
-    {
-        LG_E("Slot index out of range");
-        return ecs::EntityId::Invalid();
-    }
-    gobj::ModuleSlot& slot = hullItem->slots[slotIndex];
-    if (slot.type != module->slotType)
-    {
-        LG_E("Slot type mismatch");
-        return ecs::EntityId::Invalid();
-    }
-
-    auto ent = ecs.createEntity();
-    entt::entity entt = ecs.getEntity(ent);
-    if (entt == entt::null)
-    {
-        LG_E("Failed to create entity for module");
-        return ecs::EntityId::Invalid();
-    }
-    makeTextures(entt, module->textures);
-    placeInSector(ent, entt, sectorId->id, {{0.0f, 0.0f}, 0.0f});
-    makeAnchorFixed(
-        entt,
-        ecs::AnchorFixed{.pos = slot.pos, .rot = slot.rot, .ref = parent});
-    makeModule(entt,
-               ecs::Module{moduleHandle.toGenericHandle(),
-                           parent.toGenericHandle32()});
-    switch (module->type)
-    {
-        case gobj::ModuleType::MainThruster:
-            break;
-        case gobj::ModuleType::ManeuverThruster:
-            break;
-        case gobj::ModuleType::Storage:
-            break;
-        case gobj::ModuleType::Turret:
-        {
-            gobj::mdata::Turret libTurretData =
-                std::get<gobj::mdata::Turret>(module->data);
-            if (!makeTurret(
-                    entt,
-                    ecs::Turret{
-                        .aimMode = ecs::Turret::AimMode::None,
-                        .aimData = ecs::Turret::AngleData{0.0f},
-                        .data = ecs::Turret::fromGobjTurretData(libTurretData),
-                        .currentAngle = 0.0f,
-                        .isFiring = false,
-                    },
-                    ai::taskdata::Turret{ai::taskdata::Turret::Mode::Mine,
-                                         ai::taskdata::Turret::ConfigMine{}}))
-            {
-                LG_E("Failed to make turret component");
-            }
-            break;
-        }
-        default:
-            break;
-    }
-    hull->addModule(slotIndex,
-                    ecs::ModuleRef{ent, module->type, module->slotType});
-    return ent;
-}
 
 void Engine::handleThirdPersonControl(def::ClientInfo* clientInfo,
                                       net::TcpConnection* conn)
@@ -2361,44 +1668,12 @@ void Engine::spawnProjectile(uint32_t sectorId,
                              const ecs::EntityId& exceptEntity,
                              vec2 parVel)
 {
-    auto projectile = modManager.getProjectileLib().getItem(projectileHandle);
-    if (!projectile)
+    ecs::EntityId ent = entitySpawner->spawnProjectile(
+        sectorId, pos, vel, projectileHandle, exceptEntity, parVel);
+    if (ecs.validId(ent))
     {
-        LG_E("Projectile {} not found", projectileHandle.toGenericHandle());
-        return;
+        broadcastEntityToClients(ent);
     }
-
-    auto& reg = ecs.getRegistry();
-    auto ent = ecs.createEntity();
-    entt::entity entt = ecs.getEntity(ent);
-    if (entt == entt::null)
-    {
-        LG_E("Failed to create entity for projectile");
-        return;
-    }
-    makeSelectable(entt);
-    makeProjectile(entt, projectileHandle);
-    makeLifetime(entt, projectile->lifetime);
-    makeTextures(entt, projectile->textures);
-    makeCollider(entt,
-                 projectile->collider,
-                 ecs::CollisionLayer::Projectile,
-                 exceptEntity);
-    makePhysicsBody(entt,
-                    ecs::PhysicsBody{.mass = 1.0f,
-                                     .vel = vel + parVel,
-                                     .acc = vec2(0.0f, 0.0f),
-                                     .inertia = 1.0f,
-                                     .rotVel = 0.0f,
-                                     .rotAcc = 0.0f});
-    float rot = atan2f(-vel.x, vel.y);
-    if (!placeInSector(ent, entt, sectorId, {pos, rot}))
-    {
-        LG_E("Failed to place projectile in sector");
-        destroyEntity(ent);
-        return;
-    }
-    broadcastEntityToClients(ent);
 }
 
 void Engine::spawnAsteroid(uint32_t sectorId,
@@ -2406,54 +1681,12 @@ void Engine::spawnAsteroid(uint32_t sectorId,
                            const gobj::AsteroidHandle& asteroidHandle,
                            float rotVel)
 {
-    auto asteroid = modManager.getAsteroidLib().getItem(asteroidHandle);
-    if (!asteroid)
+    ecs::EntityId ent = entitySpawner->spawnAsteroid(
+        sectorId, transform, asteroidHandle, rotVel);
+    if (ecs.validId(ent))
     {
-        LG_E("Asteroid {} not found", asteroidHandle.toGenericHandle());
-        return;
+        broadcastEntityToClients(ent);
     }
-    auto& reg = ecs.getRegistry();
-    auto ent = ecs.createEntity();
-    entt::entity entt = ecs.getEntity(ent);
-    if (entt == entt::null)
-    {
-        LG_E("Failed to create entity for asteroid");
-        return;
-    }
-
-    makeAsteroid(entt, asteroidHandle);
-    makeSelectable(entt);
-    makeTextures(entt, asteroid->textures);
-    makeCollider(entt, asteroid->collider, ecs::CollisionLayer::Asteroid);
-    auto* colliderData =
-        modManager.getColliderLib().getItem(asteroid->collider);
-    vec2 extends = vec2(0.5f, 0.5f);
-    if (colliderData)
-    {
-        extends = smath::colliderLocalExtents(colliderData->vertices);
-    }
-    else
-    {
-        LG_E("Collider data for {} not found",
-             asteroid->collider.toGenericHandle());
-    }
-    float inertia =
-        smath::approximateInertia(asteroid->volume, extends.x, extends.y);
-    makePhysicsBody(entt,
-                    ecs::PhysicsBody{.mass = asteroid->volume * 3000.0f,
-                                     .vel = vec2(0.0f, 0.0f),
-                                     .acc = vec2(0.0f, 0.0f),
-                                     .inertia = inertia,
-                                     .rotVel = rotVel,
-                                     .rotAcc = 0.0f,
-                                     .naturalRotation = rotVel});
-    if (!placeInSector(ent, entt, sectorId, transform))
-    {
-        LG_E("Failed to place asteroid in sector");
-        ecs.destroyEntity(ent);
-        return;
-    }
-    broadcastEntityToClients(ent);
 }
 
 void Engine::spawnItem(uint32_t sectorId,
@@ -2463,42 +1696,12 @@ void Engine::spawnItem(uint32_t sectorId,
                        vec2 initialVel,
                        ecs::EntityId collexcept)
 {
-    auto item = modManager.getItemLib().getItem(itemHandle);
-    if (!item)
+    ecs::EntityId ent = entitySpawner->spawnItem(
+        sectorId, transform, itemHandle, quantity, initialVel, collexcept);
+    if (ecs.validId(ent))
     {
-        LG_E("Item {} not found", itemHandle.toGenericHandle());
-        return;
+        broadcastEntityToClients(ent);
     }
-    auto& reg = ecs.getRegistry();
-    auto ent = ecs.createEntity();
-    entt::entity entt = ecs.getEntity(ent);
-    if (entt == entt::null)
-    {
-        LG_E("Failed to create entity for item");
-        return;
-    }
-
-    makeItem(entt, itemHandle, quantity);
-    makeSelectable(entt);
-    makeSimpleTexture(entt,
-                      ecs::SimpleTexture{.textureHandle = item->worldTexture});
-    makeCollider(
-        entt, itemColliderHandle, ecs::CollisionLayer::Item, collexcept);
-    makePhysicsBody(entt,
-                    ecs::PhysicsBody{.mass = 100.0f,
-                                     .vel = initialVel,
-                                     .acc = vec2(0.0f, 0.0f),
-                                     .inertia = 1.0f,
-                                     .rotVel = 0.0f,
-                                     .rotAcc = 0.0f});
-    makeLifetime(entt, itemLifetime);
-    if (!placeInSector(ent, entt, sectorId, transform))
-    {
-        LG_E("Failed to place item in sector");
-        ecs.destroyEntity(ent);
-        return;
-    }
-    broadcastEntityToClients(ent);
 }
 
 void Engine::loadCollisionMatrix()

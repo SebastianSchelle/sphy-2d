@@ -3,6 +3,7 @@
 
 #include "comp-ident.hpp"
 #include "ecs.hpp"
+#include "entity-spawner.hpp"
 #include "world-def.hpp"
 #include <asset-factory.hpp>
 #include <atomic>
@@ -15,6 +16,7 @@
 #include <control-def.hpp>
 #include <functional>
 #include <item-lib.hpp>
+#include <memory>
 #include <lib-hull.hpp>
 #include <mod-manager.hpp>
 #include <net-shared.hpp>
@@ -23,15 +25,6 @@
 #include <task-system.hpp>
 #include <work-distributor.hpp>
 #include <world.hpp>
-
-#include <comp-ai.hpp>
-#include <comp-gfx.hpp>
-#include <comp-lifetime.hpp>
-#include <comp-phy.hpp>
-#include <comp-storage.hpp>
-#include <comp-struct.hpp>
-#include <comp-turret.hpp>
-#include <comp-tag.hpp>
 
 namespace ecs
 {
@@ -159,70 +152,6 @@ class Engine
                                   net::TcpConnection* conn);
     void markPlayerSectors();
 
-    ecs::EntityId spawnShipHull(gobj::HullHandle hullHandle,
-                                uint32_t sectorId,
-                                const ecs::Transform& transform);
-    ecs::EntityId spawnStation(uint32_t sectorId,
-                               const ecs::Transform& transform);
-    ecs::EntityId addFirstStationPart(ecs::EntityId stationId,
-                                      const gobj::StationPartHandle& partHandle,
-                                      float rot);
-    ecs::EntityId addStationPart(ecs::EntityId stationId,
-                                 ecs::EntityId partIdConnectTo,
-                                 const gobj::StationPartHandle& partHandle,
-                                 uint16_t slotConnectTo,
-                                 uint16_t slotNewPart);
-
-    ecs::Hull* makeHull(entt::entity entity,
-                        const gobj::HullHandle& hullHandle);
-    ecs::Station* makeStation(entt::entity entity);
-    ecs::Collider*
-    makeCollider(entt::entity entity,
-                 const gobj::ColliderHandle& colliderHandle,
-                 ecs::CollisionLayer colliderType,
-                 const ecs::EntityId& exceptEntity = ecs::EntityId::Invalid());
-    ecs::Projectile*
-    makeProjectile(entt::entity entity,
-                   const gobj::ProjectileHandle& projectileHandle);
-    ecs::MapIcon* makeMapIcon(entt::entity entity);
-    ecs::SimpleTexture* makeSimpleTexture(entt::entity entity,
-                                          const ecs::SimpleTexture& texture);
-    ecs::Textures* makeTextures(entt::entity entity,
-                                const gobj::TexturesHandle& texturesHandle);
-    ecs::PhysicsBody* makePhysicsBody(entt::entity entity,
-                                      const ecs::PhysicsBody& physicsBody);
-    ecs::MoveCtrl* makeMoveCtrl(entt::entity entity,
-                                const ecs::PhyThrust& phyThrust,
-                                const ecs::MoveCtrl& moveCtrl);
-    ecs::Asteroid* makeAsteroid(entt::entity entity,
-                                const gobj::AsteroidHandle& asteroidHandle);
-    ecs::Module* makeModule(entt::entity entity, const ecs::Module& module);
-    ecs::Item* makeItem(entt::entity entity,
-                        const gobj::ItemHandle& itemHandle,
-                        float quantity);
-    ecs::Storage* makeStorage(entt::entity entity, const ecs::Storage& storage);
-    ecs::Lifetime* makeLifetime(entt::entity entity, float lifetime);
-    void makeOOSSync(entt::entity entity);
-    ecs::StationPart*
-    makeStationPart(entt::entity entity,
-                    const gobj::StationPartHandle& partHandle);
-    ecs::Turret* makeTurret(entt::entity entity,
-                            const ecs::Turret& turret,
-                            ai::taskdata::Turret defaultTask);
-    void makeSelectable(entt::entity entity);
-    ecs::AnchorFixed* makeAnchorFixed(entt::entity entity,
-                                      const ecs::AnchorFixed& anchorFixed);
-    ecs::Ai*
-    makeAi(entt::entity entity,
-           const ai::taskdata::TaskData& defaultTask = ai::taskdata::Idle());
-    bool placeInSector(ecs::EntityId ent,
-                       entt::entity entity,
-                       uint32_t sectorId,
-                       const ecs::Transform& transform);
-
-    ecs::EntityId spawnModule(ecs::EntityId parent,
-                              const gobj::ModuleHandle& moduleHandle,
-                              uint16_t slotIndex);
     void loadCollisionMatrix();
     void
     forActiveClients(std::function<void(def::ClientInfo* clientInfo)> callback);
@@ -254,7 +183,7 @@ class Engine
     float filteredFps = 0.0f;
 
     ecs::CollisionLayerMat collisionLayerMat;
-    gobj::ColliderHandle itemColliderHandle;
+    std::unique_ptr<EntitySpawner> entitySpawner;
 
     float itemLifetime;
     ai::TaskSystem taskSystem;
