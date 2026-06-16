@@ -21,7 +21,7 @@ class ClientInfo
     ClientInfo(const std::string& name,
                const net::ClientInfo& clientInfo,
                uint8_t flags)
-        : workSequencer(1000)
+        : workSequencer(10000)
     {
         this->name = name;
         this->clientInfo = clientInfo;
@@ -49,9 +49,14 @@ class ClientInfo
     long lastActiveSectorDump;
     ThirdPersonControl thirdPersonControl;
 
-    void addWorkFunction(std::function<void()> workFunction)
+    void addWorkFunction(work::WorkFunction workFunction)
     {
         workSequencer.addWorkFunction(workFunction);
+    }
+    void ackWorkSequencer()
+    {
+        LG_I("Acking work sequencer");
+        workSequencer.ack();
     }
     void executeWorkSequencer()
     {

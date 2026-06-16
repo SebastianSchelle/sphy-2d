@@ -84,8 +84,8 @@ void sysMoveCtrlImpl(world::Sector* sector,
             const float tm_y = phyThrust->thrustMainMax;
             const float absX = fabsf(d_l.x);
             const float absY = fabsf(d_l.y);
-            const float k_t =
-                std::min(tm_x / std::max(absX, 1e-4f), tm_y / std::max(absY, 1e-4f));
+            const float k_t = std::min(tm_x / std::max(absX, 1e-4f),
+                                       tm_y / std::max(absY, 1e-4f));
             const vec2 t_ml = k_t * d_l;
             // t_m: maximum thrust magnitude
             // a_m: maximum acceleration
@@ -317,7 +317,9 @@ void sysPhysicsImpl(world::Sector* sector,
     if (transform && physicsBody && transformCache && broadphase && sectorId)
     {
         physicsBody->acc += -ptrHandle->linDrag * physicsBody->vel;
-        physicsBody->rotAcc += -ptrHandle->angDrag * physicsBody->rotVel;
+        physicsBody->rotAcc +=
+            -ptrHandle->angDrag
+            * (physicsBody->rotVel - physicsBody->naturalRotation);
         physicsBody->vel += physicsBody->acc * dt;
         physicsBody->rotVel += physicsBody->rotAcc * dt;
         bool hasSignificantSpd =

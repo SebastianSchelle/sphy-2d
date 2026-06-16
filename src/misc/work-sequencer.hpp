@@ -6,18 +6,22 @@
 namespace work
 {
 
+typedef std::function<bool()> WorkFunction;
+
 class WorkSequencer
 {
   public:
     WorkSequencer(uint stepsPerCall);
     ~WorkSequencer();
-    void addWorkFunction(std::function<void()> workFunction, bool last = false);
+    void addWorkFunction(WorkFunction workFunction, bool last = false);
     void execute();
     void clear();
+    void ack();
 
   private:
     uint stepsPerCall;
-    std::vector<std::function<void()>> workFunctions;
+    bool needsAck;
+    std::vector<WorkFunction> workFunctions;
 };
 
 }  // namespace work

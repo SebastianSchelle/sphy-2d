@@ -730,6 +730,15 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             }
             break;
         }
+        case prot::cmd::ACK_WORKSEQUENCER:
+        {
+            if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP))
+            {
+                // todo: thread safety??
+                clientInfo->ackWorkSequencer();
+            }
+            break;
+        }
         case prot::cmd::SEL_CMD_MOVETO:
         {
             if (sendType == net::SendType::TCP && (flags & CMD_FLAG_RESP) == 0)
@@ -1117,15 +1126,38 @@ void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
             prot::MsgComposer mcomp(net::SendType::TCP, conn);
             mcomp.startCommand(prot::cmd::ALL_ENTT_COMPONENTS, CMD_FLAG_RESP);
             mcomp.execute(sendQueue);
+            return false;
         });
     uint32_t count = 0;
     ecs.iterateEntities(
         [this, clientInfo, conn, &count](ecs::EntityId entityId)
         {
+            auto& reg = ecs.getRegistry();
+            entt::entity ent = ecs.getEntity(entityId);
+            auto* sectorId = reg.try_get<ecs::SectorId>(ent);
+            if (!reg.valid(ent) || !reg.all_of<ecs::tag::OOSSync>(ent))
+            {
+                return;
+            }
             const ecs::EntityId entityCopy = entityId;
             clientInfo->addWorkFunction(
-                [this, entityCopy, conn, &count]()
-                { sendAllComponents(entityCopy, conn); });
+                [this, entityCopy, conn]()
+                {
+                    sendAllComponents(entityCopy, conn);
+                    return false;
+                });
+            ++count;
+            if (count % 100 == 0)
+            {
+                clientInfo->addWorkFunction(
+                    [this, clientInfo, conn]()
+                    {
+                        prot::MsgComposer mcomp(net::SendType::TCP, conn);
+                        mcomp.startCommand(prot::cmd::ACK_WORKSEQUENCER, 0);
+                        mcomp.execute(sendQueue);
+                        return true;
+                    });
+            }
         });
     clientInfo->addWorkFunction(
         [this, clientInfo, conn]()
@@ -1134,11 +1166,18 @@ void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
             mcomp.startCommand(prot::cmd::TOTAL_NUM_ENTITIES, 0);
             mcomp.ser->value4b(ecs.getNumEntities());
             mcomp.execute(sendQueue);
+            return false;
         });
 }
 
 void Engine::broadcastEntityToClients(ecs::EntityId entityId)
 {
+    auto& reg = ecs.getRegistry();
+    entt::entity ent = ecs.getEntity(entityId);
+    if (!reg.valid(ent) || !reg.all_of<ecs::tag::OOSSync>(ent))
+    {
+        return;
+    }
     for (def::ClientInfoHandle handle : connectedClientHandles)
     {
         def::ClientInfo* clientInfo = clientLib.getItem(handle);
@@ -1238,11 +1277,17 @@ void Engine::testSpawn()
             spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
             spawnModule(
-                ent, modManager.getModuleLib().getHandle("Small Mining Turret"), 3);
+                ent,
+                modManager.getModuleLib().getHandle("Small Mining Turret"),
+                3);
             spawnModule(
-                ent, modManager.getModuleLib().getHandle("Small Mining Turret"), 4);
+                ent,
+                modManager.getModuleLib().getHandle("Small Mining Turret"),
+                4);
             spawnModule(
-                ent, modManager.getModuleLib().getHandle("Small Mining Turret"), 5);
+                ent,
+                modManager.getModuleLib().getHandle("Small Mining Turret"),
+                5);
         }
         else if (i % 4 == 2)
         {
@@ -1281,7 +1326,9 @@ void Engine::testSpawn()
             for (int i = 0; i < 8; i++)
             {
                 spawnModule(
-                    ent, modManager.getModuleLib().getHandle("Small Mining Turret"), i);
+                    ent,
+                    modManager.getModuleLib().getHandle("Small Mining Turret"),
+                    i);
             }
             for (int i = 8; i < 16; i++)
             {
@@ -1312,8 +1359,7 @@ void Engine::testSpawn()
         if (ai)
         {
             ai::TaskSystem* entityTaskSystem = &taskSystem;
-            if (auto* sectorId =
-                    reg.try_get<ecs::SectorId>(ecs.getEntity(ent)))
+            if (auto* sectorId = reg.try_get<ecs::SectorId>(ecs.getEntity(ent)))
             {
                 if (sectorId->id != world::INVALID_SECTOR_ID)
                 {
@@ -1323,8 +1369,8 @@ void Engine::testSpawn()
                     }
                 }
             }
-            // auto* taskStack = entityTaskSystem->getTaskStack(ai->stackHandle);
-            // if (taskStack)
+            // auto* taskStack =
+            // entityTaskSystem->getTaskStack(ai->stackHandle); if (taskStack)
             // {
             //     taskStack->setDefaultTask(ai::taskdata::UniversePatrol{
             //         .config = {.allowedPosError = 100.0f,
@@ -1418,8 +1464,8 @@ void Engine::testSpawn()
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};
         uint32_t sectorId = sectorPick(gen);
-        float rot1 = rotDist(gen) / 10.0f;
-        float rot2 = rotDist(gen) / 10.0f;
+        float rot1 = (rotDist(gen) - M_PIf) / 10.0f;
+        float rot2 = (rotDist(gen) - M_PIf) / 10.0f;
         spawnAsteroid(sectorId,
                       ecs::Transform{pos1, rot1},
                       modManager.getAsteroidLib().getHandle("Small Asteroid 1"),
@@ -1706,6 +1752,12 @@ ecs::Textures* Engine::makeTextures(entt::entity entity,
     return &reg.emplace_or_replace<ecs::Textures>(entity, texturesComp);
 }
 
+void Engine::makeOOSSync(entt::entity entity)
+{
+    auto& reg = ecs.getRegistry();
+    reg.emplace<ecs::tag::OOSSync>(entity);
+}
+
 ecs::Item* Engine::makeItem(entt::entity entity,
                             const gobj::ItemHandle& itemHandle,
                             float quantity)
@@ -1874,6 +1926,7 @@ ecs::EntityId Engine::spawnStation(uint32_t sectorId,
         LG_E("Failed to make ai component");
         success = false;
     }
+    makeOOSSync(entt);
     if (!success)
     {
         destroyEntity(ent);
@@ -1959,6 +2012,7 @@ ecs::EntityId Engine::spawnShipHull(gobj::HullHandle hullHandle,
         LG_E("Failed to make ai component");
         success = false;
     }
+    makeOOSSync(entt);
     if (!success)
     {
         ecs.destroyEntity(ent);
@@ -2283,13 +2337,15 @@ void Engine::handleThirdPersonControl(def::ClientInfo* clientInfo,
                 {
                     auto* turret =
                         ptrHandle->registry->try_get<ecs::Turret>(turretEntt);
-                    if (turret && turret->aimMode == ecs::Turret::AimMode::Player)
+                    if (turret
+                        && turret->aimMode == ecs::Turret::AimMode::Player)
                     {
                         turret->fireMode = ecs::Turret::FireMode::Manual;
                         turret->isFiring =
                             tpc.flags
                             & def::ThirdPersonControl::FLG_FIRE_WEAPONS;
-                        auto &aimData = std::get<ecs::Turret::PointData>(turret->aimData);
+                        auto& aimData =
+                            std::get<ecs::Turret::PointData>(turret->aimData);
                         aimData.pos = tpc.ptrPos;
                     }
                 }
@@ -2389,7 +2445,8 @@ void Engine::spawnAsteroid(uint32_t sectorId,
                                      .acc = vec2(0.0f, 0.0f),
                                      .inertia = inertia,
                                      .rotVel = rotVel,
-                                     .rotAcc = 0.0f});
+                                     .rotAcc = 0.0f,
+                                     .naturalRotation = rotVel});
     if (!placeInSector(ent, entt, sectorId, transform))
     {
         LG_E("Failed to place asteroid in sector");

@@ -407,6 +407,7 @@ struct PhysicsBody
     float inertia = 1.0f;     // kg*m^2
     float rotVel = 0.0f;      // rad/s
     float rotAcc = 0.0f;      // rad/s^2
+    float naturalRotation = 0.0f;
 
     void applyForce(vec2 force)
     {
@@ -428,6 +429,7 @@ struct PhysicsBody
         TRY_YAML_DICT(physicsBody.rotVel, node["rotVel"], 0.0f);
         TRY_YAML_DICT(physicsBody.rotAcc, node["rotAcc"], 0.0f);
         TRY_YAML_DICT(physicsBody.acc, node["acc"], vec2(0.0f, 0.0f));
+        TRY_YAML_DICT(physicsBody.naturalRotation, node["naturalRotation"], 0.0f);
         if (physicsBody.inertia <= 1e-8f)
         {
             physicsBody.inertia = 1.0f;
@@ -446,7 +448,8 @@ struct PhysicsBody
     SOBJ(o.vel);                                                               \
     S4b(o.rotVel);                                                             \
     S4b(o.rotAcc);                                                             \
-    SOBJ(o.acc);
+    SOBJ(o.acc);                                                               \
+    S4b(o.naturalRotation);
 EXT_SER(PhysicsBody, SER_PHYSICS_BODY)
 EXT_DES(PhysicsBody, SER_PHYSICS_BODY)
 

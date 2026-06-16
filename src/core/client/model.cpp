@@ -506,6 +506,16 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             handleDestroyEntity(cmddes, dataEndPos);
             break;
         }
+        case prot::cmd::ACK_WORKSEQUENCER:
+        {
+            if ((flags & CMD_FLAG_RESP) == 0)
+            {
+                prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
+                mcomp.startCommand(prot::cmd::ACK_WORKSEQUENCER, CMD_FLAG_RESP);
+                mcomp.execute(sendQueue);
+            }
+            break;
+        }
         default:
             break;
     }

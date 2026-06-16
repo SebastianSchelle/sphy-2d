@@ -12,7 +12,7 @@ WorkSequencer::~WorkSequencer()
 {
 }
 
-void WorkSequencer::addWorkFunction(std::function<void()> workFunction, bool last)
+void WorkSequencer::addWorkFunction(WorkFunction workFunction, bool last)
 {
     if(last)
     {
@@ -27,16 +27,30 @@ void WorkSequencer::addWorkFunction(std::function<void()> workFunction, bool las
 void WorkSequencer::execute()
 {
     int steps = 0;
+    if(needsAck)
+    {
+        return;
+    }
     while(!workFunctions.empty())
     {
-        workFunctions.back()();
+        needsAck = workFunctions.back()();
+        LG_D("Executed work function, needsAck: {}", needsAck);
         workFunctions.pop_back();
         steps++;
-        if(steps >= stepsPerCall)
+        if(needsAck)
+        {
+            return;
+        }
+        else if(steps >= stepsPerCall)
         {
             return;
         }
     }
+}
+
+void WorkSequencer::ack()
+{
+    needsAck = false;
 }
 
 void WorkSequencer::clear()

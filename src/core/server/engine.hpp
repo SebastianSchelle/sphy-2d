@@ -31,6 +31,7 @@
 #include <comp-storage.hpp>
 #include <comp-struct.hpp>
 #include <comp-turret.hpp>
+#include <comp-tag.hpp>
 
 namespace ecs
 {
@@ -201,6 +202,7 @@ class Engine
                         float quantity);
     ecs::Storage* makeStorage(entt::entity entity, const ecs::Storage& storage);
     ecs::Lifetime* makeLifetime(entt::entity entity, float lifetime);
+    void makeOOSSync(entt::entity entity);
     ecs::StationPart*
     makeStationPart(entt::entity entity,
                     const gobj::StationPartHandle& partHandle);
