@@ -147,7 +147,7 @@ void TcpConnection::sendMessage(const std::vector<uint8_t>& data)
     }
     try
     {
-        size_t bytesSent = socket_.send(boost::asio::buffer(data));
+        boost::asio::write(socket_, boost::asio::buffer(data));
     }
     catch (const std::exception& e)
     {

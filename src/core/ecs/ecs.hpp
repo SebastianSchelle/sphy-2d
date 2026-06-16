@@ -3,9 +3,13 @@
 
 #include <asset-factory.hpp>
 #include <comp-ident.hpp>
+#include <concurrentqueue.h>
 #include <entt/entt.hpp>
+#include <net-shared.hpp>
 #include <ptr-handle.hpp>
 #include <std-inc.hpp>
+
+using moodycamel::ConcurrentQueue;
 
 namespace world
 {
@@ -81,11 +85,11 @@ class Ecs
 class EcsClient
 {
   public:
-    EcsClient();
+    EcsClient(ConcurrentQueue<net::CmdQueueData>& sendQueue);
     ~EcsClient();
     entt::registry& getRegistry();
-    entt::entity enttFromServerId(const EntityId& entityId);
-    entt::entity getEntity(EntityId entityId);
+    entt::entity enttFromServerId(const EntityId& entityId, bool reqIfNone = true);
+    entt::entity getEntity(EntityId entityId, bool reqIfNone = true);
     bool validId(EntityId entityId);
     void clearSession();
     uint32_t getNumClientEntities() const;
@@ -99,6 +103,7 @@ class EcsClient
     entt::registry registry;
     std::unordered_map<uint32_t, Slot> idMap;
     uint32_t numClientEntities = 0;
+    ConcurrentQueue<net::CmdQueueData>& sendQueue;
 };
 
 }  // namespace ecs

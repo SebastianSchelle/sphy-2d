@@ -26,7 +26,7 @@ Model::Model(ui::UserInterface* userInterface,
              gfx::RenderEngine* renderer,
              std::function<void(void)> afterLoadWorldClb)
     : userInterface(userInterface), config(config), modManager(modManager),
-      renderer(renderer), afterLoadWorldClb(afterLoadWorldClb)
+      renderer(renderer), afterLoadWorldClb(afterLoadWorldClb), ecs(sendQueue)
 {
     lastTSync = tim::getCurrentTimeU();
 
@@ -1209,7 +1209,7 @@ void Model::handleReqAllComponentsResp(
 {
     ecs::EntityId entityId;
     cmddes.object(entityId);
-    entt::entity entity = ecs.enttFromServerId(entityId);
+    entt::entity entity = ecs.enttFromServerId(entityId, false);
     if (entity == entt::null)
     {
         LG_W("Entity not found for component sync: {}", entityId);

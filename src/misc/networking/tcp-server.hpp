@@ -57,7 +57,7 @@ class TcpConnection
     TcpClientInfoHandle clientInfoHandle;
     RcvCmdState rcvCmdState = RcvCmdState::ParseCmd0;
     uint32_t rcvCmdLen = 0;
-    uint16_t lastDataStart = 0;
+    size_t lastDataStart = 0;
     net::CmdQueueData rcvdCmd;
 };
 

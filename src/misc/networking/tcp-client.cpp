@@ -46,8 +46,7 @@ void TcpClient::sendMessage(const std::vector<uint8_t>& data)
     }
     try
     {
-        size_t bytesSent = socket.send(boost::asio::buffer(data));
-        (void)bytesSent;
+        boost::asio::write(socket, boost::asio::buffer(data));
     }
     catch (const std::exception& e)
     {

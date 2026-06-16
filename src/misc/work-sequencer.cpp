@@ -4,17 +4,15 @@ namespace work
 {
 
 WorkSequencer::WorkSequencer(uint stepsPerCall)
-    : stepsPerCall(stepsPerCall)
+    : stepsPerCall(stepsPerCall), needsAck(false)
 {
 }
 
-WorkSequencer::~WorkSequencer()
-{
-}
+WorkSequencer::~WorkSequencer() {}
 
 void WorkSequencer::addWorkFunction(WorkFunction workFunction, bool last)
 {
-    if(last)
+    if (last)
     {
         workFunctions.insert(workFunctions.begin(), workFunction);
     }
@@ -27,21 +25,20 @@ void WorkSequencer::addWorkFunction(WorkFunction workFunction, bool last)
 void WorkSequencer::execute()
 {
     int steps = 0;
-    if(needsAck)
+    if (needsAck)
     {
         return;
     }
-    while(!workFunctions.empty())
+    while (!workFunctions.empty())
     {
         needsAck = workFunctions.back()();
-        LG_D("Executed work function, needsAck: {}", needsAck);
         workFunctions.pop_back();
         steps++;
-        if(needsAck)
+        if (needsAck)
         {
             return;
         }
-        else if(steps >= stepsPerCall)
+        else if (steps >= stepsPerCall)
         {
             return;
         }
@@ -56,6 +53,7 @@ void WorkSequencer::ack()
 void WorkSequencer::clear()
 {
     workFunctions.clear();
+    needsAck = false;
 }
 
 }  // namespace work

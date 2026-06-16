@@ -55,7 +55,6 @@ class ClientInfo
     }
     void ackWorkSequencer()
     {
-        LG_I("Acking work sequencer");
         workSequencer.ack();
     }
     void executeWorkSequencer()

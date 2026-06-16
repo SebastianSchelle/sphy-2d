@@ -1,4 +1,5 @@
 #include "ecs.hpp"
+#include <protocol.hpp>
 
 namespace ecs
 {
@@ -112,11 +113,14 @@ uint32_t Ecs::getNumEntities() const
     return idMap.size() - idMapFreeSlots.size();
 }
 
-EcsClient::EcsClient() {}
+EcsClient::EcsClient(ConcurrentQueue<net::CmdQueueData>& sendQueue)
+    : sendQueue(sendQueue)
+{
+}
 
 EcsClient::~EcsClient() {}
 
-entt::entity EcsClient::enttFromServerId(const EntityId& entityId)
+entt::entity EcsClient::enttFromServerId(const EntityId& entityId, bool reqIfNone)
 {
     auto it = idMap.find(entityId.index);
     if (it == idMap.end() || it->second.generation == 0)
@@ -125,6 +129,13 @@ entt::entity EcsClient::enttFromServerId(const EntityId& entityId)
         entt::entity e = registry.create();
         idMap[entityId.index] = {e, entityId.generation};
         numClientEntities++;
+        if (reqIfNone)
+        {
+            prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
+            mcomp.startCommand(prot::cmd::REQ_ALL_COMPONENTS, 0);
+            mcomp.ser->object(entityId);
+            mcomp.execute(sendQueue);
+        }
         return e;
     }
     else if (it->second.generation != entityId.generation)
@@ -137,6 +148,13 @@ entt::entity EcsClient::enttFromServerId(const EntityId& entityId)
         auto e = registry.create();
         idMap[entityId.index] = {e, entityId.generation};
         numClientEntities++;
+        if (reqIfNone)
+        {
+            prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
+            mcomp.startCommand(prot::cmd::REQ_ALL_COMPONENTS, 0);
+            mcomp.ser->object(entityId);
+            mcomp.execute(sendQueue);
+        }
         return e;
     }
     else
@@ -168,10 +186,17 @@ bool EcsClient::validId(EntityId entityId)
            && it->second.entity != entt::null;
 }
 
-entt::entity EcsClient::getEntity(EntityId entityId)
+entt::entity EcsClient::getEntity(EntityId entityId, bool reqIfNone)
 {
     if (!validId(entityId))
     {
+        if (reqIfNone)
+        {
+            prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
+            mcomp.startCommand(prot::cmd::REQ_ALL_COMPONENTS, 0);
+            mcomp.ser->object(entityId);
+            mcomp.execute(sendQueue);
+        }
         return entt::null;
     }
     return idMap[entityId.index].entity;

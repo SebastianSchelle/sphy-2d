@@ -103,7 +103,7 @@ void Engine::start()
     registerConsoleCommands();
 
     registerSlowDumpComponent<ecs::Transform>();
-    registerActiveSectorDumpComponent<ecs::Transform>(DumpFilter::Selectable);
+    registerActiveSectorDumpComponent<ecs::Transform>();
     registerActiveSectorDumpComponent<ecs::Turret>();
 
     def::ClientInfoHandle handle = registerClient(
@@ -217,7 +217,7 @@ void Engine::engineLoop()
             parseCommandData(recQueueData);
         }
         lastUpdateTime = nowU;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     if (state == EngineState::Running || state == EngineState::Paused)
@@ -1140,10 +1140,10 @@ void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
             auto& reg = ecs.getRegistry();
             entt::entity ent = ecs.getEntity(entityId);
             auto* sectorId = reg.try_get<ecs::SectorId>(ent);
-            if (!reg.valid(ent) || !reg.all_of<ecs::tag::OOSSync>(ent))
-            {
-                return;
-            }
+            // if (!reg.valid(ent) || !reg.all_of<ecs::tag::OOSSync>(ent))
+            // {
+            //     return;
+            // }
             const ecs::EntityId entityCopy = entityId;
             clientInfo->addWorkFunction(
                 [this, entityCopy, conn]()
@@ -1152,7 +1152,7 @@ void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
                     return false;
                 });
             ++count;
-            if (count % 100 == 0)
+            if (count % 1000 == 0)
             {
                 clientInfo->addWorkFunction(
                     [this, clientInfo, conn]()
@@ -1179,16 +1179,19 @@ void Engine::broadcastEntityToClients(ecs::EntityId entityId)
 {
     auto& reg = ecs.getRegistry();
     entt::entity ent = ecs.getEntity(entityId);
-    if (!reg.valid(ent) || !reg.all_of<ecs::tag::OOSSync>(ent))
-    {
-        return;
-    }
     for (def::ClientInfoHandle handle : connectedClientHandles)
     {
         def::ClientInfo* clientInfo = clientLib.getItem(handle);
         if (!clientInfo || !clientInfo->clientInfo.connection)
         {
             continue;
+        }
+        auto* sectorId = reg.try_get<ecs::SectorId>(ent);
+        bool inActiveSector =
+            sectorId && clientInfo->getActiveSectors().count(sectorId->id) > 0;
+        if (!inActiveSector || !reg.valid(ent) || !reg.all_of<ecs::tag::OOSSync>(ent))
+        {
+            return;
         }
         sendAllComponents(entityId, clientInfo->clientInfo.connection);
     }
@@ -1244,7 +1247,7 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
     auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 5000; ++i)
+    for (int i = 0; i < 10000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1252,10 +1255,12 @@ void Engine::testSpawn()
         ecs::EntityId ent;
         if (i % 4 == 0)
         {
-            ent = entitySpawner->spawnShipHull(modManager.getHullLib().getHandle("Bee"),
-                                sectorId,
-                                ecs::Transform{pos, rot});
-            entitySpawner->spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 0);
+            ent = entitySpawner->spawnShipHull(
+                modManager.getHullLib().getHandle("Bee"),
+                sectorId,
+                ecs::Transform{pos, rot});
+            entitySpawner->spawnModule(
+                ent, modManager.getModuleLib().getHandle("Breeze"), 0);
             entitySpawner->spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 1);
             entitySpawner->spawnModule(
@@ -1273,10 +1278,12 @@ void Engine::testSpawn()
         }
         else if (i % 4 == 1)
         {
-            ent = entitySpawner->spawnShipHull(modManager.getHullLib().getHandle("Mosquito"),
-                                sectorId,
-                                ecs::Transform{pos, rot});
-            entitySpawner->spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 0);
+            ent = entitySpawner->spawnShipHull(
+                modManager.getHullLib().getHandle("Mosquito"),
+                sectorId,
+                ecs::Transform{pos, rot});
+            entitySpawner->spawnModule(
+                ent, modManager.getModuleLib().getHandle("Breeze"), 0);
             entitySpawner->spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 1);
             entitySpawner->spawnModule(
@@ -1296,9 +1303,10 @@ void Engine::testSpawn()
         }
         else if (i % 4 == 2)
         {
-            ent = entitySpawner->spawnShipHull(modManager.getHullLib().getHandle("Bumblebee"),
-                                sectorId,
-                                ecs::Transform{pos, rot});
+            ent = entitySpawner->spawnShipHull(
+                modManager.getHullLib().getHandle("Bumblebee"),
+                sectorId,
+                ecs::Transform{pos, rot});
             entitySpawner->spawnModule(
                 ent,
                 modManager.getModuleLib().getHandle("Cargo Container S"),
@@ -1315,7 +1323,8 @@ void Engine::testSpawn()
                 ent,
                 modManager.getModuleLib().getHandle("Cargo Container S"),
                 3);
-            entitySpawner->spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 4);
+            entitySpawner->spawnModule(
+                ent, modManager.getModuleLib().getHandle("Breeze"), 4);
             entitySpawner->spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 5);
             entitySpawner->spawnModule(
@@ -1325,8 +1334,8 @@ void Engine::testSpawn()
         {
             ent = entitySpawner->spawnShipHull(
                 modManager.getHullLib().getHandle("Caterpillar"),
-                              sectorId,
-                              ecs::Transform{pos, rot});
+                sectorId,
+                ecs::Transform{pos, rot});
 
             for (int i = 0; i < 8; i++)
             {
@@ -1342,13 +1351,16 @@ void Engine::testSpawn()
                     modManager.getModuleLib().getHandle("Terran Bulk S"),
                     i);
             }
-            entitySpawner->spawnModule(ent, modManager.getModuleLib().getHandle("Breeze"), 16);
-            entitySpawner->spawnModule(ent,
-                        modManager.getModuleLib().getHandle("Breeze Maneuver"),
-                        17);
-            entitySpawner->spawnModule(ent,
-                        modManager.getModuleLib().getHandle("Breeze Maneuver"),
-                        18);
+            entitySpawner->spawnModule(
+                ent, modManager.getModuleLib().getHandle("Breeze"), 16);
+            entitySpawner->spawnModule(
+                ent,
+                modManager.getModuleLib().getHandle("Breeze Maneuver"),
+                17);
+            entitySpawner->spawnModule(
+                ent,
+                modManager.getModuleLib().getHandle("Breeze Maneuver"),
+                18);
         }
         auto* phyThrust = reg.try_get<ecs::PhyThrust>(ecs.getEntity(ent));
         if (phyThrust)
@@ -1433,10 +1445,10 @@ void Engine::testSpawn()
                 continue;
             }
             entitySpawner->addStationPart(stationId,
-                           partId,
-                           partHandle2,
-                           j,
-                           rand() % part2->connectors.size());
+                                          partId,
+                                          partHandle2,
+                                          j,
+                                          rand() % part2->connectors.size());
         }
 
         // ecs::EntityId partId2 =
@@ -1465,7 +1477,7 @@ void Engine::testSpawn()
         //                    0);
     }
 
-    for (int i = 0; i < 10000; ++i)
+    for (int i = 0; i < 100000; ++i)
     {
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};
@@ -1608,7 +1620,6 @@ void Engine::markPlayerSectors()
     }
     world.markPlayerSectors(playerSectors);
 }
-
 
 
 void Engine::handleThirdPersonControl(def::ClientInfo* clientInfo,
