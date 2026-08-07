@@ -60,7 +60,8 @@ struct PtrHandle
     mod::ModManager* modManager;
     // Shared fields must precede SERVER/CLIENT-only members (see cmake/SphyTargetKind.cmake).
     uint32_t frameCnt;
-    const vector<System>* systems;
+    const vector<System>* activeSystems;
+    const vector<System>* inactiveSystems;
     ecs::Ecs* ecs;
     sthread::WorkDistributor* workDistributor;
     con::ItemLib<gobj::Collider>* colliderLib = nullptr;

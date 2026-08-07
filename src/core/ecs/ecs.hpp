@@ -66,8 +66,10 @@ class Ecs
     entt::entity getEntity(EntityId entityId);
     EntityId getEntityIdFromIdx(uint32_t index);
     EntityId getEntityId(entt::entity entity);
-    const vector<System>& getRegisteredSystems();
-    void registerSystem(const System system);
+    const vector<System>& getActiveSystems();
+    const vector<System>& getInactiveSystems();
+    void registerActiveSystem(const System system);
+    void registerInactiveSystem(const System system);
     EntityId spawnEntityFromAsset(const std::string& assetId,
                                   const AssetFactory& assetFactory);
     entt::registry& getRegistry();
@@ -79,7 +81,8 @@ class Ecs
     entt::registry registry;
     vector<Slot> idMap;
     vector<uint32_t> idMapFreeSlots;
-    vector<System> registeredSystems;
+    vector<System> activeSystems;
+    vector<System> inactiveSystems;
 };
 
 class EcsClient

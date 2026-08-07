@@ -31,11 +31,8 @@ class Sector
   public:
     struct EntRef
     {
-        static constexpr uint8_t FLAG_DESTROYED = 1 << 0;
-        static constexpr uint8_t FLAG_MOVED = 1 << 1;
         ecs::EntityId entityId;
         entt::entity entity;
-        uint8_t flags = 0;
     };
 
     Sector();
@@ -55,11 +52,11 @@ class Sector
                                  int32_t sectorOffsetY) const;
     void markPlayerSector(bool player);
 #ifdef SERVER
-    void markEntityForDestruction(ecs::EntityId entityId);
+    void markEntityForDestruction(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
     void destroyMarkedEntities(ecs::PtrHandle* ptrHandle);
     void addSingleThreadedTask(SingleThreadedTaskFunction task);
     void executeSingleThreadedTasks(ecs::PtrHandle* ptrHandle);
-    void addSectorMoveRequest(const SectorMoveRequest& request);
+    void addSectorMoveRequest(ecs::PtrHandle* ptrHandle, const SectorMoveRequest& request);
     void forSectorMoveRequests(std::function<void(const SectorMoveRequest& request)> callback);
 #endif
     const float getWorldPosX() const
@@ -130,7 +127,7 @@ class Sector
     vector<SectorMoveRequest> sectorMoveRequests;
 #endif
     con::DynamicAABBTree<entt::entity> aabbTree;
-    bool playerSector = false;
+    bool isActive = false;
 #ifdef SERVER
     ai::TaskSystem taskSystem;
 #endif

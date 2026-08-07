@@ -511,7 +511,7 @@ void World::checkSectorSwitchAfterMove(ecs::EntityId entityId,
                 LG_W("Sector not found: {}", sectorId->id);
                 return;
             }
-            sector->addSectorMoveRequest(
+            sector->addSectorMoveRequest(ptrHandle,
                 SectorMoveRequest{entityId, newSectorId});
             switch (dir)
             {

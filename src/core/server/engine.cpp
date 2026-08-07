@@ -41,7 +41,8 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->taskSystem = &taskSystem;
     ptrHandle->world = &world;
     ptrHandle->engine = this;
-    ptrHandle->systems = &ecs.getRegisteredSystems();
+    ptrHandle->activeSystems = &ecs.getActiveSystems();
+    ptrHandle->inactiveSystems = &ecs.getActiveSystems();
     ptrHandle->registry = &ecs.getRegistry();
     ptrHandle->workDistributor = &workDistributor;
     ptrHandle->colliderLib = &modManager.getColliderLib();
@@ -90,14 +91,14 @@ void Engine::start()
 {
     assetFactory.componentFactory.registerAllComponents();
 
-    ecs.registerSystem(ecs::sysLifetime);
-    ecs.registerSystem(ecs::sysMoveCtrl);
-    ecs.registerSystem(ecs::sysPhyThrust);
-    ecs.registerSystem(ecs::sysPhysics);
-    ecs.registerSystem(ecs::sysCollisionDetection);
-    ecs.registerSystem(ecs::sysAnchorFixed);
-    ecs.registerSystem(ecs::sysAi);
-    ecs.registerSystem(ecs::sysTurret);
+    ecs.registerActiveSystem(ecs::sysLifetime);
+    ecs.registerActiveSystem(ecs::sysMoveCtrl);
+    ecs.registerActiveSystem(ecs::sysPhyThrust);
+    ecs.registerActiveSystem(ecs::sysPhysics);
+    ecs.registerActiveSystem(ecs::sysCollisionDetection);
+    ecs.registerActiveSystem(ecs::sysAnchorFixed);
+    ecs.registerActiveSystem(ecs::sysAi);
+    ecs.registerActiveSystem(ecs::sysTurret);
 
     loadCollisionMatrix();
     registerConsoleCommands();
@@ -242,7 +243,7 @@ void Engine::update(float dt)
     {
         ecs::EntityId entityId = globalEntityIds[i];
         entt::entity entity = globalEntities[i];
-        for (auto system : *ptrHandle->systems)
+        for (auto system : *ptrHandle->activeSystems)
         {
             // system.function(entity, entityId, dt, ptrHandle);
         }
@@ -1152,7 +1153,7 @@ void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
                     return false;
                 });
             ++count;
-            if (count % 1000 == 0)
+            if (count % 50000 == 0)
             {
                 clientInfo->addWorkFunction(
                     [this, clientInfo, conn]()
@@ -1477,7 +1478,7 @@ void Engine::testSpawn()
         //                    0);
     }
 
-    for (int i = 0; i < 100000; ++i)
+    for (int i = 0; i < 10000; ++i)
     {
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};

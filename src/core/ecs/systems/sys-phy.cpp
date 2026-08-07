@@ -1,3 +1,4 @@
+#include "comp-tag.hpp"
 #include <algorithm>
 #include <cmath>
 #include <comp-struct.hpp>
@@ -504,7 +505,7 @@ static bool itemCollision(const ColResolveParams& p)
     if (item->quantity <= 0)
     {
         ecs::EntityId actionEntId = reg->get<ecs::EntityId>(p.actionEnt);
-        p.sector->markEntityForDestruction(actionEntId);
+        p.sector->markEntityForDestruction(p.ptrHandle, actionEntId);
         return true;
     }
     return false;
@@ -596,9 +597,9 @@ static bool projectileCollision(const ColResolveParams& p)
                     }
                 }
             }
-            p.sector->markEntityForDestruction(otherEntId);
+            p.sector->markEntityForDestruction(p.ptrHandle, otherEntId);
         }
-        p.sector->markEntityForDestruction(actionEntId);
+        p.sector->markEntityForDestruction(p.ptrHandle, actionEntId);
         return true;
     }
     return false;
@@ -665,21 +666,6 @@ void sysCollisionDetectionImpl(world::Sector* sector,
     sector->broadphaseCollisions.clear();
     sector->contactInfos.clear();
 
-    auto entityMarkedDestroyed = [sector](entt::entity ent)
-    {
-        bool destroyed = false;
-        sector->visitEntityRef(ent,
-                               [&destroyed](world::Sector::EntRef& ref)
-                               {
-                                   if (ref.flags
-                                       & world::Sector::EntRef::FLAG_DESTROYED)
-                                   {
-                                       destroyed = true;
-                                   }
-                               });
-        return destroyed;
-    };
-
     for (auto entity : sector->broadphaseQueryEntities)
     {
         if (!reg->valid(entity) || !reg->all_of<Broadphase>(entity))
@@ -691,33 +677,34 @@ void sysCollisionDetectionImpl(world::Sector* sector,
         {
             continue;
         }
-        sector->queryBroadphase(broadphase.fatAABB,
-                                [sector, entity, reg, entityMarkedDestroyed](
-                                    entt::entity entityOther)
-                                {
-                                    if (entity == entityOther)
-                                    {
-                                        return;
-                                    }
-                                    if (!reg->valid(entityOther)
-                                        || !reg->all_of<Collider>(entityOther))
-                                    {
-                                        return;
-                                    }
-                                    if (entityMarkedDestroyed(entity)
-                                        || entityMarkedDestroyed(entityOther))
-                                    {
-                                        return;
-                                    }
-                                    entt::entity lo = entity;
-                                    entt::entity hi = entityOther;
-                                    if (hi < lo)
-                                    {
-                                        std::swap(lo, hi);
-                                    }
-                                    sector->broadphaseCollisions.push_back(
-                                        {lo, hi});
-                                });
+        sector->queryBroadphase(
+            broadphase.fatAABB,
+            [sector, entity, reg](entt::entity entityOther)
+            {
+                if (entity == entityOther)
+                {
+                    return;
+                }
+                if (!reg->valid(entityOther)
+                    || !reg->all_of<Collider>(entityOther))
+                {
+                    return;
+                }
+                auto& flagsMe = reg->get<ecs::Flags>(entity);
+                auto& flagsOther = reg->get<ecs::Flags>(entityOther);
+                if (flagsMe.hasFlag(ecs::Flags::Flag::MovedOrDestroyed)
+                    || flagsOther.hasFlag(ecs::Flags::Flag::MovedOrDestroyed))
+                {
+                    return;
+                }
+                entt::entity lo = entity;
+                entt::entity hi = entityOther;
+                if (hi < lo)
+                {
+                    std::swap(lo, hi);
+                }
+                sector->broadphaseCollisions.push_back({lo, hi});
+            });
     }
     std::sort(sector->broadphaseCollisions.begin(),
               sector->broadphaseCollisions.end());
@@ -907,13 +894,14 @@ void sysAnchorFixedImpl(world::Sector* sector,
             if (parentSectorId.id != sectorId->id)
             {
                 sector->addSectorMoveRequest(
+                    ptrHandle,
                     world::SectorMoveRequest{entityId, parentSectorId.id});
             }
         }
         else
         {
             LG_W("AnchorFixed parent not found for entity {}", entityId);
-            sector->markEntityForDestruction(entityId);
+            sector->markEntityForDestruction(ptrHandle, entityId);
         }
     }
 }

@@ -98,6 +98,8 @@ add_custom_target(
     COMMENT "Running client"
 )
 
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SphyProfiling.cmake")
+
 enable_testing()
 
 set(TEST_LIBS

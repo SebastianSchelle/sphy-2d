@@ -1,4 +1,5 @@
 #include "ecs.hpp"
+#include "comp-ident.hpp"
 #include <protocol.hpp>
 
 namespace ecs
@@ -27,6 +28,7 @@ EntityId Ecs::createEntity()
     slot.generation++;
     EntityId entityId = {index, slot.generation};
     registry.emplace<EntityId>(e, entityId);
+    registry.emplace<ecs::Flags>(e);
     return entityId;
 }
 
@@ -81,20 +83,36 @@ EntityId Ecs::getEntityId(entt::entity entity)
     return registry.get<EntityId>(entity);
 }
 
-const vector<System>& Ecs::getRegisteredSystems()
+const vector<System>& Ecs::getActiveSystems()
 {
-    return registeredSystems;
+    return activeSystems;
 }
 
-void Ecs::registerSystem(const System system)
+const vector<System>& Ecs::getInactiveSystems()
 {
-    if (std::find(registeredSystems.begin(), registeredSystems.end(), system)
-        != registeredSystems.end())
+    return inactiveSystems;
+}
+
+void Ecs::registerActiveSystem(const System system)
+{
+    if (std::find(activeSystems.begin(), activeSystems.end(), system)
+        != activeSystems.end())
     {
         return;
     }
-    registeredSystems.push_back(system);
-    LG_D("Registered ECS system: {}", system.name);
+    activeSystems.push_back(system);
+    LG_D("Registered ECS active system: {}", system.name);
+}
+
+void Ecs::registerInactiveSystem(const System system)
+{
+    if (std::find(inactiveSystems.begin(), inactiveSystems.end(), system)
+        != inactiveSystems.end())
+    {
+        return;
+    }
+    inactiveSystems.push_back(system);
+    LG_D("Registered ECS inactive system: {}", system.name);
 }
 
 EntityId Ecs::spawnEntityFromAsset(const std::string& assetId,

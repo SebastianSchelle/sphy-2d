@@ -145,6 +145,7 @@ void sysTurretImpl(world::Sector* sector,
                                 parVel = physBody->vel;
                             }
                         }
+                        // PEW PEW PEW
                         sector->addSingleThreadedTask([=](ecs::PtrHandle* ptrHandle) {
                             ptrHandle->engine->spawnProjectile(
                             sectorId->id,

@@ -1,3 +1,4 @@
+#include "comp-tag.hpp"
 #include "entt/entity/fwd.hpp"
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
@@ -50,7 +51,11 @@ void Sector::update(float dt, ecs::PtrHandle* ptrHandle)
 {
     broadphaseQueryEntities.clear();
 
-    for (const auto& system : *ptrHandle->systems)
+    auto* systems =
+        isActive ? ptrHandle->activeSystems : ptrHandle->inactiveSystems;
+    auto reg = ptrHandle->registry;
+
+    for (const auto& system : *systems)
     {
         if (system.type == ecs::SystemType::SectorEarly)
         {
@@ -69,7 +74,12 @@ void Sector::update(float dt, ecs::PtrHandle* ptrHandle)
 
     for (const auto& entityRef : entityRefs)
     {
-        for (const auto& system : *ptrHandle->systems)
+        auto& flags = reg->get<ecs::Flags>(entityRef.entity);
+        if (flags.hasFlag(ecs::Flags::Flag::Destroyed))
+        {
+            continue;
+        }
+        for (const auto& system : *systems)
         {
             std::visit(
                 [&](auto&& fn)
@@ -77,10 +87,6 @@ void Sector::update(float dt, ecs::PtrHandle* ptrHandle)
                     using Fn = std::decay_t<decltype(fn)>;
                     if constexpr (std::is_same_v<Fn, ecs::SFSectorForeach>)
                     {
-                        if (entityRef.flags & EntRef::FLAG_DESTROYED)
-                        {
-                            return;
-                        }
                         fn(this,
                            entityRef.entity,
                            entityRef.entityId,
@@ -92,7 +98,7 @@ void Sector::update(float dt, ecs::PtrHandle* ptrHandle)
         }
     }
 
-    for (const auto& system : *ptrHandle->systems)
+    for (const auto& system : *systems)
     {
         if (system.type == ecs::SystemType::SectorLate)
         {
@@ -128,7 +134,7 @@ bool Sector::addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
         return false;
     }
     entt::entity entity = ptrHandle->ecs->getEntity(entityId);
-    entityRefs.push_back(EntRef{entityId, entity, 0});
+    entityRefs.push_back(EntRef{entityId, entity});
     auto& sector = reg->get<ecs::SectorId>(entity);
     sector.id = id;
     sector.x = (uint32_t)coordX;
@@ -225,32 +231,32 @@ void Sector::queryBroadphase(const con::AABB& aabb,
 
 void Sector::markPlayerSector(bool player)
 {
-    playerSector = player;
+    isActive = player;
 }
 
 #ifdef SERVER
 
-void Sector::markEntityForDestruction(ecs::EntityId entityId)
+void Sector::markEntityForDestruction(ecs::PtrHandle* ptrHandle,
+                                      ecs::EntityId entityId)
 {
-    visitEntityRef(
-        entityId,
-        [this, entityId](EntRef& ref)
-        {
-            if (ref.flags & EntRef::FLAG_DESTROYED)
-            {
-                return;
-            }
-            if (ref.flags & EntRef::FLAG_MOVED)
-            {
-                sectorMoveRequests.erase(
-                    std::remove_if(sectorMoveRequests.begin(),
-                                   sectorMoveRequests.end(),
-                                   [=](const SectorMoveRequest& request)
-                                   { return request.entityId == entityId; }),
-                    sectorMoveRequests.end());
-            }
-            ref.flags |= EntRef::FLAG_DESTROYED;
-        });
+    auto reg = ptrHandle->registry;
+    entt::entity entity = ptrHandle->ecs->getEntity(entityId);
+    auto& flags = reg->get<ecs::Flags>(entity);
+
+    if (flags.hasFlag(ecs::Flags::Flag::Destroyed))
+    {
+        return;
+    }
+    if (flags.hasFlag(ecs::Flags::Flag::Moved))
+    {
+        sectorMoveRequests.erase(
+            std::remove_if(sectorMoveRequests.begin(),
+                           sectorMoveRequests.end(),
+                           [=](const SectorMoveRequest& request)
+                           { return request.entityId == entityId; }),
+            sectorMoveRequests.end());
+    }
+    flags.setFlag(ecs::Flags::Flag::Destroyed);
     entitiesToDestroy.push_back(entityId);
 }
 
@@ -277,18 +283,19 @@ void Sector::executeSingleThreadedTasks(ecs::PtrHandle* ptrHandle)
     singleThreadedTasks.clear();
 }
 
-void Sector::addSectorMoveRequest(const SectorMoveRequest& request)
+void Sector::addSectorMoveRequest(ecs::PtrHandle* ptrHandle,
+                                  const SectorMoveRequest& request)
 {
-    visitEntityRef(request.entityId,
-                   [=](EntRef& ref)
-                   {
-                       if (ref.flags & EntRef::FLAG_MOVED
-                           || ref.flags & EntRef::FLAG_DESTROYED)
-                       {
-                           return;
-                       }
-                       ref.flags |= EntRef::FLAG_MOVED;
-                   });
+    auto reg = ptrHandle->registry;
+    auto entity = ptrHandle->ecs->getEntity(request.entityId);
+    auto& flags = reg->get<ecs::Flags>(entity);
+
+    if (flags.hasFlag((ecs::Flags::Flag)(ecs::Flags::Flag::Destroyed
+                                         | ecs::Flags::Flag::Moved)))
+    {
+        return;
+    }
+    flags.setFlag(ecs::Flags::Flag::Moved);
     sectorMoveRequests.push_back(request);
 }
 

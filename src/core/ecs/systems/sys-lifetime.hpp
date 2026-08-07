@@ -25,7 +25,7 @@ const System sysLifetime = {
                 lifetime->lifetime -= dt;
                 if (lifetime->lifetime <= 0.0f)
                 {
-                    sector->markEntityForDestruction(entityId);
+                    sector->markEntityForDestruction(ptrHandle, entityId);
                 }
             }
         }}};

@@ -49,8 +49,8 @@ struct EntityIdHash
 {
     std::size_t operator()(ecs::EntityId const& id) const noexcept
     {
-        return std::hash<uint64_t>{}(
-            (uint64_t{id.index} << 32) | id.generation);
+        return std::hash<uint64_t>{}((uint64_t{id.index} << 32)
+                                     | id.generation);
     }
 };
 
@@ -59,6 +59,38 @@ struct EntityIdHash
     S2b(o.generation);
 EXT_SER(EntityId, SER_ENTITY_ID)
 EXT_DES(EntityId, SER_ENTITY_ID)
+
+struct Flags
+{
+    enum Flag
+    {
+        None = 0x0000,
+        Destroyed = 0x0001,
+        Moved = 0x0002,
+        MovedOrDestroyed = Destroyed | Moved,
+    };
+    using Flag_t = uint16_t;
+
+    Flags() : flags(0) {}
+    Flag_t flags;
+
+    bool hasFlag(Flag f)
+    {
+        return !!(flags & (Flag_t)f);
+    }
+    void setFlag(Flag f)
+    {
+        flags |= (Flag_t)f;
+    }
+    void removeFlag(Flag f)
+    {
+        flags &= ~(Flag_t)f;
+    }
+};
+
+#define SER_FLAGS S2b(o.flags);
+EXT_SER(Flags, SER_FLAGS)
+EXT_DES(Flags, SER_FLAGS)
 
 struct AssetId
 {
