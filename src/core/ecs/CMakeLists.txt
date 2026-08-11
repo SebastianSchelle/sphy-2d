@@ -7,6 +7,10 @@ target_sources(sphy_core_ecs INTERFACE
     asset-factory.cpp
     comp-struct.cpp
     ptr-handle.hpp
+    sector-registry.cpp
+    sector-registry.hpp
+    registry-mapping.cpp
+    registry-mapping.hpp
 )
 
 target_link_libraries(sphy_core_ecs

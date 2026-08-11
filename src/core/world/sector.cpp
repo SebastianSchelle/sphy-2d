@@ -1,5 +1,6 @@
 #include "comp-tag.hpp"
 #include "entt/entity/fwd.hpp"
+#include "sector-registry.hpp"
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
 #include <ptr-handle.hpp>
@@ -34,6 +35,7 @@ void Sector::init(int x,
         this->neighbors[i] = neighbors[i];
     }
     dirty = true;
+    sectorRegistry.init(registryMapping, id);
 }
 
 bool Sector::saveSector(const std::string& savedir)

@@ -11,12 +11,11 @@
 #include <unordered_set>
 #ifdef SERVER
 #include <task-system.hpp>
+#include <sector-registry.hpp>
 #endif
 
 namespace world
 {
-
-const uint32_t INVALID_SECTOR_ID = 0xFFFFFFFF;
 
 typedef std::function<void(ecs::PtrHandle* ptrHandle)> SingleThreadedTaskFunction;
 
@@ -120,8 +119,10 @@ class Sector
     Sector* neighbors[8];  // Neighboring Sectors (8 neighbors)
     bool dirty;            // Sector dirty flag
 
-    vector<EntRef> entityRefs;
+
+    //vector<EntRef> entityRefs;
 #ifdef SERVER
+    ecs::SectorRegistry sectorRegistry;
     vector<ecs::EntityId> entitiesToDestroy;
     vector<SingleThreadedTaskFunction> singleThreadedTasks;
     vector<SectorMoveRequest> sectorMoveRequests;
