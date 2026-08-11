@@ -32,6 +32,18 @@ EntityId RegistryMapping::registerEntity(uint32_t sectorId, entt::entity entity)
     return entityId;
 }
 
+bool RegistryMapping::updateEntitySector(EntityId entityId, uint32_t sectorId, entt::entity entity)
+{
+    if (!validId(entityId))
+    {
+        return false;
+    }
+    auto &ref =  idMap[entityId.index];
+    ref.entity = entity;
+    ref.sectorId = sectorId;
+    return true;
+}
+
 bool RegistryMapping::unregisterEntityId(EntityId entityId)
 {
     if (!validId(entityId))

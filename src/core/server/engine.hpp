@@ -4,6 +4,7 @@
 #include "comp-ident.hpp"
 #include "ecs.hpp"
 #include "entity-spawner.hpp"
+#include "registry-mapping.hpp"
 #include "world-def.hpp"
 #include <asset-factory.hpp>
 #include <atomic>
@@ -167,6 +168,7 @@ class Engine
 
     EngineState state;
     world::World world;
+    ecs::RegistryMapping registryMapping;
     cfg::ConfigManager saveConfig;
     cfg::ConfigManager& config;
     std::string saveFolder;
@@ -189,7 +191,7 @@ class Engine
     ai::TaskSystem taskSystem;
 
   public:
-    ecs::Ecs ecs;
+    //ecs::Ecs ecs;
 };
 
 }  // namespace sphys

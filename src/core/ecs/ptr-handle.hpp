@@ -50,7 +50,7 @@ class ModManager;
 
 namespace ecs
 {
-class Ecs;
+class RegistryMapping;
 struct System;
 
 struct PtrHandle
@@ -62,7 +62,7 @@ struct PtrHandle
     uint32_t frameCnt;
     const vector<System>* activeSystems;
     const vector<System>* inactiveSystems;
-    ecs::Ecs* ecs;
+    RegistryMapping* registryMapping;
     sthread::WorkDistributor* workDistributor;
     con::ItemLib<gobj::Collider>* colliderLib = nullptr;
 #ifdef SERVER

@@ -29,6 +29,7 @@ class RegistryMapping
     // Manage EntityId lifecycle
     EntityId registerEntity(uint32_t sectorId, entt::entity entity);
     bool unregisterEntityId(EntityId entityId);
+    bool updateEntitySector(EntityId entityId, uint32_t sectorId, entt::entity entity);
     bool validId(EntityId entityId);
     const EntMapSlot* getEntity(EntityId entityId);
     const vector<System>& getActiveSystems();

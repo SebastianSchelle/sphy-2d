@@ -1,6 +1,7 @@
 #ifndef SECTOR_HPP
 #define SECTOR_HPP
 
+#include "registry-mapping.hpp"
 #include <ecs.hpp>
 #include <ptr-handle.hpp>
 #include <std-inc.hpp>
@@ -10,14 +11,15 @@
 #include <aabb-tree.hpp>
 #include <unordered_set>
 #ifdef SERVER
-#include <task-system.hpp>
 #include <sector-registry.hpp>
+#include <task-system.hpp>
 #endif
 
 namespace world
 {
 
-typedef std::function<void(ecs::PtrHandle* ptrHandle)> SingleThreadedTaskFunction;
+typedef std::function<void(ecs::PtrHandle* ptrHandle)>
+    SingleThreadedTaskFunction;
 
 struct SectorMoveRequest
 {
@@ -36,11 +38,17 @@ class Sector
 
     Sector();
     ~Sector();
-    void
-    init(int x, int y, float sectorSize, uint32_t id, Sector* neighbors[8]);
+    void init(int x,
+              int y,
+              float sectorSize,
+              uint32_t id,
+              Sector* neighbors[8],
+              ecs::RegistryMapping* regMapping);
     bool saveSector(const std::string& savedir);
     void update(float dt, ecs::PtrHandle* ptrHandle);
-    bool addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
+    bool spawnObject(ecs::PtrHandle* ptrHandle, const ecs::SpawnCallback& spwnClb);
+    bool migrateObject(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
+    //bool addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
     bool removeEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
     void moveAabbProxy(int32_t proxyId, con::AABB& newAabb);
     void destroyBroadphaseProxy(ecs::Broadphase* broadphase);
@@ -51,12 +59,15 @@ class Sector
                                  int32_t sectorOffsetY) const;
     void markPlayerSector(bool player);
 #ifdef SERVER
-    void markEntityForDestruction(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
+    void markEntityForDestruction(ecs::PtrHandle* ptrHandle,
+                                  ecs::EntityId entityId);
     void destroyMarkedEntities(ecs::PtrHandle* ptrHandle);
     void addSingleThreadedTask(SingleThreadedTaskFunction task);
     void executeSingleThreadedTasks(ecs::PtrHandle* ptrHandle);
-    void addSectorMoveRequest(ecs::PtrHandle* ptrHandle, const SectorMoveRequest& request);
-    void forSectorMoveRequests(std::function<void(const SectorMoveRequest& request)> callback);
+    void addSectorMoveRequest(ecs::PtrHandle* ptrHandle,
+                              const SectorMoveRequest& request);
+    void forSectorMoveRequests(
+        std::function<void(const SectorMoveRequest& request)> callback);
 #endif
     const float getWorldPosX() const
     {
@@ -74,16 +85,24 @@ class Sector
     {
         return id;
     }
+    const uint32_t getCoordX()
+    {
+        return coordX;
+    }
+    const uint32_t getCoordY()
+    {
+        return coordY;
+    }
+    ecs::SectorRegistry* getRegistry()
+    {
+        return &sectorRegistry;
+    }
 #ifdef SERVER
     ai::TaskSystem& getTaskSystem()
     {
         return taskSystem;
     }
 #endif
-    const vector<EntRef>& getEntityRefs() const
-    {
-        return entityRefs;
-    }
     inline void addBroadphaseQueryEntity(entt::entity entity)
     {
         broadphaseQueryEntities.push_back(entity);
@@ -110,6 +129,8 @@ class Sector
     vector<ecs::ContactInfo> contactInfos;
 
   private:
+    void objectInitBroadphase(ecs::PtrHandle* ptrHandle, entt::entity entity);
+
     int32_t coordX;        // Sector coord X
     int32_t coordY;        // Sector coord Y
     float sectorSize;      // Sector size
@@ -120,7 +141,7 @@ class Sector
     bool dirty;            // Sector dirty flag
 
 
-    //vector<EntRef> entityRefs;
+    // vector<EntRef> entityRefs;
 #ifdef SERVER
     ecs::SectorRegistry sectorRegistry;
     vector<ecs::EntityId> entitiesToDestroy;
