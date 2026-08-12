@@ -1,6 +1,8 @@
 #ifndef ECS_HPP
 #define ECS_HPP
 
+#ifdef OLD_STUFF
+
 #include <asset-factory.hpp>
 #include <comp-ident.hpp>
 #include <concurrentqueue.h>
@@ -113,4 +115,5 @@ class EcsClient
 
 EXT_FMT(entt::entity, "{}", static_cast<std::uint32_t>(o));
 
+#endif
 #endif

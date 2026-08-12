@@ -14,7 +14,8 @@ World::World() {}
 
 World::~World() {}
 
-bool World::createFromConfig(cfg::ConfigManager& config)
+bool World::createFromConfig(cfg::ConfigManager& config,
+                             ecs::PtrHandle* ptrHandle)
 {
     worldShape.numSectorX = CFG_UINT(config, 10.0f, "world", "num-sector-x");
     worldShape.numSectorY = CFG_UINT(config, 10.0f, "world", "num-sector-y");
@@ -24,7 +25,7 @@ bool World::createFromConfig(cfg::ConfigManager& config)
         LG_E("World initialization failed");
         return false;
     }
-    if (!initSectors(false))
+    if (!initSectors(false, ptrHandle))
     {
         LG_E("Sectors initialization failed");
         return false;
@@ -34,7 +35,8 @@ bool World::createFromConfig(cfg::ConfigManager& config)
 }
 
 bool World::createFromSave(cfg::ConfigManager& config,
-                           const std::string& savedir)
+                           const std::string& savedir,
+                           ecs::PtrHandle* ptrHandle)
 {
     std::string worldSaveFld = savedir + "/save-data/world";
     std::string worldFilePath = worldSaveFld + "/world." + GAME_NAME + ".sav";
@@ -52,7 +54,7 @@ bool World::createFromSave(cfg::ConfigManager& config,
         LG_E("World initialization failed");
         return false;
     }
-    if (!initSectors(true))
+    if (!initSectors(true, ptrHandle))
     {
         LG_E("Sectors initialization failed");
         return false;
@@ -60,7 +62,8 @@ bool World::createFromSave(cfg::ConfigManager& config,
     return true;
 }
 
-bool World::createFromServer(const def::WorldShape& worldShape)
+bool World::createFromServer(const def::WorldShape& worldShape,
+                             ecs::PtrHandle* ptrHandle)
 {
     this->worldShape = worldShape;
     if (!initWorld())
@@ -68,7 +71,7 @@ bool World::createFromServer(const def::WorldShape& worldShape)
         LG_E("World initialization failed");
         return false;
     }
-    if (!initSectors(false))
+    if (!initSectors(false, ptrHandle))
     {
         LG_E("Sectors initialization failed");
         return false;
@@ -110,7 +113,7 @@ bool World::initWorld()
     return true;
 }
 
-bool World::initSectors(bool fromSave)
+bool World::initSectors(bool fromSave, ecs::PtrHandle* ptrHandle)
 {
     if (0 && fromSave)
     {
@@ -129,8 +132,12 @@ bool World::initSectors(bool fromSave)
                     neighbors[k] = getNeighboringSector(
                         i, j, static_cast<def::Direction>(k));
                 }
-                sectors.at(i, j)->init(
-                    i, j, worldShape.sectorSize, sectorId, neighbors);
+                sectors.at(i, j)->init(i,
+                                       j,
+                                       worldShape.sectorSize,
+                                       sectorId,
+                                       neighbors,
+                                       ptrHandle->registryMapping);
             }
         }
     }
@@ -300,6 +307,7 @@ bool World::moveEntityTo(ecs::PtrHandle* ptrHandle,
                          glm::vec2 position,
                          float rotation)
 {
+    /*
     auto reg = ptrHandle->registry;
     entt::entity entity = ptrHandle->ecs->getEntity(entityId);
     if (entity == entt::null)
@@ -314,12 +322,15 @@ bool World::moveEntityTo(ecs::PtrHandle* ptrHandle,
 
     switchSector(ptrHandle, entityId, sectorId);
     return true;
+    */
+    return false;
 }
 
 bool World::switchSector(ecs::PtrHandle* ptrHandle,
                          ecs::EntityId entityId,
                          uint32_t newSectorId)
 {
+    /*
     if (!ptrHandle->ecs->validId(entityId))
     {
         LG_W("Entity not valid: {}", entityId);
@@ -391,6 +402,8 @@ bool World::switchSector(ecs::PtrHandle* ptrHandle,
         return false;
     }
     return true;
+    */
+    return false;
 }
 
 void World::checkSectorSwitchAfterMove(ecs::EntityId entityId,
@@ -511,8 +524,8 @@ void World::checkSectorSwitchAfterMove(ecs::EntityId entityId,
                 LG_W("Sector not found: {}", sectorId->id);
                 return;
             }
-            sector->addSectorMoveRequest(ptrHandle,
-                SectorMoveRequest{entityId, newSectorId});
+            sector->addSectorMoveRequest(
+                ptrHandle, SectorMoveRequest{entityId, newSectorId});
             switch (dir)
             {
                 case def::Direction::N:

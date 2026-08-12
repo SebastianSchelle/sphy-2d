@@ -54,6 +54,7 @@ bool Sector::saveSector(const std::string& savedir)
 void Sector::update(float dt, ecs::PtrHandle* ptrHandle)
 {
     broadphaseQueryEntities.clear();
+    ptrHandle->systems->runSystems(this, dt, ptrHandle);
 
     /*
     auto* systems =
@@ -306,7 +307,7 @@ void Sector::queryBroadphase(const con::AABB& aabb,
 
 void Sector::markPlayerSector(bool player)
 {
-    isActive = player;
+    active = player;
 }
 
 #ifdef SERVER

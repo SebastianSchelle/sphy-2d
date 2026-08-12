@@ -717,14 +717,20 @@ inline bool convexConvex(const std::vector<vec2>& a, const std::vector<vec2>& b)
 
 struct GenericHandle
 {
-    static constexpr GenericHandle Invalid() { return {0, 0}; }
+    static constexpr GenericHandle Invalid()
+    {
+        return {0, 0};
+    }
     uint16_t idx;
     uint16_t gen;
 };
 
 struct GenericHandle32
 {
-    static constexpr GenericHandle32 Invalid() { return {0, 0}; }
+    static constexpr GenericHandle32 Invalid()
+    {
+        return {0, 0};
+    }
     uint32_t idx;
     uint16_t gen;
 };
@@ -743,7 +749,9 @@ EXT_DES(GenericHandle, SER_GENERIC_HANDLE)
 
 EXT_FMT(GenericHandle, "({}, {})", o.idx, o.gen);
 
-#define SER_GENERIC_HANDLE_32 S4b(o.idx); S2b(o.gen);
+#define SER_GENERIC_HANDLE_32                                                  \
+    S4b(o.idx);                                                                \
+    S2b(o.gen);
 EXT_SER(GenericHandle32, SER_GENERIC_HANDLE_32)
 EXT_DES(GenericHandle32, SER_GENERIC_HANDLE_32)
 
@@ -756,6 +764,43 @@ insert_sorted(std::vector<T>& vec, T const& item, Pred pred)
     return vec.insert(std::upper_bound(vec.begin(), vec.end(), item, pred),
                       item);
 }
+
+
+#define ENUM_BIN_OPS(enum_name)                                                \
+    inline constexpr enum_name operator&(enum_name x, enum_name y)             \
+    {                                                                          \
+        return static_cast<enum_name>(static_cast<int>(x)                      \
+                                      & static_cast<int>(y));                  \
+    }                                                                          \
+    inline constexpr enum_name operator|(enum_name x, enum_name y)             \
+    {                                                                          \
+        return static_cast<enum_name>(static_cast<int>(x)                      \
+                                      | static_cast<int>(y));                  \
+    }                                                                          \
+    inline constexpr enum_name operator^(enum_name x, enum_name y)             \
+    {                                                                          \
+        return static_cast<enum_name>(static_cast<int>(x)                      \
+                                      ^ static_cast<int>(y));                  \
+    }                                                                          \
+    inline constexpr enum_name operator~(enum_name x)                          \
+    {                                                                          \
+        return static_cast<enum_name>(~static_cast<int>(x));                   \
+    }                                                                          \
+    inline enum_name& operator&=(enum_name& x, enum_name y)                    \
+    {                                                                          \
+        x = x & y;                                                             \
+        return x;                                                              \
+    }                                                                          \
+    inline enum_name& operator|=(enum_name& x, enum_name y)                    \
+    {                                                                          \
+        x = x | y;                                                             \
+        return x;                                                              \
+    }                                                                          \
+    inline enum_name& operator^=(enum_name& x, enum_name y)                    \
+    {                                                                          \
+        x = x ^ y;                                                             \
+        return x;                                                              \
+    }
 
 // Do not `using smath::Rect` at file scope: macOS SDK (MacTypes.h) defines a
 // global `struct Rect`; a using-declaration would collide with Carbon's type.

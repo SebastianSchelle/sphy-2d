@@ -6,6 +6,7 @@ target_sources(sphy_core_ecs_systems INTERFACE
     sys-phy.cpp
     sys-turret.hpp
     sys-turret.cpp
+    sys-defs.hpp
 )
 
 target_include_directories(sphy_core_ecs_systems

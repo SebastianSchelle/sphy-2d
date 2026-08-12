@@ -22,9 +22,9 @@ class World
   public:
     World();
     ~World();
-    bool createFromConfig(cfg::ConfigManager& config);
-    bool createFromSave(cfg::ConfigManager& config, const std::string& savedir);
-    bool createFromServer(const def::WorldShape& worldShape);
+    bool createFromConfig(cfg::ConfigManager& config, ecs::PtrHandle* ptrHandle);
+    bool createFromSave(cfg::ConfigManager& config, const std::string& savedir, ecs::PtrHandle* ptrHandle);
+    bool createFromServer(const def::WorldShape& worldShape, ecs::PtrHandle* ptrHandle);
     bool getNeighboringSectorPos(uint32_t sectorId,
                                  def::Direction dir,
                                  def::SectorPos& newPos);
@@ -91,7 +91,7 @@ class World
 
   private:
     bool initWorld();
-    bool initSectors(bool fromSave);
+    bool initSectors(bool fromSave, ecs::PtrHandle* ptrHandle);
     bool loadWorldProcessData(uint32_t typeId,
                               uint16_t version,
                               bitsery::Deserializer<InputAdapter>& des_);

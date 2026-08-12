@@ -38,7 +38,7 @@ TaskFunResult Idle::function(TaskFunArgs* args)
 
 TaskFunResult UniversePatrol::function(TaskFunArgs* args)
 {
-    auto* reg = args->ptrHandle->registry;
+    auto* reg = args->sector->getRegistry()->getRegistry();
     auto* transform = reg->try_get<ecs::Transform>(args->entity);
     auto* sectorId = reg->try_get<ecs::SectorId>(args->entity);
     auto* moveCtrl = reg->try_get<ecs::MoveCtrl>(args->entity);
@@ -78,7 +78,7 @@ void UniversePatrol::makeRandomPos(TaskFunArgs* args)
 
 TaskFunResult SectorPatrol::function(TaskFunArgs* args)
 {
-    auto* reg = args->ptrHandle->registry;
+    auto* reg = args->sector->getRegistry()->getRegistry();
     auto* transform = reg->try_get<ecs::Transform>(args->entity);
     auto* sectorId = reg->try_get<ecs::SectorId>(args->entity);
     auto* moveCtrl = reg->try_get<ecs::MoveCtrl>(args->entity);
@@ -123,7 +123,7 @@ TaskFunResult Patrol::function(TaskFunArgs* args)
         SCHED_NEXT(DEFAULT_INTERVAL);
         return TaskFunResult::Done;
     }
-    auto* reg = args->ptrHandle->registry;
+    auto* reg = args->sector->getRegistry()->getRegistry();
     auto* transform = reg->try_get<ecs::Transform>(args->entity);
     auto* sectorId = reg->try_get<ecs::SectorId>(args->entity);
     auto* moveCtrl = reg->try_get<ecs::MoveCtrl>(args->entity);
@@ -146,7 +146,7 @@ TaskFunResult Patrol::function(TaskFunArgs* args)
 
 TaskFunResult Goto::function(TaskFunArgs* args)
 {
-    auto* reg = args->ptrHandle->registry;
+    auto* reg = args->sector->getRegistry()->getRegistry();
     auto* transform = reg->try_get<ecs::Transform>(args->entity);
     auto* sectorId = reg->try_get<ecs::SectorId>(args->entity);
     auto* moveCtrl = reg->try_get<ecs::MoveCtrl>(args->entity);

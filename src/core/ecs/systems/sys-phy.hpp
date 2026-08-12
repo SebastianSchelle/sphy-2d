@@ -1,7 +1,7 @@
 #ifndef SYS_PHY_HPP
 #define SYS_PHY_HPP
 
-#include <ecs.hpp>
+#include <sys-defs.hpp>
 #include <std-inc.hpp>
 #include <world.hpp>
 
@@ -15,7 +15,7 @@ void sysMoveCtrlImpl(world::Sector* sector,
                      PtrHandle* ptrHandle);
 
 const System sysMoveCtrl = {.name = "sysMoveCtrl",
-                            .type = SystemType::SectorForeachEntitiy,
+                            .sysFlags = SystemFlags::ActiveSector | SystemFlags::ForeachEntity,
                             .function = sysMoveCtrlImpl};
 
 void sysPhyThrustImpl(world::Sector* sector,

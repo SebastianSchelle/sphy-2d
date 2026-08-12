@@ -2,7 +2,7 @@
 #define SECTOR_HPP
 
 #include "registry-mapping.hpp"
-#include <ecs.hpp>
+#include <sector-registry.hpp>
 #include <ptr-handle.hpp>
 #include <std-inc.hpp>
 #ifdef CLIENT
@@ -97,6 +97,10 @@ class Sector
     {
         return &sectorRegistry;
     }
+    bool isActive()
+    {
+        return active;
+    }
 #ifdef SERVER
     ai::TaskSystem& getTaskSystem()
     {
@@ -149,7 +153,7 @@ class Sector
     vector<SectorMoveRequest> sectorMoveRequests;
 #endif
     con::DynamicAABBTree<entt::entity> aabbTree;
-    bool isActive = false;
+    bool active = false;
 #ifdef SERVER
     ai::TaskSystem taskSystem;
 #endif

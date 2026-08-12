@@ -8,11 +8,6 @@
 namespace ecs
 {
 
-struct System
-{
-};
-
-
 struct EntMapSlot
 {
     entt::entity entity = entt::null;
@@ -32,10 +27,6 @@ class RegistryMapping
     bool updateEntitySector(EntityId entityId, uint32_t sectorId, entt::entity entity);
     bool validId(EntityId entityId);
     const EntMapSlot* getEntity(EntityId entityId);
-    const vector<System>& getActiveSystems();
-    const vector<System>& getInactiveSystems();
-    void registerActiveSystem(const System system);
-    void registerInactiveSystem(const System system);
 
   private:
     vector<EntMapSlot> idMap;
