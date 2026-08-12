@@ -486,8 +486,9 @@ void spawnParentAsteroidChildren(const ColResolveParams& p,
             }
 
             float rotVel = 0.0f;
-            if (auto* parentBody =
-                    p.ptrHandle->registry->try_get<PhysicsBody>(p.otherEnt))
+            if (auto* parentBody = p.sector->getRegistry()
+                                       ->getRegistry()
+                                       ->try_get<PhysicsBody>(p.otherEnt))
             {
                 rotVel = parentBody->rotVel * 0.5f;
             }
@@ -503,7 +504,7 @@ void spawnParentAsteroidChildren(const ColResolveParams& p,
 
 static bool itemCollision(const ColResolveParams& p)
 {
-    auto reg = p.ptrHandle->registry;
+    auto reg = p.sector->getRegistry()->getRegistry();
     auto* item = reg->try_get<Item>(p.actionEnt);
     auto* storage = reg->try_get<Storage>(p.otherEnt);
     if (!storage || !item)
@@ -531,7 +532,7 @@ static bool itemCollision(const ColResolveParams& p)
 
 static bool projectileCollision(const ColResolveParams& p)
 {
-    auto reg = p.ptrHandle->registry;
+    auto reg = p.sector->getRegistry()->getRegistry();
     auto* projectile = reg->try_get<Projectile>(p.actionEnt);
     if (!projectile)
     {
@@ -556,7 +557,7 @@ static bool projectileCollision(const ColResolveParams& p)
         asteroid->damage(
             p.ptrHandle,
             dmg,
-            [p](gobj::ItemHandle handle, uint32_t quantity)
+            [p, reg](gobj::ItemHandle handle, uint32_t quantity)
             {
                 gobj::Item* item =
                     p.ptrHandle->modManager->getItemLib().getItem(handle);
@@ -564,7 +565,6 @@ static bool projectileCollision(const ColResolveParams& p)
                 {
                     return;
                 }
-                auto reg = p.ptrHandle->registry;
                 auto* sectorId = reg->try_get<SectorId>(p.otherEnt);
                 if (!sectorId)
                 {
@@ -632,7 +632,7 @@ colliderAction(PtrHandle* ptrHandle,
                const Collider& collider2,
                const std::pair<entt::entity, entt::entity>& collision)
 {
-    auto reg = ptrHandle->registry;
+    auto reg = sector->getRegistry()->getRegistry();
     ColResolveParams p{.ptrHandle = ptrHandle,
                        .sector = sector,
                        .contact = contact,
@@ -754,8 +754,8 @@ void sysCollisionDetectionImpl(world::Sector* sector,
             (ecs::EntityId*)&collider1->exceptEntity;
         if (*exceptEntity1 != ecs::EntityId::Invalid())
         {
-            entt::entity except = ptrHandle->ecs->getEntity(*exceptEntity1);
-            if (except == collision.second)
+            auto except = ptrHandle->registryMapping->getEntity(*exceptEntity1);
+            if (except->entity == collision.second)
             {
                 continue;
             }
@@ -764,8 +764,8 @@ void sysCollisionDetectionImpl(world::Sector* sector,
             (ecs::EntityId*)&collider2->exceptEntity;
         if (*exceptEntity2 != ecs::EntityId::Invalid())
         {
-            entt::entity except = ptrHandle->ecs->getEntity(*exceptEntity2);
-            if (except == collision.first)
+            auto except = ptrHandle->registryMapping->getEntity(*exceptEntity2);
+            if (except->entity == collision.first)
             {
                 continue;
             }
@@ -891,8 +891,11 @@ void sysAnchorFixedImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
     auto* reg = sector->getRegistry()->getRegistry();
     auto* regMap = ptrHandle->registryMapping;
     reg->view<EntityId, AnchorFixed, Transform, SectorId>().each(
-        [ptrHandle, sector, regMap, reg](
-            auto entity, auto& entityId, auto& anchorFixed, auto& transform, auto& sectorId)
+        [ptrHandle, sector, regMap, reg](auto entity,
+                                         auto& entityId,
+                                         auto& anchorFixed,
+                                         auto& transform,
+                                         auto& sectorId)
         {
             auto parent = regMap->getEntity(anchorFixed->ref);
             if (parent != entt::null)
