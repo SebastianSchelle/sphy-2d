@@ -33,7 +33,7 @@ bool Turret::findBestTarget(TaskFunArgs* args,
     {
         return false;
     }
-    auto* reg = args->ptrHandle->registry;
+    auto* reg = args->sector->getRegistry()->getRegistry();
     auto* transform = reg->try_get<ecs::Transform>(args->entity);
     auto* turret = reg->try_get<ecs::Turret>(args->entity);
     auto* module = reg->try_get<ecs::Module>(args->entity);
@@ -92,7 +92,7 @@ TaskFunResult Turret::funMine(TaskFunArgs* args)
     BestTarget bestTarget;
     ScoreFunction scoreFunction = [args](ScoreArgs& scoreArgs) -> float
     {
-        auto* reg = args->ptrHandle->registry;
+        auto* reg = args->sector->getRegistry()->getRegistry();
         auto* asteroid = reg->try_get<ecs::Asteroid>(scoreArgs.tgt);
         if (!asteroid)
         {
@@ -112,7 +112,7 @@ TaskFunResult Turret::funMine(TaskFunArgs* args)
     };
     if (findBestTarget(args, bestTarget, scoreFunction))
     {
-        auto* reg = args->ptrHandle->registry;
+        auto* reg = args->sector->getRegistry()->getRegistry();
         auto* turret = reg->try_get<ecs::Turret>(args->entity);
         if (!turret)
         {
@@ -128,7 +128,7 @@ TaskFunResult Turret::funMine(TaskFunArgs* args)
     }
     else
     {
-        auto* reg = args->ptrHandle->registry;
+        auto* reg = args->sector->getRegistry()->getRegistry();
         auto* turret = reg->try_get<ecs::Turret>(args->entity);
         if (!turret)
         {
@@ -144,7 +144,7 @@ TaskFunResult Turret::funMine(TaskFunArgs* args)
 
 TaskFunResult Turret::funPlayer(TaskFunArgs* args)
 {
-    auto* reg = args->ptrHandle->registry;
+    auto* reg = args->sector->getRegistry()->getRegistry();
     auto* turret = reg->try_get<ecs::Turret>(args->entity);
     if (!turret)
     {

@@ -1,41 +1,29 @@
 #ifndef SYS_PHY_HPP
 #define SYS_PHY_HPP
 
-#include <sys-defs.hpp>
 #include <std-inc.hpp>
+#include <sys-defs.hpp>
 #include <world.hpp>
 
 namespace ecs
 {
 
-void sysMoveCtrlImpl(world::Sector* sector,
-                     entt::entity entity,
-                     const ecs::EntityId& entityId,
-                     float dt,
-                     PtrHandle* ptrHandle);
+void sysMoveCtrlImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle);
 
 const System sysMoveCtrl = {.name = "sysMoveCtrl",
-                            .sysFlags = SystemFlags::ActiveSector | SystemFlags::ForeachEntity,
+                            .sysFlags = SystemFlags::ActiveSector,
                             .function = sysMoveCtrlImpl};
 
-void sysPhyThrustImpl(world::Sector* sector,
-                      entt::entity entity,
-                      const ecs::EntityId& entityId,
-                      float dt,
-                      PtrHandle* ptrHandle);
+void sysPhyThrustImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle);
 
 const System sysPhyThrust = {.name = "sysPhyThrust",
-                             .type = SystemType::SectorForeachEntitiy,
+                             .sysFlags = SystemFlags::ActiveSector,
                              .function = sysPhyThrustImpl};
 
-void sysPhysicsImpl(world::Sector* sector,
-                    entt::entity entity,
-                    const ecs::EntityId& entityId,
-                    float dt,
-                    PtrHandle* ptrHandle);
+void sysPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle);
 
 const System sysPhysics = {.name = "sysPhysics",
-                           .type = SystemType::SectorForeachEntitiy,
+                           .sysFlags = SystemFlags::ActiveSector,
                            .function = sysPhysicsImpl};
 
 void sysCollisionDetectionImpl(world::Sector* sector,
@@ -43,17 +31,13 @@ void sysCollisionDetectionImpl(world::Sector* sector,
                                PtrHandle* ptrHandle);
 
 const System sysCollisionDetection = {.name = "sysCollisionDetection",
-                                      .type = SystemType::SectorLate,
+                                      .sysFlags = SystemFlags::ActiveSector,
                                       .function = sysCollisionDetectionImpl};
 
-void sysAnchorFixedImpl(world::Sector* sector,
-                        entt::entity entity,
-                        const ecs::EntityId& entityId,
-                        float dt,
-                        PtrHandle* ptrHandle);
+void sysAnchorFixedImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle);
 
 const System sysAnchorFixed = {.name = "sysAnchorFixed",
-                               .type = SystemType::SectorForeachEntitiy,
+                               .sysFlags = SystemFlags::ActiveSector,
                                .function = sysAnchorFixedImpl};
 
 }  // namespace ecs
