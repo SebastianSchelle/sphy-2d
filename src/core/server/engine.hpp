@@ -5,6 +5,7 @@
 #include "ecs.hpp"
 #include "entity-spawner.hpp"
 #include "registry-mapping.hpp"
+#include "systems.hpp"
 #include "world-def.hpp"
 #include <asset-factory.hpp>
 #include <atomic>
@@ -169,6 +170,7 @@ class Engine
     EngineState state;
     world::World world;
     ecs::RegistryMapping registryMapping;
+    ecs::Systems systems;
     cfg::ConfigManager saveConfig;
     cfg::ConfigManager& config;
     std::string saveFolder;

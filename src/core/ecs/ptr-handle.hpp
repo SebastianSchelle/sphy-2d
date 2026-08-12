@@ -55,7 +55,6 @@ struct System;
 
 struct PtrHandle
 {
-    entt::registry* registry;
     world::World* world;
     mod::ModManager* modManager;
     // Shared fields must precede SERVER/CLIENT-only members (see cmake/SphyTargetKind.cmake).

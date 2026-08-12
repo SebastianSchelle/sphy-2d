@@ -11,6 +11,8 @@ target_sources(sphy_core_ecs INTERFACE
     sector-registry.hpp
     registry-mapping.cpp
     registry-mapping.hpp
+    systems.hpp
+    systems.cpp
 )
 
 target_link_libraries(sphy_core_ecs

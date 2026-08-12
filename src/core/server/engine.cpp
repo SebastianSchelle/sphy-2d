@@ -35,15 +35,13 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
       saveFolder(options.savedir), commandManager()
 {
     ptrHandle = new ecs::PtrHandle();
-    ptrHandle->ecs = &ecs;
-    ptrHandle->registry = &ecs.getRegistry();
     ptrHandle->engine = this;
+    ptrHandle->registryMapping = &registryMapping;
     ptrHandle->taskSystem = &taskSystem;
     ptrHandle->world = &world;
     ptrHandle->engine = this;
     ptrHandle->activeSystems = &ecs.getActiveSystems();
     ptrHandle->inactiveSystems = &ecs.getActiveSystems();
-    ptrHandle->registry = &ecs.getRegistry();
     ptrHandle->workDistributor = &workDistributor;
     ptrHandle->colliderLib = &modManager.getColliderLib();
     ptrHandle->modManager = &modManager;
