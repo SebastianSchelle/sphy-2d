@@ -2,6 +2,7 @@ add_library(sphy_core_ecs_systems INTERFACE)
 
 target_sources(sphy_core_ecs_systems INTERFACE
     sys-ai.hpp
+    sys-ai.cpp
     sys-phy.hpp
     sys-phy.cpp
     sys-turret.hpp

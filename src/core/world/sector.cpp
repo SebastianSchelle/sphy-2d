@@ -257,6 +257,7 @@ void Sector::destroyBroadphaseProxy(ecs::Broadphase* broadphase)
 
 bool Sector::removeEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
 {
+    /*
     if (!ptrHandle->ecs->validId(entityId))
     {
         // LG_W("Entity not valid: {}", entityId);
@@ -279,6 +280,7 @@ bool Sector::removeEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
         destroyBroadphaseProxy(broadphase);
     }
     entityRefs.erase(it);
+    */
     return true;
 }
 
@@ -319,6 +321,7 @@ void Sector::markPlayerSector(bool player)
 void Sector::markEntityForDestruction(ecs::PtrHandle* ptrHandle,
                                       ecs::EntityId entityId)
 {
+    /*
     auto reg = ptrHandle->registry;
     entt::entity entity = ptrHandle->ecs->getEntity(entityId);
     auto& flags = reg->get<ecs::Flags>(entity);
@@ -338,6 +341,7 @@ void Sector::markEntityForDestruction(ecs::PtrHandle* ptrHandle,
     }
     flags.setFlag(ecs::Flags::Flag::Destroyed);
     entitiesToDestroy.push_back(entityId);
+    */
 }
 
 void Sector::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
@@ -366,6 +370,7 @@ void Sector::executeSingleThreadedTasks(ecs::PtrHandle* ptrHandle)
 void Sector::addSectorMoveRequest(ecs::PtrHandle* ptrHandle,
                                   const SectorMoveRequest& request)
 {
+    /*
     auto reg = ptrHandle->registry;
     auto entity = ptrHandle->ecs->getEntity(request.entityId);
     auto& flags = reg->get<ecs::Flags>(entity);
@@ -377,16 +382,19 @@ void Sector::addSectorMoveRequest(ecs::PtrHandle* ptrHandle,
     }
     flags.setFlag(ecs::Flags::Flag::Moved);
     sectorMoveRequests.push_back(request);
+    */
 }
 
 void Sector::forSectorMoveRequests(
     std::function<void(const SectorMoveRequest& request)> callback)
 {
+    /*
     for (const auto& request : sectorMoveRequests)
     {
         callback(request);
     }
     sectorMoveRequests.clear();
+    */
 }
 
 #endif
@@ -425,31 +433,5 @@ void Sector::drawThirdPerson(gfx::RenderEngine& renderer,
 }
 
 #endif
-
-void Sector::visitEntityRef(ecs::EntityId entityId,
-                            std::function<void(EntRef& ref)> callback)
-{
-    auto it = std::find_if(entityRefs.begin(),
-                           entityRefs.end(),
-                           [entityId](const EntRef& ref)
-                           { return ref.entityId == entityId; });
-    if (it != entityRefs.end())
-    {
-        callback(*it);
-    }
-}
-
-void Sector::visitEntityRef(entt::entity entity,
-                            std::function<void(EntRef& ref)> callback)
-{
-    auto it = std::find_if(entityRefs.begin(),
-                           entityRefs.end(),
-                           [entity](const EntRef& ref)
-                           { return ref.entity == entity; });
-    if (it != entityRefs.end())
-    {
-        callback(*it);
-    }
-}
 
 }  // namespace world

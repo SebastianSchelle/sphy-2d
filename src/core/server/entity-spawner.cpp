@@ -1,9 +1,13 @@
 #include "entity-spawner.hpp"
+
+#ifdef OLD_STUFF
 #include "lib-station-part.hpp"
 #include "std-inc.hpp"
 #include "task-basic.hpp"
 #include <comp-ident.hpp>
 #include <components/comp-phy.hpp>
+
+
 
 namespace sphys
 {
@@ -898,3 +902,4 @@ ecs::EntityId EntitySpawner::spawnItem(uint32_t sectorId,
 }
 
 }  // namespace sphys
+#endif

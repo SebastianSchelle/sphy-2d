@@ -86,10 +86,6 @@ class Engine
     {
         return stopRequested;
     }
-    ecs::EntityId spawnEntityFromAsset(const std::string& assetId);
-    ecs::EntityId spawnEntityFromAsset(const std::string& assetId,
-                                       uint32_t sectorId,
-                                       const ecs::Transform& transform);
     void spawnProjectile(
         uint32_t sectorId,
         vec2 pos,
@@ -187,7 +183,6 @@ class Engine
     float filteredFps = 0.0f;
 
     ecs::CollisionLayerMat collisionLayerMat;
-    std::unique_ptr<EntitySpawner> entitySpawner;
 
     float itemLifetime;
     ai::TaskSystem taskSystem;

@@ -72,9 +72,6 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
 
     updThreads = std::clamp(updThreads, 1, 16);
     workDistributor.init(updThreads);
-
-    entitySpawner = std::make_unique<EntitySpawner>(
-        ecs, modManager, world, ptrHandle, taskSystem);
 }
 
 Engine::~Engine()
@@ -90,14 +87,14 @@ void Engine::start()
 {
     assetFactory.componentFactory.registerAllComponents();
 
-    ecs.registerActiveSystem(ecs::sysLifetime);
-    ecs.registerActiveSystem(ecs::sysMoveCtrl);
-    ecs.registerActiveSystem(ecs::sysPhyThrust);
-    ecs.registerActiveSystem(ecs::sysPhysics);
-    ecs.registerActiveSystem(ecs::sysCollisionDetection);
-    ecs.registerActiveSystem(ecs::sysAnchorFixed);
-    ecs.registerActiveSystem(ecs::sysAi);
-    ecs.registerActiveSystem(ecs::sysTurret);
+    systems.registerSystem(ecs::sysLifetime, 0);
+    systems.registerSystem(ecs::sysMoveCtrl, 1);
+    systems.registerSystem(ecs::sysPhyThrust, 2);
+    systems.registerSystem(ecs::sysPhysics, 3);
+    systems.registerSystem(ecs::sysCollisionDetection, 4);
+    systems.registerSystem(ecs::sysAnchorFixed, 5);
+    systems.registerSystem(ecs::sysAi, 6);
+    systems.registerSystem(ecs::sysTurret, 7);
 
     loadCollisionMatrix();
     registerConsoleCommands();
@@ -227,26 +224,11 @@ void Engine::engineLoop()
     }
 }
 
-void Engine::initPost()
-{
-    EntitySpawner::ItemSpawnConfig itemConfig;
-    itemConfig.colliderHandle = modManager.getColliderLib().getHandle("Item");
-    itemConfig.lifetime = itemLifetime;
-    entitySpawner->setItemSpawnConfig(itemConfig);
-}
+void Engine::initPost() {}
 
 void Engine::update(float dt)
 {
     ptrHandle->frameCnt++;
-    for (int i = 0; i < globalEntityIds.size(); i++)
-    {
-        ecs::EntityId entityId = globalEntityIds[i];
-        entt::entity entity = globalEntities[i];
-        for (auto system : *ptrHandle->activeSystems)
-        {
-            // system.function(entity, entityId, dt, ptrHandle);
-        }
-    }
     // Update third person controlled vehicles
     for (auto handle : connectedClientHandles)
     {
@@ -258,15 +240,23 @@ void Engine::update(float dt)
                | def::ThirdPersonControl::FLG_FIRE_WEAPONS))
         {
             ecs::EntityId entityId = clientInfo->activeEntity;
-            entt::entity ent = ecs.getEntity(entityId);
-            if (ent == entt::null)
+            auto slot = registryMapping.getEntity(entityId);
+            if (!slot)
             {
-                LG_W("Entity not found for client {}", clientInfo->name);
+                LG_W("Active entity not found for client {}", clientInfo->name);
                 continue;
             }
-            auto* transform = ptrHandle->registry->try_get<ecs::Transform>(ent);
-            auto* phyThrust = ptrHandle->registry->try_get<ecs::PhyThrust>(ent);
-            auto* moveCtrl = ptrHandle->registry->try_get<ecs::MoveCtrl>(ent);
+            auto sector = world.getSector(slot->sectorId);
+            if (!sector)
+            {
+                LG_W("Active entities sector could not be found for client {}",
+                     clientInfo->name);
+                continue;
+            }
+            auto* reg = sector->getRegistry()->getRegistry();
+            auto* transform = reg->try_get<ecs::Transform>(slot->entity);
+            auto* phyThrust = reg->try_get<ecs::PhyThrust>(slot->entity);
+            auto* moveCtrl = reg->try_get<ecs::MoveCtrl>(slot->entity);
             if (phyThrust && transform && moveCtrl)
             {
                 if (thrdCtrl.thrust == vec2(0.0f, 0.0f))
@@ -344,7 +334,7 @@ void Engine::startFromFolder()
 
 bool Engine::loadFromFolder()
 {
-    if (!world.createFromSave(saveConfig, saveFolder))
+    if (!world.createFromSave(saveConfig, saveFolder, ptrHandle))
     {
         LG_E("Failed to load world from save");
         return false;
@@ -359,7 +349,7 @@ bool Engine::createFromConfig()
     {
         saveConfig.clear();
         saveConfig.addDefs(configPath);
-        if (!world.createFromConfig(saveConfig))
+        if (!world.createFromConfig(saveConfig, ptrHandle))
         {
             LG_E("Failed to create world from config");
             return false;
@@ -836,33 +826,6 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
     }
 }
 
-ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId)
-{
-    return ecs.spawnEntityFromAsset(assetId, assetFactory);
-}
-
-ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId,
-                                           uint32_t sectorId,
-                                           const ecs::Transform& transform)
-{
-    ecs::EntityId ent = spawnEntityFromAsset(assetId);
-    if (!ecs.validId(ent))
-    {
-        LG_E("Failed to spawn entity. Asset with id {} does not exist",
-             assetId);
-        return ent;
-    }
-    entt::entity entity = ecs.getEntity(ent);
-    auto& reg = ecs.getRegistry();
-    ecs::Transform& tr = reg.get_or_emplace<ecs::Transform>(entity);
-    ecs::Broadphase& br = reg.get_or_emplace<ecs::Broadphase>(entity);
-    ecs::TransformCache& trC = reg.get_or_emplace<ecs::TransformCache>(entity);
-    ecs::SectorId& sec = reg.get_or_emplace<ecs::SectorId>(
-        entity, ecs::SectorId{world::INVALID_SECTOR_ID, 0, 0});
-    world.moveEntityTo(ptrHandle, ent, sectorId, transform.pos, transform.rot);
-    return ent;
-}
-
 void Engine::postWorldSetup() {}
 
 void Engine::registerConsoleCommands()
@@ -1253,16 +1216,13 @@ void Engine::testSpawn()
 
     auto shipHull = sector->spawnObject(
         ptrHandle,
-        [ptrHandle](ecs::SpawnCallbackParams& params)
+        [this](ecs::SpawnCallbackParams& params)
         {
             return objb::ShipHull::build(
                 ptrHandle, params, modManager.getHullLib().getHandle("Bee"));
         });
 
-    auto module1 = sector->spawnObject(
-        ptrHandle,
-        [ptrHandle](SpawnCallbackParams params)
-        { return ptrHandle->objBuilder->buildModule(params, shipHull); });
+    /*
 
     // todo: implement ObjBuilder
 
@@ -1475,25 +1435,25 @@ void Engine::testSpawn()
         // ecs::EntityId partId2 =
         //     addStationPart(stationId,
         //                    partId,
-        //                    modManager.getStationPartLib().getHandle("strut-1"),
+        // modManager.getStationPartLib().getHandle("strut-1"),
         //                    0,
         //                    0);
         // ecs::EntityId partId3 =
         //     addStationPart(stationId,
         //                    partId,
-        //                    modManager.getStationPartLib().getHandle("strut-1"),
+        // modManager.getStationPartLib().getHandle("strut-1"),
         //                    1,
         //                    1);
         // ecs::EntityId partId4 =
         //     addStationPart(stationId,
         //                    partId3,
-        //                    modManager.getStationPartLib().getHandle("tank-1"),
+        // modManager.getStationPartLib().getHandle("tank-1"),
         //                    0,
         //                    0);
         // ecs::EntityId partId5 =
         //     addStationPart(stationId,
         //                    partId4,
-        //                    modManager.getStationPartLib().getHandle("strut-1"),
+        // modManager.getStationPartLib().getHandle("strut-1"),
         //                    1,
         //                    0);
     }
@@ -1514,6 +1474,7 @@ void Engine::testSpawn()
                       modManager.getAsteroidLib().getHandle("Small Asteroid 2"),
                       rot2);
     }
+    */
 }
 
 void Engine::handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn)
@@ -1648,13 +1609,21 @@ void Engine::handleThirdPersonControl(def::ClientInfo* clientInfo,
 {
     def::ThirdPersonControl& tpc = clientInfo->thirdPersonControl;
     ecs::EntityId entityId = clientInfo->activeEntity;
-    entt::entity ent = ecs.getEntity(entityId);
-    if (ent == entt::null)
+    auto slot = registryMapping.getEntity(entityId);
+    if (!slot)
     {
         LG_W("Entity not found for client {}", clientInfo->name);
         return;
     }
-    auto* ai = ptrHandle->registry->try_get<ecs::Ai>(ent);
+    auto sector = world.getSector(slot->sectorId);
+    if (!sector)
+    {
+        LG_W("Entities Sector could not be found for client {}",
+             clientInfo->name);
+        return;
+    }
+    auto* reg = sector->getRegistry()->getRegistry();
+    auto* ai = reg->try_get<ecs::Ai>(slot->entity);
     bool shutdownAi = tpc.flags
                       & (def::ThirdPersonControl::FLG_DRIVE_MANUAL
                          | def::ThirdPersonControl::FLG_DRIVE_MANUAL
@@ -1664,29 +1633,28 @@ void Engine::handleThirdPersonControl(def::ClientInfo* clientInfo,
         ai->active = false;
     }
 
-    auto* hull = ptrHandle->registry->try_get<ecs::Hull>(ent);
+    auto* hull = reg->try_get<ecs::Hull>(slot->entity);
     if (hull)
     {
         for (const auto& module : hull->modules)
         {
             if (module.slotType == gobj::ModuleType::Turret)
             {
-                entt::entity turretEntt = ecs.getEntity(module.entityId);
-                if (turretEntt != entt::null)
+                auto turrSlot = registryMapping.getEntity(module.entityId);
+                if (!turrSlot || turrSlot->sectorId != sector->getId())
                 {
-                    auto* turret =
-                        ptrHandle->registry->try_get<ecs::Turret>(turretEntt);
-                    if (turret
-                        && turret->aimMode == ecs::Turret::AimMode::Player)
-                    {
-                        turret->fireMode = ecs::Turret::FireMode::Manual;
-                        turret->isFiring =
-                            tpc.flags
-                            & def::ThirdPersonControl::FLG_FIRE_WEAPONS;
-                        auto& aimData =
-                            std::get<ecs::Turret::PointData>(turret->aimData);
-                        aimData.pos = tpc.ptrPos;
-                    }
+                    LG_W("Could not find turret for third person control");
+                    continue;
+                }
+                auto* turret = reg->try_get<ecs::Turret>(turrSlot->entity);
+                if (turret && turret->aimMode == ecs::Turret::AimMode::Player)
+                {
+                    turret->fireMode = ecs::Turret::FireMode::Manual;
+                    turret->isFiring =
+                        tpc.flags & def::ThirdPersonControl::FLG_FIRE_WEAPONS;
+                    auto& aimData =
+                        std::get<ecs::Turret::PointData>(turret->aimData);
+                    aimData.pos = tpc.ptrPos;
                 }
             }
         }
@@ -1700,12 +1668,14 @@ void Engine::spawnProjectile(uint32_t sectorId,
                              const ecs::EntityId& exceptEntity,
                              vec2 parVel)
 {
+    /*
     ecs::EntityId ent = entitySpawner->spawnProjectile(
         sectorId, pos, vel, projectileHandle, exceptEntity, parVel);
     if (ecs.validId(ent))
     {
         broadcastEntityToClients(ent);
     }
+    */
 }
 
 void Engine::spawnAsteroid(uint32_t sectorId,
@@ -1713,12 +1683,14 @@ void Engine::spawnAsteroid(uint32_t sectorId,
                            const gobj::AsteroidHandle& asteroidHandle,
                            float rotVel)
 {
+    /*
     ecs::EntityId ent = entitySpawner->spawnAsteroid(
         sectorId, transform, asteroidHandle, rotVel);
     if (ecs.validId(ent))
     {
         broadcastEntityToClients(ent);
     }
+    */
 }
 
 void Engine::spawnItem(uint32_t sectorId,
@@ -1728,12 +1700,14 @@ void Engine::spawnItem(uint32_t sectorId,
                        vec2 initialVel,
                        ecs::EntityId collexcept)
 {
+    /*
     ecs::EntityId ent = entitySpawner->spawnItem(
         sectorId, transform, itemHandle, quantity, initialVel, collexcept);
     if (ecs.validId(ent))
     {
         broadcastEntityToClients(ent);
     }
+    */
 }
 
 void Engine::loadCollisionMatrix()
@@ -1762,6 +1736,7 @@ void Engine::loadCollisionMatrix()
 
 void Engine::destroyEntity(ecs::EntityId entityId)
 {
+    /*
     auto entt = ecs.getEntity(entityId);
     for (auto compHelper : assetFactory.componentFactory.getComponentHelpers())
     {
@@ -1783,6 +1758,7 @@ void Engine::destroyEntity(ecs::EntityId entityId)
                 mcomp.execute(sendQueue);
             });
     }
+    */
 }
 
 void Engine::forActiveClients(

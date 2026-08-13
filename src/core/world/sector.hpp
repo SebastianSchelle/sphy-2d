@@ -123,10 +123,6 @@ class Sector
                          const glm::vec4& viewRect,
                          float zoom);
 #endif
-    void visitEntityRef(ecs::EntityId entityId,
-                        std::function<void(EntRef& ref)> callback);
-    void visitEntityRef(entt::entity entity,
-                        std::function<void(EntRef& ref)> callback);
 
     std::vector<std::pair<entt::entity, entt::entity>> broadphaseCollisions;
     std::vector<entt::entity> broadphaseQueryEntities;
