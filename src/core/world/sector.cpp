@@ -37,7 +37,9 @@ void Sector::init(int x,
         this->neighbors[i] = neighbors[i];
     }
     dirty = true;
-    sectorRegistry.init(regMapping, id);
+#ifdef SERVER
+    sectorRegistry.init(regMapping, this);
+#endif
 }
 
 bool Sector::saveSector(const std::string& savedir)

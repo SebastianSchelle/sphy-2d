@@ -52,16 +52,16 @@ void sysMoveCtrlImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                 vec2 d_l;
                 float d_l_mag;
                 bool calcLocalSpaceVectorsDone = false;
-                const float s = transformCache->s;
-                const float c = transformCache->c;
+                const float s = transformCache.s;
+                const float c = transformCache.c;
 
                 auto calcLocalSpaceVectors = [&](def::SectorCoords trgt)
                 {
                     vec2 relTargetPos =
-                        (trgt.pos.toVec2() - sectorId->toVec2())
+                        (trgt.pos.toVec2() - sectorId.toVec2())
                             * ptrHandle->world->getWorldShape().sectorSize
                         + trgt.sectorPos;
-                    d_w = relTargetPos - transform->pos;
+                    d_w = relTargetPos - transform.pos;
                     d_l = smath::rotateVec2(d_w, -s, c);
                     d_l_mag = glm::length(d_l);
                     calcLocalSpaceVectorsDone = true;
@@ -70,21 +70,21 @@ void sysMoveCtrlImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                 auto ctrlPos = [&](def::SectorCoords trgt)
                 {
                     // Thrust control =====================
-                    const float m = physicsBody->mass;
-                    const vec2 v_vel = physicsBody->vel;
+                    const float m = physicsBody.mass;
+                    const vec2 v_vel = physicsBody.vel;
                     const vec2 v_vel_l = smath::rotateVec2(v_vel, -s, c);
                     const float v = glm::length(v_vel);
 
 
                     vec2 v_des_l = vec2(0.0f, 0.0f);
 
-                    moveCtrl->posReached = d_l_mag < moveCtrl->allowedPosError;
-                    if (!moveCtrl->posReached)
+                    moveCtrl.posReached = d_l_mag < moveCtrl.allowedPosError;
+                    if (!moveCtrl.posReached)
                     {
                         // t_ml: maximum thrust vector in object local space and
                         // target direction
-                        const float tm_x = phyThrust->thrustManeuverMax;
-                        const float tm_y = phyThrust->thrustMainMax;
+                        const float tm_x = phyThrust.thrustManeuverMax;
+                        const float tm_y = phyThrust.thrustMainMax;
                         const float absX = fabsf(d_l.x);
                         const float absY = fabsf(d_l.y);
                         const float k_t =
@@ -100,7 +100,7 @@ void sysMoveCtrlImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                         // v_des: desired velocity magnitude
                         // v_des_l: desired velocity in object local space
                         const float v_des =
-                            std::min(velMargin * v_m, phyThrust->maxSpd);
+                            std::min(velMargin * v_m, phyThrust.maxSpd);
                         v_des_l = v_des * d_l / d_l_mag;
                     }
 
@@ -108,54 +108,54 @@ void sysMoveCtrlImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                         d_l_mag < posDeadband && v < velDeadband;
                     if (inPosDeadzone)
                     {
-                        phyThrust->setThrustNone();
+                        phyThrust.setThrustNone();
                     }
                     else
                     {
                         const vec2 err = v_des_l - v_vel_l;
                         const vec2 thrust = ptrHandle->kpThrust * m * err;
-                        phyThrust->setThrustLocal(thrust, s, c);
+                        phyThrust.setThrustLocal(thrust, s, c);
                     }
                 };
 
                 auto ctrlVelLoc = [&](vec2 trgt)
                 {
-                    const float m = physicsBody->mass;
-                    const vec2 v_vel = physicsBody->vel;
+                    const float m = physicsBody.mass;
+                    const vec2 v_vel = physicsBody.vel;
                     const vec2 v_vel_l = smath::rotateVec2(v_vel, -s, c);
                     const vec2 err = trgt - v_vel_l;
                     const vec2 thrust = ptrHandle->kpThrust * m * err;
-                    phyThrust->setThrustLocal(thrust, s, c);
+                    phyThrust.setThrustLocal(thrust, s, c);
                 };
 
                 auto ctrlVelLocMain = [&](float trgt)
                 {
-                    const float m = physicsBody->mass;
-                    const vec2 v_vel = physicsBody->vel;
+                    const float m = physicsBody.mass;
+                    const vec2 v_vel = physicsBody.vel;
                     const float v_vel_l_main =
                         smath::rotateVec2(v_vel, -s, c).y;
                     const float err = trgt - v_vel_l_main;
                     const float thrust = ptrHandle->kpThrust * m * err;
-                    phyThrust->setThrustLocalMain(thrust, s, c);
+                    phyThrust.setThrustLocalMain(thrust, s, c);
                 };
 
                 auto ctrlVelLocManeuver = [&](float trgt)
                 {
-                    const float m = physicsBody->mass;
-                    const vec2 v_vel = physicsBody->vel;
+                    const float m = physicsBody.mass;
+                    const vec2 v_vel = physicsBody.vel;
                     const float v_vel_l_maneuver =
                         smath::rotateVec2(v_vel, -s, c).x;
                     const float err = trgt - v_vel_l_maneuver;
                     const float thrust = ptrHandle->kpThrust * m * err;
-                    phyThrust->setThrustLocalManeuver(thrust, s, c);
+                    phyThrust.setThrustLocalManeuver(thrust, s, c);
                 };
 
-                switch (moveCtrl->moveMode)
+                switch (moveCtrl.moveMode)
                 {
                     case MoveCtrl::MoveMode::MoveTo:
                     {
-                        calcLocalSpaceVectors(moveCtrl->spPos);
-                        ctrlPos(moveCtrl->spPos);
+                        calcLocalSpaceVectors(moveCtrl.spPos);
+                        ctrlPos(moveCtrl.spPos);
                         break;
                     }
                     case MoveCtrl::MoveMode::Brake:
@@ -181,53 +181,53 @@ void sysMoveCtrlImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                 auto ctrlAngle = [&](float trgt)
                 {
                     const float angleErr =
-                        smath::angleError(trgt, transform->rot);
-                    moveCtrl->rotReached =
-                        std::abs(angleErr) < moveCtrl->allowedRotError;
+                        smath::angleError(trgt, transform.rot);
+                    moveCtrl.rotReached =
+                        std::abs(angleErr) < moveCtrl.allowedRotError;
                     const float maxAngAcc =
-                        phyThrust->maxTorque / physicsBody->inertia;
+                        phyThrust.maxTorque / physicsBody.inertia;
                     const float desWMag =
                         velMargin
                         * std::sqrt(std::max(
                             0.0f, 2.0f * maxAngAcc * std::abs(angleErr)));
                     const float maxRotVel =
-                        std::max(0.0f, phyThrust->maxRotVel);
+                        std::max(0.0f, phyThrust.maxRotVel);
                     float desW = std::min(desWMag, maxRotVel);
                     desW *= glm::sign(angleErr);
                     const bool inRotDeadzone =
                         std::abs(angleErr) < rotDeadband
-                        && std::abs(physicsBody->rotVel) < rotVelDeadband;
+                        && std::abs(physicsBody.rotVel) < rotVelDeadband;
                     if (inRotDeadzone)
                     {
-                        phyThrust->setTorque(0.0f);
+                        phyThrust.setTorque(0.0f);
                     }
                     else
                     {
-                        const float werr = desW - physicsBody->rotVel;
+                        const float werr = desW - physicsBody.rotVel;
                         float trq =
-                            ptrHandle->kpTurn * werr * physicsBody->inertia;
-                        phyThrust->setTorque(trq);
+                            ptrHandle->kpTurn * werr * physicsBody.inertia;
+                        phyThrust.setTorque(trq);
                     }
                 };
 
                 auto ctrlW = [&](float trgt)
                 {
-                    const float werr = trgt - physicsBody->rotVel;
-                    float trq = ptrHandle->kpTurn * werr * physicsBody->inertia;
-                    phyThrust->setTorque(trq);
+                    const float werr = trgt - physicsBody.rotVel;
+                    float trq = ptrHandle->kpTurn * werr * physicsBody.inertia;
+                    phyThrust.setTorque(trq);
                 };
 
-                switch (moveCtrl->turnMode)
+                switch (moveCtrl.turnMode)
                 {
                     case MoveCtrl::TurnMode::Forward:
                     {
                         if (!calcLocalSpaceVectorsDone)
                         {
-                            calcLocalSpaceVectors(moveCtrl->spPos);
+                            calcLocalSpaceVectors(moveCtrl.spPos);
                         }
                         const float minFFDist =
                             std::get<MoveCtrl::MCForwardData>(
-                                moveCtrl->faceDirData)
+                                moveCtrl.faceDirData)
                                 .minFaceForwardDist;
                         if (d_l_mag > minFFDist)
                         {
@@ -235,22 +235,22 @@ void sysMoveCtrlImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                             // After CW rotation by `rot`, local +Y maps to
                             // (-sin(rot), cos(rot)) in world — align that with
                             // dir.
-                            moveCtrl->spRot = atan2f(-d_w.x, d_w.y);
+                            moveCtrl.spRot = atan2f(-d_w.x, d_w.y);
                         }
-                        ctrlAngle(moveCtrl->spRot);
+                        ctrlAngle(moveCtrl.spRot);
                     }
                     break;
                     case MoveCtrl::TurnMode::TargetPoint:
                     {
                         vec2 tgtDir =
-                            vec2(moveCtrl->lookAt.x - transform->pos.x,
-                                 moveCtrl->lookAt.y - transform->pos.y);
+                            vec2(moveCtrl.lookAt.x - transform.pos.x,
+                                 moveCtrl.lookAt.y - transform.pos.y);
                         if (fabs(tgtDir.x) + fabs(tgtDir.y)
                             > ptrHandle->minFaceTargetDist)
                         {
-                            moveCtrl->spRot = atan2f(-tgtDir.x, tgtDir.y);
+                            moveCtrl.spRot = atan2f(-tgtDir.x, tgtDir.y);
                         }
-                        ctrlW(moveCtrl->spRot);
+                        ctrlW(moveCtrl.spRot);
                     }
                     break;
                     case MoveCtrl::TurnMode::Brake:
@@ -271,28 +271,28 @@ void sysPhyThrustImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
     reg->view<PhysicsBody, PhyThrust>().each(
         [ptrHandle](auto entity, auto& physicsBody, auto& phyThrust)
         {
-            if (physicsBody->rotVel > phyThrust->maxRotVel
-                && phyThrust->torque > 0)
+            if (physicsBody.rotVel > phyThrust.maxRotVel
+                && phyThrust.torque > 0)
             {
-                phyThrust->torque = 0.0;
+                phyThrust.torque = 0.0;
             }
-            else if (physicsBody->rotVel < -phyThrust->maxRotVel
-                     && phyThrust->torque < 0)
+            else if (physicsBody.rotVel < -phyThrust.maxRotVel
+                     && phyThrust.torque < 0)
             {
-                phyThrust->torque = 0.0;
+                phyThrust.torque = 0.0;
             }
-            physicsBody->rotAcc += phyThrust->torque / physicsBody->inertia;
+            physicsBody.rotAcc += phyThrust.torque / physicsBody.inertia;
 
-            float spd = glm::length(physicsBody->vel);
-            glm::vec2 thrustApply = phyThrust->thrustGlobal;
+            float spd = glm::length(physicsBody.vel);
+            glm::vec2 thrustApply = phyThrust.thrustGlobal;
             if (!std::isfinite(thrustApply.x) || !std::isfinite(thrustApply.y))
             {
                 LG_W("PhyThrust2 thrustApply is invalid");
             }
-            if (spd >= phyThrust->maxSpd && spd > 1e-8f)
+            if (spd >= phyThrust.maxSpd && spd > 1e-8f)
             {
-                const glm::vec2 vhat = physicsBody->vel / spd;
-                const float along = glm::dot(phyThrust->thrustGlobal, vhat);
+                const glm::vec2 vhat = physicsBody.vel / spd;
+                const float along = glm::dot(phyThrust.thrustGlobal, vhat);
                 if (along > 0.f)
                 {
                     thrustApply -= vhat * along;
@@ -303,12 +303,12 @@ void sysPhyThrustImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                 LG_W("PhyThrust1 thrustApply is invalid");
                 exit(1);
             }
-            physicsBody->acc += thrustApply / physicsBody->mass;
+            physicsBody.acc += thrustApply / physicsBody.mass;
 
             // Reset thrust after each update cycle
-            phyThrust->torque = 0.0f;
-            phyThrust->thrustGlobal = vec2(0.0f);
-            phyThrust->thrustLocal = vec2(0.0f);
+            phyThrust.torque = 0.0f;
+            phyThrust.thrustGlobal = vec2(0.0f);
+            phyThrust.thrustLocal = vec2(0.0f);
 
             // LG_D("PhyThrust update for entity: {} PhyThrust: {}", entity,
             // *phyThrust);
@@ -334,34 +334,34 @@ void sysPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                                          auto& physicsBody,
                                          auto& broadphase)
             {
-                physicsBody->acc += -ptrHandle->linDrag * physicsBody->vel;
-                physicsBody->rotAcc +=
+                physicsBody.acc += -ptrHandle->linDrag * physicsBody.vel;
+                physicsBody.rotAcc +=
                     -ptrHandle->angDrag
-                    * (physicsBody->rotVel - physicsBody->naturalRotation);
-                physicsBody->vel += physicsBody->acc * dt;
-                physicsBody->rotVel += physicsBody->rotAcc * dt;
+                    * (physicsBody.rotVel - physicsBody.naturalRotation);
+                physicsBody.vel += physicsBody.acc * dt;
+                physicsBody.rotVel += physicsBody.rotAcc * dt;
                 bool hasSignificantSpd =
-                    (fabsf(physicsBody->vel.x) + fabsf(physicsBody->vel.y)
+                    (fabsf(physicsBody.vel.x) + fabsf(physicsBody.vel.y)
                      > 1e-6f);
                 bool hasSignificantRotSpd =
-                    (fabsf(physicsBody->rotVel) > 1e-5f);
+                    (fabsf(physicsBody.rotVel) > 1e-5f);
                 if (hasSignificantRotSpd)
                 {
-                    transform->rot += physicsBody->rotVel * dt;
-                    if (transform->rot < 0.0f)
+                    transform.rot += physicsBody.rotVel * dt;
+                    if (transform.rot < 0.0f)
                     {
-                        transform->rot += 2.0f * M_PIf;
+                        transform.rot += 2.0f * M_PIf;
                     }
-                    else if (transform->rot >= 2.0f * M_PIf)
+                    else if (transform.rot >= 2.0f * M_PIf)
                     {
-                        transform->rot -= 2.0f * M_PIf;
+                        transform.rot -= 2.0f * M_PIf;
                     }
-                    transformCache->c = cosf(transform->rot);
-                    transformCache->s = sinf(transform->rot);
+                    transformCache.c = cosf(transform.rot);
+                    transformCache.s = sinf(transform.rot);
                 }
                 if (hasSignificantSpd)
                 {
-                    transform->pos += physicsBody->vel * dt;
+                    transform.pos += physicsBody.vel * dt;
                 }
 
                 auto* collider = reg->try_get<Collider>(entity);
@@ -370,22 +370,22 @@ void sysPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                     const gobj::Collider* colliderDef =
                         collider->getColliderDef(ptrHandle->colliderLib);
                     con::AABB newAabb = calculateAABB(
-                        *transform, *transformCache, *collider, colliderDef);
-                    if (broadphase->proxyId > Broadphase::INVALID_PROXY_ID)
+                        transform, transformCache, *collider, colliderDef);
+                    if (broadphase.proxyId > Broadphase::INVALID_PROXY_ID)
                     {
-                        sector->moveAabbProxy(broadphase->proxyId, newAabb);
+                        sector->moveAabbProxy(broadphase.proxyId, newAabb);
                     }
-                    broadphase->fatAABB = newAabb;
+                    broadphase.fatAABB = newAabb;
                     sector->addBroadphaseQueryEntity(entity);
                 }
 
                 // Check for sector switch
                 ptrHandle->world->checkSectorSwitchAfterMove(
-                    entityId, entity, sectorId, transform, ptrHandle);
+                    entityId, entity, &sectorId, &transform, ptrHandle);
 
                 // Reset acceleration after game update
-                physicsBody->acc = {0, 0};
-                physicsBody->rotAcc = 0;
+                physicsBody.acc = {0, 0};
+                physicsBody.rotAcc = 0;
 
                 /*
                     1.check AABB bounds and recalculate if needed
@@ -897,19 +897,19 @@ void sysAnchorFixedImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                                          auto& transform,
                                          auto& sectorId)
         {
-            auto parent = regMap->getEntity(anchorFixed->ref);
-            if (parent != entt::null)
+            auto parent = regMap->getEntity(anchorFixed.ref);
+            if (parent)
             {
-                const auto& parentTransform = reg->get<Transform>(parent);
+                const auto& parentTransform = reg->get<Transform>(parent->entity);
                 const auto& parentTransformCache =
-                    reg->get<TransformCache>(parent);
-                const auto& parentSectorId = reg->get<ecs::SectorId>(parent);
-                vec2 anchorFixedPos = smath::rotateVec2(anchorFixed->pos,
+                    reg->get<TransformCache>(parent->entity);
+                const auto& parentSectorId = reg->get<ecs::SectorId>(parent->entity);
+                vec2 anchorFixedPos = smath::rotateVec2(anchorFixed.pos,
                                                         parentTransformCache.s,
                                                         parentTransformCache.c);
-                transform->pos = parentTransform.pos + anchorFixedPos;
-                transform->rot = parentTransform.rot + anchorFixed->rot;
-                if (parentSectorId.id != sectorId->id)
+                transform.pos = parentTransform.pos + anchorFixedPos;
+                transform.rot = parentTransform.rot + anchorFixed.rot;
+                if (parentSectorId.id != sectorId.id)
                 {
                     sector->addSectorMoveRequest(
                         ptrHandle,

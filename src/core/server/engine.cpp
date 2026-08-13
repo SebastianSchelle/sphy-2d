@@ -1386,12 +1386,12 @@ void Engine::testSpawn()
         auto* phyThrust = reg.try_get<ecs::PhyThrust>(ecs.getEntity(ent));
         if (phyThrust)
         {
-            phyThrust->updateStatsFromEntity(ecs.getEntity(ent), ptrHandle);
+            //phyThrust->updateStatsFromEntity(ecs.getEntity(ent), ptrHandle);
         }
         auto* storage = reg.try_get<ecs::Storage>(ecs.getEntity(ent));
         if (storage)
         {
-            storage->updateStatsFromEntity(ecs.getEntity(ent), ptrHandle);
+            //storage->updateStatsFromEntity(ecs.getEntity(ent), ptrHandle);
         }
         auto* ai = reg.try_get<ecs::Ai>(ecs.getEntity(ent));
         if (ai)

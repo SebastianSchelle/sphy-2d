@@ -4,14 +4,15 @@
 #include "lib-item.hpp"
 #include "lib-modules.hpp"
 #include "mod-manager.hpp"
+#include "registry-mapping.hpp"
 
 namespace ecs
 {
 
 void Storage::updateStatsFromEntity(entt::entity entity,
+                                    entt::registry* reg,
                                     ecs::PtrHandle* ptrHandle)
 {
-    auto& reg = ptrHandle->registry;
     auto* hull = reg->try_get<Hull>(entity);
     if (hull)
     {
@@ -28,7 +29,7 @@ void Storage::updateStatsFromEntity(entt::entity entity,
         }
         else
         {
-            LG_E("Hull data not found for entity: {}", entity);
+            LG_E("Hull data not found for entity: {}", (uint32_t)entity);
             for (size_t i = 0; i < static_cast<size_t>(
                                    gobj::ItemStorageType::NumStorageTypes);
                  i++)
@@ -38,15 +39,14 @@ void Storage::updateStatsFromEntity(entt::entity entity,
         }
         for (const auto& module : hull->modules)
         {
-            entt::entity moduleEntity =
-                ptrHandle->ecs->getEntity(module.entityId);
-            if (moduleEntity == entt::null)
+            auto slot = ptrHandle->registryMapping->getEntity(module.entityId);
+            if (!slot)
             {
                 continue;
             }
             if (module.slotType == gobj::ModuleType::Storage)
             {
-                auto* moduleComp = reg->try_get<ecs::Module>(moduleEntity);
+                auto* moduleComp = reg->try_get<ecs::Module>(slot->entity);
                 auto* moduleData =
                     ptrHandle->modManager->getModuleLib().getItem(
                         moduleComp->moduleHandle);
@@ -67,7 +67,9 @@ void Storage::updateStatsFromEntity(entt::entity entity,
     }
 }
 
-uint32_t Storage::tryAddItem(const gobj::ItemHandle& itemHandle, const gobj::Item& item, uint32_t quantity)
+uint32_t Storage::tryAddItem(const gobj::ItemHandle& itemHandle,
+                             const gobj::Item& item,
+                             uint32_t quantity)
 {
     const gobj::ItemStorageType storageType = item.storageType;
     if (storageType >= gobj::ItemStorageType::NumStorageTypes)
@@ -79,21 +81,26 @@ uint32_t Storage::tryAddItem(const gobj::ItemHandle& itemHandle, const gobj::Ite
                           - cargo[static_cast<size_t>(storageType)].used)
                          / item.volume;
     uint32_t quantityToAdd = std::min(spaceLeft, quantity);
-    if(quantityToAdd <= 0)
+    if (quantityToAdd <= 0)
     {
         return 0;
     }
 
-    auto it = std::find_if(slots.begin(), slots.end(), [itemHandle](const StorageSlot& slot) {
-        return gobj::ItemHandle(slot.itemHandle).value() == itemHandle.value();
-    });
-    if(it != slots.end())
+    auto it = std::find_if(slots.begin(),
+                           slots.end(),
+                           [itemHandle](const StorageSlot& slot)
+                           {
+                               return gobj::ItemHandle(slot.itemHandle).value()
+                                      == itemHandle.value();
+                           });
+    if (it != slots.end())
     {
         it->quantity += quantityToAdd;
     }
     else
     {
-        slots.push_back(StorageSlot{itemHandle.toGenericHandle(), quantityToAdd});
+        slots.push_back(
+            StorageSlot{itemHandle.toGenericHandle(), quantityToAdd});
     }
     cargo[static_cast<size_t>(storageType)].used += quantityToAdd * item.volume;
     return quantityToAdd;

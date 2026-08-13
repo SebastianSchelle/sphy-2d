@@ -16,7 +16,10 @@ template <class T> struct Matrix2D {
         this->width = width;
         this->height = height;
         this->size = width * height;
-        data.resize(size);
+        // Sector holds entt::registry and is neither copyable nor movable.
+        // Construct a fresh vector in one allocation, then move-assign the
+        // container (not the elements) to avoid relocating existing items.
+        data = std::vector<T>(size);
     }
 
     T *at(uint32_t x, uint32_t y)

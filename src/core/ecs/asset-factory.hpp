@@ -1,6 +1,7 @@
 #ifndef ASSET_FACTORY_HPP
 #define ASSET_FACTORY_HPP
 
+#include "entt/entity/fwd.hpp"
 #include <components/comp-phy.hpp>
 #include <std-inc.hpp>
 
@@ -33,8 +34,8 @@ class ComponentFactory
         std::function<void(entt::registry&,
                            entt::entity,
                            bitsery::Serializer<OutputAdapter>&)>;
-    using DestroyFunc =
-        std::function<void(ecs::PtrHandle* ptrHandle, entt::entity)>;
+    using DestroyFunc = std::function<
+        void(ecs::PtrHandle* ptrHandle, entt::registry* reg, entt::entity)>;
 
     struct ComponentHelper
     {
@@ -54,7 +55,8 @@ class ComponentFactory
                        const YAML::Node& node,
                        mod::ResourceMap& resourceMap);
 
-    template <typename Component> void registerComponent(DestroyFunc destroyFunc = nullptr)
+    template <typename Component>
+    void registerComponent(DestroyFunc destroyFunc = nullptr)
     {
         const std::string name = Component::NAME;
         const uint32_t hash = hashConst(name.c_str());
@@ -172,8 +174,6 @@ class AssetFactory
                            mod::ResourceMap& resourceMap);
     void copyComponentsIntoEntity(entt::registry& registry,
                                   entt::entity entity,
-                                  const std::string& assetId) const;
-    ecs::EntityId createFromAsset(ecs::Ecs& ecs,
                                   const std::string& assetId) const;
     string assetList(const string& assetId) const;
     string assetInfo(const string& assetId) const;
