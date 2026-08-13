@@ -744,19 +744,25 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 cmddes.object(entityId);
                 cmddes.object(sectorCoords);
                 cmddes.value1b(*((uint8_t*)&moveToFlags));
-                entt::entity ent = ecs.getEntity(entityId);
-                if (ent == entt::null)
+                auto slot = registryMapping.getEntity(entityId);
+                if (!slot)
                 {
-                    // todo: error handling?
+                    LG_W("Could not find entityId");
                     return;
                 }
+                auto sector = world.getSector(slot->sectorId);
+                if(!sector)
+                {
+                    LG_W("Could not find sector");
+                    return;
+                } 
                 // todo: check if allowed
-                auto* ai = ptrHandle->registry->try_get<ecs::Ai>(ent);
+                auto *reg = sector->getRegistry()->getRegistry();
+                auto* ai = reg->try_get<ecs::Ai>(slot->entity);
                 if (ai)
                 {
                     ai::TaskSystem* entityTaskSystem = &taskSystem;
-                    if (auto* sectorId =
-                            ptrHandle->registry->try_get<ecs::SectorId>(ent))
+                    if (auto* sectorId = reg->try_get<ecs::SectorId>(slot->entity))
                     {
                         if (sectorId->id != world::INVALID_SECTOR_ID)
                         {
@@ -896,7 +902,7 @@ void Engine::registerConsoleCommands()
         { return assetFactory.assetInfo(a.flags.at("-a")); },
         "Print information for one asset",
         {{"-a", "Asset id", true}});
-
+    /*
     commandManager.registerCommand(
         {"phy", "set"},
         [this](const cmd::CommandArgs& a) -> std::string
@@ -954,7 +960,7 @@ void Engine::registerConsoleCommands()
         {{"-e", "Entity id", true},
          {"-m", "Mass (>0)", false},
          {"-i", "Inertia (>0)", false}});
-
+    */
     commandManager.registerCommand(
         {"phy", "setk"},
         [this](const cmd::CommandArgs& a) -> std::string
