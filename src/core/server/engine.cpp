@@ -1249,11 +1249,20 @@ void Engine::testSpawn()
 
     // New spawner test
     auto sector = world.getSector(0);
-    auto shipHull =
-        sector->spawnObject(ptrHandle,
-                            [ptrHandle](SpawnCallbackParams params)
-                            { ptrHandle->objBuilder->buildShipHull(params); });
+
+    auto shipHull = sector->spawnObject(
+        ptrHandle,
+        [ptrHandle](SpawnCallbackParams params)
+        { return ptrHandle->objBuilder->buildShipHull(params); });
+
+    auto module1 = sector->spawnObject(
+        ptrHandle,
+        [ptrHandle](SpawnCallbackParams params)
+        { return ptrHandle->objBuilder->buildModule(params, shipHull); });
+
     // todo: implement ObjBuilder
+
+
     auto& reg = ecs.getRegistry();
     for (int i = 0; i < 10000; ++i)
     {
