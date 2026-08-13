@@ -19,13 +19,13 @@ void SectorRegistry::init(RegistryMapping* registryMapping,
     this->sector = sector;
 }
 
-bool SectorRegistry::spawnObject(const SpawnCallback& spwnClb)
+EntityId SectorRegistry::spawnObject(const SpawnCallback& spwnClb)
 {
     entt::entity entity = registry.create();
     if (entity == entt::null)
     {
         LG_W("Could not create entity in sector {}", sector->getId());
-        return false;
+        return EntityId::Invalid();
     }
     EntityId entityId =
         registryMapping->registerEntity(sector->getId(), entity);
@@ -33,7 +33,7 @@ bool SectorRegistry::spawnObject(const SpawnCallback& spwnClb)
     {
         LG_W("Could not create EntityId in registryMap");
         registry.destroy(entity);
-        return false;
+        return EntityId::Invalid();
     }
     // Both Entity and entityId exist now, populate object
     registry.emplace<EntityId>(entity, entityId);
@@ -50,7 +50,7 @@ bool SectorRegistry::spawnObject(const SpawnCallback& spwnClb)
             LG_W("Spawn callback return fault. Destroyed unfinished Entity");
         }
     }
-    return true;
+    return entityId;
 }
 
 bool SectorRegistry::migrateEntity(EntityId entityId,

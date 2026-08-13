@@ -17,7 +17,14 @@ namespace ecs
 
 class RegistryMapping;
 
-typedef std::function<bool(entt::registry&, entt::entity, ecs::EntityId)>
+struct SpawnCallbackParams
+{
+    entt::registry& reg;
+    entt::entity entity;
+    ecs::EntityId entityId;
+};
+
+typedef std::function<bool(SpawnCallbackParams params)>
     SpawnCallback;
 
 class SectorRegistry
@@ -29,7 +36,7 @@ class SectorRegistry
     bool migrateEntity(EntityId entityId,
                        const EntMapSlot* slot,
                        SectorRegistry* lastRegistry);
-    bool spawnObject(const SpawnCallback& spwnClb);
+    EntityId spawnObject(const SpawnCallback& spwnClb);
     bool destroyObject(EntityId entityId);
 
     entt::registry* getRegistry()

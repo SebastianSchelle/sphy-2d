@@ -46,7 +46,7 @@ class Sector
               ecs::RegistryMapping* regMapping);
     bool saveSector(const std::string& savedir);
     void update(float dt, ecs::PtrHandle* ptrHandle);
-    bool spawnObject(ecs::PtrHandle* ptrHandle, const ecs::SpawnCallback& spwnClb);
+    ecs::EntityId spawnObject(ecs::PtrHandle* ptrHandle, const ecs::SpawnCallback& spwnClb);
     bool migrateObject(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
     //bool addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
     bool removeEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);

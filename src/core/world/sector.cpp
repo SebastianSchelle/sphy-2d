@@ -173,10 +173,10 @@ bool Sector::addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
 }
 */
 
-bool Sector::spawnObject(ecs::PtrHandle* ptrHandle,
+ecs::EntityId Sector::spawnObject(ecs::PtrHandle* ptrHandle,
                          const ecs::SpawnCallback& spwnClb)
 {
-    bool res = sectorRegistry.spawnObject(
+    auto res = sectorRegistry.spawnObject(
         [this, ptrHandle, spwnClb](
             entt::registry& reg, entt::entity ent, ecs::EntityId entId)
         {

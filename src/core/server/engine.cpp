@@ -1,6 +1,7 @@
 #include "bitsery/serializer.h"
 #include "comp-ai.hpp"
 #include "ecs.hpp"
+#include "entt/entity/fwd.hpp"
 #include "lib-station-part.hpp"
 #include "sector.hpp"
 #include "std-inc.hpp"
@@ -1187,7 +1188,8 @@ void Engine::broadcastEntityToClients(ecs::EntityId entityId)
         auto* sectorId = reg.try_get<ecs::SectorId>(ent);
         bool inActiveSector =
             sectorId && clientInfo->getActiveSectors().count(sectorId->id) > 0;
-        if (!inActiveSector || !reg.valid(ent) || !reg.all_of<ecs::tag::OOSSync>(ent))
+        if (!inActiveSector || !reg.valid(ent)
+            || !reg.all_of<ecs::tag::OOSSync>(ent))
         {
             return;
         }
@@ -1244,6 +1246,14 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> assetPick(0, 3);
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
+
+    // New spawner test
+    auto sector = world.getSector(0);
+    auto shipHull =
+        sector->spawnObject(ptrHandle,
+                            [ptrHandle](SpawnCallbackParams params)
+                            { ptrHandle->objBuilder->buildShipHull(params); });
+    // todo: implement ObjBuilder
     auto& reg = ecs.getRegistry();
     for (int i = 0; i < 10000; ++i)
     {
