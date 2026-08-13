@@ -24,7 +24,7 @@ struct SpawnCallbackParams
     ecs::EntityId entityId;
 };
 
-typedef std::function<bool(SpawnCallbackParams params)>
+typedef std::function<bool(SpawnCallbackParams& params)>
     SpawnCallback;
 
 class SectorRegistry

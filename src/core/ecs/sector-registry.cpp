@@ -42,7 +42,8 @@ EntityId SectorRegistry::spawnObject(const SpawnCallback& spwnClb)
     registry.emplace<ecs::Flags>(entity);
     if (spwnClb)
     {
-        bool res = spwnClb(registry, entity, entityId);
+        SpawnCallbackParams params{registry, entity, entityId};
+        bool res = spwnClb(params);
         if (!res)
         {
             registryMapping->unregisterEntityId(entityId);

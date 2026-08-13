@@ -2,7 +2,6 @@
 #define COMP_PHY_HPP
 
 #include "comp-ident.hpp"
-#include <ptr-handle.hpp>
 #include <aabb-tree.hpp>
 #include <algorithm>
 #include <climits>
@@ -11,6 +10,7 @@
 #include <lib-collider.hpp>
 #include <magic_enum/magic_enum.hpp>
 #include <optional>
+#include <ptr-handle.hpp>
 #include <std-inc.hpp>
 #include <world-def.hpp>
 #include <yaml-cpp/yaml.h>
@@ -28,6 +28,11 @@ struct Transform
 {
     static const uint16_t VERSION = 1;
     static constexpr string NAME = "transform";
+
+    static const Transform ZERO()
+    {
+        return {vec2(0.0f, 0.0f), 0.0f};
+    };
 
     vec2 pos;
     float rot;
@@ -299,7 +304,7 @@ inline std::optional<Contact> collideCollidersWorld(const Collider& c1,
 
 #define SER_COLLIDER                                                           \
     SOBJ(o.colliderHandle);                                                    \
-    S1b(o.colliderType);                                                        \
+    S1b(o.colliderType);                                                       \
     SOBJ(o.exceptEntity);
 EXT_SER(Collider, SER_COLLIDER)
 EXT_DES(Collider, SER_COLLIDER)
@@ -429,7 +434,8 @@ struct PhysicsBody
         TRY_YAML_DICT(physicsBody.rotVel, node["rotVel"], 0.0f);
         TRY_YAML_DICT(physicsBody.rotAcc, node["rotAcc"], 0.0f);
         TRY_YAML_DICT(physicsBody.acc, node["acc"], vec2(0.0f, 0.0f));
-        TRY_YAML_DICT(physicsBody.naturalRotation, node["naturalRotation"], 0.0f);
+        TRY_YAML_DICT(
+            physicsBody.naturalRotation, node["naturalRotation"], 0.0f);
         if (physicsBody.inertia <= 1e-8f)
         {
             physicsBody.inertia = 1.0f;

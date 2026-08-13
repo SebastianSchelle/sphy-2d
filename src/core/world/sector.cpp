@@ -174,17 +174,19 @@ bool Sector::addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
 */
 
 ecs::EntityId Sector::spawnObject(ecs::PtrHandle* ptrHandle,
-                         const ecs::SpawnCallback& spwnClb)
+                                  const ecs::SpawnCallback& spwnClb)
 {
     auto res = sectorRegistry.spawnObject(
-        [this, ptrHandle, spwnClb](
-            entt::registry& reg, entt::entity ent, ecs::EntityId entId)
+        [this, ptrHandle, spwnClb](ecs::SpawnCallbackParams& clbParams)
         {
-            if (!spwnClb || !spwnClb(reg, ent, entId))
+            clbParams.reg.emplace_or_replace<ecs::SectorId>(
+                clbParams.entity,
+                ecs::SectorId{id, (uint32_t)coordX, (uint32_t)coordY});
+            if (!spwnClb || !spwnClb(clbParams))
             {
                 return false;
             }
-            objectInitBroadphase(ptrHandle, ent);
+            objectInitBroadphase(ptrHandle, clbParams.entity);
             return true;
         });
     return res;

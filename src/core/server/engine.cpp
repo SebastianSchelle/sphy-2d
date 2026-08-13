@@ -16,6 +16,7 @@
 #include <components/comp-phy.hpp>
 #include <engine-impl.hpp>
 #include <net-shared.hpp>
+#include <objb-ship.hpp>
 #include <protocol.hpp>
 #include <random>
 #include <server.hpp>
@@ -1252,8 +1253,11 @@ void Engine::testSpawn()
 
     auto shipHull = sector->spawnObject(
         ptrHandle,
-        [ptrHandle](SpawnCallbackParams params)
-        { return ptrHandle->objBuilder->buildShipHull(params); });
+        [ptrHandle](ecs::SpawnCallbackParams& params)
+        {
+            return objb::ShipHull::build(
+                ptrHandle, params, modManager.getHullLib().getHandle("Bee"));
+        });
 
     auto module1 = sector->spawnObject(
         ptrHandle,
