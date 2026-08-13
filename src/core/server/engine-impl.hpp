@@ -34,6 +34,7 @@ template <typename Component> void Engine::registerSlowDumpComponent()
             for (int sectorIdx = 0; sectorIdx < sectorCount; ++sectorIdx)
             {
                 world::Sector* sector = ptrHandle->world->getSector(sectorIdx);
+                auto* reg = sector->getRegistry()->getRegistry();
                 size_t rewindPos = mcomp.ser->adapter().currentWritePos();
                 mcomp.ser->value4b(sector->getId());
                 size_t cntPos = mcomp.ser->adapter().currentWritePos();
@@ -42,22 +43,19 @@ template <typename Component> void Engine::registerSlowDumpComponent()
                 // Go through entities in sector and append component if it
                 // exists
                 uint16_t entityCntSector = 0;
-                auto& entityRefs = sector->getEntityRefs();
-                for (int entIdx = 0; entIdx < entityRefs.size(); ++entIdx)
-                {
-                    auto& entityRef = entityRefs[entIdx];
-                    entt::entity entity = entityRef.entity;
-
-                    if (entity != entt::null)
-                    {
-                        auto component =
-                            ptrHandle->registry->try_get<Component>(entity);
-                        bool selectable =
-                            ptrHandle->registry->all_of<ecs::tag::Selectable>(
-                                entity);
-                        if (component && selectable)
+                reg->view<ecs::EntityId, Component, ecs::tag::Selectable>()
+                    .each(
+                        [ptrHandle,
+                         this,
+                         &mcomp,
+                         &entityCntSector,
+                         &entityCntMessage,
+                         &cntPos,
+                         &rewindPos,
+                         &name,
+                         sector](auto entity, auto& entityId, auto& component)
                         {
-                            mcomp.ser->object(entityRef.entityId);
+                            mcomp.ser->object(entityId);
                             mcomp.ser->object(*component);
                             entityCntSector++;
                             entityCntMessage++;
@@ -66,8 +64,8 @@ template <typename Component> void Engine::registerSlowDumpComponent()
                             if (mcomp.ser->adapter().currentWritePos() + 6
                                 > prot::kMaxSerializedChunkBytes)
                             {
-                                // Always update entity count in sector, min.
-                                // one entity
+                                // Always update entity count in sector,
+                                // min. one entity
                                 size_t sectorEndPos =
                                     mcomp.ser->adapter().currentWritePos();
                                 mcomp.ser->adapter().currentWritePos(cntPos);
@@ -87,10 +85,7 @@ template <typename Component> void Engine::registerSlowDumpComponent()
                                 entityCntSector = 0;
                                 entityCntMessage = 0;
                             }
-                        }
-                    }
-                }
-
+                        });
                 // Update entity count or rewind if no entities in sector
                 if (entityCntSector > 0)
                 {
@@ -138,6 +133,7 @@ void Engine::registerActiveSectorDumpComponent(DumpFilter filter)
 
             uint16_t entityCntMessage = 0;
             world::Sector* sector = ptrHandle->world->getSector(sectorId);
+            auto* reg = sector->getRegistry()->getRegistry();
 
             size_t rewindPos = mcomp.ser->adapter().currentWritePos();
             mcomp.ser->value4b(sector->getId());
@@ -146,64 +142,60 @@ void Engine::registerActiveSectorDumpComponent(DumpFilter filter)
 
             // Go through entities in sector and append component if it
             // exists
-            auto& entityRefs = sector->getEntityRefs();
-            for (int entIdx = 0; entIdx < entityRefs.size(); ++entIdx)
-            {
-                auto& entityRef = entityRefs[entIdx];
-                entt::entity entity = entityRef.entity;
-
-                if (entity != entt::null)
+            reg->view<ecs::EntityId, Component>().each(
+                [ptrHandle,
+                 this,
+                 &mcomp,
+                 &entityCntMessage,
+                 &cntPos,
+                 &rewindPos,
+                 &name,
+                 &filter,
+                 &reg,
+                 sector](auto entity, auto& entityId, auto& component)
                 {
-                    auto component =
-                        ptrHandle->registry->try_get<Component>(entity);
                     switch (filter)
                     {
                         case DumpFilter::All:
                             break;
                         case DumpFilter::Selectable:
                         {
-                            if (!ptrHandle->registry
-                                     ->all_of<ecs::tag::Selectable>(entity))
+                            if (!reg->all_of<ecs::tag::Selectable>(entity))
                             {
-                                continue;
+                                return;
                             }
                         }
                         break;
                         default:
                             break;
                     }
-                    if (component)
-                    {
-                        mcomp.ser->object(entityRef.entityId);
-                        mcomp.ser->object(*component);
-                        entityCntMessage++;
+                    mcomp.ser->object(entityId);
+                    mcomp.ser->object(*component);
+                    entityCntMessage++;
 
-                        // Flush if packet limit is reached
-                        if (mcomp.ser->adapter().currentWritePos() + 6
-                            > prot::kMaxSerializedChunkBytes)
-                        {
-                            // Always update entity count in sector, min.
-                            // one entity
-                            size_t sectorEndPos =
-                                mcomp.ser->adapter().currentWritePos();
-                            mcomp.ser->adapter().currentWritePos(cntPos);
-                            mcomp.ser->value2b(entityCntMessage);
-                            mcomp.ser->adapter().currentWritePos(sectorEndPos);
-                            mcomp.execute(sendQueue);
-                            mcomp.resetData();
-                            // Write message and sector header
-                            mcomp.startCommand(prot::cmd::ACTIVE_SECTOR_UPDATE,
-                                               0);
-                            mcomp.ser->value4b(hashConst(name.c_str()));
-                            rewindPos = mcomp.ser->adapter().currentWritePos();
-                            mcomp.ser->value4b(sector->getId());
-                            cntPos = mcomp.ser->adapter().currentWritePos();
-                            mcomp.ser->value2b((uint16_t)0);
-                            entityCntMessage = 0;
-                        }
+                    // Flush if packet limit is reached
+                    if (mcomp.ser->adapter().currentWritePos() + 6
+                        > prot::kMaxSerializedChunkBytes)
+                    {
+                        // Always update entity count in sector, min.
+                        // one entity
+                        size_t sectorEndPos =
+                            mcomp.ser->adapter().currentWritePos();
+                        mcomp.ser->adapter().currentWritePos(cntPos);
+                        mcomp.ser->value2b(entityCntMessage);
+                        mcomp.ser->adapter().currentWritePos(sectorEndPos);
+                        mcomp.execute(sendQueue);
+                        mcomp.resetData();
+                        // Write message and sector header
+                        mcomp.startCommand(prot::cmd::ACTIVE_SECTOR_UPDATE, 0);
+                        mcomp.ser->value4b(hashConst(name.c_str()));
+                        rewindPos = mcomp.ser->adapter().currentWritePos();
+                        mcomp.ser->value4b(sector->getId());
+                        cntPos = mcomp.ser->adapter().currentWritePos();
+                        mcomp.ser->value2b((uint16_t)0);
+                        entityCntMessage = 0;
                     }
-                }
-            }
+                });
             if (entityCntMessage != 0)
             {
                 size_t sectorEndPos = mcomp.ser->adapter().currentWritePos();
