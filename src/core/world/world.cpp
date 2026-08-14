@@ -14,6 +14,9 @@ World::World() {}
 
 World::~World() {}
 
+
+#ifdef SERVER
+
 bool World::createFromConfig(cfg::ConfigManager& config,
                              ecs::PtrHandle* ptrHandle)
 {
@@ -170,7 +173,6 @@ bool World::saveWorld(const std::string& savedir)
     return true;
 }
 
-#ifdef SERVER
 void World::update(float dt, ecs::PtrHandle* ptrHandle)
 {
     // todo: add multithreading
@@ -298,6 +300,11 @@ Sector* World::getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir)
         return nullptr;
     }
     return sectors.at(newPos.x, newPos.y);
+}
+
+void World::iterateSectors(IterateSectorClb clb)
+{
+    sectors.iterateContent(clb);
 }
 
 #ifdef SERVER
@@ -633,6 +640,21 @@ void World::executeSingleThreadedTasks(ecs::PtrHandle* ptrHandle)
     }
 }
 
+void World::markPlayerSectors(const std::set<uint32_t>& playerSectors)
+{
+    for (uint sId = 0; sId < sectors.getSize(); sId++)
+    {
+        sectors.at(sId)->markPlayerSector(false);
+    }
+    for (auto& sectorId : playerSectors)
+    {
+        if (sectorId < sectors.getSize())
+        {
+            sectors.at(sectorId)->markPlayerSector(true);
+        }
+    }
+}
+
 #endif
 
 Sector* World::getSector(uint32_t sectorId)
@@ -668,21 +690,6 @@ vec2 World::getWorldPosSectorOffset(uint32_t sectorId,
     auto [sectorX, sectorY] = idToSectorCoords(sectorId);
     return getWorldPosSectorOffset(
         sectorX, sectorY, sectorOffsetX, sectorOffsetY);
-}
-
-void World::markPlayerSectors(const std::set<uint32_t>& playerSectors)
-{
-    for (uint sId = 0; sId < sectors.getSize(); sId++)
-    {
-        sectors.at(sId)->markPlayerSector(false);
-    }
-    for (auto& sectorId : playerSectors)
-    {
-        if (sectorId < sectors.getSize())
-        {
-            sectors.at(sectorId)->markPlayerSector(true);
-        }
-    }
 }
 
 bool World::sectorIntersectsRect(uint32_t sectorId, const glm::vec4& rect) const

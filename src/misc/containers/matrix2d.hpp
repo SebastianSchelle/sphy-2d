@@ -1,13 +1,15 @@
 #ifndef MATRIX2D_HPP
 #define MATRIX2D_HPP
 
+#include <functional>
 #include <std-inc.hpp>
 #include <world-def.hpp>
 
 namespace con
 {
 
-template <class T> struct Matrix2D {
+template <class T> struct Matrix2D
+{
   public:
     Matrix2D() : width(0), height(0), size(0) {}
 
@@ -22,32 +24,60 @@ template <class T> struct Matrix2D {
         data = std::vector<T>(size);
     }
 
-    T *at(uint32_t x, uint32_t y)
+    T* at(uint32_t x, uint32_t y)
     {
-        if (x < width && y < height) {
+        if (x < width && y < height)
+        {
             uint32_t idx = coordToIdx(x, y);
             return &data[idx];
-        } else {
+        }
+        else
+        {
             return nullptr;
         }
     }
 
-    T *at(uint32_t idx)
+    T* at(uint32_t idx)
     {
-        if (idx < size) {
+        if (idx < size)
+        {
             return &data[idx];
-        } else {
+        }
+        else
+        {
             return nullptr;
         }
     }
 
-    uint32_t getWidth() const { return width; }
-    uint32_t getHeight() const { return height; }
-    uint32_t getSize() const { return size; }
+    void iterateContent(std::function<void(uint32_t, T*)> clb)
+    {
+        if (!clb)
+            return;
+        for (uint32_t id = 0; id < size; ++id)
+        {
+            clb(id, &data[id]);
+        }
+    }
 
-    uint32_t coordToIdx(int x, int y) const { return y * width + x; }
+    uint32_t getWidth() const
+    {
+        return width;
+    }
+    uint32_t getHeight() const
+    {
+        return height;
+    }
+    uint32_t getSize() const
+    {
+        return size;
+    }
 
-    void indexToCoord(uint32_t id, uint32_t &x, uint32_t &y) const
+    uint32_t coordToIdx(int x, int y) const
+    {
+        return y * width + x;
+    }
+
+    void indexToCoord(uint32_t id, uint32_t& x, uint32_t& y) const
     {
         x = id % width;
         y = (id - x) / width;
@@ -64,34 +94,53 @@ template <class T> struct Matrix2D {
         return getDir(coordPrevX, coordPrevY, coordNextX, coordNextY);
     }
 
-    static def::Direction getDir(uint32_t coordPrevX, uint32_t coordPrevY,
-                            uint32_t coordNextX, uint32_t coordNextY)
+    static def::Direction getDir(uint32_t coordPrevX,
+                                 uint32_t coordPrevY,
+                                 uint32_t coordNextX,
+                                 uint32_t coordNextY)
     {
-        if (coordNextX > coordPrevX) {
-            if (coordNextY > coordPrevY) {
+        if (coordNextX > coordPrevX)
+        {
+            if (coordNextY > coordPrevY)
+            {
                 return def::Direction::SE;
             }
-            if (coordNextY < coordPrevY) {
+            if (coordNextY < coordPrevY)
+            {
                 return def::Direction::NE;
-            } else {
+            }
+            else
+            {
                 return def::Direction::E;
             }
-        } else if (coordNextX < coordPrevX) {
-            if (coordNextY > coordPrevY) {
+        }
+        else if (coordNextX < coordPrevX)
+        {
+            if (coordNextY > coordPrevY)
+            {
                 return def::Direction::SW;
             }
-            if (coordNextY < coordPrevY) {
+            if (coordNextY < coordPrevY)
+            {
                 return def::Direction::NW;
-            } else {
+            }
+            else
+            {
                 return def::Direction::W;
             }
-        } else {
-            if (coordNextY > coordPrevY) {
+        }
+        else
+        {
+            if (coordNextY > coordPrevY)
+            {
                 return def::Direction::S;
             }
-            if (coordNextY < coordPrevY) {
+            if (coordNextY < coordPrevY)
+            {
                 return def::Direction::N;
-            } else {
+            }
+            else
+            {
                 return def::Direction::NONE;
             }
         }
@@ -104,6 +153,6 @@ template <class T> struct Matrix2D {
     std::vector<T> data;
 };
 
-} // namespace con
+}  // namespace con
 
 #endif

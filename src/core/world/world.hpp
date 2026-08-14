@@ -17,14 +17,13 @@
 namespace world
 {
 
+typedef std::function<void(uint32_t id, world::Sector*)> IterateSectorClb;
+
 class World
 {
   public:
     World();
     ~World();
-    bool createFromConfig(cfg::ConfigManager& config, ecs::PtrHandle* ptrHandle);
-    bool createFromSave(cfg::ConfigManager& config, const std::string& savedir, ecs::PtrHandle* ptrHandle);
-    bool createFromServer(const def::WorldShape& worldShape, ecs::PtrHandle* ptrHandle);
     bool getNeighboringSectorPos(uint32_t sectorId,
                                  def::Direction dir,
                                  def::SectorPos& newPos);
@@ -33,8 +32,6 @@ class World
                                  def::Direction dir,
                                  def::SectorPos& newPos);
     Sector* getNeighboringSector(uint32_t x, uint32_t y, def::Direction dir);
-    bool saveWorld(const std::string& savedir);
-    void markPlayerSectors(const std::set<uint32_t>& playerSectors);
     const def::WorldShape& getWorldShape() const
     {
         return worldShape;
@@ -51,6 +48,7 @@ class World
                          const glm::vec4& viewRect,
                          float zoom);
 #endif
+    void iterateSectors(IterateSectorClb clb);
     Sector* getSector(uint32_t sectorId);
     uint32_t getSectorCount() const
     {
@@ -66,6 +64,15 @@ class World
                                  int32_t sectorOffsetX,
                                  int32_t sectorOffsetY) const;
 #ifdef SERVER
+    bool saveWorld(const std::string& savedir);
+    void markPlayerSectors(const std::set<uint32_t>& playerSectors);
+    bool createFromConfig(cfg::ConfigManager& config,
+                          ecs::PtrHandle* ptrHandle);
+    bool createFromSave(cfg::ConfigManager& config,
+                        const std::string& savedir,
+                        ecs::PtrHandle* ptrHandle);
+    bool createFromServer(const def::WorldShape& worldShape,
+                          ecs::PtrHandle* ptrHandle);
     void update(float dt, ecs::PtrHandle* ptrHandle);
     bool switchSector(ecs::PtrHandle* ptrHandle,
                       ecs::EntityId entityId,
@@ -90,12 +97,12 @@ class World
                               const glm::vec4& rect) const;
 
   private:
-    bool initWorld();
-    bool initSectors(bool fromSave, ecs::PtrHandle* ptrHandle);
-    bool loadWorldProcessData(uint32_t typeId,
-                              uint16_t version,
-                              bitsery::Deserializer<InputAdapter>& des_);
 #ifdef SERVER
+bool initWorld();
+bool initSectors(bool fromSave, ecs::PtrHandle* ptrHandle);
+bool loadWorldProcessData(uint32_t typeId,
+                          uint16_t version,
+                          bitsery::Deserializer<InputAdapter>& des_);
     void handleSectorMoveRequests(ecs::PtrHandle* ptrHandle);
     void destroyMarkedEntities(ecs::PtrHandle* ptrHandle);
     void executeSingleThreadedTasks(ecs::PtrHandle* ptrHandle);

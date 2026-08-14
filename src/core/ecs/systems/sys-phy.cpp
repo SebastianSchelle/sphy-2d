@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <comp-struct.hpp>
+#include <comp-storage.hpp>
 #include <components/comp-ident.hpp>
 #include <components/comp-phy.hpp>
 #include <optional>

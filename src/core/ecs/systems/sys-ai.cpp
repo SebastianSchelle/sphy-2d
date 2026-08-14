@@ -19,11 +19,11 @@ void sysAiImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                     return;
                 }
                 auto& taskSystem = sector->getTaskSystem();
-                auto* taskStack = taskSystem.getTaskStack(ai->stackHandle);
+                auto* taskStack = taskSystem.getTaskStack(ai.stackHandle);
                 if (taskStack)
                 {
                     ai::TaskFunArgs args = {
-                        entityId, entity, ptrHandle, &ai->nextRunFrame, sector};
+                        entityId, entity, ptrHandle, &ai.nextRunFrame, sector};
                     taskStack->runTask(&args);
                 }
             }

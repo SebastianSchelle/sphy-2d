@@ -42,6 +42,121 @@ void Sector::init(int x,
 #endif
 }
 
+
+/*
+bool Sector::addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
+{
+    if (!ptrHandle->ecs->validId(entityId))
+    {
+        LG_W("Entity not valid: {}", entityId);
+        return false;
+    }
+    auto reg = ptrHandle->registry;
+    auto it = std::find_if(entityRefs.begin(),
+                           entityRefs.end(),
+                           [entityId](const EntRef& ref)
+                           { return ref.entityId == entityId; });
+    if (it != entityRefs.end())
+    {
+        LG_W("Entity already in sector: {}", entityId);
+        return false;
+    }
+    entt::entity entity = ptrHandle->ecs->getEntity(entityId);
+    entityRefs.push_back(EntRef{entityId, entity});
+    auto& sector = reg->get<ecs::SectorId>(entity);
+    sector.id = id;
+    sector.x = (uint32_t)coordX;
+    sector.y = (uint32_t)coordY;
+    // add AABB calculation from polygon
+    auto& transform = reg->get<ecs::Transform>(entity);
+    auto* collider = reg->try_get<ecs::Collider>(entity);
+    auto* broadphase = reg->try_get<ecs::Broadphase>(entity);
+    if (collider && broadphase)
+    {
+        auto* transformCache = reg->try_get<ecs::TransformCache>(entity);
+        float c = cosf(transform.rot);
+        float s = sinf(transform.rot);
+        if (transformCache)
+        {
+            transformCache->c = c;
+            transformCache->s = s;
+        }
+        con::AABB aabb = ecs::calculateAABB(
+            transform, {c, s}, *collider, ptrHandle->colliderLib);
+        if (broadphase->proxyId <= ecs::Broadphase::INVALID_PROXY_ID)
+        {
+            broadphase->proxyId = aabbTree.createProxy(aabb, entity);
+            broadphase->fatAABB = aabb;
+        }
+    }
+    return true;
+}
+*/
+
+
+vec2 Sector::getWorldPosSectorOffset(int32_t sectorOffsetX,
+                                     int32_t sectorOffsetY) const
+{
+    return vec2((float)(coordX - sectorOffsetX) * sectorSize,
+                (float)(coordY - sectorOffsetY) * sectorSize);
+}
+
+#ifdef SERVER
+
+void Sector::moveAabbProxy(int32_t proxyId, con::AABB& newAabb)
+{
+    if (proxyId <= ecs::Broadphase::INVALID_PROXY_ID)
+    {
+        return;
+    }
+    aabbTree.moveProxy(proxyId, newAabb);
+}
+
+void Sector::getAllAABBs(std::vector<con::AABB>& aabbs) const
+{
+    aabbTree.getAllAABBs(aabbs);
+}
+
+void Sector::queryBroadphase(const con::AABB& aabb,
+                             std::function<void(entt::entity)> callback)
+{
+    aabbTree.query(aabb, callback);
+}
+
+void Sector::markPlayerSector(bool player)
+{
+    active = player;
+}
+
+bool Sector::removeEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
+{
+    /*
+    if (!ptrHandle->ecs->validId(entityId))
+    {
+        // LG_W("Entity not valid: {}", entityId);
+        return false;
+    }
+    auto reg = ptrHandle->registry;
+    auto it = std::find_if(entityRefs.begin(),
+                           entityRefs.end(),
+                           [entityId](const EntRef& ref)
+                           { return ref.entityId == entityId; });
+    if (it == entityRefs.end())
+    {
+        LG_W("Entity not in sector: {}", entityId);
+        return false;
+    }
+    entt::entity entity = it->entity;
+    auto* broadphase = reg->try_get<ecs::Broadphase>(entity);
+    if (broadphase)
+    {
+        destroyBroadphaseProxy(broadphase);
+    }
+    entityRefs.erase(it);
+    */
+    return true;
+}
+
 bool Sector::saveSector(const std::string& savedir)
 {
     if (dirty)
@@ -125,56 +240,6 @@ void Sector::update(float dt, ecs::PtrHandle* ptrHandle)
     */
 }
 
-/*
-bool Sector::addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
-{
-    if (!ptrHandle->ecs->validId(entityId))
-    {
-        LG_W("Entity not valid: {}", entityId);
-        return false;
-    }
-    auto reg = ptrHandle->registry;
-    auto it = std::find_if(entityRefs.begin(),
-                           entityRefs.end(),
-                           [entityId](const EntRef& ref)
-                           { return ref.entityId == entityId; });
-    if (it != entityRefs.end())
-    {
-        LG_W("Entity already in sector: {}", entityId);
-        return false;
-    }
-    entt::entity entity = ptrHandle->ecs->getEntity(entityId);
-    entityRefs.push_back(EntRef{entityId, entity});
-    auto& sector = reg->get<ecs::SectorId>(entity);
-    sector.id = id;
-    sector.x = (uint32_t)coordX;
-    sector.y = (uint32_t)coordY;
-    // add AABB calculation from polygon
-    auto& transform = reg->get<ecs::Transform>(entity);
-    auto* collider = reg->try_get<ecs::Collider>(entity);
-    auto* broadphase = reg->try_get<ecs::Broadphase>(entity);
-    if (collider && broadphase)
-    {
-        auto* transformCache = reg->try_get<ecs::TransformCache>(entity);
-        float c = cosf(transform.rot);
-        float s = sinf(transform.rot);
-        if (transformCache)
-        {
-            transformCache->c = c;
-            transformCache->s = s;
-        }
-        con::AABB aabb = ecs::calculateAABB(
-            transform, {c, s}, *collider, ptrHandle->colliderLib);
-        if (broadphase->proxyId <= ecs::Broadphase::INVALID_PROXY_ID)
-        {
-            broadphase->proxyId = aabbTree.createProxy(aabb, entity);
-            broadphase->fatAABB = aabb;
-        }
-    }
-    return true;
-}
-*/
-
 ecs::EntityId Sector::spawnObject(ecs::PtrHandle* ptrHandle,
                                   const ecs::SpawnCallback& spwnClb)
 {
@@ -254,69 +319,6 @@ void Sector::destroyBroadphaseProxy(ecs::Broadphase* broadphase)
     aabbTree.destroyProxy(broadphase->proxyId);
     broadphase->proxyId = ecs::Broadphase::INVALID_PROXY_ID;
 }
-
-bool Sector::removeEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
-{
-    /*
-    if (!ptrHandle->ecs->validId(entityId))
-    {
-        // LG_W("Entity not valid: {}", entityId);
-        return false;
-    }
-    auto reg = ptrHandle->registry;
-    auto it = std::find_if(entityRefs.begin(),
-                           entityRefs.end(),
-                           [entityId](const EntRef& ref)
-                           { return ref.entityId == entityId; });
-    if (it == entityRefs.end())
-    {
-        LG_W("Entity not in sector: {}", entityId);
-        return false;
-    }
-    entt::entity entity = it->entity;
-    auto* broadphase = reg->try_get<ecs::Broadphase>(entity);
-    if (broadphase)
-    {
-        destroyBroadphaseProxy(broadphase);
-    }
-    entityRefs.erase(it);
-    */
-    return true;
-}
-
-vec2 Sector::getWorldPosSectorOffset(int32_t sectorOffsetX,
-                                     int32_t sectorOffsetY) const
-{
-    return vec2((float)(coordX - sectorOffsetX) * sectorSize,
-                (float)(coordY - sectorOffsetY) * sectorSize);
-}
-
-void Sector::moveAabbProxy(int32_t proxyId, con::AABB& newAabb)
-{
-    if (proxyId <= ecs::Broadphase::INVALID_PROXY_ID)
-    {
-        return;
-    }
-    aabbTree.moveProxy(proxyId, newAabb);
-}
-
-void Sector::getAllAABBs(std::vector<con::AABB>& aabbs) const
-{
-    aabbTree.getAllAABBs(aabbs);
-}
-
-void Sector::queryBroadphase(const con::AABB& aabb,
-                             std::function<void(entt::entity)> callback)
-{
-    aabbTree.query(aabb, callback);
-}
-
-void Sector::markPlayerSector(bool player)
-{
-    active = player;
-}
-
-#ifdef SERVER
 
 void Sector::markEntityForDestruction(ecs::PtrHandle* ptrHandle,
                                       ecs::EntityId entityId)

@@ -8,6 +8,8 @@ target_sources(sphy_core_ecs_systems INTERFACE
     sys-turret.hpp
     sys-turret.cpp
     sys-defs.hpp
+    sys-lifetime.hpp
+    sys-lifetime.cpp
 )
 
 target_include_directories(sphy_core_ecs_systems

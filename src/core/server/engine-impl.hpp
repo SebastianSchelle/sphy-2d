@@ -56,7 +56,7 @@ template <typename Component> void Engine::registerSlowDumpComponent()
                          sector](auto entity, auto& entityId, auto& component)
                         {
                             mcomp.ser->object(entityId);
-                            mcomp.ser->object(*component);
+                            mcomp.ser->object(component);
                             entityCntSector++;
                             entityCntMessage++;
 
@@ -170,7 +170,7 @@ void Engine::registerActiveSectorDumpComponent(DumpFilter filter)
                             break;
                     }
                     mcomp.ser->object(entityId);
-                    mcomp.ser->object(*component);
+                    mcomp.ser->object(component);
                     entityCntMessage++;
 
                     // Flush if packet limit is reached

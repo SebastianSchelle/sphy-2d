@@ -18,8 +18,8 @@
 #include <control-def.hpp>
 #include <functional>
 #include <item-lib.hpp>
-#include <memory>
 #include <lib-hull.hpp>
+#include <memory>
 #include <mod-manager.hpp>
 #include <net-shared.hpp>
 #include <ptr-handle.hpp>
@@ -142,7 +142,12 @@ class Engine
                              def::ClientInfoHandle disconnectedHandle);
     void sendAllEnttComponents(def::ClientInfo* clientInfo,
                                net::TcpConnection* conn);
-    void sendAllComponents(ecs::EntityId entityId, net::TcpConnection* conn);
+    void sendAllComponents(ecs::EntityId entityId,
+                           net::TcpConnection* conn);
+    void sendAllComponents(world::Sector* sector,
+                           ecs::EntityId entityId,
+                           entt::entity entity,
+                           net::TcpConnection* conn);
     void broadcastEntityToClients(ecs::EntityId entityId);
     void testSpawn();
     void handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn);
@@ -188,7 +193,7 @@ class Engine
     ai::TaskSystem taskSystem;
 
   public:
-    //ecs::Ecs ecs;
+    // ecs::Ecs ecs;
 };
 
 }  // namespace sphys

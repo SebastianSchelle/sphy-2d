@@ -2,8 +2,8 @@
 #define SECTOR_HPP
 
 #include "registry-mapping.hpp"
-#include <sector-registry.hpp>
 #include <ptr-handle.hpp>
+#include <sector-registry.hpp>
 #include <std-inc.hpp>
 #ifdef CLIENT
 #include <render-engine.hpp>
@@ -44,21 +44,13 @@ class Sector
               uint32_t id,
               Sector* neighbors[8],
               ecs::RegistryMapping* regMapping);
-    bool saveSector(const std::string& savedir);
-    void update(float dt, ecs::PtrHandle* ptrHandle);
-    ecs::EntityId spawnObject(ecs::PtrHandle* ptrHandle, const ecs::SpawnCallback& spwnClb);
-    bool migrateObject(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
-    //bool addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
-    bool removeEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
-    void moveAabbProxy(int32_t proxyId, con::AABB& newAabb);
-    void destroyBroadphaseProxy(ecs::Broadphase* broadphase);
-    void getAllAABBs(std::vector<con::AABB>& aabbs) const;
-    void queryBroadphase(const con::AABB& aabb,
-                         std::function<void(entt::entity)> callback);
     vec2 getWorldPosSectorOffset(int32_t sectorOffsetX,
                                  int32_t sectorOffsetY) const;
-    void markPlayerSector(bool player);
 #ifdef SERVER
+    ecs::EntityId spawnObject(ecs::PtrHandle* ptrHandle,
+                              const ecs::SpawnCallback& spwnClb);
+    bool migrateObject(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
+    bool removeEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId);
     void markEntityForDestruction(ecs::PtrHandle* ptrHandle,
                                   ecs::EntityId entityId);
     void destroyMarkedEntities(ecs::PtrHandle* ptrHandle);
@@ -68,6 +60,14 @@ class Sector
                               const SectorMoveRequest& request);
     void forSectorMoveRequests(
         std::function<void(const SectorMoveRequest& request)> callback);
+    void moveAabbProxy(int32_t proxyId, con::AABB& newAabb);
+    void destroyBroadphaseProxy(ecs::Broadphase* broadphase);
+    void getAllAABBs(std::vector<con::AABB>& aabbs) const;
+    void queryBroadphase(const con::AABB& aabb,
+                         std::function<void(entt::entity)> callback);
+    void markPlayerSector(bool player);
+    void update(float dt, ecs::PtrHandle* ptrHandle);
+    bool saveSector(const std::string& savedir);
 #endif
     const float getWorldPosX() const
     {
@@ -93,10 +93,6 @@ class Sector
     {
         return coordY;
     }
-    ecs::SectorRegistry* getRegistry()
-    {
-        return &sectorRegistry;
-    }
     bool isActive()
     {
         return active;
@@ -105,6 +101,10 @@ class Sector
     ai::TaskSystem& getTaskSystem()
     {
         return taskSystem;
+    }
+    ecs::SectorRegistry* getRegistry()
+    {
+        return &sectorRegistry;
     }
 #endif
     inline void addBroadphaseQueryEntity(entt::entity entity)

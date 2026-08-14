@@ -751,18 +751,19 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                     return;
                 }
                 auto sector = world.getSector(slot->sectorId);
-                if(!sector)
+                if (!sector)
                 {
                     LG_W("Could not find sector");
                     return;
-                } 
+                }
                 // todo: check if allowed
-                auto *reg = sector->getRegistry()->getRegistry();
+                auto* reg = sector->getRegistry()->getRegistry();
                 auto* ai = reg->try_get<ecs::Ai>(slot->entity);
                 if (ai)
                 {
                     ai::TaskSystem* entityTaskSystem = &taskSystem;
-                    if (auto* sectorId = reg->try_get<ecs::SectorId>(slot->entity))
+                    if (auto* sectorId =
+                            reg->try_get<ecs::SectorId>(slot->entity))
                     {
                         if (sectorId->id != world::INVALID_SECTOR_ID)
                         {
@@ -1103,42 +1104,46 @@ void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
             return false;
         });
     uint32_t count = 0;
-    ecs.iterateEntities(
-        [this, clientInfo, conn, &count](ecs::EntityId entityId)
+
+    world.iterateSectors(
+        [this, clientInfo, conn, &count](uint32_t sectorId,
+                                         world::Sector* sector)
         {
-            auto& reg = ecs.getRegistry();
-            entt::entity ent = ecs.getEntity(entityId);
-            auto* sectorId = reg.try_get<ecs::SectorId>(ent);
-            // if (!reg.valid(ent) || !reg.all_of<ecs::tag::OOSSync>(ent))
-            // {
-            //     return;
-            // }
-            const ecs::EntityId entityCopy = entityId;
-            clientInfo->addWorkFunction(
-                [this, entityCopy, conn]()
+            auto reg = sector->getRegistry()->getRegistry();
+            reg->view<ecs::EntityId>().each(
+                [this, &sector, clientInfo, conn, &count](auto entity,
+                                                          auto& entityId)
                 {
-                    sendAllComponents(entityCopy, conn);
-                    return false;
-                });
-            ++count;
-            if (count % 50000 == 0)
-            {
-                clientInfo->addWorkFunction(
-                    [this, clientInfo, conn]()
+                    const ecs::EntityId entityCopy = entityId;
+                    clientInfo->addWorkFunction(
+                        [this, entityCopy, entity, conn, sector]()
+                        {
+                            sendAllComponents(sector, entityCopy, entity, conn);
+                            return false;
+                        });
+                    ++count;
+                    if (count % 50000 == 0)
                     {
-                        prot::MsgComposer mcomp(net::SendType::TCP, conn);
-                        mcomp.startCommand(prot::cmd::ACK_WORKSEQUENCER, 0);
-                        mcomp.execute(sendQueue);
-                        return true;
-                    });
-            }
+                        clientInfo->addWorkFunction(
+                            [this, clientInfo, conn]()
+                            {
+                                prot::MsgComposer mcomp(net::SendType::TCP,
+                                                        conn);
+                                mcomp.startCommand(prot::cmd::ACK_WORKSEQUENCER,
+                                                   0);
+                                mcomp.execute(sendQueue);
+                                return true;
+                            });
+                    }
+                });
         });
     clientInfo->addWorkFunction(
         [this, clientInfo, conn]()
         {
             prot::MsgComposer mcomp(net::SendType::TCP, conn);
             mcomp.startCommand(prot::cmd::TOTAL_NUM_ENTITIES, 0);
-            mcomp.ser->value4b(ecs.getNumEntities());
+            uint32_t numEntt = 100;
+            mcomp.ser->value4b(numEntt);
             mcomp.execute(sendQueue);
             return false;
         });
@@ -1146,6 +1151,7 @@ void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
 
 void Engine::broadcastEntityToClients(ecs::EntityId entityId)
 {
+    /*
     auto& reg = ecs.getRegistry();
     entt::entity ent = ecs.getEntity(entityId);
     for (def::ClientInfoHandle handle : connectedClientHandles)
@@ -1165,26 +1171,39 @@ void Engine::broadcastEntityToClients(ecs::EntityId entityId)
         }
         sendAllComponents(entityId, clientInfo->clientInfo.connection);
     }
+    */
 }
 
 void Engine::sendAllComponents(ecs::EntityId entityId, net::TcpConnection* conn)
 {
-    entt::entity ent = ecs.getEntity(entityId);
-    if (!ecs.getRegistry().valid(ent))
+    auto slot = registryMapping.getEntity(entityId);
+    if(!slot)
     {
-        // todo: reply needed in error case?
         return;
     }
+    auto sector = world.getSector(slot->sectorId);
+    if(!sector)
+    {
+        return;
+    }
+    sendAllComponents(sector, entityId, slot->entity, conn);
+}
+
+void Engine::sendAllComponents(world::Sector* sector,
+                               ecs::EntityId entityId,
+                               entt::entity entity,
+                               net::TcpConnection* conn)
+{
     // todo: prevent exceeding tcp packet size
     prot::MsgComposer mcomp(net::SendType::TCP, conn);
     mcomp.startCommand(prot::cmd::REQ_ALL_COMPONENTS, CMD_FLAG_RESP);
     mcomp.ser->object(entityId);
-    auto& reg = ecs.getRegistry();
+    auto reg = sector->getRegistry()->getRegistry();
     uint16_t numComponents = 0;
     for (auto& [hash, helper] :
          assetFactory.componentFactory.getComponentHelpers())
     {
-        helper.serializeFromRegistry(reg, ent, *mcomp.ser);
+        helper.serializeFromRegistry(*reg, entity, *mcomp.ser);
         numComponents++;
         if (mcomp.ser->adapter().currentWritePos()
             >= prot::kMaxSerializedChunkBytes - 100)
@@ -1249,9 +1268,9 @@ void Engine::testSpawn()
             entitySpawner->spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze"), 0);
             entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 1);
-            entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
+                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"),
+    1); entitySpawner->spawnModule( ent,
+    modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
             entitySpawner->spawnModule(
                 ent,
                 modManager.getModuleLib().getHandle("Small Mining Turret"),
@@ -1261,7 +1280,8 @@ void Engine::testSpawn()
                 modManager.getModuleLib().getHandle("Small Mining Turret"),
                 4);
             entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Terran Bulk S"), 5);
+                ent, modManager.getModuleLib().getHandle("Terran Bulk S"),
+    5);
         }
         else if (i % 4 == 1)
         {
@@ -1272,9 +1292,9 @@ void Engine::testSpawn()
             entitySpawner->spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze"), 0);
             entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 1);
-            entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
+                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"),
+    1); entitySpawner->spawnModule( ent,
+    modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
             entitySpawner->spawnModule(
                 ent,
                 modManager.getModuleLib().getHandle("Small Mining Turret"),
@@ -1313,9 +1333,9 @@ void Engine::testSpawn()
             entitySpawner->spawnModule(
                 ent, modManager.getModuleLib().getHandle("Breeze"), 4);
             entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 5);
-            entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 6);
+                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"),
+    5); entitySpawner->spawnModule( ent,
+    modManager.getModuleLib().getHandle("Breeze Maneuver"), 6);
         }
         else
         {
@@ -1328,8 +1348,8 @@ void Engine::testSpawn()
             {
                 entitySpawner->spawnModule(
                     ent,
-                    modManager.getModuleLib().getHandle("Small Mining Turret"),
-                    i);
+                    modManager.getModuleLib().getHandle("Small Mining
+    Turret"), i);
             }
             for (int i = 8; i < 16; i++)
             {
@@ -1352,7 +1372,8 @@ void Engine::testSpawn()
         auto* phyThrust = reg.try_get<ecs::PhyThrust>(ecs.getEntity(ent));
         if (phyThrust)
         {
-            //phyThrust->updateStatsFromEntity(ecs.getEntity(ent), ptrHandle);
+            //phyThrust->updateStatsFromEntity(ecs.getEntity(ent),
+    ptrHandle);
         }
         auto* storage = reg.try_get<ecs::Storage>(ecs.getEntity(ent));
         if (storage)
@@ -1363,7 +1384,8 @@ void Engine::testSpawn()
         if (ai)
         {
             ai::TaskSystem* entityTaskSystem = &taskSystem;
-            if (auto* sectorId = reg.try_get<ecs::SectorId>(ecs.getEntity(ent)))
+            if (auto* sectorId =
+    reg.try_get<ecs::SectorId>(ecs.getEntity(ent)))
             {
                 if (sectorId->id != world::INVALID_SECTOR_ID)
                 {
@@ -1374,7 +1396,8 @@ void Engine::testSpawn()
                 }
             }
             // auto* taskStack =
-            // entityTaskSystem->getTaskStack(ai->stackHandle); if (taskStack)
+            // entityTaskSystem->getTaskStack(ai->stackHandle); if
+    (taskStack)
             // {
             //     taskStack->setDefaultTask(ai::taskdata::UniversePatrol{
             //         .config = {.allowedPosError = 100.0f,
@@ -1408,9 +1431,8 @@ void Engine::testSpawn()
             modManager.getStationPartLib().getItem(partHandle1);
         if (!part1)
         {
-            LG_E("Spawn test station: station part '{}' not in library; skip",
-                 partName1);
-            continue;
+            LG_E("Spawn test station: station part '{}' not in library;
+    skip", partName1); continue;
         }
         ecs::EntityId partId =
             entitySpawner->addFirstStationPart(stationId, partHandle1, rot);
@@ -1435,7 +1457,8 @@ void Engine::testSpawn()
                                           partId,
                                           partHandle2,
                                           j,
-                                          rand() % part2->connectors.size());
+                                          rand() %
+    part2->connectors.size());
         }
 
         // ecs::EntityId partId2 =
@@ -1473,12 +1496,10 @@ void Engine::testSpawn()
         float rot2 = (rotDist(gen) - M_PIf) / 10.0f;
         spawnAsteroid(sectorId,
                       ecs::Transform{pos1, rot1},
-                      modManager.getAsteroidLib().getHandle("Small Asteroid 1"),
-                      rot1);
-        spawnAsteroid(sectorId,
-                      ecs::Transform{pos2, rot2},
-                      modManager.getAsteroidLib().getHandle("Small Asteroid 2"),
-                      rot2);
+                      modManager.getAsteroidLib().getHandle("Small Asteroid
+    1"), rot1); spawnAsteroid(sectorId, ecs::Transform{pos2, rot2},
+                      modManager.getAsteroidLib().getHandle("Small Asteroid
+    2"), rot2);
     }
     */
 }
@@ -1513,92 +1534,90 @@ void Engine::markPlayerSectors()
         {
             if (clientInfo->activeEntity != ecs::EntityId::Invalid())
             {
-                entt::entity entity = ecs.getEntity(clientInfo->activeEntity);
-                if (entity != entt::null)
+                auto slot = registryMapping.getEntity(clientInfo->activeEntity);
+                if (!slot)
                 {
-                    const float sectorSize = world.getWorldShape().sectorSize;
-                    auto& reg = ecs.getRegistry();
-                    ecs::SectorId* sectorId =
-                        reg.try_get<ecs::SectorId>(entity);
-                    ecs::Transform* transform =
-                        reg.try_get<ecs::Transform>(entity);
-                    if (sectorId && transform)
+                    return;
+                }
+                const float sectorSize = world.getWorldShape().sectorSize;
+                auto sector = world.getSector(slot->sectorId);
+                if (!sector)
+                {
+                    return;
+                }
+                auto reg = sector->getRegistry()->getRegistry();
+                ecs::SectorId* sectorId =
+                    reg->try_get<ecs::SectorId>(slot->entity);
+                ecs::Transform* transform =
+                    reg->try_get<ecs::Transform>(slot->entity);
+                if (sectorId && transform)
+                {
+                    clientInfo->addActiveSector(sectorId->id);
+                    // todo: what threshold for neighboring sectors?
+                    def::SectorPos neighbor;
+                    const bool north = transform->pos.y < -sectorSize / 2 * 0.7;
+                    const bool south = transform->pos.y > sectorSize / 2 * 0.7;
+                    const bool west = transform->pos.x < -sectorSize / 2 * 0.7;
+                    const bool east = transform->pos.x > sectorSize / 2 * 0.7;
+                    if (west
+                        && world.getNeighboringSectorPos(
+                            sectorId->id, def::Direction::W, neighbor))
                     {
-                        clientInfo->addActiveSector(sectorId->id);
-                        // todo: what threshold for neighboring sectors?
-                        def::SectorPos neighbor;
-                        const bool north =
-                            transform->pos.y < -sectorSize / 2 * 0.7;
-                        const bool south =
-                            transform->pos.y > sectorSize / 2 * 0.7;
-                        const bool west =
-                            transform->pos.x < -sectorSize / 2 * 0.7;
-                        const bool east =
-                            transform->pos.x > sectorSize / 2 * 0.7;
-                        if (west
-                            && world.getNeighboringSectorPos(
-                                sectorId->id, def::Direction::W, neighbor))
-                        {
-                            clientInfo->addActiveSector(
-                                world.sectorCoordsToId(neighbor.x, neighbor.y));
-                            if (north
-                                && world.getNeighboringSectorPos(
-                                    sectorId->id, def::Direction::NW, neighbor))
-                            {
-                                clientInfo->addActiveSector(
-                                    world.sectorCoordsToId(neighbor.x,
-                                                           neighbor.y));
-                            }
-                            else if (south
-                                     && world.getNeighboringSectorPos(
-                                         sectorId->id,
-                                         def::Direction::SW,
-                                         neighbor))
-                            {
-                                clientInfo->addActiveSector(
-                                    world.sectorCoordsToId(neighbor.x,
-                                                           neighbor.y));
-                            }
-                        }
-                        else if (east
-                                 && world.getNeighboringSectorPos(
-                                     sectorId->id, def::Direction::E, neighbor))
-                        {
-                            clientInfo->addActiveSector(
-                                world.sectorCoordsToId(neighbor.x, neighbor.y));
-                            if (north
-                                && world.getNeighboringSectorPos(
-                                    sectorId->id, def::Direction::NE, neighbor))
-                            {
-                                clientInfo->addActiveSector(
-                                    world.sectorCoordsToId(neighbor.x,
-                                                           neighbor.y));
-                            }
-                            else if (south
-                                     && world.getNeighboringSectorPos(
-                                         sectorId->id,
-                                         def::Direction::SE,
-                                         neighbor))
-                            {
-                                clientInfo->addActiveSector(
-                                    world.sectorCoordsToId(neighbor.x,
-                                                           neighbor.y));
-                            }
-                        }
+                        clientInfo->addActiveSector(
+                            world.sectorCoordsToId(neighbor.x, neighbor.y));
                         if (north
                             && world.getNeighboringSectorPos(
-                                sectorId->id, def::Direction::N, neighbor))
+                                sectorId->id, def::Direction::NW, neighbor))
                         {
                             clientInfo->addActiveSector(
                                 world.sectorCoordsToId(neighbor.x, neighbor.y));
                         }
                         else if (south
                                  && world.getNeighboringSectorPos(
-                                     sectorId->id, def::Direction::S, neighbor))
+                                     sectorId->id,
+                                     def::Direction::SW,
+                                     neighbor))
                         {
                             clientInfo->addActiveSector(
                                 world.sectorCoordsToId(neighbor.x, neighbor.y));
                         }
+                    }
+                    else if (east
+                             && world.getNeighboringSectorPos(
+                                 sectorId->id, def::Direction::E, neighbor))
+                    {
+                        clientInfo->addActiveSector(
+                            world.sectorCoordsToId(neighbor.x, neighbor.y));
+                        if (north
+                            && world.getNeighboringSectorPos(
+                                sectorId->id, def::Direction::NE, neighbor))
+                        {
+                            clientInfo->addActiveSector(
+                                world.sectorCoordsToId(neighbor.x, neighbor.y));
+                        }
+                        else if (south
+                                 && world.getNeighboringSectorPos(
+                                     sectorId->id,
+                                     def::Direction::SE,
+                                     neighbor))
+                        {
+                            clientInfo->addActiveSector(
+                                world.sectorCoordsToId(neighbor.x, neighbor.y));
+                        }
+                    }
+                    if (north
+                        && world.getNeighboringSectorPos(
+                            sectorId->id, def::Direction::N, neighbor))
+                    {
+                        clientInfo->addActiveSector(
+                            world.sectorCoordsToId(neighbor.x, neighbor.y));
+                    }
+                    else if (south
+                             && world.getNeighboringSectorPos(
+                                 sectorId->id, def::Direction::S, neighbor))
+                    {
+                        clientInfo->addActiveSector(
+                            world.sectorCoordsToId(neighbor.x, neighbor.y));
                     }
                 }
             }
@@ -1744,7 +1763,8 @@ void Engine::destroyEntity(ecs::EntityId entityId)
 {
     /*
     auto entt = ecs.getEntity(entityId);
-    for (auto compHelper : assetFactory.componentFactory.getComponentHelpers())
+    for (auto compHelper :
+    assetFactory.componentFactory.getComponentHelpers())
     {
         auto destroyFunc = compHelper.second.destroy;
         if (destroyFunc)
