@@ -98,11 +98,11 @@ class World
 
   private:
 #ifdef SERVER
-bool initWorld();
-bool initSectors(bool fromSave, ecs::PtrHandle* ptrHandle);
-bool loadWorldProcessData(uint32_t typeId,
-                          uint16_t version,
-                          bitsery::Deserializer<InputAdapter>& des_);
+    bool initWorld();
+    bool initSectors(bool fromSave, ecs::PtrHandle* ptrHandle);
+    bool loadWorldProcessData(uint32_t typeId,
+                              uint16_t version,
+                              bitsery::Deserializer<InputAdapter>& des_);
     void handleSectorMoveRequests(ecs::PtrHandle* ptrHandle);
     void destroyMarkedEntities(ecs::PtrHandle* ptrHandle);
     void executeSingleThreadedTasks(ecs::PtrHandle* ptrHandle);
