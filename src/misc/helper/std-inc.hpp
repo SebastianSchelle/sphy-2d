@@ -24,6 +24,7 @@
 #include <fstream>
 #include <glm/glm.hpp>
 #include <limits>
+#include <entt/entity/entity.hpp>
 
 // cmath / POSIX do not guarantee M_PI; M_PIf is non-standard (GNU extension).
 #ifndef M_PI
@@ -714,6 +715,49 @@ inline bool convexConvex(const std::vector<vec2>& a, const std::vector<vec2>& b)
 }
 
 }  // namespace sat2d
+
+struct game_entity
+{
+    using entity_type = std::uint32_t;
+
+    std::uint32_t value{};
+
+    constexpr game_entity() = default;
+    constexpr game_entity(std::uint32_t value) : value{value} {}
+
+    constexpr operator std::uint32_t() const noexcept
+    {
+        return value;
+    }
+
+    constexpr bool operator==(const game_entity&) const = default;
+};
+
+struct game_entity_traits
+{
+    using value_type = game_entity;
+    using entity_type = std::uint32_t;
+    using version_type = std::uint8_t;
+
+    // lower 24 bits = entity index
+    static constexpr entity_type entity_mask = 0x00FFFFFF;
+
+    // 8 bits = version
+    static constexpr entity_type version_mask = 0xFF;
+};
+
+namespace entt
+{
+
+template <>
+struct entt_traits<game_entity> : basic_entt_traits<game_entity_traits>
+{
+    static constexpr std::size_t page_size = ENTT_SPARSE_PAGE;
+};
+
+}  // namespace entt
+
+using Registry = entt::basic_registry<game_entity>;
 
 struct GenericHandle
 {

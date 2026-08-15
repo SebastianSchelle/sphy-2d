@@ -170,7 +170,7 @@ void Model::modelLoopGame(float dt)
     if (renderer->getViewMode() == gfx::GameViewMode::ThirdPerson
         || renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
     {
-        entt::entity activeEntity = getActiveEntity();
+        game_entity activeEntity = getActiveEntity();
         auto& reg = clientRegistry.getRegistry();
         if (reg.valid(activeEntity))
         {
@@ -283,7 +283,7 @@ void Model::centerViewOnPlayer()
     if (renderer->getViewMode() == gfx::GameViewMode::StrategicMap
         || renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
     {
-        entt::entity activeEntity = getActiveEntity();
+        game_entity activeEntity = getActiveEntity();
         auto& reg = clientRegistry.getRegistry();
         if (reg.valid(activeEntity))
         {
@@ -560,7 +560,7 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
     auto& reg = clientRegistry.getRegistry();
     for (const auto& entityId : selectedEntities)
     {
-        entt::entity entity = clientRegistry.getEntity(entityId);
+        game_entity entity = clientRegistry.getEntity(entityId);
         if (reg.valid(entity))
         {
             auto* trans = reg.try_get<ecs::Transform>(entity);
@@ -680,7 +680,7 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
 
     for (const auto& entityId : selectedEntities)
     {
-        entt::entity entity = clientRegistry.getEntity(entityId);
+        game_entity entity = clientRegistry.getEntity(entityId);
         if (reg.valid(entity))
         {
             auto* trans = reg.try_get<ecs::Transform>(entity);
@@ -744,7 +744,7 @@ void Model::drawShips(gfx::RenderEngine& renderer,
     auto& reg = clientRegistry.getRegistry();
     reg.view<ecs::Transform, ecs::SectorId, ecs::Textures, ecs::Hull>().each(
         [this, &renderer, &viewRect, &reg, activeSectorId](
-            entt::entity entity,
+            game_entity entity,
             ecs::Transform& transform,
             ecs::SectorId& sectorId,
             ecs::Textures& textures,
@@ -934,7 +934,7 @@ void Model::drawStationTextures(gfx::RenderEngine& renderer,
     auto& reg = clientRegistry.getRegistry();
     for (auto& stationPartRef : station.stationParts)
     {
-        entt::entity stationPartEntity = clientRegistry.getEntity(stationPartRef.entityId);
+        game_entity stationPartEntity = clientRegistry.getEntity(stationPartRef.entityId);
         if (stationPartEntity != entt::null)
         {
             auto* stationPartTextures =
@@ -962,7 +962,7 @@ void Model::drawModuleTextures(gfx::RenderEngine& renderer,
     auto& reg = clientRegistry.getRegistry();
     for (auto& modRef : hull.modules)
     {
-        entt::entity moduleEntity = clientRegistry.getEntity(modRef.entityId);
+        game_entity moduleEntity = clientRegistry.getEntity(modRef.entityId);
         if (moduleEntity != entt::null)
         {
             const int8_t moduleOffset =
@@ -1156,7 +1156,7 @@ void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
                 {
                     ecs::EntityId entityId;
                     cmddes.object(entityId);
-                    entt::entity entity = clientRegistry.enttFromServerId(entityId);
+                    game_entity entity = clientRegistry.enttFromServerId(entityId);
                     if (entity == entt::null)
                     {
                         continue;
@@ -1192,7 +1192,7 @@ void Model::handleActiveSectorDump(bitsery::Deserializer<InputAdapter>& cmddes,
             {
                 ecs::EntityId entityId;
                 cmddes.object(entityId);
-                entt::entity entity = clientRegistry.enttFromServerId(entityId);
+                game_entity entity = clientRegistry.enttFromServerId(entityId);
                 auto& reg = clientRegistry.getRegistry();
                 auto [x, y] = world.idToSectorCoords(sectorId);
                 reg.emplace_or_replace<ecs::SectorId>(entity, sectorId, x, y);
@@ -1209,7 +1209,7 @@ void Model::handleReqAllComponentsResp(
 {
     ecs::EntityId entityId;
     cmddes.object(entityId);
-    entt::entity entity = clientRegistry.enttFromServerId(entityId, false);
+    game_entity entity = clientRegistry.enttFromServerId(entityId, false);
     if (entity == entt::null)
     {
         LG_W("Entity not found for component sync: {}", entityId);
@@ -1500,7 +1500,7 @@ void Model::registerConnectSequence()
 
 uint32_t Model::getActiveSectorId()
 {
-    entt::entity activeEntity = getActiveEntity();
+    game_entity activeEntity = getActiveEntity();
     auto& reg = clientRegistry.getRegistry();
     if (reg.valid(activeEntity))
     {
@@ -1513,7 +1513,7 @@ uint32_t Model::getActiveSectorId()
     return 0;
 }
 
-entt::entity Model::getActiveEntity()
+game_entity Model::getActiveEntity()
 {
     return clientRegistry.getEntity(clientInfo.activeEntity);
 }

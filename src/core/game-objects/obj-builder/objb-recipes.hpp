@@ -2,6 +2,7 @@
 #define OBJB_RECIPES_HPP
 
 #include "comp-ident.hpp"
+#include "comp-struct.hpp"
 #include "lib-hull.hpp"
 #include "lib-modules.hpp"
 #include "sector.hpp"
@@ -22,6 +23,7 @@ struct RecipeSpawnParams
     world::Sector* sector;
     vec2 pos;
     float rot;
+    float naturalRot;
 };
 
 class ShipRecipe
@@ -37,6 +39,15 @@ class ShipRecipe
   private:
     gobj::HullHandle hullHandle;
     std::vector<ModuleSlot> modSlot;
+};
+
+class AsteroidRecipe
+{
+  public:
+    AsteroidRecipe(gobj::AsteroidHandle asteroidHandle) : asteroidHandle(asteroidHandle) {}
+    ecs::EntityId spawn(const RecipeSpawnParams& params);
+  private:
+    gobj::AsteroidHandle asteroidHandle;
 };
 
 }  // namespace objb

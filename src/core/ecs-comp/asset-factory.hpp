@@ -27,8 +27,8 @@ class ComponentFactory
                                                entt::registry&,
                                                entt::entity)>;
     using DeserializeIntoRegistryFunc =
-        std::function<void(entt::registry&,
-                           entt::entity,
+        std::function<void(Registry&,
+                           game_entity,
                            bitsery::Deserializer<InputAdapter>&)>;
     using SerializeFromRegistryFunc =
         std::function<void(entt::registry&,
@@ -108,8 +108,8 @@ class ComponentFactory
                         }
                     }
                 },
-                [name](entt::registry& registry,
-                       entt::entity entity,
+                [name](Registry& registry,
+                       game_entity entity,
                        bitsery::Deserializer<InputAdapter>& s)
                 {
                     if constexpr (std::is_empty_v<Component>)

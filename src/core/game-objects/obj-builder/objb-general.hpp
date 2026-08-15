@@ -80,7 +80,7 @@ struct Ai
             if (!taskStack)
             {
                 LG_W("Task stack not found for entity, creating new stack");
-                aiComp.stackHandle = GenericHandle::Invalid();
+                aiComp.stackHandle = GenericHandle32::Invalid();
             }
             else
             {
@@ -176,6 +176,15 @@ struct Physics
         OBJB_GUARD(Transform::build(ptrHandle, params), "")
         params.reg.emplace_or_replace<ecs::PhysicsBody>(params.entity, phyBody);
         return true;
+    }
+
+    static void naturalRot(entt::registry *reg, entt::entity entity, float naturalRot)
+    {
+        auto* phy = reg->try_get<ecs::PhysicsBody>(entity);
+        if (phy)
+        {
+            phy->naturalRotation = naturalRot;
+        }
     }
 };
 

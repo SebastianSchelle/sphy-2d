@@ -2,6 +2,7 @@
 #define ENGINE_HPP
 
 #include "comp-ident.hpp"
+#include "comp-struct.hpp"
 #include "ecs.hpp"
 #include "entity-spawner.hpp"
 #include "lib-modules.hpp"
@@ -93,6 +94,9 @@ class Engine
                               ecs::EntityId parent,
                               gobj::ModuleHandle modHandle,
                               uint32_t slotIdx);
+
+    ecs::EntityId spawnAsteroid(world::Sector* sector,
+                                gobj::AsteroidHandle asteroidHandle);
 
     void spawnProjectile(
         uint32_t sectorId,

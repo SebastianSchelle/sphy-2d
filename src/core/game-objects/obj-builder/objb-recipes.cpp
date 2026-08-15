@@ -35,4 +35,24 @@ ecs::EntityId ShipRecipe::spawn(const RecipeSpawnParams& params)
     return shipHull;
 }
 
+ecs::EntityId AsteroidRecipe::spawn(const RecipeSpawnParams& params) {
+
+    auto ptr = params.ptrHandle;
+
+    // Spawn asteroid
+    auto asteroid = ptr->engine->spawnAsteroid(params.sector, asteroidHandle);
+
+    // Place at desired pos and rotation
+    auto slot = ptr->registryMapping->getEntity(asteroid);
+    if (!slot)
+    {
+        LG_E("No registry slot found for entity {}", asteroid);
+        return ecs::EntityId::Invalid();
+    }
+    auto reg = params.sector->getRegistry()->getRegistry();
+    Transform::position(reg, slot->entity, params.pos, params.rot);
+    Physics::naturalRot(reg, slot->entity, params.naturalRot);
+    return asteroid;
+}
+
 }  // namespace objb

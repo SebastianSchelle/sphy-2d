@@ -63,6 +63,7 @@ struct Module
                    "Could not spawn module. Incompatible slot type")
         OBJB_GUARD(Textures::build(ptrHandle, params, module->textures),
                    "Failed to build module texture")
+        OBJB_GUARD(Transform::build(ptrHandle, params), "");
         OBJB_GUARD(AnchorFixed::build(ptrHandle,
                                       params,
                                       ecs::AnchorFixed{.pos = hullSlot.pos,
@@ -92,8 +93,8 @@ struct Module
                 OBJB_GUARD(Ai::build(ptrHandle,
                                      params,
                                      ai::taskdata::Turret{
-                                         ai::taskdata::Turret::Mode::Mine,
-                                         ai::taskdata::Turret::ConfigMine{}}),
+                                         ai::taskdata::Turret::Mode::Player,
+                                         ai::taskdata::Turret::ConfigPlayer{}}),
                            "Failed to add Ai to turret module")
                 break;
             }

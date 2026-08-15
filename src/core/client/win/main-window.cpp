@@ -952,7 +952,7 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
     auto& go = debugData.selGameObject;
     go.entityId = model.getSelectedEntity().index;
     go.generation = model.getSelectedEntity().generation;
-    entt::entity entity =
+    game_entity entity =
         model.getClientRegistry()->enttFromServerId(model.getSelectedEntity());
     go.hasTransform = false;
     go.hasPhysicsBody = false;

@@ -111,7 +111,7 @@ class Model
     {
         return world.getWorldShape();
     }
-    entt::registry& getRegistry()
+    Registry& getRegistry()
     {
         return clientRegistry.getRegistry();
     }
@@ -207,7 +207,7 @@ class Model
                    uint32_t activeSectorId = world::INVALID_SECTOR_ID);
     void registerConnectSequence();
     uint32_t getActiveSectorId();
-    entt::entity getActiveEntity();
+    game_entity getActiveEntity();
     void sendThirdPersonControl();
 
     cfg::ConfigManager& config;

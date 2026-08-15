@@ -23,11 +23,11 @@ template <class T> class FreeVec
         {
             return Handle(0, 0);
         }
-        Handle(GenericHandle genericHandle)
+        Handle(GenericHandle32 genericHandle)
             : idx(genericHandle.idx), generation(genericHandle.gen)
         {
         }
-        GenericHandle toGenericHandle() const
+        GenericHandle32 toGenericHandle() const
         {
             return {idx, generation};
         }
@@ -35,20 +35,20 @@ template <class T> class FreeVec
         {
             return fmt::format("({}, {})", idx, generation);
         }
-        Handle(uint16_t idx, uint16_t generation)
+        Handle(uint32_t idx, uint16_t generation)
             : idx(idx), generation(generation)
         {
         }
-        Handle(uint32_t value) : idx(value & 0xffff), generation(value >> 16) {}
-        uint32_t value() const
+        Handle(uint64_t value) : idx(value & 0xffffffff), generation(value >> 32) {}
+        uint64_t value() const
         {
-            return ((uint32_t)generation << 16) | (uint16_t)idx;
+            return ((uint64_t)generation << 32) | (uint64_t)idx;
         }
         bool isValid() const
         {
             return generation != 0;
         }
-        uint16_t getIdx() const
+        uint32_t getIdx() const
         {
             return idx;
         }
@@ -58,7 +58,7 @@ template <class T> class FreeVec
         }
 
       private:
-        uint16_t idx;
+        uint32_t idx;
         uint16_t generation;
     };
     struct HandleUuid

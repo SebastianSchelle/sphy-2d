@@ -1,4 +1,5 @@
 #include "sys-turret.hpp"
+#include "logging.hpp"
 #ifdef SERVER
 #include <engine.hpp>
 #endif

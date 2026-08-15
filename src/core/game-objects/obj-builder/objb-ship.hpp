@@ -4,6 +4,7 @@
 #include "comp-phy.hpp"
 #include "comp-storage.hpp"
 #include "entt/entity/fwd.hpp"
+#include "task-basic.hpp"
 #include <comp-struct.hpp>
 #include <lib-hull.hpp>
 #include <mod-manager.hpp>
@@ -54,6 +55,9 @@ struct ShipHull
         OBJB_GUARD(Selectable::build(ptrHandle, params), "")
         gobj::Hull* hull =
             ptrHandle->modManager->getHullLib().getItem(hullHandle);
+        OBJB_GUARD(hull,
+                   "ShipHull: Could not find hull entry for {}",
+                   hullHandle.toGenericHandle())
         OBJB_GUARD(
             Physics::build(
                 ptrHandle,
@@ -66,9 +70,6 @@ struct ShipHull
                                  .rotVel = 0.0f,
                                  .rotAcc = 0.0f}),
             "")
-        OBJB_GUARD(hull,
-                   "ShipHull: Could not find hull entry for {}",
-                   hullHandle.toGenericHandle())
         OBJB_GUARD(Hull::build(ptrHandle, params, hullHandle, *hull),
                    "ShipHull: Failed to build ship hull")
         OBJB_GUARD(
@@ -97,11 +98,14 @@ struct ShipHull
                                   params,
                                   IconShipHull{.sClass = hull->shipClass}),
                    "ShipHull: Failed to build map icon")
+        OBJB_GUARD(Ai::build(ptrHandle, params, ai::taskdata::Idle()),
+                   "ShipHull: Failed to build Ai")
         return true;
     }
 
     static void updateStats(ecs::PtrHandle* ptrHandle,
-        entt::registry *reg, entt::entity entity)
+                            entt::registry* reg,
+                            entt::entity entity)
     {
         auto* phyThrust = reg->try_get<ecs::PhyThrust>(entity);
         if (phyThrust)
@@ -114,7 +118,6 @@ struct ShipHull
             storage->updateStatsFromEntity(entity, reg, ptrHandle);
         }
     }
-
 };
 
 }  // namespace objb

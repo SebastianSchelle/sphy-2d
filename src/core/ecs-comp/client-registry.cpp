@@ -1,3 +1,4 @@
+#include "std-inc.hpp"
 #include <client-registry.hpp>
 #include <protocol.hpp>
 
@@ -12,14 +13,14 @@ ClientRegistry::ClientRegistry(ConcurrentQueue<net::CmdQueueData>& sendQueue)
 
 ClientRegistry::~ClientRegistry() {}
 
-entt::entity ClientRegistry::enttFromServerId(const EntityId& entityId,
+game_entity ClientRegistry::enttFromServerId(const EntityId& entityId,
                                               bool reqIfNone)
 {
     auto it = idMap.find(entityId.index);
     if (it == idMap.end() || it->second.generation == 0)
     {
         // Create new entity
-        entt::entity e = registry.create();
+        game_entity e = registry.create();
         idMap[entityId.index] = {e, entityId.generation};
         numClientEntities++;
         if (reqIfNone)
@@ -62,7 +63,7 @@ uint32_t ClientRegistry::getNumClientEntities() const
     return numClientEntities;
 }
 
-entt::registry& ClientRegistry::getRegistry()
+Registry& ClientRegistry::getRegistry()
 {
     return registry;
 }
@@ -79,7 +80,7 @@ bool ClientRegistry::validId(EntityId entityId)
            && it->second.entity != entt::null;
 }
 
-entt::entity ClientRegistry::getEntity(EntityId entityId, bool reqIfNone)
+game_entity ClientRegistry::getEntity(EntityId entityId, bool reqIfNone)
 {
     if (!validId(entityId))
     {
