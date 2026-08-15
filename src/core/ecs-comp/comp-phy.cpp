@@ -1,8 +1,12 @@
 #include "comp-phy.hpp"
 #include "comp-struct.hpp"
-#include "ecs.hpp"
+#include "entt/entity/fwd.hpp"
 #include "lib-modules.hpp"
 #include "mod-manager.hpp"
+
+#ifdef SERVER
+#include <registry-mapping.hpp>
+#endif
 
 namespace ecs
 {
@@ -29,11 +33,11 @@ void CollisionLayerMat::setInteraction(CollisionLayer layer1,
          interaction);
 }
 
-
+#ifdef SERVER
 void PhyThrust::updateStatsFromEntity(entt::entity entity,
+                                      entt::registry* reg,
                                       ecs::PtrHandle* ptrHandle)
 {
-    auto& reg = ptrHandle->registry;
     auto* hull = reg->try_get<Hull>(entity);
     if (hull)
     {
@@ -45,20 +49,19 @@ void PhyThrust::updateStatsFromEntity(entt::entity entity,
         }
         else
         {
-            LG_E("Hull data not found for entity: {}", entity);
+            LG_E("Hull data not found for entity: {}", (uint32_t)entity);
             maxTorque = 100000.0f;
         }
         for (const auto& module : hull->modules)
         {
-            entt::entity moduleEntity =
-                ptrHandle->ecs->getEntity(module.entityId);
-            if (moduleEntity == entt::null)
+            auto slot = ptrHandle->registryMapping->getEntity(module.entityId);
+            if (!slot)
             {
                 continue;
             }
             if (module.slotType == gobj::ModuleType::MainThruster)
             {
-                auto* moduleComp = reg->try_get<ecs::Module>(moduleEntity);
+                auto* moduleComp = reg->try_get<ecs::Module>(slot->entity);
                 auto* moduleData =
                     ptrHandle->modManager->getModuleLib().getItem(
                         moduleComp->moduleHandle);
@@ -71,7 +74,7 @@ void PhyThrust::updateStatsFromEntity(entt::entity entity,
             }
             else if (module.slotType == gobj::ModuleType::ManeuverThruster)
             {
-                auto* moduleComp = reg->try_get<ecs::Module>(moduleEntity);
+                auto* moduleComp = reg->try_get<ecs::Module>(slot->entity);
                 auto* moduleData =
                     ptrHandle->modManager->getModuleLib().getItem(
                         moduleComp->moduleHandle);
@@ -87,12 +90,12 @@ void PhyThrust::updateStatsFromEntity(entt::entity entity,
     }
     else
     {
-        LG_E("Hull not found for entity: {}", entity);
+        LG_E("Hull not found for entity: {}", (uint32_t)entity);
         maxTorque = 0.0f;
         thrustMainMax = 0.0f;
         thrustManeuverMax = 0.0f;
     }
 }
-
+#endif
 
 }  // namespace ecs

@@ -159,6 +159,12 @@ EXT_DES(WorldShape, SER_WORLD_SHAPE)
 
 }  // namespace def
 
+namespace world
+{
+    const uint32_t INVALID_SECTOR_ID = 0xFFFFFFFF;
+    const uint32_t REGISTRY_GLOBAL = 0xFFFFFFFF;
+}  // namespace world
+
 EXT_FMT(def::SectorPos, "({}, {})", o.x, o.y);
 EXT_FMT(def::SectorCoords, "(s:{}, p:{})", o.pos, o.sectorPos);
 

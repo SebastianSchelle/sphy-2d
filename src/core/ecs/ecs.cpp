@@ -1,4 +1,6 @@
 #include "ecs.hpp"
+
+#ifdef OLD_STUFF
 #include "comp-ident.hpp"
 #include <protocol.hpp>
 
@@ -244,3 +246,4 @@ void EcsClient::destroyClientEntity(uint32_t index)
 }
 
 }  // namespace ecs
+#endif

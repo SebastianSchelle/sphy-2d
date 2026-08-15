@@ -3,26 +3,17 @@
 
 #include <comp-struct.hpp>
 #include <comp-turret.hpp>
-#include <ecs.hpp>
 #include <lib-modules.hpp>
 #include <mod-manager.hpp>
 
 namespace ecs
 {
 
-void sysTurretImpl(world::Sector* sector,
-               const entt::entity entity,
-               const ecs::EntityId& entityId,
-               const float dt,
-               PtrHandle* ptrHandle);
+void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle);
 
-const System sysTurret = {
-    .name = "sysTurret",
-    .type = SystemType::SectorForeachEntitiy,
-    .function = SFSectorForeach{
-        sysTurretImpl
-    }
-};
+const System sysTurret = {.name = "sysTurret",
+                          .sysFlags = SystemFlags::ActiveSector,
+                          .function = sysTurretImpl};
 
 }  // namespace ecs
 

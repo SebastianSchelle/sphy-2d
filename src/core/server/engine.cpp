@@ -1,7 +1,9 @@
 #include "bitsery/serializer.h"
 #include "comp-ai.hpp"
 #include "ecs.hpp"
+#include "entt/entity/fwd.hpp"
 #include "lib-station-part.hpp"
+#include "sector-registry.hpp"
 #include "sector.hpp"
 #include "std-inc.hpp"
 #include "task-basic.hpp"
@@ -12,9 +14,12 @@
 #include <comp-struct.hpp>
 #include <comp-tag.hpp>
 #include <comp-turret.hpp>
-#include <components/comp-phy.hpp>
 #include <engine-impl.hpp>
 #include <net-shared.hpp>
+#include <objb-asteroid.hpp>
+#include <objb-module.hpp>
+#include <objb-recipes.hpp>
+#include <objb-ship.hpp>
 #include <protocol.hpp>
 #include <random>
 #include <server.hpp>
@@ -25,6 +30,7 @@
 #include <thread>
 #include <version.hpp>
 #include <work-distributor.hpp>
+#include <work-sequencer.hpp>
 
 namespace sphys
 {
@@ -35,15 +41,12 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
       saveFolder(options.savedir), commandManager()
 {
     ptrHandle = new ecs::PtrHandle();
-    ptrHandle->ecs = &ecs;
-    ptrHandle->registry = &ecs.getRegistry();
     ptrHandle->engine = this;
+    ptrHandle->registryMapping = &registryMapping;
+    ptrHandle->systems = &systems;
     ptrHandle->taskSystem = &taskSystem;
     ptrHandle->world = &world;
     ptrHandle->engine = this;
-    ptrHandle->activeSystems = &ecs.getActiveSystems();
-    ptrHandle->inactiveSystems = &ecs.getActiveSystems();
-    ptrHandle->registry = &ecs.getRegistry();
     ptrHandle->workDistributor = &workDistributor;
     ptrHandle->colliderLib = &modManager.getColliderLib();
     ptrHandle->modManager = &modManager;
@@ -67,20 +70,19 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->miningRate =
         CFG_FLOAT(config, 0.01f, "engine", "mining", "mining-rate");
     int updThreads = CFG_UINT(config, 2.0f, "engine", "upd", "threads");
-
     itemLifetime =
         CFG_FLOAT(config, 600.0f, "engine", "items", "item-lifetime");
+    maxFps = CFG_FLOAT(config, 600.0f, "engine", "upd", "max-fps");
 
     updThreads = std::clamp(updThreads, 1, 16);
     workDistributor.init(updThreads);
-
-    entitySpawner = std::make_unique<EntitySpawner>(
-        ecs, modManager, world, ptrHandle, taskSystem);
 }
 
 Engine::~Engine()
 {
     stopRequested = true;
+    delete ptrHandle;
+    ptrHandle = nullptr;
     /*if (engineThread.joinable())
     {
         engineThread.join();
@@ -91,14 +93,14 @@ void Engine::start()
 {
     assetFactory.componentFactory.registerAllComponents();
 
-    ecs.registerActiveSystem(ecs::sysLifetime);
-    ecs.registerActiveSystem(ecs::sysMoveCtrl);
-    ecs.registerActiveSystem(ecs::sysPhyThrust);
-    ecs.registerActiveSystem(ecs::sysPhysics);
-    ecs.registerActiveSystem(ecs::sysCollisionDetection);
-    ecs.registerActiveSystem(ecs::sysAnchorFixed);
-    ecs.registerActiveSystem(ecs::sysAi);
-    ecs.registerActiveSystem(ecs::sysTurret);
+    systems.registerSystem(ecs::sysLifetime, 0);
+    systems.registerSystem(ecs::sysMoveCtrl, 1);
+    systems.registerSystem(ecs::sysPhyThrust, 2);
+    systems.registerSystem(ecs::sysPhysics, 3);
+    systems.registerSystem(ecs::sysCollisionDetection, 4);
+    systems.registerSystem(ecs::sysAnchorFixed, 5);
+    systems.registerSystem(ecs::sysAi, 6);
+    systems.registerSystem(ecs::sysTurret, 7);
 
     loadCollisionMatrix();
     registerConsoleCommands();
@@ -146,6 +148,14 @@ void Engine::engineLoop()
         if (dt < 1e-6f)
         {
             dt = 1e-6f;
+        }
+        const float minDt = 1.0 / maxFps;
+        if (dt < minDt)
+        {
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds((uint32_t)((minDt - dt) * 1000.0f)));
+            long nowU2 = tim::nowU();
+            dt = (nowU2 - lastUpdateTime) / 1000000.0f;
         }
         filteredFps = 0.9f * filteredFps + 0.1f * (1.0f / dt);
 
@@ -228,26 +238,11 @@ void Engine::engineLoop()
     }
 }
 
-void Engine::initPost()
-{
-    EntitySpawner::ItemSpawnConfig itemConfig;
-    itemConfig.colliderHandle = modManager.getColliderLib().getHandle("Item");
-    itemConfig.lifetime = itemLifetime;
-    entitySpawner->setItemSpawnConfig(itemConfig);
-}
+void Engine::initPost() {}
 
 void Engine::update(float dt)
 {
     ptrHandle->frameCnt++;
-    for (int i = 0; i < globalEntityIds.size(); i++)
-    {
-        ecs::EntityId entityId = globalEntityIds[i];
-        entt::entity entity = globalEntities[i];
-        for (auto system : *ptrHandle->activeSystems)
-        {
-            // system.function(entity, entityId, dt, ptrHandle);
-        }
-    }
     // Update third person controlled vehicles
     for (auto handle : connectedClientHandles)
     {
@@ -259,15 +254,23 @@ void Engine::update(float dt)
                | def::ThirdPersonControl::FLG_FIRE_WEAPONS))
         {
             ecs::EntityId entityId = clientInfo->activeEntity;
-            entt::entity ent = ecs.getEntity(entityId);
-            if (ent == entt::null)
+            auto slot = registryMapping.getEntity(entityId);
+            if (!slot)
             {
-                LG_W("Entity not found for client {}", clientInfo->name);
+                LG_W("Active entity not found for client {}", clientInfo->name);
                 continue;
             }
-            auto* transform = ptrHandle->registry->try_get<ecs::Transform>(ent);
-            auto* phyThrust = ptrHandle->registry->try_get<ecs::PhyThrust>(ent);
-            auto* moveCtrl = ptrHandle->registry->try_get<ecs::MoveCtrl>(ent);
+            auto sector = world.getSector(slot->sectorId);
+            if (!sector)
+            {
+                LG_W("Active entities sector could not be found for client {}",
+                     clientInfo->name);
+                continue;
+            }
+            auto* reg = sector->getRegistry()->getRegistry();
+            auto* transform = reg->try_get<ecs::Transform>(slot->entity);
+            auto* phyThrust = reg->try_get<ecs::PhyThrust>(slot->entity);
+            auto* moveCtrl = reg->try_get<ecs::MoveCtrl>(slot->entity);
             if (phyThrust && transform && moveCtrl)
             {
                 if (thrdCtrl.thrust == vec2(0.0f, 0.0f))
@@ -345,7 +348,7 @@ void Engine::startFromFolder()
 
 bool Engine::loadFromFolder()
 {
-    if (!world.createFromSave(saveConfig, saveFolder))
+    if (!world.createFromSave(saveConfig, saveFolder, ptrHandle))
     {
         LG_E("Failed to load world from save");
         return false;
@@ -360,7 +363,7 @@ bool Engine::createFromConfig()
     {
         saveConfig.clear();
         saveConfig.addDefs(configPath);
-        if (!world.createFromConfig(saveConfig))
+        if (!world.createFromConfig(saveConfig, ptrHandle))
         {
             LG_E("Failed to create world from config");
             return false;
@@ -755,19 +758,26 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 cmddes.object(entityId);
                 cmddes.object(sectorCoords);
                 cmddes.value1b(*((uint8_t*)&moveToFlags));
-                entt::entity ent = ecs.getEntity(entityId);
-                if (ent == entt::null)
+                auto slot = registryMapping.getEntity(entityId);
+                if (!slot)
                 {
-                    // todo: error handling?
+                    LG_W("Could not find entityId");
+                    return;
+                }
+                auto sector = world.getSector(slot->sectorId);
+                if (!sector)
+                {
+                    LG_W("Could not find sector");
                     return;
                 }
                 // todo: check if allowed
-                auto* ai = ptrHandle->registry->try_get<ecs::Ai>(ent);
+                auto* reg = sector->getRegistry()->getRegistry();
+                auto* ai = reg->try_get<ecs::Ai>(slot->entity);
                 if (ai)
                 {
                     ai::TaskSystem* entityTaskSystem = &taskSystem;
                     if (auto* sectorId =
-                            ptrHandle->registry->try_get<ecs::SectorId>(ent))
+                            reg->try_get<ecs::SectorId>(slot->entity))
                     {
                         if (sectorId->id != world::INVALID_SECTOR_ID)
                         {
@@ -835,33 +845,6 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         default:
             break;
     }
-}
-
-ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId)
-{
-    return ecs.spawnEntityFromAsset(assetId, assetFactory);
-}
-
-ecs::EntityId Engine::spawnEntityFromAsset(const std::string& assetId,
-                                           uint32_t sectorId,
-                                           const ecs::Transform& transform)
-{
-    ecs::EntityId ent = spawnEntityFromAsset(assetId);
-    if (!ecs.validId(ent))
-    {
-        LG_E("Failed to spawn entity. Asset with id {} does not exist",
-             assetId);
-        return ent;
-    }
-    entt::entity entity = ecs.getEntity(ent);
-    auto& reg = ecs.getRegistry();
-    ecs::Transform& tr = reg.get_or_emplace<ecs::Transform>(entity);
-    ecs::Broadphase& br = reg.get_or_emplace<ecs::Broadphase>(entity);
-    ecs::TransformCache& trC = reg.get_or_emplace<ecs::TransformCache>(entity);
-    ecs::SectorId& sec = reg.get_or_emplace<ecs::SectorId>(
-        entity, ecs::SectorId{world::INVALID_SECTOR_ID, 0, 0});
-    world.moveEntityTo(ptrHandle, ent, sectorId, transform.pos, transform.rot);
-    return ent;
 }
 
 void Engine::postWorldSetup() {}
@@ -934,7 +917,7 @@ void Engine::registerConsoleCommands()
         { return assetFactory.assetInfo(a.flags.at("-a")); },
         "Print information for one asset",
         {{"-a", "Asset id", true}});
-
+    /*
     commandManager.registerCommand(
         {"phy", "set"},
         [this](const cmd::CommandArgs& a) -> std::string
@@ -992,7 +975,7 @@ void Engine::registerConsoleCommands()
         {{"-e", "Entity id", true},
          {"-m", "Mass (>0)", false},
          {"-i", "Inertia (>0)", false}});
-
+    */
     commandManager.registerCommand(
         {"phy", "setk"},
         [this](const cmd::CommandArgs& a) -> std::string
@@ -1135,42 +1118,46 @@ void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
             return false;
         });
     uint32_t count = 0;
-    ecs.iterateEntities(
-        [this, clientInfo, conn, &count](ecs::EntityId entityId)
+
+    world.iterateSectors(
+        [this, clientInfo, conn, &count](uint32_t sectorId,
+                                         world::Sector* sector)
         {
-            auto& reg = ecs.getRegistry();
-            entt::entity ent = ecs.getEntity(entityId);
-            auto* sectorId = reg.try_get<ecs::SectorId>(ent);
-            // if (!reg.valid(ent) || !reg.all_of<ecs::tag::OOSSync>(ent))
-            // {
-            //     return;
-            // }
-            const ecs::EntityId entityCopy = entityId;
-            clientInfo->addWorkFunction(
-                [this, entityCopy, conn]()
+            auto reg = sector->getRegistry()->getRegistry();
+            reg->view<ecs::EntityId>().each(
+                [this, &sector, clientInfo, conn, &count](auto entity,
+                                                          auto& entityId)
                 {
-                    sendAllComponents(entityCopy, conn);
-                    return false;
-                });
-            ++count;
-            if (count % 50000 == 0)
-            {
-                clientInfo->addWorkFunction(
-                    [this, clientInfo, conn]()
+                    const ecs::EntityId entityCopy = entityId;
+                    clientInfo->addWorkFunction(
+                        [this, entityCopy, entity, conn, sector]()
+                        {
+                            sendAllComponents(sector, entityCopy, entity, conn);
+                            return false;
+                        });
+                    ++count;
+                    if (count % 50000 == 0)
                     {
-                        prot::MsgComposer mcomp(net::SendType::TCP, conn);
-                        mcomp.startCommand(prot::cmd::ACK_WORKSEQUENCER, 0);
-                        mcomp.execute(sendQueue);
-                        return true;
-                    });
-            }
+                        clientInfo->addWorkFunction(
+                            [this, clientInfo, conn]()
+                            {
+                                prot::MsgComposer mcomp(net::SendType::TCP,
+                                                        conn);
+                                mcomp.startCommand(prot::cmd::ACK_WORKSEQUENCER,
+                                                   0);
+                                mcomp.execute(sendQueue);
+                                return true;
+                            });
+                    }
+                });
         });
     clientInfo->addWorkFunction(
         [this, clientInfo, conn]()
         {
             prot::MsgComposer mcomp(net::SendType::TCP, conn);
             mcomp.startCommand(prot::cmd::TOTAL_NUM_ENTITIES, 0);
-            mcomp.ser->value4b(ecs.getNumEntities());
+            uint32_t numEntt = 100;
+            mcomp.ser->value4b(numEntt);
             mcomp.execute(sendQueue);
             return false;
         });
@@ -1178,6 +1165,7 @@ void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
 
 void Engine::broadcastEntityToClients(ecs::EntityId entityId)
 {
+    /*
     auto& reg = ecs.getRegistry();
     entt::entity ent = ecs.getEntity(entityId);
     for (def::ClientInfoHandle handle : connectedClientHandles)
@@ -1190,32 +1178,46 @@ void Engine::broadcastEntityToClients(ecs::EntityId entityId)
         auto* sectorId = reg.try_get<ecs::SectorId>(ent);
         bool inActiveSector =
             sectorId && clientInfo->getActiveSectors().count(sectorId->id) > 0;
-        if (!inActiveSector || !reg.valid(ent) || !reg.all_of<ecs::tag::OOSSync>(ent))
+        if (!inActiveSector || !reg.valid(ent)
+            || !reg.all_of<ecs::tag::OOSSync>(ent))
         {
             return;
         }
         sendAllComponents(entityId, clientInfo->clientInfo.connection);
     }
+    */
 }
 
 void Engine::sendAllComponents(ecs::EntityId entityId, net::TcpConnection* conn)
 {
-    entt::entity ent = ecs.getEntity(entityId);
-    if (!ecs.getRegistry().valid(ent))
+    auto slot = registryMapping.getEntity(entityId);
+    if (!slot)
     {
-        // todo: reply needed in error case?
         return;
     }
+    auto sector = world.getSector(slot->sectorId);
+    if (!sector)
+    {
+        return;
+    }
+    sendAllComponents(sector, entityId, slot->entity, conn);
+}
+
+void Engine::sendAllComponents(world::Sector* sector,
+                               ecs::EntityId entityId,
+                               entt::entity entity,
+                               net::TcpConnection* conn)
+{
     // todo: prevent exceeding tcp packet size
     prot::MsgComposer mcomp(net::SendType::TCP, conn);
     mcomp.startCommand(prot::cmd::REQ_ALL_COMPONENTS, CMD_FLAG_RESP);
     mcomp.ser->object(entityId);
-    auto& reg = ecs.getRegistry();
+    auto reg = sector->getRegistry()->getRegistry();
     uint16_t numComponents = 0;
     for (auto& [hash, helper] :
          assetFactory.componentFactory.getComponentHelpers())
     {
-        helper.serializeFromRegistry(reg, ent, *mcomp.ser);
+        helper.serializeFromRegistry(*reg, entity, *mcomp.ser);
         numComponents++;
         if (mcomp.ser->adapter().currentWritePos()
             >= prot::kMaxSerializedChunkBytes - 100)
@@ -1233,6 +1235,41 @@ void Engine::sendAllComponents(ecs::EntityId entityId, net::TcpConnection* conn)
     }
 }
 
+ecs::EntityId Engine::spawnShipHull(world::Sector* sector,
+                                    gobj::HullHandle hullHandle)
+{
+    return sector->spawnObject(
+        ptrHandle,
+        [this, hullHandle](ecs::SpawnCallbackParams& params)
+        { return objb::ShipHull::build(ptrHandle, params, hullHandle); });
+}
+
+ecs::EntityId Engine::spawnModule(world::Sector* sector,
+                                  ecs::EntityId parent,
+                                  gobj::ModuleHandle modHandle,
+                                  uint32_t slotIdx)
+{
+    return sector->spawnObject(
+        ptrHandle,
+        [this, parent, modHandle, slotIdx](ecs::SpawnCallbackParams& params)
+        {
+            return objb::module::Module::build(
+                ptrHandle, params, parent, modHandle, slotIdx);
+        });
+}
+
+ecs::EntityId Engine::spawnAsteroid(world::Sector* sector,
+                                    gobj::AsteroidHandle asteroidHandle)
+{
+    return sector->spawnObject(
+        ptrHandle,
+        [this, asteroidHandle](ecs::SpawnCallbackParams& params)
+        {
+            return objb::Asteroid::build(
+                ptrHandle, params, asteroidHandle, 0.0f);
+        });
+}
+
 void Engine::testSpawn()
 {
     static constexpr const char* kAssets[] = {
@@ -1247,252 +1284,257 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> assetPick(0, 3);
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
-    auto& reg = ecs.getRegistry();
-    for (int i = 0; i < 10000; ++i)
+
+    // New spawner test
+    objb::ShipRecipe bee(
+        modManager.getHullLib().getHandle("Bee"),
+        {{0, modManager.getModuleLib().getHandle("Breeze")},
+         {1, modManager.getModuleLib().getHandle("Breeze Maneuver")},
+         {2, modManager.getModuleLib().getHandle("Breeze Maneuver")},
+         {3, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {5, modManager.getModuleLib().getHandle("Terran Bulk S")}});
+
+    objb::ShipRecipe mosquito(
+        modManager.getHullLib().getHandle("Mosquito"),
+        {{0, modManager.getModuleLib().getHandle("Breeze")},
+         {1, modManager.getModuleLib().getHandle("Breeze Maneuver")},
+         {2, modManager.getModuleLib().getHandle("Breeze Maneuver")},
+         {3, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {5, modManager.getModuleLib().getHandle("Small Mining Turret")}});
+
+    // bee.spawn({.ptrHandle = ptrHandle,
+    //            .sector = sector,
+    //            .pos = {30.0f, 0.0f},
+    //            .rot = 0.4f});
+    // mosquito.spawn({.ptrHandle = ptrHandle,
+    //            .sector = sector,
+    //            .pos = {-60.0f, 90.0f},
+    //            .rot = -0.8f});
+
+    for (int i = 0; i < 1; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
         uint32_t sectorId = sectorPick(gen);
-        ecs::EntityId ent;
+        auto sector = world.getSector(sectorId);
+
         if (i % 4 == 0)
         {
-            ent = entitySpawner->spawnShipHull(
-                modManager.getHullLib().getHandle("Bee"),
-                sectorId,
-                ecs::Transform{pos, rot});
-            entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze"), 0);
-            entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 1);
-            entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
-            entitySpawner->spawnModule(
-                ent,
-                modManager.getModuleLib().getHandle("Small Mining Turret"),
-                3);
-            entitySpawner->spawnModule(
-                ent,
-                modManager.getModuleLib().getHandle("Small Mining Turret"),
-                4);
-            entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Terran Bulk S"), 5);
+            bee.spawn({.ptrHandle = ptrHandle,
+                       .sector = sector,
+                       .pos = pos,
+                       .rot = rot});
         }
-        else if (i % 4 == 1)
+        else /*if (i % 4 == 1)*/
         {
-            ent = entitySpawner->spawnShipHull(
-                modManager.getHullLib().getHandle("Mosquito"),
-                sectorId,
-                ecs::Transform{pos, rot});
-            entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze"), 0);
-            entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 1);
-            entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 2);
-            entitySpawner->spawnModule(
-                ent,
-                modManager.getModuleLib().getHandle("Small Mining Turret"),
-                3);
-            entitySpawner->spawnModule(
-                ent,
-                modManager.getModuleLib().getHandle("Small Mining Turret"),
-                4);
-            entitySpawner->spawnModule(
-                ent,
-                modManager.getModuleLib().getHandle("Small Mining Turret"),
-                5);
+            mosquito.spawn({.ptrHandle = ptrHandle,
+                            .sector = sector,
+                            .pos = pos,
+                            .rot = rot});
         }
-        else if (i % 4 == 2)
-        {
-            ent = entitySpawner->spawnShipHull(
-                modManager.getHullLib().getHandle("Bumblebee"),
-                sectorId,
-                ecs::Transform{pos, rot});
-            entitySpawner->spawnModule(
-                ent,
-                modManager.getModuleLib().getHandle("Cargo Container S"),
-                0);
-            entitySpawner->spawnModule(
-                ent,
-                modManager.getModuleLib().getHandle("Cargo Container S"),
-                1);
-            entitySpawner->spawnModule(
-                ent,
-                modManager.getModuleLib().getHandle("Cargo Container S"),
-                2);
-            entitySpawner->spawnModule(
-                ent,
-                modManager.getModuleLib().getHandle("Cargo Container S"),
-                3);
-            entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze"), 4);
-            entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 5);
-            entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze Maneuver"), 6);
-        }
-        else
-        {
-            ent = entitySpawner->spawnShipHull(
-                modManager.getHullLib().getHandle("Caterpillar"),
-                sectorId,
-                ecs::Transform{pos, rot});
+    }
+    /*else if (i % 4 == 2)
+    {
+        ent = entitySpawner->spawnShipHull(
+            modManager.getHullLib().getHandle("Bumblebee"),
+            sectorId,
+            ecs::Transform{pos, rot});
+        entitySpawner->spawnModule(
+            ent,
+            modManager.getModuleLib().getHandle("Cargo Container S"),
+            0);
+        entitySpawner->spawnModule(
+            ent,
+            modManager.getModuleLib().getHandle("Cargo Container S"),
+            1);
+        entitySpawner->spawnModule(
+            ent,
+            modManager.getModuleLib().getHandle("Cargo Container S"),
+            2);
+        entitySpawner->spawnModule(
+            ent,
+            modManager.getModuleLib().getHandle("Cargo Container S"),
+            3);
+        entitySpawner->spawnModule(
+            ent, modManager.getModuleLib().getHandle("Breeze"), 4);
+        entitySpawner->spawnModule(
+            ent, modManager.getModuleLib().getHandle("Breeze Maneuver"),
+5); entitySpawner->spawnModule( ent,
+modManager.getModuleLib().getHandle("Breeze Maneuver"), 6);
+    }
+    else
+    {
+        ent = entitySpawner->spawnShipHull(
+            modManager.getHullLib().getHandle("Caterpillar"),
+            sectorId,
+            ecs::Transform{pos, rot});
 
-            for (int i = 0; i < 8; i++)
-            {
-                entitySpawner->spawnModule(
-                    ent,
-                    modManager.getModuleLib().getHandle("Small Mining Turret"),
-                    i);
-            }
-            for (int i = 8; i < 16; i++)
-            {
-                entitySpawner->spawnModule(
-                    ent,
-                    modManager.getModuleLib().getHandle("Terran Bulk S"),
-                    i);
-            }
-            entitySpawner->spawnModule(
-                ent, modManager.getModuleLib().getHandle("Breeze"), 16);
+        for (int i = 0; i < 8; i++)
+        {
             entitySpawner->spawnModule(
                 ent,
-                modManager.getModuleLib().getHandle("Breeze Maneuver"),
-                17);
+                modManager.getModuleLib().getHandle("Small Mining
+Turret"), i);
+        }
+        for (int i = 8; i < 16; i++)
+        {
             entitySpawner->spawnModule(
                 ent,
-                modManager.getModuleLib().getHandle("Breeze Maneuver"),
-                18);
+                modManager.getModuleLib().getHandle("Terran Bulk S"),
+                i);
         }
-        auto* phyThrust = reg.try_get<ecs::PhyThrust>(ecs.getEntity(ent));
-        if (phyThrust)
+        entitySpawner->spawnModule(
+            ent, modManager.getModuleLib().getHandle("Breeze"), 16);
+        entitySpawner->spawnModule(
+            ent,
+            modManager.getModuleLib().getHandle("Breeze Maneuver"),
+            17);
+        entitySpawner->spawnModule(
+            ent,
+            modManager.getModuleLib().getHandle("Breeze Maneuver"),
+            18);
+    }
+    auto* phyThrust = reg.try_get<ecs::PhyThrust>(ecs.getEntity(ent));
+    if (phyThrust)
+    {
+        //phyThrust->updateStatsFromEntity(ecs.getEntity(ent),
+ptrHandle);
+    }
+    auto* storage = reg.try_get<ecs::Storage>(ecs.getEntity(ent));
+    if (storage)
+    {
+        //storage->updateStatsFromEntity(ecs.getEntity(ent), ptrHandle);
+    }
+    auto* ai = reg.try_get<ecs::Ai>(ecs.getEntity(ent));
+    if (ai)
+    {
+        ai::TaskSystem* entityTaskSystem = &taskSystem;
+        if (auto* sectorId =
+reg.try_get<ecs::SectorId>(ecs.getEntity(ent)))
         {
-            phyThrust->updateStatsFromEntity(ecs.getEntity(ent), ptrHandle);
-        }
-        auto* storage = reg.try_get<ecs::Storage>(ecs.getEntity(ent));
-        if (storage)
-        {
-            storage->updateStatsFromEntity(ecs.getEntity(ent), ptrHandle);
-        }
-        auto* ai = reg.try_get<ecs::Ai>(ecs.getEntity(ent));
-        if (ai)
-        {
-            ai::TaskSystem* entityTaskSystem = &taskSystem;
-            if (auto* sectorId = reg.try_get<ecs::SectorId>(ecs.getEntity(ent)))
+            if (sectorId->id != world::INVALID_SECTOR_ID)
             {
-                if (sectorId->id != world::INVALID_SECTOR_ID)
+                if (auto* sector = world.getSector(sectorId->id))
                 {
-                    if (auto* sector = world.getSector(sectorId->id))
-                    {
-                        entityTaskSystem = &sector->getTaskSystem();
-                    }
+                    entityTaskSystem = &sector->getTaskSystem();
                 }
             }
-            // auto* taskStack =
-            // entityTaskSystem->getTaskStack(ai->stackHandle); if (taskStack)
-            // {
-            //     taskStack->setDefaultTask(ai::taskdata::UniversePatrol{
-            //         .config = {.allowedPosError = 100.0f,
-            //                    .allowedRotError = M_PIf}});
-            // }
         }
+        // auto* taskStack =
+        // entityTaskSystem->getTaskStack(ai->stackHandle); if
+(taskStack)
+        // {
+        //     taskStack->setDefaultTask(ai::taskdata::UniversePatrol{
+        //         .config = {.allowedPosError = 100.0f,
+        //                    .allowedRotError = M_PIf}});
+        // }
     }
+}
 
-    static constexpr const char* kStationParts[] = {
-        "ter-strut-4", "ter-strut-3", "ter-habitat-1"};
-    static constexpr const char* kStationParts2[] = {"ter-solar-s",
-                                                     "ter-cont-s"};
-    static constexpr size_t kStationPartsCount =
-        sizeof(kStationParts) / sizeof(kStationParts[0]);
-    static constexpr size_t kStationParts2Count =
-        sizeof(kStationParts2) / sizeof(kStationParts2[0]);
+static constexpr const char* kStationParts[] = {
+    "ter-strut-4", "ter-strut-3", "ter-habitat-1"};
+static constexpr const char* kStationParts2[] = {"ter-solar-s",
+                                                 "ter-cont-s"};
+static constexpr size_t kStationPartsCount =
+    sizeof(kStationParts) / sizeof(kStationParts[0]);
+static constexpr size_t kStationParts2Count =
+    sizeof(kStationParts2) / sizeof(kStationParts2[0]);
 
-    for (int i = 0; i < 0; i++)
+for (int i = 0; i < 0; i++)
+{
+    vec2 pos = vec2{posDist(gen), posDist(gen)};
+    float rot = rotDist(gen);
+    uint32_t sectorId = sectorPick(gen);
+    ecs::EntityId stationId =
+        entitySpawner->spawnStation(sectorId, ecs::Transform{pos, rot});
+
+    const char* partName1 = kStationParts[rand() % kStationPartsCount];
+    gobj::StationPartHandle partHandle1 =
+        modManager.getStationPartLib().getHandle(partName1);
+
+    gobj::StationPart* part1 =
+        modManager.getStationPartLib().getItem(partHandle1);
+    if (!part1)
     {
-        vec2 pos = vec2{posDist(gen), posDist(gen)};
-        float rot = rotDist(gen);
-        uint32_t sectorId = sectorPick(gen);
-        ecs::EntityId stationId =
-            entitySpawner->spawnStation(sectorId, ecs::Transform{pos, rot});
-
-        const char* partName1 = kStationParts[rand() % kStationPartsCount];
-        gobj::StationPartHandle partHandle1 =
-            modManager.getStationPartLib().getHandle(partName1);
-
-        gobj::StationPart* part1 =
-            modManager.getStationPartLib().getItem(partHandle1);
-        if (!part1)
-        {
-            LG_E("Spawn test station: station part '{}' not in library; skip",
-                 partName1);
-            continue;
-        }
-        ecs::EntityId partId =
-            entitySpawner->addFirstStationPart(stationId, partHandle1, rot);
-        if (partId == ecs::EntityId::Invalid())
-        {
-            continue;
-        }
-
-        for (int j = 0; j < part1->connectors.size(); j++)
-        {
-            const char* partName2 =
-                kStationParts2[rand() % kStationParts2Count];
-            gobj::StationPartHandle partHandle2 =
-                modManager.getStationPartLib().getHandle(partName2);
-            gobj::StationPart* part2 =
-                modManager.getStationPartLib().getItem(partHandle2);
-            if (!part2 || part2->connectors.empty())
-            {
-                continue;
-            }
-            entitySpawner->addStationPart(stationId,
-                                          partId,
-                                          partHandle2,
-                                          j,
-                                          rand() % part2->connectors.size());
-        }
-
-        // ecs::EntityId partId2 =
-        //     addStationPart(stationId,
-        //                    partId,
-        //                    modManager.getStationPartLib().getHandle("strut-1"),
-        //                    0,
-        //                    0);
-        // ecs::EntityId partId3 =
-        //     addStationPart(stationId,
-        //                    partId,
-        //                    modManager.getStationPartLib().getHandle("strut-1"),
-        //                    1,
-        //                    1);
-        // ecs::EntityId partId4 =
-        //     addStationPart(stationId,
-        //                    partId3,
-        //                    modManager.getStationPartLib().getHandle("tank-1"),
-        //                    0,
-        //                    0);
-        // ecs::EntityId partId5 =
-        //     addStationPart(stationId,
-        //                    partId4,
-        //                    modManager.getStationPartLib().getHandle("strut-1"),
-        //                    1,
-        //                    0);
+        LG_E("Spawn test station: station part '{}' not in library;
+skip", partName1); continue;
+    }
+    ecs::EntityId partId =
+        entitySpawner->addFirstStationPart(stationId, partHandle1, rot);
+    if (partId == ecs::EntityId::Invalid())
+    {
+        continue;
     }
 
-    for (int i = 0; i < 10000; ++i)
+    for (int j = 0; j < part1->connectors.size(); j++)
+    {
+        const char* partName2 =
+            kStationParts2[rand() % kStationParts2Count];
+        gobj::StationPartHandle partHandle2 =
+            modManager.getStationPartLib().getHandle(partName2);
+        gobj::StationPart* part2 =
+            modManager.getStationPartLib().getItem(partHandle2);
+        if (!part2 || part2->connectors.empty())
+        {
+            continue;
+        }
+        entitySpawner->addStationPart(stationId,
+                                      partId,
+                                      partHandle2,
+                                      j,
+                                      rand() %
+part2->connectors.size());
+    }
+
+    // ecs::EntityId partId2 =
+    //     addStationPart(stationId,
+    //                    partId,
+    // modManager.getStationPartLib().getHandle("strut-1"),
+    //                    0,
+    //                    0);
+    // ecs::EntityId partId3 =
+    //     addStationPart(stationId,
+    //                    partId,
+    // modManager.getStationPartLib().getHandle("strut-1"),
+    //                    1,
+    //                    1);
+    // ecs::EntityId partId4 =
+    //     addStationPart(stationId,
+    //                    partId3,
+    // modManager.getStationPartLib().getHandle("tank-1"),
+    //                    0,
+    //                    0);
+    // ecs::EntityId partId5 =
+    //     addStationPart(stationId,
+    //                    partId4,
+    // modManager.getStationPartLib().getHandle("strut-1"),
+    //                    1,
+    //                    0);
+}
+*/
+    for (int i = 0; i < 10; ++i)
     {
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};
         uint32_t sectorId = sectorPick(gen);
+        auto sector = world.getSector(sectorId);
         float rot1 = (rotDist(gen) - M_PIf) / 10.0f;
         float rot2 = (rotDist(gen) - M_PIf) / 10.0f;
-        spawnAsteroid(sectorId,
-                      ecs::Transform{pos1, rot1},
-                      modManager.getAsteroidLib().getHandle("Small Asteroid 1"),
-                      rot1);
-        spawnAsteroid(sectorId,
-                      ecs::Transform{pos2, rot2},
-                      modManager.getAsteroidLib().getHandle("Small Asteroid 2"),
-                      rot2);
+
+        objb::AsteroidRecipe rec(
+            modManager.getAsteroidLib().getHandle("Small Asteroid 1"));
+        rec.spawn({.ptrHandle = ptrHandle,
+                   .sector = sector,
+                   .pos = pos1,
+                   .naturalRot = rot1});
+        objb::AsteroidRecipe rec2(
+            modManager.getAsteroidLib().getHandle("Small Asteroid 2"));
+        rec2.spawn({.ptrHandle = ptrHandle,
+                    .sector = sector,
+                    .pos = pos2,
+                    .naturalRot = rot2});
     }
 }
 
@@ -1526,92 +1568,90 @@ void Engine::markPlayerSectors()
         {
             if (clientInfo->activeEntity != ecs::EntityId::Invalid())
             {
-                entt::entity entity = ecs.getEntity(clientInfo->activeEntity);
-                if (entity != entt::null)
+                auto slot = registryMapping.getEntity(clientInfo->activeEntity);
+                if (!slot)
                 {
-                    const float sectorSize = world.getWorldShape().sectorSize;
-                    auto& reg = ecs.getRegistry();
-                    ecs::SectorId* sectorId =
-                        reg.try_get<ecs::SectorId>(entity);
-                    ecs::Transform* transform =
-                        reg.try_get<ecs::Transform>(entity);
-                    if (sectorId && transform)
+                    return;
+                }
+                const float sectorSize = world.getWorldShape().sectorSize;
+                auto sector = world.getSector(slot->sectorId);
+                if (!sector)
+                {
+                    return;
+                }
+                auto reg = sector->getRegistry()->getRegistry();
+                ecs::SectorId* sectorId =
+                    reg->try_get<ecs::SectorId>(slot->entity);
+                ecs::Transform* transform =
+                    reg->try_get<ecs::Transform>(slot->entity);
+                if (sectorId && transform)
+                {
+                    clientInfo->addActiveSector(sectorId->id);
+                    // todo: what threshold for neighboring sectors?
+                    def::SectorPos neighbor;
+                    const bool north = transform->pos.y < -sectorSize / 2 * 0.7;
+                    const bool south = transform->pos.y > sectorSize / 2 * 0.7;
+                    const bool west = transform->pos.x < -sectorSize / 2 * 0.7;
+                    const bool east = transform->pos.x > sectorSize / 2 * 0.7;
+                    if (west
+                        && world.getNeighboringSectorPos(
+                            sectorId->id, def::Direction::W, neighbor))
                     {
-                        clientInfo->addActiveSector(sectorId->id);
-                        // todo: what threshold for neighboring sectors?
-                        def::SectorPos neighbor;
-                        const bool north =
-                            transform->pos.y < -sectorSize / 2 * 0.7;
-                        const bool south =
-                            transform->pos.y > sectorSize / 2 * 0.7;
-                        const bool west =
-                            transform->pos.x < -sectorSize / 2 * 0.7;
-                        const bool east =
-                            transform->pos.x > sectorSize / 2 * 0.7;
-                        if (west
-                            && world.getNeighboringSectorPos(
-                                sectorId->id, def::Direction::W, neighbor))
-                        {
-                            clientInfo->addActiveSector(
-                                world.sectorCoordsToId(neighbor.x, neighbor.y));
-                            if (north
-                                && world.getNeighboringSectorPos(
-                                    sectorId->id, def::Direction::NW, neighbor))
-                            {
-                                clientInfo->addActiveSector(
-                                    world.sectorCoordsToId(neighbor.x,
-                                                           neighbor.y));
-                            }
-                            else if (south
-                                     && world.getNeighboringSectorPos(
-                                         sectorId->id,
-                                         def::Direction::SW,
-                                         neighbor))
-                            {
-                                clientInfo->addActiveSector(
-                                    world.sectorCoordsToId(neighbor.x,
-                                                           neighbor.y));
-                            }
-                        }
-                        else if (east
-                                 && world.getNeighboringSectorPos(
-                                     sectorId->id, def::Direction::E, neighbor))
-                        {
-                            clientInfo->addActiveSector(
-                                world.sectorCoordsToId(neighbor.x, neighbor.y));
-                            if (north
-                                && world.getNeighboringSectorPos(
-                                    sectorId->id, def::Direction::NE, neighbor))
-                            {
-                                clientInfo->addActiveSector(
-                                    world.sectorCoordsToId(neighbor.x,
-                                                           neighbor.y));
-                            }
-                            else if (south
-                                     && world.getNeighboringSectorPos(
-                                         sectorId->id,
-                                         def::Direction::SE,
-                                         neighbor))
-                            {
-                                clientInfo->addActiveSector(
-                                    world.sectorCoordsToId(neighbor.x,
-                                                           neighbor.y));
-                            }
-                        }
+                        clientInfo->addActiveSector(
+                            world.sectorCoordsToId(neighbor.x, neighbor.y));
                         if (north
                             && world.getNeighboringSectorPos(
-                                sectorId->id, def::Direction::N, neighbor))
+                                sectorId->id, def::Direction::NW, neighbor))
                         {
                             clientInfo->addActiveSector(
                                 world.sectorCoordsToId(neighbor.x, neighbor.y));
                         }
                         else if (south
                                  && world.getNeighboringSectorPos(
-                                     sectorId->id, def::Direction::S, neighbor))
+                                     sectorId->id,
+                                     def::Direction::SW,
+                                     neighbor))
                         {
                             clientInfo->addActiveSector(
                                 world.sectorCoordsToId(neighbor.x, neighbor.y));
                         }
+                    }
+                    else if (east
+                             && world.getNeighboringSectorPos(
+                                 sectorId->id, def::Direction::E, neighbor))
+                    {
+                        clientInfo->addActiveSector(
+                            world.sectorCoordsToId(neighbor.x, neighbor.y));
+                        if (north
+                            && world.getNeighboringSectorPos(
+                                sectorId->id, def::Direction::NE, neighbor))
+                        {
+                            clientInfo->addActiveSector(
+                                world.sectorCoordsToId(neighbor.x, neighbor.y));
+                        }
+                        else if (south
+                                 && world.getNeighboringSectorPos(
+                                     sectorId->id,
+                                     def::Direction::SE,
+                                     neighbor))
+                        {
+                            clientInfo->addActiveSector(
+                                world.sectorCoordsToId(neighbor.x, neighbor.y));
+                        }
+                    }
+                    if (north
+                        && world.getNeighboringSectorPos(
+                            sectorId->id, def::Direction::N, neighbor))
+                    {
+                        clientInfo->addActiveSector(
+                            world.sectorCoordsToId(neighbor.x, neighbor.y));
+                    }
+                    else if (south
+                             && world.getNeighboringSectorPos(
+                                 sectorId->id, def::Direction::S, neighbor))
+                    {
+                        clientInfo->addActiveSector(
+                            world.sectorCoordsToId(neighbor.x, neighbor.y));
                     }
                 }
             }
@@ -1628,13 +1668,21 @@ void Engine::handleThirdPersonControl(def::ClientInfo* clientInfo,
 {
     def::ThirdPersonControl& tpc = clientInfo->thirdPersonControl;
     ecs::EntityId entityId = clientInfo->activeEntity;
-    entt::entity ent = ecs.getEntity(entityId);
-    if (ent == entt::null)
+    auto slot = registryMapping.getEntity(entityId);
+    if (!slot)
     {
         LG_W("Entity not found for client {}", clientInfo->name);
         return;
     }
-    auto* ai = ptrHandle->registry->try_get<ecs::Ai>(ent);
+    auto sector = world.getSector(slot->sectorId);
+    if (!sector)
+    {
+        LG_W("Entities Sector could not be found for client {}",
+             clientInfo->name);
+        return;
+    }
+    auto* reg = sector->getRegistry()->getRegistry();
+    auto* ai = reg->try_get<ecs::Ai>(slot->entity);
     bool shutdownAi = tpc.flags
                       & (def::ThirdPersonControl::FLG_DRIVE_MANUAL
                          | def::ThirdPersonControl::FLG_DRIVE_MANUAL
@@ -1644,29 +1692,28 @@ void Engine::handleThirdPersonControl(def::ClientInfo* clientInfo,
         ai->active = false;
     }
 
-    auto* hull = ptrHandle->registry->try_get<ecs::Hull>(ent);
+    auto* hull = reg->try_get<ecs::Hull>(slot->entity);
     if (hull)
     {
         for (const auto& module : hull->modules)
         {
             if (module.slotType == gobj::ModuleType::Turret)
             {
-                entt::entity turretEntt = ecs.getEntity(module.entityId);
-                if (turretEntt != entt::null)
+                auto turrSlot = registryMapping.getEntity(module.entityId);
+                if (!turrSlot || turrSlot->sectorId != sector->getId())
                 {
-                    auto* turret =
-                        ptrHandle->registry->try_get<ecs::Turret>(turretEntt);
-                    if (turret
-                        && turret->aimMode == ecs::Turret::AimMode::Player)
-                    {
-                        turret->fireMode = ecs::Turret::FireMode::Manual;
-                        turret->isFiring =
-                            tpc.flags
-                            & def::ThirdPersonControl::FLG_FIRE_WEAPONS;
-                        auto& aimData =
-                            std::get<ecs::Turret::PointData>(turret->aimData);
-                        aimData.pos = tpc.ptrPos;
-                    }
+                    LG_W("Could not find turret for third person control");
+                    continue;
+                }
+                auto* turret = reg->try_get<ecs::Turret>(turrSlot->entity);
+                if (turret && turret->aimMode == ecs::Turret::AimMode::Player)
+                {
+                    turret->fireMode = ecs::Turret::FireMode::Manual;
+                    turret->isFiring =
+                        tpc.flags & def::ThirdPersonControl::FLG_FIRE_WEAPONS;
+                    auto& aimData =
+                        std::get<ecs::Turret::PointData>(turret->aimData);
+                    aimData.pos = tpc.ptrPos;
                 }
             }
         }
@@ -1680,12 +1727,14 @@ void Engine::spawnProjectile(uint32_t sectorId,
                              const ecs::EntityId& exceptEntity,
                              vec2 parVel)
 {
+    /*
     ecs::EntityId ent = entitySpawner->spawnProjectile(
         sectorId, pos, vel, projectileHandle, exceptEntity, parVel);
     if (ecs.validId(ent))
     {
         broadcastEntityToClients(ent);
     }
+    */
 }
 
 void Engine::spawnAsteroid(uint32_t sectorId,
@@ -1693,12 +1742,14 @@ void Engine::spawnAsteroid(uint32_t sectorId,
                            const gobj::AsteroidHandle& asteroidHandle,
                            float rotVel)
 {
+    /*
     ecs::EntityId ent = entitySpawner->spawnAsteroid(
         sectorId, transform, asteroidHandle, rotVel);
     if (ecs.validId(ent))
     {
         broadcastEntityToClients(ent);
     }
+    */
 }
 
 void Engine::spawnItem(uint32_t sectorId,
@@ -1708,12 +1759,14 @@ void Engine::spawnItem(uint32_t sectorId,
                        vec2 initialVel,
                        ecs::EntityId collexcept)
 {
+    /*
     ecs::EntityId ent = entitySpawner->spawnItem(
         sectorId, transform, itemHandle, quantity, initialVel, collexcept);
     if (ecs.validId(ent))
     {
         broadcastEntityToClients(ent);
     }
+    */
 }
 
 void Engine::loadCollisionMatrix()
@@ -1742,8 +1795,10 @@ void Engine::loadCollisionMatrix()
 
 void Engine::destroyEntity(ecs::EntityId entityId)
 {
+    /*
     auto entt = ecs.getEntity(entityId);
-    for (auto compHelper : assetFactory.componentFactory.getComponentHelpers())
+    for (auto compHelper :
+    assetFactory.componentFactory.getComponentHelpers())
     {
         auto destroyFunc = compHelper.second.destroy;
         if (destroyFunc)
@@ -1763,6 +1818,7 @@ void Engine::destroyEntity(ecs::EntityId entityId)
                 mcomp.execute(sendQueue);
             });
     }
+    */
 }
 
 void Engine::forActiveClients(

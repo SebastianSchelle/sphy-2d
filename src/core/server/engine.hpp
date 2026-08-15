@@ -2,8 +2,12 @@
 #define ENGINE_HPP
 
 #include "comp-ident.hpp"
+#include "comp-struct.hpp"
 #include "ecs.hpp"
 #include "entity-spawner.hpp"
+#include "lib-modules.hpp"
+#include "registry-mapping.hpp"
+#include "systems.hpp"
 #include "world-def.hpp"
 #include <asset-factory.hpp>
 #include <atomic>
@@ -16,8 +20,8 @@
 #include <control-def.hpp>
 #include <functional>
 #include <item-lib.hpp>
-#include <memory>
 #include <lib-hull.hpp>
+#include <memory>
 #include <mod-manager.hpp>
 #include <net-shared.hpp>
 #include <ptr-handle.hpp>
@@ -84,10 +88,16 @@ class Engine
     {
         return stopRequested;
     }
-    ecs::EntityId spawnEntityFromAsset(const std::string& assetId);
-    ecs::EntityId spawnEntityFromAsset(const std::string& assetId,
-                                       uint32_t sectorId,
-                                       const ecs::Transform& transform);
+    ecs::EntityId spawnShipHull(world::Sector* sector,
+                                gobj::HullHandle hullHandle);
+    ecs::EntityId spawnModule(world::Sector* sector,
+                              ecs::EntityId parent,
+                              gobj::ModuleHandle modHandle,
+                              uint32_t slotIdx);
+
+    ecs::EntityId spawnAsteroid(world::Sector* sector,
+                                gobj::AsteroidHandle asteroidHandle);
+
     void spawnProjectile(
         uint32_t sectorId,
         vec2 pos,
@@ -145,6 +155,10 @@ class Engine
     void sendAllEnttComponents(def::ClientInfo* clientInfo,
                                net::TcpConnection* conn);
     void sendAllComponents(ecs::EntityId entityId, net::TcpConnection* conn);
+    void sendAllComponents(world::Sector* sector,
+                           ecs::EntityId entityId,
+                           entt::entity entity,
+                           net::TcpConnection* conn);
     void broadcastEntityToClients(ecs::EntityId entityId);
     void testSpawn();
     void handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn);
@@ -167,6 +181,8 @@ class Engine
 
     EngineState state;
     world::World world;
+    ecs::RegistryMapping registryMapping;
+    ecs::Systems systems;
     cfg::ConfigManager saveConfig;
     cfg::ConfigManager& config;
     std::string saveFolder;
@@ -181,15 +197,15 @@ class Engine
     vector<CompClientDump> slowDumpComponents;
     vector<CompActiveSectorUpdate> activeSectorUpdates;
     float filteredFps = 0.0f;
+    float maxFps;
 
     ecs::CollisionLayerMat collisionLayerMat;
-    std::unique_ptr<EntitySpawner> entitySpawner;
 
     float itemLifetime;
     ai::TaskSystem taskSystem;
 
   public:
-    ecs::Ecs ecs;
+    // ecs::Ecs ecs;
 };
 
 }  // namespace sphys

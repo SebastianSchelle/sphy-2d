@@ -11,7 +11,7 @@ struct Ai
     static const uint16_t VERSION = 1;
     static constexpr string NAME = "ai";
 
-    GenericHandle stackHandle = GenericHandle::Invalid();
+    GenericHandle32 stackHandle = GenericHandle32::Invalid();
     uint32_t nextRunFrame;
     bool active = true;
 };

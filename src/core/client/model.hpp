@@ -3,7 +3,8 @@
 
 #include "sector.hpp"
 #include <client-def.hpp>
-#include <ecs.hpp>
+#include <client-registry.hpp>
+#include <asset-factory.hpp>
 #include <exchange-sequence.hpp>
 #include <net-shared.hpp>
 #include <std-inc.hpp>
@@ -110,17 +111,17 @@ class Model
     {
         return world.getWorldShape();
     }
-    entt::registry& getRegistry()
+    Registry& getRegistry()
     {
-        return ecs.getRegistry();
+        return clientRegistry.getRegistry();
     }
     ecs::EntityId getSelectedEntity() const
     {
         return clientInfo.activeEntity;
     }
-    ecs::EcsClient* getEcs()
+    ecs::ClientRegistry* getClientRegistry()
     {
-        return &ecs;
+        return &clientRegistry;
     }
     world::World& getWorld()
     {
@@ -206,7 +207,7 @@ class Model
                    uint32_t activeSectorId = world::INVALID_SECTOR_ID);
     void registerConnectSequence();
     uint32_t getActiveSectorId();
-    entt::entity getActiveEntity();
+    game_entity getActiveEntity();
     void sendThirdPersonControl();
 
     cfg::ConfigManager& config;
@@ -222,7 +223,7 @@ class Model
     ecs::AssetFactory assetFactory;
     tim::Timepoint lastTSync;
     def::ClientInfo clientInfo;
-    ecs::EcsClient ecs;
+    ecs::ClientRegistry clientRegistry;
 
     std::function<void(void)> afterLoadWorldClb;
     std::vector<ecs::EntityId> selectedEntities;

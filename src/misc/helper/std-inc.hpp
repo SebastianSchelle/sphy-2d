@@ -24,6 +24,7 @@
 #include <fstream>
 #include <glm/glm.hpp>
 #include <limits>
+#include <entt/entity/entity.hpp>
 
 // cmath / POSIX do not guarantee M_PI; M_PIf is non-standard (GNU extension).
 #ifndef M_PI
@@ -715,16 +716,65 @@ inline bool convexConvex(const std::vector<vec2>& a, const std::vector<vec2>& b)
 
 }  // namespace sat2d
 
+struct game_entity
+{
+    using entity_type = std::uint32_t;
+
+    std::uint32_t value{};
+
+    constexpr game_entity() = default;
+    constexpr game_entity(std::uint32_t value) : value{value} {}
+
+    constexpr operator std::uint32_t() const noexcept
+    {
+        return value;
+    }
+
+    constexpr bool operator==(const game_entity&) const = default;
+};
+
+struct game_entity_traits
+{
+    using value_type = game_entity;
+    using entity_type = std::uint32_t;
+    using version_type = std::uint8_t;
+
+    // lower 24 bits = entity index
+    static constexpr entity_type entity_mask = 0x00FFFFFF;
+
+    // 8 bits = version
+    static constexpr entity_type version_mask = 0xFF;
+};
+
+namespace entt
+{
+
+template <>
+struct entt_traits<game_entity> : basic_entt_traits<game_entity_traits>
+{
+    static constexpr std::size_t page_size = ENTT_SPARSE_PAGE;
+};
+
+}  // namespace entt
+
+using Registry = entt::basic_registry<game_entity>;
+
 struct GenericHandle
 {
-    static constexpr GenericHandle Invalid() { return {0, 0}; }
+    static constexpr GenericHandle Invalid()
+    {
+        return {0, 0};
+    }
     uint16_t idx;
     uint16_t gen;
 };
 
 struct GenericHandle32
 {
-    static constexpr GenericHandle32 Invalid() { return {0, 0}; }
+    static constexpr GenericHandle32 Invalid()
+    {
+        return {0, 0};
+    }
     uint32_t idx;
     uint16_t gen;
 };
@@ -743,7 +793,9 @@ EXT_DES(GenericHandle, SER_GENERIC_HANDLE)
 
 EXT_FMT(GenericHandle, "({}, {})", o.idx, o.gen);
 
-#define SER_GENERIC_HANDLE_32 S4b(o.idx); S2b(o.gen);
+#define SER_GENERIC_HANDLE_32                                                  \
+    S4b(o.idx);                                                                \
+    S2b(o.gen);
 EXT_SER(GenericHandle32, SER_GENERIC_HANDLE_32)
 EXT_DES(GenericHandle32, SER_GENERIC_HANDLE_32)
 
@@ -756,6 +808,43 @@ insert_sorted(std::vector<T>& vec, T const& item, Pred pred)
     return vec.insert(std::upper_bound(vec.begin(), vec.end(), item, pred),
                       item);
 }
+
+
+#define ENUM_BIN_OPS(enum_name)                                                \
+    inline constexpr enum_name operator&(enum_name x, enum_name y)             \
+    {                                                                          \
+        return static_cast<enum_name>(static_cast<int>(x)                      \
+                                      & static_cast<int>(y));                  \
+    }                                                                          \
+    inline constexpr enum_name operator|(enum_name x, enum_name y)             \
+    {                                                                          \
+        return static_cast<enum_name>(static_cast<int>(x)                      \
+                                      | static_cast<int>(y));                  \
+    }                                                                          \
+    inline constexpr enum_name operator^(enum_name x, enum_name y)             \
+    {                                                                          \
+        return static_cast<enum_name>(static_cast<int>(x)                      \
+                                      ^ static_cast<int>(y));                  \
+    }                                                                          \
+    inline constexpr enum_name operator~(enum_name x)                          \
+    {                                                                          \
+        return static_cast<enum_name>(~static_cast<int>(x));                   \
+    }                                                                          \
+    inline enum_name& operator&=(enum_name& x, enum_name y)                    \
+    {                                                                          \
+        x = x & y;                                                             \
+        return x;                                                              \
+    }                                                                          \
+    inline enum_name& operator|=(enum_name& x, enum_name y)                    \
+    {                                                                          \
+        x = x | y;                                                             \
+        return x;                                                              \
+    }                                                                          \
+    inline enum_name& operator^=(enum_name& x, enum_name y)                    \
+    {                                                                          \
+        x = x ^ y;                                                             \
+        return x;                                                              \
+    }
 
 // Do not `using smath::Rect` at file scope: macOS SDK (MacTypes.h) defines a
 // global `struct Rect`; a using-declaration would collide with Carbon's type.

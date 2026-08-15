@@ -1,9 +1,10 @@
 #ifndef PTR_HANDLE_HPP
 #define PTR_HANDLE_HPP
 
-#include <std-inc.hpp>
 #include <entt/entt.hpp>
+#include <std-inc.hpp>
 #ifdef SERVER
+#include "systems.hpp"
 namespace sphys
 {
 class Engine;
@@ -50,22 +51,21 @@ class ModManager;
 
 namespace ecs
 {
-class Ecs;
+class RegistryMapping;
 struct System;
 
 struct PtrHandle
 {
-    entt::registry* registry;
     world::World* world;
     mod::ModManager* modManager;
-    // Shared fields must precede SERVER/CLIENT-only members (see cmake/SphyTargetKind.cmake).
+    // Shared fields must precede SERVER/CLIENT-only members (see
+    // cmake/SphyTargetKind.cmake).
     uint32_t frameCnt;
-    const vector<System>* activeSystems;
-    const vector<System>* inactiveSystems;
-    ecs::Ecs* ecs;
+    RegistryMapping* registryMapping;
     sthread::WorkDistributor* workDistributor;
     con::ItemLib<gobj::Collider>* colliderLib = nullptr;
 #ifdef SERVER
+    Systems* systems;
     sphys::Engine* engine;
     float kpThrust;
     float kpTurn;

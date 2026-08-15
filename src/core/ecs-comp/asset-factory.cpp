@@ -1,4 +1,3 @@
-#include "ecs.hpp"
 #include <asset-factory.hpp>
 #include <comp-ai.hpp>
 #include <comp-gfx.hpp>
@@ -9,8 +8,7 @@
 #include <comp-struct.hpp>
 #include <comp-tag.hpp>
 #include <comp-turret.hpp>
-#include <components/comp-ident.hpp>
-#include <ecs.hpp>
+#include <comp-ident.hpp>
 #ifdef SERVER
 #include <task-system.hpp>
 #endif
@@ -45,37 +43,32 @@ void ComponentFactory::loadComponent(const std::string& name,
 void ComponentFactory::registerAllComponents()
 {
     registerComponent<ecs::Transform>();
-    registerComponent<ecs::SectorId>([](ecs::PtrHandle* ptrHandle, entt::entity entity) {
-        auto* reg = ptrHandle->registry;
-        auto* sectorId = reg->try_get<ecs::SectorId>(entity);
-        auto& entityId = reg->get<ecs::EntityId>(entity);
-        if (sectorId && sectorId->id != world::INVALID_SECTOR_ID)
-        {
-            world::Sector* sector = ptrHandle->world->getSector(sectorId->id);
-            if (sector)
-            {
-                sector->removeEntity(ptrHandle, entityId);
-            }
-        }
-    });
+    registerComponent<ecs::SectorId>();
     registerComponent<ecs::PhysicsBody>();
     registerComponent<ecs::AssetId>();
     registerComponent<ecs::PhyThrust>();
     registerComponent<ecs::MoveCtrl>();
     registerComponent<ecs::Collider>();
-    registerComponent<ecs::Broadphase>([](ecs::PtrHandle* ptrHandle, entt::entity entity) {
-        auto* reg = ptrHandle->registry;
-        auto* broadphase = reg->try_get<ecs::Broadphase>(entity);
-        auto* sectorId = reg->try_get<ecs::SectorId>(entity);
-        if (broadphase && sectorId && sectorId->id != world::INVALID_SECTOR_ID)
+#ifdef SERVER
+    registerComponent<ecs::Broadphase>(
+        [](ecs::PtrHandle* ptrHandle, entt::registry* reg, entt::entity entity)
         {
-            world::Sector* sector = ptrHandle->world->getSector(sectorId->id);
-            if (sector)
+            auto* broadphase = reg->try_get<ecs::Broadphase>(entity);
+            auto* sectorId = reg->try_get<ecs::SectorId>(entity);
+            if (broadphase && sectorId
+                && sectorId->id != world::INVALID_SECTOR_ID)
             {
-                sector->destroyBroadphaseProxy(broadphase);
+                world::Sector* sector =
+                    ptrHandle->world->getSector(sectorId->id);
+                if (sector)
+                {
+                    sector->destroyBroadphaseProxy(broadphase);
+                }
             }
-        }
-    });
+        });
+#else
+    registerComponent<ecs::Broadphase>();
+#endif
     registerComponent<ecs::TransformCache>();
     registerComponent<ecs::MapIcon>();
     registerComponent<ecs::Textures>();
@@ -87,9 +80,8 @@ void ComponentFactory::registerAllComponents()
     registerComponent<ecs::tag::mod::ManeuverThruster>();
 #ifdef SERVER
     registerComponent<ecs::Ai>(
-        [](ecs::PtrHandle* ptrHandle, entt::entity entity)
+        [](ecs::PtrHandle* ptrHandle, entt::registry* reg, entt::entity entity)
         {
-            auto* reg = ptrHandle->registry;
             auto* ai = reg->try_get<ecs::Ai>(entity);
             if (ai && ai::TaskStackHandle(ai->stackHandle).isValid())
             {
@@ -97,8 +89,8 @@ void ComponentFactory::registerAllComponents()
                 ai::TaskSystem* taskSystem = ptrHandle->taskSystem;
                 if (sector && sector->id != world::INVALID_SECTOR_ID)
                 {
-                    taskSystem =
-                        &ptrHandle->world->getSector(sector->id)->getTaskSystem();
+                    taskSystem = &ptrHandle->world->getSector(sector->id)
+                                      ->getTaskSystem();
                 }
                 auto stackHandle = ai::TaskStackHandle(ai->stackHandle);
                 if (stackHandle.isValid())
@@ -230,44 +222,6 @@ string AssetFactory::assetInfo(const string& assetId) const
 bool AssetFactory::hasAsset(const std::string& assetId) const
 {
     return assetMap.find(assetId) != assetMap.end();
-}
-
-EntityId AssetFactory::createFromAsset(ecs::Ecs& ecs,
-                                       const std::string& assetId) const
-{
-    EntityId newEntityId = EntityId::Invalid();
-    auto it = assetMap.find(assetId);
-    if (it == assetMap.end())
-    {
-        LG_E("Asset not found: {}", assetId);
-        return newEntityId;
-    }
-    const entt::entity srcEntity = it->second.entity;
-    if (!this->registry.valid(srcEntity))
-    {
-        LG_E("Source entity not found: {}", srcEntity);
-        return newEntityId;
-    }
-    newEntityId = ecs.createEntity();
-    entt::entity newEntity = ecs.getEntity(newEntityId);
-    if (newEntity == entt::null)
-    {
-        LG_E("Failed to create new entity");
-        ecs.destroyEntity(newEntityId);
-        return EntityId::Invalid();
-    }
-    for (const auto& [hash, helper] : componentFactory.getComponentHelpers())
-    {
-        if (helper.name == "asset-id")
-        {
-            continue;
-        }
-        helper.assetCopier(const_cast<entt::registry&>(this->registry),
-                           srcEntity,
-                           const_cast<entt::registry&>(ecs.getRegistry()),
-                           newEntity);
-    }
-    return newEntityId;
 }
 
 }  // namespace ecs

@@ -2,8 +2,9 @@
 #include <algorithm>
 #include <cmath>
 #include <comp-struct.hpp>
-#include <components/comp-ident.hpp>
-#include <components/comp-phy.hpp>
+#include <comp-storage.hpp>
+#include <comp-ident.hpp>
+#include <comp-phy.hpp>
 #include <optional>
 #include <sys-phy.hpp>
 
@@ -28,358 +29,377 @@ constexpr float kContactBaumgarte = 0.25f;
 constexpr float kContactPenetrationSlop = 0.005f;
 constexpr float kContactMaxBiasSpeed = 3.0f;
 constexpr int kContactSolverIterations = 5;
-void sysMoveCtrlImpl(world::Sector* sector,
-                     entt::entity entity,
-                     const ecs::EntityId& entityId,
-                     float dt,
-                     PtrHandle* ptrHandle)
+
+#ifdef SERVER
+void sysMoveCtrlImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 {
-    auto reg = ptrHandle->registry;
-    auto* sectorId = reg->try_get<ecs::SectorId>(entity);
-    auto* moveCtrl = reg->try_get<MoveCtrl>(entity);
-    auto* transform = reg->try_get<Transform>(entity);
-    auto* transformCache = reg->try_get<TransformCache>(entity);
-    auto* physicsBody = reg->try_get<PhysicsBody>(entity);
-    auto* phyThrust = reg->try_get<PhyThrust>(entity);
-    if (!moveCtrl || !transform || !transformCache || !physicsBody || !phyThrust
-        || !sectorId || dt <= 1e-6f)
-    {
-        return;
-    }
-
-    vec2 d_w;
-    vec2 d_l;
-    float d_l_mag;
-    bool calcLocalSpaceVectorsDone = false;
-    const float s = transformCache->s;
-    const float c = transformCache->c;
-
-    auto calcLocalSpaceVectors = [&](def::SectorCoords trgt)
-    {
-        vec2 relTargetPos = (trgt.pos.toVec2() - sectorId->toVec2())
-                                * ptrHandle->world->getWorldShape().sectorSize
-                            + trgt.sectorPos;
-        d_w = relTargetPos - transform->pos;
-        d_l = smath::rotateVec2(d_w, -s, c);
-        d_l_mag = glm::length(d_l);
-        calcLocalSpaceVectorsDone = true;
-    };
-
-    auto ctrlPos = [&](def::SectorCoords trgt)
-    {
-        // Thrust control =====================
-        const float m = physicsBody->mass;
-        const vec2 v_vel = physicsBody->vel;
-        const vec2 v_vel_l = smath::rotateVec2(v_vel, -s, c);
-        const float v = glm::length(v_vel);
-
-
-        vec2 v_des_l = vec2(0.0f, 0.0f);
-
-        moveCtrl->posReached = d_l_mag < moveCtrl->allowedPosError;
-        if (!moveCtrl->posReached)
-        {
-            // t_ml: maximum thrust vector in object local space and
-            // target direction
-            const float tm_x = phyThrust->thrustManeuverMax;
-            const float tm_y = phyThrust->thrustMainMax;
-            const float absX = fabsf(d_l.x);
-            const float absY = fabsf(d_l.y);
-            const float k_t = std::min(tm_x / std::max(absX, 1e-4f),
-                                       tm_y / std::max(absY, 1e-4f));
-            const vec2 t_ml = k_t * d_l;
-            // t_m: maximum thrust magnitude
-            // a_m: maximum acceleration
-            // v_m: desired velocity
-            const float t_m = glm::length(t_ml);
-            const float a_m = t_m / m;
-            const float v_m = sqrtf(2.0f * a_m * d_l_mag);
-            // v_des: desired velocity magnitude
-            // v_des_l: desired velocity in object local space
-            const float v_des = std::min(velMargin * v_m, phyThrust->maxSpd);
-            v_des_l = v_des * d_l / d_l_mag;
-        }
-
-        const bool inPosDeadzone = d_l_mag < posDeadband && v < velDeadband;
-        if (inPosDeadzone)
-        {
-            phyThrust->setThrustNone();
-        }
-        else
-        {
-            const vec2 err = v_des_l - v_vel_l;
-            const vec2 thrust = ptrHandle->kpThrust * m * err;
-            phyThrust->setThrustLocal(thrust, s, c);
-        }
-    };
-
-    auto ctrlVelLoc = [&](vec2 trgt)
-    {
-        const float m = physicsBody->mass;
-        const vec2 v_vel = physicsBody->vel;
-        const vec2 v_vel_l = smath::rotateVec2(v_vel, -s, c);
-        const vec2 err = trgt - v_vel_l;
-        const vec2 thrust = ptrHandle->kpThrust * m * err;
-        phyThrust->setThrustLocal(thrust, s, c);
-    };
-
-    auto ctrlVelLocMain = [&](float trgt)
-    {
-        const float m = physicsBody->mass;
-        const vec2 v_vel = physicsBody->vel;
-        const float v_vel_l_main = smath::rotateVec2(v_vel, -s, c).y;
-        const float err = trgt - v_vel_l_main;
-        const float thrust = ptrHandle->kpThrust * m * err;
-        phyThrust->setThrustLocalMain(thrust, s, c);
-    };
-
-    auto ctrlVelLocManeuver = [&](float trgt)
-    {
-        const float m = physicsBody->mass;
-        const vec2 v_vel = physicsBody->vel;
-        const float v_vel_l_maneuver = smath::rotateVec2(v_vel, -s, c).x;
-        const float err = trgt - v_vel_l_maneuver;
-        const float thrust = ptrHandle->kpThrust * m * err;
-        phyThrust->setThrustLocalManeuver(thrust, s, c);
-    };
-
-    switch (moveCtrl->moveMode)
-    {
-        case MoveCtrl::MoveMode::MoveTo:
-        {
-            calcLocalSpaceVectors(moveCtrl->spPos);
-            ctrlPos(moveCtrl->spPos);
-            break;
-        }
-        case MoveCtrl::MoveMode::Brake:
-        {
-            ctrlVelLoc(vec2(0.0f, 0.0f));
-            break;
-        }
-        case MoveCtrl::MoveMode::BrakeMain:
-        {
-            ctrlVelLocMain(0.0f);
-            break;
-        }
-        case MoveCtrl::MoveMode::BrakeManeuver:
-        {
-            ctrlVelLocManeuver(0.0f);
-            break;
-        }
-        default:
-            break;
-    }
-
-    // Torque control =====================
-    auto ctrlAngle = [&](float trgt)
-    {
-        const float angleErr = smath::angleError(trgt, transform->rot);
-        moveCtrl->rotReached = std::abs(angleErr) < moveCtrl->allowedRotError;
-        const float maxAngAcc = phyThrust->maxTorque / physicsBody->inertia;
-        const float desWMag =
-            velMargin
-            * std::sqrt(std::max(0.0f, 2.0f * maxAngAcc * std::abs(angleErr)));
-        const float maxRotVel = std::max(0.0f, phyThrust->maxRotVel);
-        float desW = std::min(desWMag, maxRotVel);
-        desW *= glm::sign(angleErr);
-        const bool inRotDeadzone =
-            std::abs(angleErr) < rotDeadband
-            && std::abs(physicsBody->rotVel) < rotVelDeadband;
-        if (inRotDeadzone)
-        {
-            phyThrust->setTorque(0.0f);
-        }
-        else
-        {
-            const float werr = desW - physicsBody->rotVel;
-            float trq = ptrHandle->kpTurn * werr * physicsBody->inertia;
-            phyThrust->setTorque(trq);
-        }
-    };
-
-    auto ctrlW = [&](float trgt)
-    {
-        const float werr = trgt - physicsBody->rotVel;
-        float trq = ptrHandle->kpTurn * werr * physicsBody->inertia;
-        phyThrust->setTorque(trq);
-    };
-
-    switch (moveCtrl->turnMode)
-    {
-        case MoveCtrl::TurnMode::Forward:
-        {
-            if (!calcLocalSpaceVectorsDone)
+    auto* reg = sector->getRegistry()->getRegistry();
+    reg->view<SectorId,
+              MoveCtrl,
+              Transform,
+              TransformCache,
+              PhysicsBody,
+              PhyThrust>()
+        .each(
+            [ptrHandle](auto entity,
+                        auto& sectorId,
+                        auto& moveCtrl,
+                        auto& transform,
+                        auto& transformCache,
+                        auto& physicsBody,
+                        auto& phyThrust)
             {
-                calcLocalSpaceVectors(moveCtrl->spPos);
-            }
-            const float minFFDist =
-                std::get<MoveCtrl::MCForwardData>(moveCtrl->faceDirData)
-                    .minFaceForwardDist;
-            if (d_l_mag > minFFDist)
-            {
-                // World is Y-down; sprites use local +Y as forward.
-                // After CW rotation by `rot`, local +Y maps to
-                // (-sin(rot), cos(rot)) in world — align that with
-                // dir.
-                moveCtrl->spRot = atan2f(-d_w.x, d_w.y);
-            }
-            ctrlAngle(moveCtrl->spRot);
-        }
-        break;
-        case MoveCtrl::TurnMode::TargetPoint:
-        {
-            vec2 tgtDir = vec2(moveCtrl->lookAt.x - transform->pos.x,
-                               moveCtrl->lookAt.y - transform->pos.y);
-            if (fabs(tgtDir.x) + fabs(tgtDir.y) > ptrHandle->minFaceTargetDist)
-            {
-                moveCtrl->spRot = atan2f(-tgtDir.x, tgtDir.y);
-            }
-            ctrlW(moveCtrl->spRot);
-        }
-        break;
-        case MoveCtrl::TurnMode::Brake:
-        {
-            ctrlW(0.0f);
-        }
-        break;
-        default:
-            break;
-    }
+                vec2 d_w;
+                vec2 d_l;
+                float d_l_mag;
+                bool calcLocalSpaceVectorsDone = false;
+                const float s = transformCache.s;
+                const float c = transformCache.c;
+
+                auto calcLocalSpaceVectors = [&](def::SectorCoords trgt)
+                {
+                    vec2 relTargetPos =
+                        (trgt.pos.toVec2() - sectorId.toVec2())
+                            * ptrHandle->world->getWorldShape().sectorSize
+                        + trgt.sectorPos;
+                    d_w = relTargetPos - transform.pos;
+                    d_l = smath::rotateVec2(d_w, -s, c);
+                    d_l_mag = glm::length(d_l);
+                    calcLocalSpaceVectorsDone = true;
+                };
+
+                auto ctrlPos = [&](def::SectorCoords trgt)
+                {
+                    // Thrust control =====================
+                    const float m = physicsBody.mass;
+                    const vec2 v_vel = physicsBody.vel;
+                    const vec2 v_vel_l = smath::rotateVec2(v_vel, -s, c);
+                    const float v = glm::length(v_vel);
+
+
+                    vec2 v_des_l = vec2(0.0f, 0.0f);
+
+                    moveCtrl.posReached = d_l_mag < moveCtrl.allowedPosError;
+                    if (!moveCtrl.posReached)
+                    {
+                        // t_ml: maximum thrust vector in object local space and
+                        // target direction
+                        const float tm_x = phyThrust.thrustManeuverMax;
+                        const float tm_y = phyThrust.thrustMainMax;
+                        const float absX = fabsf(d_l.x);
+                        const float absY = fabsf(d_l.y);
+                        const float k_t =
+                            std::min(tm_x / std::max(absX, 1e-4f),
+                                     tm_y / std::max(absY, 1e-4f));
+                        const vec2 t_ml = k_t * d_l;
+                        // t_m: maximum thrust magnitude
+                        // a_m: maximum acceleration
+                        // v_m: desired velocity
+                        const float t_m = glm::length(t_ml);
+                        const float a_m = t_m / m;
+                        const float v_m = sqrtf(2.0f * a_m * d_l_mag);
+                        // v_des: desired velocity magnitude
+                        // v_des_l: desired velocity in object local space
+                        const float v_des =
+                            std::min(velMargin * v_m, phyThrust.maxSpd);
+                        v_des_l = v_des * d_l / d_l_mag;
+                    }
+
+                    const bool inPosDeadzone =
+                        d_l_mag < posDeadband && v < velDeadband;
+                    if (inPosDeadzone)
+                    {
+                        phyThrust.setThrustNone();
+                    }
+                    else
+                    {
+                        const vec2 err = v_des_l - v_vel_l;
+                        const vec2 thrust = ptrHandle->kpThrust * m * err;
+                        phyThrust.setThrustLocal(thrust, s, c);
+                    }
+                };
+
+                auto ctrlVelLoc = [&](vec2 trgt)
+                {
+                    const float m = physicsBody.mass;
+                    const vec2 v_vel = physicsBody.vel;
+                    const vec2 v_vel_l = smath::rotateVec2(v_vel, -s, c);
+                    const vec2 err = trgt - v_vel_l;
+                    const vec2 thrust = ptrHandle->kpThrust * m * err;
+                    phyThrust.setThrustLocal(thrust, s, c);
+                };
+
+                auto ctrlVelLocMain = [&](float trgt)
+                {
+                    const float m = physicsBody.mass;
+                    const vec2 v_vel = physicsBody.vel;
+                    const float v_vel_l_main =
+                        smath::rotateVec2(v_vel, -s, c).y;
+                    const float err = trgt - v_vel_l_main;
+                    const float thrust = ptrHandle->kpThrust * m * err;
+                    phyThrust.setThrustLocalMain(thrust, s, c);
+                };
+
+                auto ctrlVelLocManeuver = [&](float trgt)
+                {
+                    const float m = physicsBody.mass;
+                    const vec2 v_vel = physicsBody.vel;
+                    const float v_vel_l_maneuver =
+                        smath::rotateVec2(v_vel, -s, c).x;
+                    const float err = trgt - v_vel_l_maneuver;
+                    const float thrust = ptrHandle->kpThrust * m * err;
+                    phyThrust.setThrustLocalManeuver(thrust, s, c);
+                };
+
+                switch (moveCtrl.moveMode)
+                {
+                    case MoveCtrl::MoveMode::MoveTo:
+                    {
+                        calcLocalSpaceVectors(moveCtrl.spPos);
+                        ctrlPos(moveCtrl.spPos);
+                        break;
+                    }
+                    case MoveCtrl::MoveMode::Brake:
+                    {
+                        ctrlVelLoc(vec2(0.0f, 0.0f));
+                        break;
+                    }
+                    case MoveCtrl::MoveMode::BrakeMain:
+                    {
+                        ctrlVelLocMain(0.0f);
+                        break;
+                    }
+                    case MoveCtrl::MoveMode::BrakeManeuver:
+                    {
+                        ctrlVelLocManeuver(0.0f);
+                        break;
+                    }
+                    default:
+                        break;
+                }
+
+                // Torque control =====================
+                auto ctrlAngle = [&](float trgt)
+                {
+                    const float angleErr =
+                        smath::angleError(trgt, transform.rot);
+                    moveCtrl.rotReached =
+                        std::abs(angleErr) < moveCtrl.allowedRotError;
+                    const float maxAngAcc =
+                        phyThrust.maxTorque / physicsBody.inertia;
+                    const float desWMag =
+                        velMargin
+                        * std::sqrt(std::max(
+                            0.0f, 2.0f * maxAngAcc * std::abs(angleErr)));
+                    const float maxRotVel =
+                        std::max(0.0f, phyThrust.maxRotVel);
+                    float desW = std::min(desWMag, maxRotVel);
+                    desW *= glm::sign(angleErr);
+                    const bool inRotDeadzone =
+                        std::abs(angleErr) < rotDeadband
+                        && std::abs(physicsBody.rotVel) < rotVelDeadband;
+                    if (inRotDeadzone)
+                    {
+                        phyThrust.setTorque(0.0f);
+                    }
+                    else
+                    {
+                        const float werr = desW - physicsBody.rotVel;
+                        float trq =
+                            ptrHandle->kpTurn * werr * physicsBody.inertia;
+                        phyThrust.setTorque(trq);
+                    }
+                };
+
+                auto ctrlW = [&](float trgt)
+                {
+                    const float werr = trgt - physicsBody.rotVel;
+                    float trq = ptrHandle->kpTurn * werr * physicsBody.inertia;
+                    phyThrust.setTorque(trq);
+                };
+
+                switch (moveCtrl.turnMode)
+                {
+                    case MoveCtrl::TurnMode::Forward:
+                    {
+                        if (!calcLocalSpaceVectorsDone)
+                        {
+                            calcLocalSpaceVectors(moveCtrl.spPos);
+                        }
+                        const float minFFDist =
+                            std::get<MoveCtrl::MCForwardData>(
+                                moveCtrl.faceDirData)
+                                .minFaceForwardDist;
+                        if (d_l_mag > minFFDist)
+                        {
+                            // World is Y-down; sprites use local +Y as forward.
+                            // After CW rotation by `rot`, local +Y maps to
+                            // (-sin(rot), cos(rot)) in world — align that with
+                            // dir.
+                            moveCtrl.spRot = atan2f(-d_w.x, d_w.y);
+                        }
+                        ctrlAngle(moveCtrl.spRot);
+                    }
+                    break;
+                    case MoveCtrl::TurnMode::TargetPoint:
+                    {
+                        vec2 tgtDir =
+                            vec2(moveCtrl.lookAt.x - transform.pos.x,
+                                 moveCtrl.lookAt.y - transform.pos.y);
+                        if (fabs(tgtDir.x) + fabs(tgtDir.y)
+                            > ptrHandle->minFaceTargetDist)
+                        {
+                            moveCtrl.spRot = atan2f(-tgtDir.x, tgtDir.y);
+                        }
+                        ctrlW(moveCtrl.spRot);
+                    }
+                    break;
+                    case MoveCtrl::TurnMode::Brake:
+                    {
+                        ctrlW(0.0f);
+                    }
+                    break;
+                    default:
+                        break;
+                }
+            });
 }
 
 
-void sysPhyThrustImpl(world::Sector* sector,
-                      entt::entity entity,
-                      const ecs::EntityId& entityId,
-                      float dt,
-                      PtrHandle* ptrHandle)
+void sysPhyThrustImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 {
-    auto reg = ptrHandle->registry;
-    auto* physicsBody = reg->try_get<PhysicsBody>(entity);
-    auto* phyThrust = reg->try_get<PhyThrust>(entity);
-    if (phyThrust && physicsBody)
-    {
-        if (physicsBody->rotVel > phyThrust->maxRotVel && phyThrust->torque > 0)
+    auto* reg = sector->getRegistry()->getRegistry();
+    reg->view<PhysicsBody, PhyThrust>().each(
+        [ptrHandle](auto entity, auto& physicsBody, auto& phyThrust)
         {
-            phyThrust->torque = 0.0;
-        }
-        else if (physicsBody->rotVel < -phyThrust->maxRotVel
-                 && phyThrust->torque < 0)
-        {
-            phyThrust->torque = 0.0;
-        }
-        physicsBody->rotAcc += phyThrust->torque / physicsBody->inertia;
-
-        float spd = glm::length(physicsBody->vel);
-        glm::vec2 thrustApply = phyThrust->thrustGlobal;
-        if (!std::isfinite(thrustApply.x) || !std::isfinite(thrustApply.y))
-        {
-            LG_W("PhyThrust2 thrustApply is invalid");
-        }
-        if (spd >= phyThrust->maxSpd && spd > 1e-8f)
-        {
-            const glm::vec2 vhat = physicsBody->vel / spd;
-            const float along = glm::dot(phyThrust->thrustGlobal, vhat);
-            if (along > 0.f)
+            if (physicsBody.rotVel > phyThrust.maxRotVel
+                && phyThrust.torque > 0)
             {
-                thrustApply -= vhat * along;
+                phyThrust.torque = 0.0;
             }
-        }
-        if (!std::isfinite(thrustApply.x) || !std::isfinite(thrustApply.y))
-        {
-            LG_W("PhyThrust1 thrustApply is invalid");
-            exit(1);
-        }
-        physicsBody->acc += thrustApply / physicsBody->mass;
+            else if (physicsBody.rotVel < -phyThrust.maxRotVel
+                     && phyThrust.torque < 0)
+            {
+                phyThrust.torque = 0.0;
+            }
+            physicsBody.rotAcc += phyThrust.torque / physicsBody.inertia;
 
-        // Reset thrust after each update cycle
-        phyThrust->torque = 0.0f;
-        phyThrust->thrustGlobal = vec2(0.0f);
-        phyThrust->thrustLocal = vec2(0.0f);
+            float spd = glm::length(physicsBody.vel);
+            glm::vec2 thrustApply = phyThrust.thrustGlobal;
+            if (!std::isfinite(thrustApply.x) || !std::isfinite(thrustApply.y))
+            {
+                LG_W("PhyThrust2 thrustApply is invalid");
+            }
+            if (spd >= phyThrust.maxSpd && spd > 1e-8f)
+            {
+                const glm::vec2 vhat = physicsBody.vel / spd;
+                const float along = glm::dot(phyThrust.thrustGlobal, vhat);
+                if (along > 0.f)
+                {
+                    thrustApply -= vhat * along;
+                }
+            }
+            if (!std::isfinite(thrustApply.x) || !std::isfinite(thrustApply.y))
+            {
+                LG_W("PhyThrust1 thrustApply is invalid");
+                exit(1);
+            }
+            physicsBody.acc += thrustApply / physicsBody.mass;
 
-        // LG_D("PhyThrust update for entity: {} PhyThrust: {}", entity,
-        // *phyThrust);
-    }
+            // Reset thrust after each update cycle
+            phyThrust.torque = 0.0f;
+            phyThrust.thrustGlobal = vec2(0.0f);
+            phyThrust.thrustLocal = vec2(0.0f);
+
+            // LG_D("PhyThrust update for entity: {} PhyThrust: {}", entity,
+            // *phyThrust);
+        });
 }
 
 
-void sysPhysicsImpl(world::Sector* sector,
-                    entt::entity entity,
-                    const ecs::EntityId& entityId,
-                    float dt,
-                    PtrHandle* ptrHandle)
+void sysPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 {
-    auto reg = ptrHandle->registry;
-    auto* sectorId = reg->try_get<ecs::SectorId>(entity);
-    auto* transform = reg->try_get<Transform>(entity);
-    auto* transformCache = reg->try_get<TransformCache>(entity);
-    auto* physicsBody = reg->try_get<PhysicsBody>(entity);
-    auto* broadphase = reg->try_get<Broadphase>(entity);
-    if (transform && physicsBody && transformCache && broadphase && sectorId)
-    {
-        physicsBody->acc += -ptrHandle->linDrag * physicsBody->vel;
-        physicsBody->rotAcc +=
-            -ptrHandle->angDrag
-            * (physicsBody->rotVel - physicsBody->naturalRotation);
-        physicsBody->vel += physicsBody->acc * dt;
-        physicsBody->rotVel += physicsBody->rotAcc * dt;
-        bool hasSignificantSpd =
-            (fabsf(physicsBody->vel.x) + fabsf(physicsBody->vel.y) > 1e-6f);
-        bool hasSignificantRotSpd = (fabsf(physicsBody->rotVel) > 1e-5f);
-        if (hasSignificantRotSpd)
-        {
-            transform->rot += physicsBody->rotVel * dt;
-            if (transform->rot < 0.0f)
+    auto* reg = sector->getRegistry()->getRegistry();
+    reg->view<EntityId,
+              SectorId,
+              Transform,
+              TransformCache,
+              PhysicsBody,
+              Broadphase>()
+        .each(
+            [ptrHandle, dt, reg, sector](auto entity,
+                                         auto& entityId,
+                                         auto& sectorId,
+                                         auto& transform,
+                                         auto& transformCache,
+                                         auto& physicsBody,
+                                         auto& broadphase)
             {
-                transform->rot += 2.0f * M_PIf;
-            }
-            else if (transform->rot >= 2.0f * M_PIf)
-            {
-                transform->rot -= 2.0f * M_PIf;
-            }
-            transformCache->c = cosf(transform->rot);
-            transformCache->s = sinf(transform->rot);
-        }
-        if (hasSignificantSpd)
-        {
-            transform->pos += physicsBody->vel * dt;
-        }
+                physicsBody.acc += -ptrHandle->linDrag * physicsBody.vel;
+                physicsBody.rotAcc +=
+                    -ptrHandle->angDrag
+                    * (physicsBody.rotVel - physicsBody.naturalRotation);
+                physicsBody.vel += physicsBody.acc * dt;
+                physicsBody.rotVel += physicsBody.rotAcc * dt;
+                bool hasSignificantSpd =
+                    (fabsf(physicsBody.vel.x) + fabsf(physicsBody.vel.y)
+                     > 1e-6f);
+                bool hasSignificantRotSpd =
+                    (fabsf(physicsBody.rotVel) > 1e-5f);
+                if (hasSignificantRotSpd)
+                {
+                    transform.rot += physicsBody.rotVel * dt;
+                    if (transform.rot < 0.0f)
+                    {
+                        transform.rot += 2.0f * M_PIf;
+                    }
+                    else if (transform.rot >= 2.0f * M_PIf)
+                    {
+                        transform.rot -= 2.0f * M_PIf;
+                    }
+                    transformCache.c = cosf(transform.rot);
+                    transformCache.s = sinf(transform.rot);
+                }
+                if (hasSignificantSpd)
+                {
+                    transform.pos += physicsBody.vel * dt;
+                }
 
-        auto* collider = reg->try_get<Collider>(entity);
-        if (collider && (hasSignificantSpd || hasSignificantRotSpd))
-        {
-            const gobj::Collider* colliderDef =
-                collider->getColliderDef(ptrHandle->colliderLib);
-            con::AABB newAabb = calculateAABB(
-                *transform, *transformCache, *collider, colliderDef);
-            if (broadphase->proxyId > Broadphase::INVALID_PROXY_ID)
-            {
-                sector->moveAabbProxy(broadphase->proxyId, newAabb);
-            }
-            broadphase->fatAABB = newAabb;
-            sector->addBroadphaseQueryEntity(entity);
-        }
+                auto* collider = reg->try_get<Collider>(entity);
+                if (collider && (hasSignificantSpd || hasSignificantRotSpd))
+                {
+                    const gobj::Collider* colliderDef =
+                        collider->getColliderDef(ptrHandle->colliderLib);
+                    con::AABB newAabb = calculateAABB(
+                        transform, transformCache, *collider, colliderDef);
+                    if (broadphase.proxyId > Broadphase::INVALID_PROXY_ID)
+                    {
+                        sector->moveAabbProxy(broadphase.proxyId, newAabb);
+                    }
+                    broadphase.fatAABB = newAabb;
+                    sector->addBroadphaseQueryEntity(entity);
+                }
 
-        // Check for sector switch
-        ptrHandle->world->checkSectorSwitchAfterMove(
-            entityId, entity, sectorId, transform, ptrHandle);
+                // Check for sector switch
+                ptrHandle->world->checkSectorSwitchAfterMove(
+                    entityId, entity, &sectorId, &transform, ptrHandle);
 
-        // Reset acceleration after game update
-        physicsBody->acc = {0, 0};
-        physicsBody->rotAcc = 0;
+                // Reset acceleration after game update
+                physicsBody.acc = {0, 0};
+                physicsBody.rotAcc = 0;
 
-        /*
-            1.check AABB bounds and recalculate if needed
-            2. if recalculated fatAABB, moveProxy in aabbTree
-            3. broad phase query for object
-            4. SAT for broadphase results
-        */
+                /*
+                    1.check AABB bounds and recalculate if needed
+                    2. if recalculated fatAABB, moveProxy in aabbTree
+                    3. broad phase query for object
+                    4. SAT for broadphase results
+                */
 
-        // LG_D("PhysicsBody update for entity: {} PhysicsBody: {}",
-        // entity, *physicsBody); LG_D("Transform update for entity: {}
-        // Transform:
-        // {}", entity, *transform);
-    }
+                // LG_D("PhysicsBody update for entity: {} PhysicsBody: {}",
+                // entity, *physicsBody); LG_D("Transform update for entity: {}
+                // Transform:
+                // {}", entity, *transform);
+            });
 }
 
 struct ColResolveParams
@@ -396,7 +416,6 @@ struct ColResolveParams
 
 namespace
 {
-
 constexpr float kGoldenAngleRad = 2.39996323f;
 
 float parentBreakupSpreadRadius(PtrHandle* ptrHandle,
@@ -468,8 +487,9 @@ void spawnParentAsteroidChildren(const ColResolveParams& p,
             }
 
             float rotVel = 0.0f;
-            if (auto* parentBody =
-                    p.ptrHandle->registry->try_get<PhysicsBody>(p.otherEnt))
+            if (auto* parentBody = p.sector->getRegistry()
+                                       ->getRegistry()
+                                       ->try_get<PhysicsBody>(p.otherEnt))
             {
                 rotVel = parentBody->rotVel * 0.5f;
             }
@@ -485,7 +505,7 @@ void spawnParentAsteroidChildren(const ColResolveParams& p,
 
 static bool itemCollision(const ColResolveParams& p)
 {
-    auto reg = p.ptrHandle->registry;
+    auto reg = p.sector->getRegistry()->getRegistry();
     auto* item = reg->try_get<Item>(p.actionEnt);
     auto* storage = reg->try_get<Storage>(p.otherEnt);
     if (!storage || !item)
@@ -513,7 +533,7 @@ static bool itemCollision(const ColResolveParams& p)
 
 static bool projectileCollision(const ColResolveParams& p)
 {
-    auto reg = p.ptrHandle->registry;
+    auto reg = p.sector->getRegistry()->getRegistry();
     auto* projectile = reg->try_get<Projectile>(p.actionEnt);
     if (!projectile)
     {
@@ -538,7 +558,7 @@ static bool projectileCollision(const ColResolveParams& p)
         asteroid->damage(
             p.ptrHandle,
             dmg,
-            [p](gobj::ItemHandle handle, uint32_t quantity)
+            [p, reg](gobj::ItemHandle handle, uint32_t quantity)
             {
                 gobj::Item* item =
                     p.ptrHandle->modManager->getItemLib().getItem(handle);
@@ -546,7 +566,6 @@ static bool projectileCollision(const ColResolveParams& p)
                 {
                     return;
                 }
-                auto reg = p.ptrHandle->registry;
                 auto* sectorId = reg->try_get<SectorId>(p.otherEnt);
                 if (!sectorId)
                 {
@@ -614,7 +633,7 @@ colliderAction(PtrHandle* ptrHandle,
                const Collider& collider2,
                const std::pair<entt::entity, entt::entity>& collision)
 {
-    auto reg = ptrHandle->registry;
+    auto reg = sector->getRegistry()->getRegistry();
     ColResolveParams p{.ptrHandle = ptrHandle,
                        .sector = sector,
                        .contact = contact,
@@ -662,7 +681,7 @@ void sysCollisionDetectionImpl(world::Sector* sector,
                                PtrHandle* ptrHandle)
 {
     // Query broadphase collisions from aabb tree
-    auto* reg = ptrHandle->registry;
+    auto* reg = sector->getRegistry()->getRegistry();
     sector->broadphaseCollisions.clear();
     sector->contactInfos.clear();
 
@@ -736,8 +755,8 @@ void sysCollisionDetectionImpl(world::Sector* sector,
             (ecs::EntityId*)&collider1->exceptEntity;
         if (*exceptEntity1 != ecs::EntityId::Invalid())
         {
-            entt::entity except = ptrHandle->ecs->getEntity(*exceptEntity1);
-            if (except == collision.second)
+            auto except = ptrHandle->registryMapping->getEntity(*exceptEntity1);
+            if (except->entity == collision.second)
             {
                 continue;
             }
@@ -746,8 +765,8 @@ void sysCollisionDetectionImpl(world::Sector* sector,
             (ecs::EntityId*)&collider2->exceptEntity;
         if (*exceptEntity2 != ecs::EntityId::Invalid())
         {
-            entt::entity except = ptrHandle->ecs->getEntity(*exceptEntity2);
-            if (except == collision.first)
+            auto except = ptrHandle->registryMapping->getEntity(*exceptEntity2);
+            if (except->entity == collision.first)
             {
                 continue;
             }
@@ -868,42 +887,44 @@ void sysCollisionDetectionImpl(world::Sector* sector,
 }
 
 
-void sysAnchorFixedImpl(world::Sector* sector,
-                        entt::entity entity,
-                        const ecs::EntityId& entityId,
-                        float dt,
-                        PtrHandle* ptrHandle)
+void sysAnchorFixedImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 {
-    auto reg = ptrHandle->registry;
-    auto* anchorFixed = reg->try_get<AnchorFixed>(entity);
-    auto* transform = reg->try_get<Transform>(entity);
-    auto* sectorId = reg->try_get<ecs::SectorId>(entity);
-    if (anchorFixed && transform)
-    {
-        entt::entity parent = ptrHandle->ecs->getEntity(anchorFixed->ref);
-        if (parent != entt::null)
+    auto* reg = sector->getRegistry()->getRegistry();
+    auto* regMap = ptrHandle->registryMapping;
+    reg->view<EntityId, AnchorFixed, Transform, SectorId>().each(
+        [ptrHandle, sector, regMap, reg](auto entity,
+                                         auto& entityId,
+                                         auto& anchorFixed,
+                                         auto& transform,
+                                         auto& sectorId)
         {
-            const auto& parentTransform = reg->get<Transform>(parent);
-            const auto& parentTransformCache = reg->get<TransformCache>(parent);
-            const auto& parentSectorId = reg->get<ecs::SectorId>(parent);
-            vec2 anchorFixedPos = smath::rotateVec2(anchorFixed->pos,
-                                                    parentTransformCache.s,
-                                                    parentTransformCache.c);
-            transform->pos = parentTransform.pos + anchorFixedPos;
-            transform->rot = parentTransform.rot + anchorFixed->rot;
-            if (parentSectorId.id != sectorId->id)
+            auto parent = regMap->getEntity(anchorFixed.ref);
+            if (parent)
             {
-                sector->addSectorMoveRequest(
-                    ptrHandle,
-                    world::SectorMoveRequest{entityId, parentSectorId.id});
+                const auto& parentTransform = reg->get<Transform>(parent->entity);
+                const auto& parentTransformCache =
+                    reg->get<TransformCache>(parent->entity);
+                const auto& parentSectorId = reg->get<ecs::SectorId>(parent->entity);
+                vec2 anchorFixedPos = smath::rotateVec2(anchorFixed.pos,
+                                                        parentTransformCache.s,
+                                                        parentTransformCache.c);
+                transform.pos = parentTransform.pos + anchorFixedPos;
+                transform.rot = parentTransform.rot + anchorFixed.rot;
+                if (parentSectorId.id != sectorId.id)
+                {
+                    sector->addSectorMoveRequest(
+                        ptrHandle,
+                        world::SectorMoveRequest{entityId, parentSectorId.id});
+                }
             }
-        }
-        else
-        {
-            LG_W("AnchorFixed parent not found for entity {}", entityId);
-            sector->markEntityForDestruction(ptrHandle, entityId);
-        }
-    }
+            else
+            {
+                LG_W("AnchorFixed parent not found for entity {}", entityId);
+                sector->markEntityForDestruction(ptrHandle, entityId);
+            }
+        });
 }
+
+#endif
 
 }  // namespace ecs

@@ -26,7 +26,7 @@ Model::Model(ui::UserInterface* userInterface,
              gfx::RenderEngine* renderer,
              std::function<void(void)> afterLoadWorldClb)
     : userInterface(userInterface), config(config), modManager(modManager),
-      renderer(renderer), afterLoadWorldClb(afterLoadWorldClb), ecs(sendQueue)
+      renderer(renderer), afterLoadWorldClb(afterLoadWorldClb), clientRegistry(sendQueue)
 {
     lastTSync = tim::getCurrentTimeU();
 
@@ -58,7 +58,7 @@ void Model::prepareForConnect()
     loadWorldSequence.reset();
     timeSyncData.waiting = false;
     timeSyncData.cnt = 0;
-    ecs.clearSession();
+    clientRegistry.clearSession();
     selectedEntities.clear();
     aabbs.clear();
     thirdPersonControl = def::ThirdPersonControl{};
@@ -170,8 +170,8 @@ void Model::modelLoopGame(float dt)
     if (renderer->getViewMode() == gfx::GameViewMode::ThirdPerson
         || renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
     {
-        entt::entity activeEntity = getActiveEntity();
-        auto& reg = ecs.getRegistry();
+        game_entity activeEntity = getActiveEntity();
+        auto& reg = clientRegistry.getRegistry();
         if (reg.valid(activeEntity))
         {
             auto* transform = reg.try_get<ecs::Transform>(activeEntity);
@@ -283,8 +283,8 @@ void Model::centerViewOnPlayer()
     if (renderer->getViewMode() == gfx::GameViewMode::StrategicMap
         || renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
     {
-        entt::entity activeEntity = getActiveEntity();
-        auto& reg = ecs.getRegistry();
+        game_entity activeEntity = getActiveEntity();
+        auto& reg = clientRegistry.getRegistry();
         if (reg.valid(activeEntity))
         {
             auto* transform = reg.try_get<ecs::Transform>(activeEntity);
@@ -422,7 +422,7 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             {
                 def::WorldShape worldShape;
                 cmddes.object(worldShape);
-                world.createFromServer(worldShape);
+                world.createFromServer(worldShape, nullptr);
             }
             break;
         }
@@ -498,7 +498,7 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         }
         case prot::cmd::TOTAL_NUM_ENTITIES:
         {
-            cmddes.value4b(ecs.numServerEntities);
+            cmddes.value4b(clientRegistry.numServerEntities);
             break;
         }
         case prot::cmd::DESTROY_ENTITY:
@@ -532,7 +532,7 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
 void Model::drawDebug(gfx::RenderEngine& renderer, float zoom)
 {
     world.drawDebug(renderer, zoom);
-    auto& reg = ecs.getRegistry();
+    auto& reg = clientRegistry.getRegistry();
     reg.view<ecs::Transform, ecs::SectorId>().each(
         [this, &renderer](ecs::Transform& transform, ecs::SectorId& sectorId)
         {
@@ -557,10 +557,10 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
     world.drawTacticalMap(renderer, viewRect, zoom);
     uint32_t activeSectorId = getActiveSectorId();
     drawObjects(renderer, viewRect, zoom, activeSectorId);
-    auto& reg = ecs.getRegistry();
+    auto& reg = clientRegistry.getRegistry();
     for (const auto& entityId : selectedEntities)
     {
-        entt::entity entity = ecs.getEntity(entityId);
+        game_entity entity = clientRegistry.getEntity(entityId);
         if (reg.valid(entity))
         {
             auto* trans = reg.try_get<ecs::Transform>(entity);
@@ -639,7 +639,7 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
 {
     world.drawStrategicMap(renderer, viewRect, zoom);
     // todo: Group entities by Pos and only show lists or fleets or groups
-    auto& reg = ecs.getRegistry();
+    auto& reg = clientRegistry.getRegistry();
     reg.view<ecs::Transform, ecs::SectorId, ecs::MapIcon>().each(
         [this, &renderer, &viewRect, zoom](ecs::Transform& transform,
                                            ecs::SectorId& sectorId,
@@ -680,7 +680,7 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
 
     for (const auto& entityId : selectedEntities)
     {
-        entt::entity entity = ecs.getEntity(entityId);
+        game_entity entity = clientRegistry.getEntity(entityId);
         if (reg.valid(entity))
         {
             auto* trans = reg.try_get<ecs::Transform>(entity);
@@ -741,10 +741,10 @@ void Model::drawShips(gfx::RenderEngine& renderer,
                       float zoom,
                       uint32_t activeSectorId)
 {
-    auto& reg = ecs.getRegistry();
+    auto& reg = clientRegistry.getRegistry();
     reg.view<ecs::Transform, ecs::SectorId, ecs::Textures, ecs::Hull>().each(
         [this, &renderer, &viewRect, &reg, activeSectorId](
-            entt::entity entity,
+            game_entity entity,
             ecs::Transform& transform,
             ecs::SectorId& sectorId,
             ecs::Textures& textures,
@@ -781,7 +781,7 @@ void Model::drawStations(gfx::RenderEngine& renderer,
                          float zoom,
                          uint32_t activeSectorId)
 {
-    auto& reg = ecs.getRegistry();
+    auto& reg = clientRegistry.getRegistry();
     reg.view<ecs::Transform, ecs::SectorId, ecs::Station>().each(
         [this, &renderer, &viewRect, &reg, activeSectorId](
             ecs::Transform& transform,
@@ -811,7 +811,7 @@ void Model::drawProjectiles(gfx::RenderEngine& renderer,
                             float zoom,
                             uint32_t activeSectorId)
 {
-    auto& reg = ecs.getRegistry();
+    auto& reg = clientRegistry.getRegistry();
     reg.view<ecs::Transform, ecs::SectorId, ecs::Projectile, ecs::Textures>()
         .each(
             [this, &renderer, &viewRect, &reg, activeSectorId](
@@ -846,7 +846,7 @@ void Model::drawAsteroids(gfx::RenderEngine& renderer,
                           float zoom,
                           uint32_t activeSectorId)
 {
-    auto& reg = ecs.getRegistry();
+    auto& reg = clientRegistry.getRegistry();
     reg.view<ecs::Transform, ecs::SectorId, ecs::Asteroid, ecs::Textures>()
         .each(
             [this, &renderer, &viewRect, &reg, activeSectorId](
@@ -881,7 +881,7 @@ void Model::drawItems(gfx::RenderEngine& renderer,
                       float zoom,
                       uint32_t activeSectorId)
 {
-    auto& reg = ecs.getRegistry();
+    auto& reg = clientRegistry.getRegistry();
     reg.view<ecs::Transform, ecs::SectorId, ecs::Item, ecs::SimpleTexture>()
         .each(
             [this, &renderer, &viewRect, &reg, activeSectorId](
@@ -931,10 +931,10 @@ void Model::drawStationTextures(gfx::RenderEngine& renderer,
                                 ecs::Station& station,
                                 const glm::vec2& sectorOffset)
 {
-    auto& reg = ecs.getRegistry();
+    auto& reg = clientRegistry.getRegistry();
     for (auto& stationPartRef : station.stationParts)
     {
-        entt::entity stationPartEntity = ecs.getEntity(stationPartRef.entityId);
+        game_entity stationPartEntity = clientRegistry.getEntity(stationPartRef.entityId);
         if (stationPartEntity != entt::null)
         {
             auto* stationPartTextures =
@@ -959,10 +959,10 @@ void Model::drawModuleTextures(gfx::RenderEngine& renderer,
                                ecs::Hull& hull,
                                const glm::vec2& worldPos)
 {
-    auto& reg = ecs.getRegistry();
+    auto& reg = clientRegistry.getRegistry();
     for (auto& modRef : hull.modules)
     {
-        entt::entity moduleEntity = ecs.getEntity(modRef.entityId);
+        game_entity moduleEntity = clientRegistry.getEntity(modRef.entityId);
         if (moduleEntity != entt::null)
         {
             const int8_t moduleOffset =
@@ -1156,12 +1156,12 @@ void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
                 {
                     ecs::EntityId entityId;
                     cmddes.object(entityId);
-                    entt::entity entity = ecs.enttFromServerId(entityId);
+                    game_entity entity = clientRegistry.enttFromServerId(entityId);
                     if (entity == entt::null)
                     {
                         continue;
                     }
-                    auto& reg = ecs.getRegistry();
+                    auto& reg = clientRegistry.getRegistry();
                     auto [x, y] = world.idToSectorCoords(sectorId);
                     reg.emplace_or_replace<ecs::SectorId>(
                         entity, sectorId, x, y);
@@ -1192,8 +1192,8 @@ void Model::handleActiveSectorDump(bitsery::Deserializer<InputAdapter>& cmddes,
             {
                 ecs::EntityId entityId;
                 cmddes.object(entityId);
-                entt::entity entity = ecs.enttFromServerId(entityId);
-                auto& reg = ecs.getRegistry();
+                game_entity entity = clientRegistry.enttFromServerId(entityId);
+                auto& reg = clientRegistry.getRegistry();
                 auto [x, y] = world.idToSectorCoords(sectorId);
                 reg.emplace_or_replace<ecs::SectorId>(entity, sectorId, x, y);
                 reg.emplace_or_replace<ecs::EntityId>(entity, entityId);
@@ -1209,7 +1209,7 @@ void Model::handleReqAllComponentsResp(
 {
     ecs::EntityId entityId;
     cmddes.object(entityId);
-    entt::entity entity = ecs.enttFromServerId(entityId, false);
+    game_entity entity = clientRegistry.enttFromServerId(entityId, false);
     if (entity == entt::null)
     {
         LG_W("Entity not found for component sync: {}", entityId);
@@ -1226,7 +1226,7 @@ void Model::handleReqAllComponentsResp(
         auto it = compHelpers.find(compHash);
         if (it != compHelpers.end())
         {
-            auto& reg = ecs.getRegistry();
+            auto& reg = clientRegistry.getRegistry();
             it->second.deserializeIntoRegistry(reg, entity, cmddes);
             if (cmddes.adapter().currentReadPos() == posBefore)
             {
@@ -1297,7 +1297,7 @@ Model::selectEntityAtWorldPos(const def::SectorCoords& sectorCoords)
 {
     selectedEntities.clear();
     ecs::EntityId selectedEntity = ecs::EntityId::Invalid();
-    auto& reg = ecs.getRegistry();
+    auto& reg = clientRegistry.getRegistry();
     for (const auto entity : reg.view<ecs::SectorId,
                                       ecs::Transform,
                                       ecs::EntityId,
@@ -1330,7 +1330,7 @@ Model::selectEntityAtWorldPosFast(const def::SectorCoords& sectorCoords,
 {
     selectedEntities.clear();
     ecs::EntityId selectedEntity = ecs::EntityId::Invalid();
-    auto& reg = ecs.getRegistry();
+    auto& reg = clientRegistry.getRegistry();
     for (const auto entity : reg.view<ecs::SectorId,
                                       ecs::Transform,
                                       ecs::EntityId,
@@ -1356,7 +1356,7 @@ void Model::selectEntitiesInsideRect(const def::SectorCoords& start,
                                      const def::SectorCoords& end)
 {
     selectedEntities.clear();
-    auto& reg = ecs.getRegistry();
+    auto& reg = clientRegistry.getRegistry();
     auto& xMin = def::SectorCoords::minX(start, end);
     auto& xMax = def::SectorCoords::maxX(start, end);
     auto& yMin = def::SectorCoords::minY(start, end);
@@ -1493,15 +1493,15 @@ void Model::registerConnectSequence()
         [this]()
         {
             return fmt::format("Loading {} of {} entities...",
-                               ecs.getNumClientEntities(),
-                               ecs.numServerEntities);
+                               clientRegistry.getNumClientEntities(),
+                               clientRegistry.numServerEntities);
         }));
 }
 
 uint32_t Model::getActiveSectorId()
 {
-    entt::entity activeEntity = getActiveEntity();
-    auto& reg = ecs.getRegistry();
+    game_entity activeEntity = getActiveEntity();
+    auto& reg = clientRegistry.getRegistry();
     if (reg.valid(activeEntity))
     {
         auto* sectorId = reg.try_get<ecs::SectorId>(activeEntity);
@@ -1513,9 +1513,9 @@ uint32_t Model::getActiveSectorId()
     return 0;
 }
 
-entt::entity Model::getActiveEntity()
+game_entity Model::getActiveEntity()
 {
-    return ecs.getEntity(clientInfo.activeEntity);
+    return clientRegistry.getEntity(clientInfo.activeEntity);
 }
 
 void Model::sendThirdPersonControl()
@@ -1543,7 +1543,7 @@ void Model::handleDestroyEntity(bitsery::Deserializer<InputAdapter>& cmddes,
     (void)dataEndPos;
     ecs::EntityId entityId;
     cmddes.object(entityId);
-    ecs.destroyServerEntity(entityId);
+    clientRegistry.destroyServerEntity(entityId);
 }
 
 }  // namespace sphyc

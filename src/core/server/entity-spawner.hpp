@@ -1,6 +1,8 @@
 #ifndef ENTITY_SPAWNER_HPP
 #define ENTITY_SPAWNER_HPP
 
+#ifdef OLD_STUFF
+
 #include "ecs.hpp"
 #include "world-def.hpp"
 #include <comp-ai.hpp>
@@ -130,5 +132,6 @@ class EntitySpawner
 };
 
 }  // namespace sphys
+#endif
 
 #endif

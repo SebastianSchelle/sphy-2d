@@ -2,7 +2,7 @@
 #define TASK_DATA_HPP
 
 #include <cmath>
-#include <components/comp-phy.hpp>
+#include <comp-phy.hpp>
 #include <std-inc.hpp>
 #include <world-def.hpp>
 #include <task.hpp>
