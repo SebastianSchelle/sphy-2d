@@ -42,7 +42,7 @@ EntityId SectorRegistry::spawnObject(const SpawnCallback& spwnClb)
     registry.emplace<ecs::Flags>(entity);
     if (spwnClb)
     {
-        SpawnCallbackParams params{registry, entity, entityId};
+        SpawnCallbackParams params{registry, sector->getTaskSystem(), entity, entityId};
         bool res = spwnClb(params);
         if (!res)
         {

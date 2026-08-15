@@ -364,7 +364,6 @@ void sysPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                 {
                     transform.pos += physicsBody.vel * dt;
                 }
-                LG_D("rot {}", transform.rot);
 
                 auto* collider = reg->try_get<Collider>(entity);
                 if (collider && (hasSignificantSpd || hasSignificantRotSpd))

@@ -51,7 +51,8 @@ bool World::initSectors(bool fromSave, ecs::PtrHandle* ptrHandle)
                                        worldShape.sectorSize,
                                        sectorId,
                                        neighbors,
-                                       ptrHandle->registryMapping);
+                                       ptrHandle ? ptrHandle->registryMapping
+                                                 : nullptr);
             }
         }
     }

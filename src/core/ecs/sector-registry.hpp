@@ -4,6 +4,7 @@
 #include "entt/entity/fwd.hpp"
 #include "entt/entt.hpp"
 #include "registry-mapping.hpp"
+#include "task-system.hpp"
 #include <comp-ident.hpp>
 #include <cstdint>
 
@@ -20,6 +21,7 @@ class RegistryMapping;
 struct SpawnCallbackParams
 {
     entt::registry& reg;
+    ai::TaskSystem& taskSystem;
     entt::entity entity;
     ecs::EntityId entityId;
 };

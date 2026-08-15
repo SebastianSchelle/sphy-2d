@@ -3,6 +3,7 @@
 #include "ecs.hpp"
 #include "entt/entity/fwd.hpp"
 #include "lib-station-part.hpp"
+#include "sector-registry.hpp"
 #include "sector.hpp"
 #include "std-inc.hpp"
 #include "task-basic.hpp"
@@ -13,9 +14,10 @@
 #include <comp-struct.hpp>
 #include <comp-tag.hpp>
 #include <comp-turret.hpp>
-#include <comp-phy.hpp>
 #include <engine-impl.hpp>
 #include <net-shared.hpp>
+#include <objb-module.hpp>
+#include <objb-recipes.hpp>
 #include <objb-ship.hpp>
 #include <protocol.hpp>
 #include <random>
@@ -67,9 +69,9 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->miningRate =
         CFG_FLOAT(config, 0.01f, "engine", "mining", "mining-rate");
     int updThreads = CFG_UINT(config, 2.0f, "engine", "upd", "threads");
-
     itemLifetime =
         CFG_FLOAT(config, 600.0f, "engine", "items", "item-lifetime");
+    maxFps = CFG_FLOAT(config, 600.0f, "engine", "upd", "max-fps");
 
     updThreads = std::clamp(updThreads, 1, 16);
     workDistributor.init(updThreads);
@@ -78,6 +80,8 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
 Engine::~Engine()
 {
     stopRequested = true;
+    delete ptrHandle;
+    ptrHandle = nullptr;
     /*if (engineThread.joinable())
     {
         engineThread.join();
@@ -143,6 +147,14 @@ void Engine::engineLoop()
         if (dt < 1e-6f)
         {
             dt = 1e-6f;
+        }
+        const float minDt = 1.0 / maxFps;
+        if (dt < minDt)
+        {
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds((uint32_t)((minDt - dt) * 1000.0f)));
+            long nowU2 = tim::nowU();
+            dt = (nowU2 - lastUpdateTime) / 1000000.0f;
         }
         filteredFps = 0.9f * filteredFps + 0.1f * (1.0f / dt);
 
@@ -1178,12 +1190,12 @@ void Engine::broadcastEntityToClients(ecs::EntityId entityId)
 void Engine::sendAllComponents(ecs::EntityId entityId, net::TcpConnection* conn)
 {
     auto slot = registryMapping.getEntity(entityId);
-    if(!slot)
+    if (!slot)
     {
         return;
     }
     auto sector = world.getSector(slot->sectorId);
-    if(!sector)
+    if (!sector)
     {
         return;
     }
@@ -1222,6 +1234,29 @@ void Engine::sendAllComponents(world::Sector* sector,
     }
 }
 
+ecs::EntityId Engine::spawnShipHull(world::Sector* sector,
+                                    gobj::HullHandle hullHandle)
+{
+    return sector->spawnObject(
+        ptrHandle,
+        [this, hullHandle](ecs::SpawnCallbackParams& params)
+        { return objb::ShipHull::build(ptrHandle, params, hullHandle); });
+}
+
+ecs::EntityId Engine::spawnModule(world::Sector* sector,
+                                  ecs::EntityId parent,
+                                  gobj::ModuleHandle modHandle,
+                                  uint32_t slotIdx)
+{
+    return sector->spawnObject(
+        ptrHandle,
+        [this, parent, modHandle, slotIdx](ecs::SpawnCallbackParams& params)
+        {
+            return objb::module::Module::build(
+                ptrHandle, params, parent, modHandle, slotIdx);
+        });
+}
+
 void Engine::testSpawn()
 {
     static constexpr const char* kAssets[] = {
@@ -1238,15 +1273,42 @@ void Engine::testSpawn()
                                                   world.getSectorCount() - 1);
 
     // New spawner test
-    auto sector = world.getSector(0);
+    objb::ShipRecipe bee(
+        modManager.getHullLib().getHandle("Bee"),
+        {{0, modManager.getModuleLib().getHandle("Breeze")},
+         {1, modManager.getModuleLib().getHandle("Breeze Maneuver")},
+         {2, modManager.getModuleLib().getHandle("Breeze Maneuver")},
+         {3, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {5, modManager.getModuleLib().getHandle("Terran Bulk S")}});
 
-    auto shipHull = sector->spawnObject(
-        ptrHandle,
-        [this](ecs::SpawnCallbackParams& params)
-        {
-            return objb::ShipHull::build(
-                ptrHandle, params, modManager.getHullLib().getHandle("Bee"));
-        });
+    objb::ShipRecipe mosquito(
+        modManager.getHullLib().getHandle("Mosquito"),
+        {{0, modManager.getModuleLib().getHandle("Breeze")},
+         {1, modManager.getModuleLib().getHandle("Breeze Maneuver")},
+         {2, modManager.getModuleLib().getHandle("Breeze Maneuver")},
+         {3, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {5, modManager.getModuleLib().getHandle("Small Mining Turret")}});
+
+    auto sector = world.getSector(0);
+    bee.spawn({.ptrHandle = ptrHandle,
+               .sector = sector,
+               .pos = {30.0f, 0.0f},
+               .rot = 0.4f});
+    mosquito.spawn({.ptrHandle = ptrHandle,
+               .sector = sector,
+               .pos = {-60.0f, 90.0f},
+               .rot = -0.8f});
+
+    // auto shipHull =
+    //     spawnShipHull(sector, modManager.getHullLib().getHandle("Bee"));
+    // auto mod =
+    //     spawnModule(sector,
+    //                 shipHull,
+    //                 modManager.getModuleLib().getHandle("Small Mining
+    //                 Turret"), 3);
+
 
     /*
 

@@ -3,6 +3,7 @@
 
 #include "comp-phy.hpp"
 #include "comp-storage.hpp"
+#include "entt/entity/fwd.hpp"
 #include <comp-struct.hpp>
 #include <lib-hull.hpp>
 #include <mod-manager.hpp>
@@ -98,6 +99,22 @@ struct ShipHull
                    "ShipHull: Failed to build map icon")
         return true;
     }
+
+    static void updateStats(ecs::PtrHandle* ptrHandle,
+        entt::registry *reg, entt::entity entity)
+    {
+        auto* phyThrust = reg->try_get<ecs::PhyThrust>(entity);
+        if (phyThrust)
+        {
+            phyThrust->updateStatsFromEntity(entity, reg, ptrHandle);
+        }
+        auto* storage = reg->try_get<ecs::Storage>(entity);
+        if (storage)
+        {
+            storage->updateStatsFromEntity(entity, reg, ptrHandle);
+        }
+    }
+
 };
 
 }  // namespace objb

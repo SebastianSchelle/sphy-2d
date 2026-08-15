@@ -4,6 +4,7 @@
 #include "comp-ident.hpp"
 #include "ecs.hpp"
 #include "entity-spawner.hpp"
+#include "lib-modules.hpp"
 #include "registry-mapping.hpp"
 #include "systems.hpp"
 #include "world-def.hpp"
@@ -86,6 +87,13 @@ class Engine
     {
         return stopRequested;
     }
+    ecs::EntityId spawnShipHull(world::Sector* sector,
+                                gobj::HullHandle hullHandle);
+    ecs::EntityId spawnModule(world::Sector* sector,
+                              ecs::EntityId parent,
+                              gobj::ModuleHandle modHandle,
+                              uint32_t slotIdx);
+
     void spawnProjectile(
         uint32_t sectorId,
         vec2 pos,
@@ -142,8 +150,7 @@ class Engine
                              def::ClientInfoHandle disconnectedHandle);
     void sendAllEnttComponents(def::ClientInfo* clientInfo,
                                net::TcpConnection* conn);
-    void sendAllComponents(ecs::EntityId entityId,
-                           net::TcpConnection* conn);
+    void sendAllComponents(ecs::EntityId entityId, net::TcpConnection* conn);
     void sendAllComponents(world::Sector* sector,
                            ecs::EntityId entityId,
                            entt::entity entity,
@@ -186,6 +193,7 @@ class Engine
     vector<CompClientDump> slowDumpComponents;
     vector<CompActiveSectorUpdate> activeSectorUpdates;
     float filteredFps = 0.0f;
+    float maxFps;
 
     ecs::CollisionLayerMat collisionLayerMat;
 

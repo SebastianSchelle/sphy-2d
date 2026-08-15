@@ -1,12 +1,14 @@
 #ifndef OBJB_GENERAL_HPP
 #define OBJB_GENERAL_HPP
 
+#include "comp-ai.hpp"
 #include "comp-gfx.hpp"
 #include "comp-ident.hpp"
 #include "comp-storage.hpp"
 #include "entt/entity/entity.hpp"
 #include "lib-textures.hpp"
 #include "ship-def.hpp"
+#include "task-system.hpp"
 #include <comp-phy.hpp>
 #include <comp-tag.hpp>
 #include <lib-collider.hpp>
@@ -16,7 +18,7 @@
 #include <variant>
 
 #define OBJB_GUARD(fun, ...)                                                   \
-    if (!fun)                                                                  \
+    if (!(fun))                                                                \
     {                                                                          \
         LG_E(__VA_ARGS__);                                                     \
         return false;                                                          \
@@ -36,6 +38,58 @@ struct Transform
             params.entity,
             ecs::TransformCache{.c = cosf(transform.rot),
                                 .s = sinf(transform.rot)});
+        return true;
+    }
+
+    static void position(entt::registry *reg, entt::entity entity, vec2 pos, float rot)
+    {
+        auto* transform = reg->try_get<ecs::Transform>(entity);
+        auto* transCache = reg->try_get<ecs::TransformCache>(entity);
+        if (transform && transCache)
+        {
+            transform->pos = pos;
+            transform->rot = rot;
+            transCache->c = cosf(rot);
+            transCache->s = sinf(rot);
+        }
+    }
+};
+
+struct AnchorFixed
+{
+    static bool build(ecs::PtrHandle* ptrHandle,
+                      ecs::SpawnCallbackParams& params,
+                      ecs::AnchorFixed anchor)
+    {
+        params.reg.emplace_or_replace<ecs::AnchorFixed>(params.entity, anchor);
+        return true;
+    }
+};
+
+struct Ai
+{
+    static bool build(ecs::PtrHandle* ptrHandle,
+                      ecs::SpawnCallbackParams& params,
+                      const ai::taskdata::TaskData& defaultTask)
+    {
+        auto& aiComp = params.reg.get_or_emplace<ecs::Ai>(params.entity);
+        if (ai::TaskStackHandle(aiComp.stackHandle).isValid())
+        {
+            auto* taskStack =
+                params.taskSystem.getTaskStack(aiComp.stackHandle);
+            if (!taskStack)
+            {
+                LG_W("Task stack not found for entity, creating new stack");
+                aiComp.stackHandle = GenericHandle::Invalid();
+            }
+            else
+            {
+                taskStack->setDefaultTask(defaultTask);
+                return true;
+            }
+        }
+        auto stackHandle = params.taskSystem.createTaskStack(defaultTask);
+        aiComp.stackHandle = stackHandle.toGenericHandle();
         return true;
     }
 };
@@ -194,8 +248,8 @@ struct MapIcon
                    "MapIcon: Could not resolve map icon handle")
         params.reg.emplace_or_replace<ecs::MapIcon>(
             params.entity,
-            ecs::MapIcon{
-                .mapIconHandle = visitor.mapIconHandle.toGenericHandle()});
+            ecs::MapIcon{.mapIconHandle =
+                             visitor.mapIconHandle.toGenericHandle()});
         return true;
     }
 };
