@@ -1,7 +1,6 @@
 #include "task-turret.hpp"
 #include <comp-struct.hpp>
 #include <comp-turret.hpp>
-#include <ecs.hpp>
 #include <mod-manager.hpp>
 #include <sector.hpp>
 

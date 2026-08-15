@@ -3,7 +3,6 @@
 
 #include <comp-struct.hpp>
 #include <comp-turret.hpp>
-#include <ecs.hpp>
 #include <lib-modules.hpp>
 #include <mod-manager.hpp>
 

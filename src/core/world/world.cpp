@@ -14,6 +14,49 @@ World::World() {}
 
 World::~World() {}
 
+bool World::initWorld()
+{
+    if (worldShape.numSectorX == 0 || worldShape.numSectorY == 0
+        || worldShape.sectorSize <= 0)
+    {
+        LG_E("Invalid world shape. World initialization failed");
+    }
+    halfSectorSize = worldShape.sectorSize / 2.0f;
+    sectors.init(worldShape.numSectorX, worldShape.numSectorY);
+    LG_I("World initialized with {} sectors", sectors.getSize());
+    return true;
+}
+
+bool World::initSectors(bool fromSave, ecs::PtrHandle* ptrHandle)
+{
+    if (0 && fromSave)
+    {
+        LG_E("Not implemented");
+    }
+    else
+    {
+        for (int i = 0; i < worldShape.numSectorX; i++)
+        {
+            for (int j = 0; j < worldShape.numSectorY; j++)
+            {
+                uint32_t sectorId = sectors.coordToIdx(i, j);
+                Sector* neighbors[8];
+                for (int k = 0; k < 8; k++)
+                {
+                    neighbors[k] = getNeighboringSector(
+                        i, j, static_cast<def::Direction>(k));
+                }
+                sectors.at(i, j)->init(i,
+                                       j,
+                                       worldShape.sectorSize,
+                                       sectorId,
+                                       neighbors,
+                                       ptrHandle->registryMapping);
+            }
+        }
+    }
+    return true;
+}
 
 #ifdef SERVER
 
@@ -65,23 +108,6 @@ bool World::createFromSave(cfg::ConfigManager& config,
     return true;
 }
 
-bool World::createFromServer(const def::WorldShape& worldShape,
-                             ecs::PtrHandle* ptrHandle)
-{
-    this->worldShape = worldShape;
-    if (!initWorld())
-    {
-        LG_E("World initialization failed");
-        return false;
-    }
-    if (!initSectors(false, ptrHandle))
-    {
-        LG_E("Sectors initialization failed");
-        return false;
-    }
-    return true;
-}
-
 bool World::loadWorldProcessData(uint32_t typeId,
                                  uint16_t version,
                                  bitsery::Deserializer<InputAdapter>& des_)
@@ -99,50 +125,6 @@ bool World::loadWorldProcessData(uint32_t typeId,
         default:
             LG_W("Unknown type id: {}", typeId);
             break;
-    }
-    return true;
-}
-
-bool World::initWorld()
-{
-    if (worldShape.numSectorX == 0 || worldShape.numSectorY == 0
-        || worldShape.sectorSize <= 0)
-    {
-        LG_E("Invalid world shape. World initialization failed");
-    }
-    halfSectorSize = worldShape.sectorSize / 2.0f;
-    sectors.init(worldShape.numSectorX, worldShape.numSectorY);
-    LG_I("World initialized with {} sectors", sectors.getSize());
-    return true;
-}
-
-bool World::initSectors(bool fromSave, ecs::PtrHandle* ptrHandle)
-{
-    if (0 && fromSave)
-    {
-        LG_E("Not implemented");
-    }
-    else
-    {
-        for (int i = 0; i < worldShape.numSectorX; i++)
-        {
-            for (int j = 0; j < worldShape.numSectorY; j++)
-            {
-                uint32_t sectorId = sectors.coordToIdx(i, j);
-                Sector* neighbors[8];
-                for (int k = 0; k < 8; k++)
-                {
-                    neighbors[k] = getNeighboringSector(
-                        i, j, static_cast<def::Direction>(k));
-                }
-                sectors.at(i, j)->init(i,
-                                       j,
-                                       worldShape.sectorSize,
-                                       sectorId,
-                                       neighbors,
-                                       ptrHandle->registryMapping);
-            }
-        }
     }
     return true;
 }
@@ -711,6 +693,24 @@ bool World::sectorIntersectsRect(int32_t sectorX,
 }
 
 #ifdef CLIENT
+
+bool World::createFromServer(const def::WorldShape& worldShape,
+                             ecs::PtrHandle* ptrHandle)
+{
+    this->worldShape = worldShape;
+    if (!initWorld())
+    {
+        LG_E("World initialization failed");
+        return false;
+    }
+    if (!initSectors(false, ptrHandle))
+    {
+        LG_E("Sectors initialization failed");
+        return false;
+    }
+    return true;
+}
+
 void World::drawDebug(gfx::RenderEngine& renderer, float zoom)
 {
     for (int i = 0; i < worldShape.numSectorX; i++)

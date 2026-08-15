@@ -5,7 +5,9 @@ add_subdirectory(networking)
 
 add_library(sphy_misc_runtime INTERFACE)
 target_sources(sphy_misc_runtime INTERFACE
+    work-distributor.hpp
     work-distributor.cpp
+    work-sequencer.hpp
     work-sequencer.cpp
 )
 

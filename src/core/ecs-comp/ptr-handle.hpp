@@ -1,10 +1,10 @@
 #ifndef PTR_HANDLE_HPP
 #define PTR_HANDLE_HPP
 
-#include "systems.hpp"
 #include <entt/entt.hpp>
 #include <std-inc.hpp>
 #ifdef SERVER
+#include "systems.hpp"
 namespace sphys
 {
 class Engine;
@@ -61,11 +61,11 @@ struct PtrHandle
     // Shared fields must precede SERVER/CLIENT-only members (see
     // cmake/SphyTargetKind.cmake).
     uint32_t frameCnt;
-    Systems* systems;
     RegistryMapping* registryMapping;
     sthread::WorkDistributor* workDistributor;
     con::ItemLib<gobj::Collider>* colliderLib = nullptr;
 #ifdef SERVER
+    Systems* systems;
     sphys::Engine* engine;
     float kpThrust;
     float kpTurn;

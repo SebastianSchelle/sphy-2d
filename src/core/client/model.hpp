@@ -3,7 +3,8 @@
 
 #include "sector.hpp"
 #include <client-def.hpp>
-#include <ecs.hpp>
+#include <client-registry.hpp>
+#include <asset-factory.hpp>
 #include <exchange-sequence.hpp>
 #include <net-shared.hpp>
 #include <std-inc.hpp>
@@ -112,15 +113,15 @@ class Model
     }
     entt::registry& getRegistry()
     {
-        return ecs.getRegistry();
+        return clientRegistry.getRegistry();
     }
     ecs::EntityId getSelectedEntity() const
     {
         return clientInfo.activeEntity;
     }
-    ecs::EcsClient* getEcs()
+    ecs::ClientRegistry* getClientRegistry()
     {
-        return &ecs;
+        return &clientRegistry;
     }
     world::World& getWorld()
     {
@@ -222,7 +223,7 @@ class Model
     ecs::AssetFactory assetFactory;
     tim::Timepoint lastTSync;
     def::ClientInfo clientInfo;
-    ecs::EcsClient ecs;
+    ecs::ClientRegistry clientRegistry;
 
     std::function<void(void)> afterLoadWorldClb;
     std::vector<ecs::EntityId> selectedEntities;

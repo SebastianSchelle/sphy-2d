@@ -6,6 +6,8 @@
 namespace ecs
 {
 
+#ifdef SERVER
+
 constexpr float kAngleErrorThreshold = 2.0f * M_PIf / 180.0f;
 
 static inline float aimToTarget(const Transform& trSelf, const vec2& tgtPos)
@@ -126,7 +128,6 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                         {
                             ballisticData.reloadTimer =
                                 projectileData.reloadTime;
-#ifdef SERVER
                             const float firingRot =
                                 transform.rot + turret.currentAngle;
                             const float s = sinf(firingRot);
@@ -160,7 +161,6 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                                         module.parent,
                                         parVel);
                                 });
-#endif
                         }
                     }
                     break;
@@ -172,5 +172,5 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
             }
         });
 }
-
+#endif
 }  // namespace ecs

@@ -1,5 +1,4 @@
 #include "task-basic.hpp"
-#include <ecs.hpp>
 #include <world.hpp>
 
 namespace ai

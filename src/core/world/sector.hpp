@@ -1,9 +1,8 @@
 #ifndef SECTOR_HPP
 #define SECTOR_HPP
 
-#include "registry-mapping.hpp"
+#include <comp-phy.hpp>
 #include <ptr-handle.hpp>
-#include <sector-registry.hpp>
 #include <std-inc.hpp>
 #ifdef CLIENT
 #include <render-engine.hpp>
@@ -11,6 +10,7 @@
 #include <aabb-tree.hpp>
 #include <unordered_set>
 #ifdef SERVER
+#include "registry-mapping.hpp"
 #include <sector-registry.hpp>
 #include <task-system.hpp>
 #endif
@@ -98,13 +98,13 @@ class Sector
         return active;
     }
 #ifdef SERVER
-    ai::TaskSystem& getTaskSystem()
-    {
-        return taskSystem;
-    }
     ecs::SectorRegistry* getRegistry()
     {
         return &sectorRegistry;
+    }
+    ai::TaskSystem& getTaskSystem()
+    {
+        return taskSystem;
     }
 #endif
     inline void addBroadphaseQueryEntity(entt::entity entity)
@@ -140,8 +140,6 @@ class Sector
     Sector* neighbors[8];  // Neighboring Sectors (8 neighbors)
     bool dirty;            // Sector dirty flag
 
-
-    // vector<EntRef> entityRefs;
 #ifdef SERVER
     ecs::SectorRegistry sectorRegistry;
     vector<ecs::EntityId> entitiesToDestroy;

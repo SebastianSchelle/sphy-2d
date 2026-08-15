@@ -1,4 +1,5 @@
 add_subdirectory(world)
+add_subdirectory(ecs-comp)
 add_subdirectory(ecs)
 add_subdirectory(game-objects)
 add_subdirectory(ai)

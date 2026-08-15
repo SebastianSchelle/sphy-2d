@@ -596,7 +596,9 @@ struct PhyThrust
         registry.emplace<PhyThrust>(entity, phyThrust);
     }
 
+#ifdef SERVER
     void updateStatsFromEntity(entt::entity entity, entt::registry* reg, ecs::PtrHandle* ptrHandle);
+#endif
 
   private:
     void setThrustGlobal(vec2 th, Transform& tr)

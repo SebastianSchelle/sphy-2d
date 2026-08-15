@@ -1,8 +1,7 @@
 #ifndef WORLD_HPP
 #define WORLD_HPP
 
-#include "ecs.hpp"
-#include <components/comp-ident.hpp>
+#include <comp-ident.hpp>
 #include <config-manager.hpp>
 #include <matrix2d.hpp>
 #include <sector.hpp>
@@ -47,6 +46,8 @@ class World
     void drawThirdPerson(gfx::RenderEngine& renderer,
                          const glm::vec4& viewRect,
                          float zoom);
+    bool createFromServer(const def::WorldShape& worldShape,
+                          ecs::PtrHandle* ptrHandle);
 #endif
     void iterateSectors(IterateSectorClb clb);
     Sector* getSector(uint32_t sectorId);
@@ -71,8 +72,6 @@ class World
     bool createFromSave(cfg::ConfigManager& config,
                         const std::string& savedir,
                         ecs::PtrHandle* ptrHandle);
-    bool createFromServer(const def::WorldShape& worldShape,
-                          ecs::PtrHandle* ptrHandle);
     void update(float dt, ecs::PtrHandle* ptrHandle);
     bool switchSector(ecs::PtrHandle* ptrHandle,
                       ecs::EntityId entityId,
@@ -97,9 +96,9 @@ class World
                               const glm::vec4& rect) const;
 
   private:
-#ifdef SERVER
     bool initWorld();
     bool initSectors(bool fromSave, ecs::PtrHandle* ptrHandle);
+#ifdef SERVER
     bool loadWorldProcessData(uint32_t typeId,
                               uint16_t version,
                               bitsery::Deserializer<InputAdapter>& des_);
@@ -107,7 +106,6 @@ class World
     void destroyMarkedEntities(ecs::PtrHandle* ptrHandle);
     void executeSingleThreadedTasks(ecs::PtrHandle* ptrHandle);
 #endif
-
     def::WorldShape worldShape;
     con::Matrix2D<Sector> sectors;
     bool dirty;

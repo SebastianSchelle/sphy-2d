@@ -1,4 +1,3 @@
-#include "ecs.hpp"
 #include <asset-factory.hpp>
 #include <comp-ai.hpp>
 #include <comp-gfx.hpp>
@@ -9,8 +8,7 @@
 #include <comp-struct.hpp>
 #include <comp-tag.hpp>
 #include <comp-turret.hpp>
-#include <components/comp-ident.hpp>
-#include <ecs.hpp>
+#include <comp-ident.hpp>
 #ifdef SERVER
 #include <task-system.hpp>
 #endif

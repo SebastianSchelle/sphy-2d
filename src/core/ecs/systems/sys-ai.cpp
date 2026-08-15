@@ -2,7 +2,7 @@
 
 namespace ecs
 {
-
+#ifdef SERVER
 void sysAiImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 {
     auto* reg = sector->getRegistry()->getRegistry();
@@ -29,5 +29,5 @@ void sysAiImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
             }
         });
 }
-
+#endif
 }  // namespace ecs

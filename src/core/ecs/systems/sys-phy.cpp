@@ -3,8 +3,8 @@
 #include <cmath>
 #include <comp-struct.hpp>
 #include <comp-storage.hpp>
-#include <components/comp-ident.hpp>
-#include <components/comp-phy.hpp>
+#include <comp-ident.hpp>
+#include <comp-phy.hpp>
 #include <optional>
 #include <sys-phy.hpp>
 
@@ -30,7 +30,7 @@ constexpr float kContactPenetrationSlop = 0.005f;
 constexpr float kContactMaxBiasSpeed = 3.0f;
 constexpr int kContactSolverIterations = 5;
 
-
+#ifdef SERVER
 void sysMoveCtrlImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 {
     auto* reg = sector->getRegistry()->getRegistry();
@@ -364,6 +364,7 @@ void sysPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                 {
                     transform.pos += physicsBody.vel * dt;
                 }
+                LG_D("rot {}", transform.rot);
 
                 auto* collider = reg->try_get<Collider>(entity);
                 if (collider && (hasSignificantSpd || hasSignificantRotSpd))
@@ -924,5 +925,7 @@ void sysAnchorFixedImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
             }
         });
 }
+
+#endif
 
 }  // namespace ecs

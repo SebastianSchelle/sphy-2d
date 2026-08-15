@@ -1,7 +1,5 @@
 #include "comp-tag.hpp"
 #include "entt/entity/fwd.hpp"
-#include "registry-mapping.hpp"
-#include "sector-registry.hpp"
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
 #include <ptr-handle.hpp>

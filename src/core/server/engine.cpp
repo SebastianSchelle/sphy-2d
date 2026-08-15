@@ -13,7 +13,7 @@
 #include <comp-struct.hpp>
 #include <comp-tag.hpp>
 #include <comp-turret.hpp>
-#include <components/comp-phy.hpp>
+#include <comp-phy.hpp>
 #include <engine-impl.hpp>
 #include <net-shared.hpp>
 #include <objb-ship.hpp>
@@ -27,6 +27,7 @@
 #include <thread>
 #include <version.hpp>
 #include <work-distributor.hpp>
+#include <work-sequencer.hpp>
 
 namespace sphys
 {

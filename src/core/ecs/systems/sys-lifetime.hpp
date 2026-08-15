@@ -2,8 +2,7 @@
 #define SYS_LIFETIME_HPP
 
 #include "sys-defs.hpp"
-#include <components/comp-lifetime.hpp>
-#include <ecs.hpp>
+#include <comp-lifetime.hpp>
 #include <sector.hpp>
 
 namespace ecs

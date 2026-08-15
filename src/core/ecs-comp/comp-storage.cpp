@@ -1,14 +1,17 @@
 #include "comp-storage.hpp"
 #include "comp-struct.hpp"
-#include "ecs.hpp"
 #include "lib-item.hpp"
 #include "lib-modules.hpp"
 #include "mod-manager.hpp"
+
+#ifdef SERVER
 #include "registry-mapping.hpp"
+#endif
 
 namespace ecs
 {
 
+#ifdef SERVER
 void Storage::updateStatsFromEntity(entt::entity entity,
                                     entt::registry* reg,
                                     ecs::PtrHandle* ptrHandle)
@@ -105,5 +108,6 @@ uint32_t Storage::tryAddItem(const gobj::ItemHandle& itemHandle,
     cargo[static_cast<size_t>(storageType)].used += quantityToAdd * item.volume;
     return quantityToAdd;
 }
+#endif
 
 }  // namespace ecs

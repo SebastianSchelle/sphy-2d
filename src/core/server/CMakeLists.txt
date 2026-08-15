@@ -23,6 +23,7 @@ set(LIBS_PUB
     concurrentqueue
     libDaScript
     sphy_core_world
+    sphy_core_ecs_components
     sphy_core_ecs
     sphy_core_ecs_systems
     sphy_core_game_objects_libs

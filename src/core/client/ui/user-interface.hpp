@@ -8,7 +8,6 @@
 #include <functional>
 #include <item-lib.hpp>
 #include <memory>
-#include <ptr-handle.hpp>
 #include "ui-tab-panel.hpp"
 #include "user-input.hpp"
 

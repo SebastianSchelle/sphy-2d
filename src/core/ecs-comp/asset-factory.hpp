@@ -2,7 +2,7 @@
 #define ASSET_FACTORY_HPP
 
 #include "entt/entity/fwd.hpp"
-#include <components/comp-phy.hpp>
+#include <comp-phy.hpp>
 #include <std-inc.hpp>
 
 namespace mod

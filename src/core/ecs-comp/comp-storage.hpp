@@ -43,12 +43,14 @@ struct Storage
         cargo[static_cast<size_t>(gobj::ItemStorageType::NumStorageTypes)];
     vector<StorageSlot> slots;
 
+#ifdef SERVER
     void updateStatsFromEntity(entt::entity entity,
                                entt::registry* reg,
                                ecs::PtrHandle* ptrHandle);
     uint32_t tryAddItem(const gobj::ItemHandle& itemHandle,
                         const gobj::Item& item,
                         uint32_t quantity);
+#endif
 };
 
 #define SER_STORAGE                                                            \

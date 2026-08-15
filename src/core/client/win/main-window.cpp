@@ -953,7 +953,7 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
     go.entityId = model.getSelectedEntity().index;
     go.generation = model.getSelectedEntity().generation;
     entt::entity entity =
-        model.getEcs()->enttFromServerId(model.getSelectedEntity());
+        model.getClientRegistry()->enttFromServerId(model.getSelectedEntity());
     go.hasTransform = false;
     go.hasPhysicsBody = false;
     go.hasPhyThrust = false;

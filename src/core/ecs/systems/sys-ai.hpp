@@ -2,10 +2,8 @@
 #define SYS_AI_HPP
 
 #include "sys-defs.hpp"
-#include <components/comp-ai.hpp>
-#include <ecs.hpp>
+#include <comp-ai.hpp>
 #include <sector.hpp>
-#include <task-system.hpp>
 
 namespace ecs
 {

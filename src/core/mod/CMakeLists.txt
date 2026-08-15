@@ -19,3 +19,7 @@ target_include_directories(sphy_core_mod_client
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+target_link_libraries(sphy_core_ecs_systems
+    INTERFACE
+    sphy_core_ecs
+)

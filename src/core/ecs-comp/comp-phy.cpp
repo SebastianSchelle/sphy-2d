@@ -1,10 +1,12 @@
 #include "comp-phy.hpp"
 #include "comp-struct.hpp"
-#include "ecs.hpp"
 #include "entt/entity/fwd.hpp"
 #include "lib-modules.hpp"
 #include "mod-manager.hpp"
+
+#ifdef SERVER
 #include <registry-mapping.hpp>
+#endif
 
 namespace ecs
 {
@@ -31,7 +33,7 @@ void CollisionLayerMat::setInteraction(CollisionLayer layer1,
          interaction);
 }
 
-
+#ifdef SERVER
 void PhyThrust::updateStatsFromEntity(entt::entity entity,
                                       entt::registry* reg,
                                       ecs::PtrHandle* ptrHandle)
@@ -94,6 +96,6 @@ void PhyThrust::updateStatsFromEntity(entt::entity entity,
         thrustManeuverMax = 0.0f;
     }
 }
-
+#endif
 
 }  // namespace ecs

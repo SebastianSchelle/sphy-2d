@@ -2,6 +2,7 @@
 
 namespace ecs
 {
+#ifdef SERVER
 
 void sysLifetimeImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 {
@@ -16,5 +17,5 @@ void sysLifetimeImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
             }
         });
 }
-
+#endif
 }  // namespace ecs
