@@ -185,7 +185,6 @@ void World::update(float dt, ecs::PtrHandle* ptrHandle)
     ptrHandle->workDistributor->suspend();
     executeSingleThreadedTasks(ptrHandle);
     handleSectorMoveRequests(ptrHandle);
-    destroyMarkedEntities(ptrHandle);
 }
 #endif
 
@@ -586,14 +585,6 @@ void World::checkSectorSwitchAfterMove(ecs::EntityId entityId,
                     break;
             }
         }
-    }
-}
-
-void World::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
-{
-    for (uint32_t sectorId = 0; sectorId < sectors.getSize(); sectorId++)
-    {
-        sectors.at(sectorId)->destroyMarkedEntities(ptrHandle);
     }
 }
 

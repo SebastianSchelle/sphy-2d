@@ -4,8 +4,10 @@
 #include "comp-ai.hpp"
 #include "comp-gfx.hpp"
 #include "comp-ident.hpp"
+#include "comp-lifetime.hpp"
 #include "comp-storage.hpp"
 #include "entt/entity/entity.hpp"
+#include "entt/entity/fwd.hpp"
 #include "lib-textures.hpp"
 #include "ship-def.hpp"
 #include "task-system.hpp"
@@ -41,7 +43,8 @@ struct Transform
         return true;
     }
 
-    static void position(entt::registry *reg, entt::entity entity, vec2 pos, float rot)
+    static void
+    position(entt::registry* reg, entt::entity entity, vec2 pos, float rot)
     {
         auto* transform = reg->try_get<ecs::Transform>(entity);
         auto* transCache = reg->try_get<ecs::TransformCache>(entity);
@@ -167,6 +170,18 @@ struct Storage
     }
 };
 
+struct Lifetime
+{
+    static bool build(ecs::PtrHandle* ptrHandle,
+                      ecs::SpawnCallbackParams& params,
+                      float lifetime)
+    {
+        params.reg.emplace_or_replace<ecs::Lifetime>(
+            params.entity, ecs::Lifetime{.lifetime = lifetime});
+        return true;
+    }
+};
+
 struct Physics
 {
     static bool build(ecs::PtrHandle* ptrHandle,
@@ -178,12 +193,22 @@ struct Physics
         return true;
     }
 
-    static void naturalRot(entt::registry *reg, entt::entity entity, float naturalRot)
+    static void
+    naturalRot(entt::registry* reg, entt::entity entity, float naturalRot)
     {
         auto* phy = reg->try_get<ecs::PhysicsBody>(entity);
         if (phy)
         {
             phy->naturalRotation = naturalRot;
+        }
+    }
+
+    static void velocity(entt::registry* reg, entt::entity entity, vec2 vel)
+    {
+        auto* phy = reg->try_get<ecs::PhysicsBody>(entity);
+        if (phy)
+        {
+            phy->vel = vel;
         }
     }
 };

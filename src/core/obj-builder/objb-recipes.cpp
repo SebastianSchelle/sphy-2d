@@ -1,4 +1,5 @@
 #include "comp-ident.hpp"
+#include "logging.hpp"
 #include "objb-general.hpp"
 #include "objb-ship.hpp"
 #include "ptr-handle.hpp"
@@ -32,11 +33,12 @@ ecs::EntityId ShipRecipe::spawn(const RecipeSpawnParams& params)
 
     // Place at desired pos
     Transform::position(reg, slot->entity, params.pos, params.rot);
+    ptr->engine->broadcastEntityToClients(shipHull);
     return shipHull;
 }
 
-ecs::EntityId AsteroidRecipe::spawn(const RecipeSpawnParams& params) {
-
+ecs::EntityId AsteroidRecipe::spawn(const RecipeSpawnParams& params)
+{
     auto ptr = params.ptrHandle;
 
     // Spawn asteroid
@@ -52,7 +54,37 @@ ecs::EntityId AsteroidRecipe::spawn(const RecipeSpawnParams& params) {
     auto reg = params.sector->getRegistry()->getRegistry();
     Transform::position(reg, slot->entity, params.pos, params.rot);
     Physics::naturalRot(reg, slot->entity, params.naturalRot);
+    ptr->engine->broadcastEntityToClients(asteroid);
     return asteroid;
+}
+
+ecs::EntityId ProjectileRecipe::spawn(const RecipeSpawnParams& params,
+                                      float s,
+                                      float c,
+                                      vec2 parentVel)
+{
+    auto ptr = params.ptrHandle;
+
+    // Spawn asteroid
+    auto projectile = ptr->engine->spawnProjectile(
+        params.sector, projectileHandle, exceptEntity);
+
+    // Place at desired pos and rotation
+    auto slot = ptr->registryMapping->getEntity(projectile);
+    if (!slot)
+    {
+        LG_E("No registry slot found for entity {}", projectile);
+        return ecs::EntityId::Invalid();
+    }
+    auto reg = params.sector->getRegistry()->getRegistry();
+    Transform::position(reg, slot->entity, params.pos, params.rot);
+
+    // calculate exit velocity
+    const vec2 fireDir = smath::rotateVec2(vec2(0.0f, 1.0f), s, c);
+    vec2 fireVel = fireDir * exitSpeed;
+    Physics::velocity(reg, slot->entity, parentVel + fireVel);
+    ptr->engine->broadcastEntityToClients(projectile);
+    return projectile;
 }
 
 }  // namespace objb

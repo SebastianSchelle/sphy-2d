@@ -5,8 +5,10 @@
 #include "comp-struct.hpp"
 #include "lib-hull.hpp"
 #include "lib-modules.hpp"
+#include "lib-projectile.hpp"
 #include "sector.hpp"
 #include <ptr-handle.hpp>
+#include <mod-manager.hpp>
 
 namespace objb
 {
@@ -44,10 +46,30 @@ class ShipRecipe
 class AsteroidRecipe
 {
   public:
-    AsteroidRecipe(gobj::AsteroidHandle asteroidHandle) : asteroidHandle(asteroidHandle) {}
+    AsteroidRecipe(gobj::AsteroidHandle asteroidHandle)
+        : asteroidHandle(asteroidHandle)
+    {
+    }
     ecs::EntityId spawn(const RecipeSpawnParams& params);
+
   private:
     gobj::AsteroidHandle asteroidHandle;
+};
+
+class ProjectileRecipe
+{
+  public:
+    ProjectileRecipe(gobj::ProjectileHandle projectileHandle,
+                     ecs::EntityId exceptEntity, float exitSpeed)
+        : projectileHandle(projectileHandle), exceptEntity(exceptEntity), exitSpeed(exitSpeed)
+    {
+    }
+    ecs::EntityId spawn(const RecipeSpawnParams& params, float s, float c, vec2 parentvel);
+
+  private:
+    gobj::ProjectileHandle projectileHandle;
+    ecs::EntityId exceptEntity;
+    float exitSpeed;
 };
 
 }  // namespace objb

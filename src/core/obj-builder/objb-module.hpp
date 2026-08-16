@@ -19,14 +19,15 @@ struct Turret
 {
     static bool build(ecs::PtrHandle* ptrHandle,
                       ecs::SpawnCallbackParams& params,
-                      const gobj::mdata::Turret& data)
+                      const gobj::mdata::Turret& data,
+                      ecs::EntityId exceptEntId)
     {
         params.reg.emplace_or_replace<ecs::Turret>(
             params.entity,
             ecs::Turret{
                 .aimMode = ecs::Turret::AimMode::None,
                 .aimData = ecs::Turret::AngleData{0.0f},
-                .data = ecs::Turret::fromGobjTurretData(data),
+                .data = ecs::Turret::fromGobjTurretData(data, exceptEntId),
                 .currentAngle = 0.0f,
                 .isFiring = false,
             });
@@ -88,7 +89,8 @@ struct Module
                 OBJB_GUARD(
                     Turret::build(ptrHandle,
                                   params,
-                                  std::get<gobj::mdata::Turret>(module->data)),
+                                  std::get<gobj::mdata::Turret>(module->data),
+                                  parent),
                     "");
                 OBJB_GUARD(Ai::build(ptrHandle,
                                      params,

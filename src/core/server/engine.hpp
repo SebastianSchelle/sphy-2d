@@ -6,6 +6,7 @@
 #include "ecs.hpp"
 #include "entity-spawner.hpp"
 #include "lib-modules.hpp"
+#include "lib-projectile.hpp"
 #include "registry-mapping.hpp"
 #include "systems.hpp"
 #include "world-def.hpp"
@@ -94,9 +95,11 @@ class Engine
                               ecs::EntityId parent,
                               gobj::ModuleHandle modHandle,
                               uint32_t slotIdx);
-
     ecs::EntityId spawnAsteroid(world::Sector* sector,
                                 gobj::AsteroidHandle asteroidHandle);
+    ecs::EntityId spawnProjectile(world::Sector* sector,
+                                  gobj::ProjectileHandle projectileHandle,
+                                  ecs::EntityId exceptEntity);
 
     void spawnProjectile(
         uint32_t sectorId,
@@ -120,7 +123,8 @@ class Engine
     template <class T> void registerSlowDumpComponent();
     template <class T>
     void registerActiveSectorDumpComponent(DumpFilter filter = DumpFilter::All);
-    void destroyEntity(ecs::EntityId entityId);
+    void broadcastEntityToClients(ecs::EntityId entityId);
+    void broadcastEntityDestructionToClients(ecs::EntityId entityId);
 
   private:
     void engineLoop();
@@ -159,7 +163,6 @@ class Engine
                            ecs::EntityId entityId,
                            entt::entity entity,
                            net::TcpConnection* conn);
-    void broadcastEntityToClients(ecs::EntityId entityId);
     void testSpawn();
     void handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn);
     void handleThirdPersonControl(def::ClientInfo* clientInfo,

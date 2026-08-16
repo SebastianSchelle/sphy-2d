@@ -1,5 +1,7 @@
 #include "task-basic.hpp"
 #include <world.hpp>
+#include <sector.hpp>
+#include <comp-phy.hpp>
 
 namespace ai
 {

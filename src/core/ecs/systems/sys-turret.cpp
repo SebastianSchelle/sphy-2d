@@ -1,5 +1,6 @@
 #include "sys-turret.hpp"
 #include "logging.hpp"
+#include "objb-recipes.hpp"
 #ifdef SERVER
 #include <engine.hpp>
 #endif
@@ -87,11 +88,10 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                             const vec2 tgtPos = trTgt->pos;
                             const float tgtAngle =
                                 aimToTarget(transform, tgtPos);
-                            turret.currentAngle =
-                                gotoAngle(libTurretData,
-                                          turret.currentAngle,
-                                          tgtAngle,
-                                          dt);
+                            turret.currentAngle = gotoAngle(libTurretData,
+                                                            turret.currentAngle,
+                                                            tgtAngle,
+                                                            dt);
                             switch (turret.fireMode)
                             {
                                 case Turret::FireMode::AutoAngle:
@@ -135,12 +135,10 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                             const float c = cosf(firingRot);
                             const vec2 exit = smath::rotateVec2(
                                 libTurretData.barrelExits[0], s, c);
-                            const vec2 fireDir =
-                                smath::rotateVec2(vec2(0.0f, 1.0f), s, c);
-                            vec2 fireVel = fireDir * projectileData.exitSpeed;
+
+                            vec2 parVel = vec2(0.0f, 0.0f);
                             auto slot = ptrHandle->registryMapping->getEntity(
                                 module.parent);
-                            vec2 parVel = vec2(0.0f, 0.0f);
                             if (slot)
                             {
                                 auto* physBody =
@@ -150,18 +148,14 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                                     parVel = physBody->vel;
                                 }
                             }
-                            // PEW PEW PEW
-                            sector->addSingleThreadedTask(
-                                [=](ecs::PtrHandle* ptrHandle)
-                                {
-                                    ptrHandle->engine->spawnProjectile(
-                                        sectorId.id,
-                                        transform.pos + exit,
-                                        fireVel,
-                                        projectileData.projectile,
-                                        module.parent,
-                                        parVel);
-                                });
+                            ballisticData.recipe.spawn(
+                                {.ptrHandle = ptrHandle,
+                                 .sector = sector,
+                                 .pos = transform.pos + exit,
+                                 .rot = firingRot},
+                                s,
+                                c,
+                                parVel);
                         }
                     }
                     break;

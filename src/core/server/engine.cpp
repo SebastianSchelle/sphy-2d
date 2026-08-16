@@ -3,6 +3,7 @@
 #include "ecs.hpp"
 #include "entt/entity/fwd.hpp"
 #include "lib-station-part.hpp"
+#include "logging.hpp"
 #include "sector-registry.hpp"
 #include "sector.hpp"
 #include "std-inc.hpp"
@@ -18,6 +19,7 @@
 #include <net-shared.hpp>
 #include <objb-asteroid.hpp>
 #include <objb-module.hpp>
+#include <objb-projectile.hpp>
 #include <objb-recipes.hpp>
 #include <objb-ship.hpp>
 #include <protocol.hpp>
@@ -1165,27 +1167,42 @@ void Engine::sendAllEnttComponents(def::ClientInfo* clientInfo,
 
 void Engine::broadcastEntityToClients(ecs::EntityId entityId)
 {
-    /*
-    auto& reg = ecs.getRegistry();
-    entt::entity ent = ecs.getEntity(entityId);
-    for (def::ClientInfoHandle handle : connectedClientHandles)
+    auto slot = registryMapping.getEntity(entityId);
+    if (!slot)
     {
-        def::ClientInfo* clientInfo = clientLib.getItem(handle);
-        if (!clientInfo || !clientInfo->clientInfo.connection)
-        {
-            continue;
-        }
-        auto* sectorId = reg.try_get<ecs::SectorId>(ent);
-        bool inActiveSector =
-            sectorId && clientInfo->getActiveSectors().count(sectorId->id) > 0;
-        if (!inActiveSector || !reg.valid(ent)
-            || !reg.all_of<ecs::tag::OOSSync>(ent))
+        return;
+    }
+    auto sector = world.getSector(slot->sectorId);
+    if (!sector)
+    {
+        return;
+    }
+    auto reg = sector->getRegistry()->getRegistry();
+    entt::entity ent = slot->entity;
+
+    forActiveClients([this, entityId, slot, &reg](def::ClientInfo* clientInfo)
+    {
+        bool inActiveSector = clientInfo->getActiveSectors().count(slot->sectorId) > 0;
+        if (!inActiveSector || reg->valid(slot->entity)
+            || !reg->all_of<ecs::tag::OOSSync>(slot->entity))
         {
             return;
         }
         sendAllComponents(entityId, clientInfo->clientInfo.connection);
-    }
-    */
+    });
+}
+
+void Engine::broadcastEntityDestructionToClients(ecs::EntityId entityId)
+{
+    forActiveClients(
+        [this, entityId](def::ClientInfo* clientInfo)
+        {
+            prot::MsgComposer mcomp(net::SendType::TCP,
+                                    clientInfo->clientInfo.connection);
+            mcomp.startCommand(prot::cmd::DESTROY_ENTITY, 0);
+            mcomp.ser->object(entityId);
+            mcomp.execute(sendQueue);
+        });
 }
 
 void Engine::sendAllComponents(ecs::EntityId entityId, net::TcpConnection* conn)
@@ -1270,6 +1287,19 @@ ecs::EntityId Engine::spawnAsteroid(world::Sector* sector,
         });
 }
 
+ecs::EntityId Engine::spawnProjectile(world::Sector* sector,
+                                      gobj::ProjectileHandle projectileHandle,
+                                      ecs::EntityId exceptEntity)
+{
+    return sector->spawnObject(
+        ptrHandle,
+        [this, projectileHandle, exceptEntity](ecs::SpawnCallbackParams& params)
+        {
+            return objb::Projectile::build(
+                ptrHandle, params, projectileHandle, exceptEntity);
+        });
+}
+
 void Engine::testSpawn()
 {
     static constexpr const char* kAssets[] = {
@@ -1303,15 +1333,6 @@ void Engine::testSpawn()
          {3, modManager.getModuleLib().getHandle("Small Mining Turret")},
          {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
          {5, modManager.getModuleLib().getHandle("Small Mining Turret")}});
-
-    // bee.spawn({.ptrHandle = ptrHandle,
-    //            .sector = sector,
-    //            .pos = {30.0f, 0.0f},
-    //            .rot = 0.4f});
-    // mosquito.spawn({.ptrHandle = ptrHandle,
-    //            .sector = sector,
-    //            .pos = {-60.0f, 90.0f},
-    //            .rot = -0.8f});
 
     for (int i = 0; i < 1; ++i)
     {
@@ -1791,34 +1812,6 @@ void Engine::loadCollisionMatrix()
                     ecs::CollisionLayerMat::Interaction{.enabled = enabled});
             }
         });
-}
-
-void Engine::destroyEntity(ecs::EntityId entityId)
-{
-    /*
-    auto entt = ecs.getEntity(entityId);
-    for (auto compHelper :
-    assetFactory.componentFactory.getComponentHelpers())
-    {
-        auto destroyFunc = compHelper.second.destroy;
-        if (destroyFunc)
-        {
-            destroyFunc(ptrHandle, entt);
-        }
-    }
-    if (ecs.destroyEntity(entityId))
-    {
-        forActiveClients(
-            [this, entityId](def::ClientInfo* clientInfo)
-            {
-                prot::MsgComposer mcomp(net::SendType::TCP,
-                                        clientInfo->clientInfo.connection);
-                mcomp.startCommand(prot::cmd::DESTROY_ENTITY, 0);
-                mcomp.ser->object(entityId);
-                mcomp.execute(sendQueue);
-            });
-    }
-    */
 }
 
 void Engine::forActiveClients(

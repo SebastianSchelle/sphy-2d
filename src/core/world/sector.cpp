@@ -170,72 +170,7 @@ void Sector::update(float dt, ecs::PtrHandle* ptrHandle)
 {
     broadphaseQueryEntities.clear();
     ptrHandle->systems->runSystems(this, dt, ptrHandle);
-
-    /*
-    auto* systems =
-        isActive ? ptrHandle->activeSystems : ptrHandle->inactiveSystems;
-    auto reg = ptrHandle->registry;
-
-    for (const auto& system : *systems)
-    {
-        if (system.type == ecs::SystemType::SectorEarly)
-        {
-            std::visit(
-                [&](auto&& fn)
-                {
-                    using Fn = std::decay_t<decltype(fn)>;
-                    if constexpr (std::is_same_v<Fn, ecs::SFSectorOnce>)
-                    {
-                        fn(this, dt, ptrHandle);
-                    }
-                },
-                system.function);
-        }
-    }
-
-    for (const auto& entityRef : entityRefs)
-    {
-        auto& flags = reg->get<ecs::Flags>(entityRef.entity);
-        if (flags.hasFlag(ecs::Flags::Flag::Destroyed))
-        {
-            continue;
-        }
-        for (const auto& system : *systems)
-        {
-            std::visit(
-                [&](auto&& fn)
-                {
-                    using Fn = std::decay_t<decltype(fn)>;
-                    if constexpr (std::is_same_v<Fn, ecs::SFSectorForeach>)
-                    {
-                        fn(this,
-                           entityRef.entity,
-                           entityRef.entityId,
-                           dt,
-                           ptrHandle);
-                    }
-                },
-                system.function);
-        }
-    }
-
-    for (const auto& system : *systems)
-    {
-        if (system.type == ecs::SystemType::SectorLate)
-        {
-            std::visit(
-                [&](auto&& fn)
-                {
-                    using Fn = std::decay_t<decltype(fn)>;
-                    if constexpr (std::is_same_v<Fn, ecs::SFSectorOnce>)
-                    {
-                        fn(this, dt, ptrHandle);
-                    }
-                },
-                system.function);
-        }
-    }
-    */
+    destroyMarkedEntities(ptrHandle);
 }
 
 ecs::EntityId Sector::spawnObject(ecs::PtrHandle* ptrHandle,
@@ -321,11 +256,13 @@ void Sector::destroyBroadphaseProxy(ecs::Broadphase* broadphase)
 void Sector::markEntityForDestruction(ecs::PtrHandle* ptrHandle,
                                       ecs::EntityId entityId)
 {
-    /*
-    auto reg = ptrHandle->registry;
-    entt::entity entity = ptrHandle->ecs->getEntity(entityId);
-    auto& flags = reg->get<ecs::Flags>(entity);
-
+    auto reg = sectorRegistry.getRegistry();
+    auto slot = ptrHandle->registryMapping->getEntity(entityId);
+    if(!slot || slot->sectorId != id)
+    {
+        return;
+    }
+    auto& flags = reg->get<ecs::Flags>(slot->entity);
     if (flags.hasFlag(ecs::Flags::Flag::Destroyed))
     {
         return;
@@ -341,14 +278,18 @@ void Sector::markEntityForDestruction(ecs::PtrHandle* ptrHandle,
     }
     flags.setFlag(ecs::Flags::Flag::Destroyed);
     entitiesToDestroy.push_back(entityId);
-    */
 }
 
 void Sector::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
 {
     for (const auto& entityId : entitiesToDestroy)
     {
-        ptrHandle->engine->destroyEntity(entityId);
+        if(!sectorRegistry.destroyObject(entityId))
+        {
+            LG_W("Could not destroy entityId {}", entityId.toGenericHandle32());
+            continue;
+        }
+        ptrHandle->engine->broadcastEntityDestructionToClients(entityId);
     }
     entitiesToDestroy.clear();
 }

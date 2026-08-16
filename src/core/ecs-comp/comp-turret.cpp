@@ -1,14 +1,29 @@
 #include "comp-turret.hpp"
+#ifdef SERVER
+#include "objb-recipes.hpp"
+#endif
 
 namespace ecs
 {
 
-Turret::TurretData Turret::fromGobjTurretData(const gobj::mdata::Turret& turretData)
+Turret::TurretData
+Turret::fromGobjTurretData(const gobj::mdata::Turret& turretData,
+                           ecs::EntityId exceptEntId)
 {
     switch (turretData.type)
     {
         case def::TurretType::Projectile:
-            return ProjectileData{0.0f};
+        {
+            auto projData =
+                std::get<gobj::mdata::Turret::ProjectileData>(turretData.data);
+            return ProjectileData{
+                .reloadTimer = 0.0f,
+#ifdef SERVER
+                .recipe = objb::ProjectileRecipe(
+                    projData.projectile, exceptEntId, projData.exitSpeed)
+#endif
+            };
+        }
         case def::TurretType::Laser:
             return LaserData{};
         case def::TurretType::Arc:
