@@ -159,6 +159,23 @@ struct Textures
     }
 };
 
+
+struct SimpleTexture
+{
+    static bool build(ecs::PtrHandle* ptrHandle,
+                      ecs::SpawnCallbackParams& params,
+                      const GenericHandle& texHandle)
+    {
+        gobj::Textures* tex =
+            ptrHandle->modManager->getTexturesLib().getItem(texHandle);
+        OBJB_GUARD(tex, "Could not find textures entry for {}", texHandle)
+        params.reg.emplace_or_replace<ecs::SimpleTexture>(
+            params.entity,
+            ecs::SimpleTexture{.textureHandle = texHandle});
+        return true;
+    }
+};
+
 struct Storage
 {
     static bool build(ecs::PtrHandle* ptrHandle,

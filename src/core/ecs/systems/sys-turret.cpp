@@ -152,10 +152,10 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                                 {.ptrHandle = ptrHandle,
                                  .sector = sector,
                                  .pos = transform.pos + exit,
-                                 .rot = firingRot},
+                                 .rot = firingRot,
+                                 .vel = parVel},
                                 s,
-                                c,
-                                parVel);
+                                c);
                         }
                     }
                     break;

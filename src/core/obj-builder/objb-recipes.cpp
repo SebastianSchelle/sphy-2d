@@ -2,10 +2,12 @@
 #include "logging.hpp"
 #include "objb-general.hpp"
 #include "objb-ship.hpp"
+#include "objb-item.hpp"
 #include "ptr-handle.hpp"
 #include <engine.hpp>
 #include <mod-manager.hpp>
 #include <objb-recipes.hpp>
+
 namespace objb
 {
 
@@ -60,8 +62,7 @@ ecs::EntityId AsteroidRecipe::spawn(const RecipeSpawnParams& params)
 
 ecs::EntityId ProjectileRecipe::spawn(const RecipeSpawnParams& params,
                                       float s,
-                                      float c,
-                                      vec2 parentVel)
+                                      float c)
 {
     auto ptr = params.ptrHandle;
 
@@ -82,9 +83,36 @@ ecs::EntityId ProjectileRecipe::spawn(const RecipeSpawnParams& params,
     // calculate exit velocity
     const vec2 fireDir = smath::rotateVec2(vec2(0.0f, 1.0f), s, c);
     vec2 fireVel = fireDir * exitSpeed;
-    Physics::velocity(reg, slot->entity, parentVel + fireVel);
+    Physics::velocity(reg, slot->entity, params.vel + fireVel);
     ptr->engine->broadcastEntityToClients(projectile);
     return projectile;
+}
+
+ecs::EntityId ItemRecipe::spawn(const RecipeSpawnParams& params, float quantity)
+{
+    auto ptr = params.ptrHandle;
+
+    // Spawn asteroid
+    auto item = ptr->engine->spawnItem(
+        params.sector, itemHandle, collExcept);
+
+    // Place at desired pos and rotation
+    auto slot = ptr->registryMapping->getEntity(item);
+    if (!slot)
+    {
+        LG_E("No registry slot found for entity {}", item);
+        return ecs::EntityId::Invalid();
+    }
+    auto reg = params.sector->getRegistry()->getRegistry();
+    Transform::position(reg, slot->entity, params.pos, params.rot);
+
+    // Set amount
+    Item::quantity(reg, slot->entity, quantity);
+
+    // Set velocity of item
+    Physics::velocity(reg, slot->entity, params.vel);
+    ptr->engine->broadcastEntityToClients(item);
+    return item;
 }
 
 }  // namespace objb

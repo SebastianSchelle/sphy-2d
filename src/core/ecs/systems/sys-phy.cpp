@@ -1,10 +1,12 @@
 #include "comp-tag.hpp"
+#include "objb-recipes.hpp"
+#include "ptr-handle.hpp"
 #include <algorithm>
 #include <cmath>
-#include <comp-struct.hpp>
-#include <comp-storage.hpp>
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
+#include <comp-storage.hpp>
+#include <comp-struct.hpp>
 #include <optional>
 #include <sys-phy.hpp>
 
@@ -191,8 +193,7 @@ void sysMoveCtrlImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                         velMargin
                         * std::sqrt(std::max(
                             0.0f, 2.0f * maxAngAcc * std::abs(angleErr)));
-                    const float maxRotVel =
-                        std::max(0.0f, phyThrust.maxRotVel);
+                    const float maxRotVel = std::max(0.0f, phyThrust.maxRotVel);
                     float desW = std::min(desWMag, maxRotVel);
                     desW *= glm::sign(angleErr);
                     const bool inRotDeadzone =
@@ -243,9 +244,8 @@ void sysMoveCtrlImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                     break;
                     case MoveCtrl::TurnMode::TargetPoint:
                     {
-                        vec2 tgtDir =
-                            vec2(moveCtrl.lookAt.x - transform.pos.x,
-                                 moveCtrl.lookAt.y - transform.pos.y);
+                        vec2 tgtDir = vec2(moveCtrl.lookAt.x - transform.pos.x,
+                                           moveCtrl.lookAt.y - transform.pos.y);
                         if (fabs(tgtDir.x) + fabs(tgtDir.y)
                             > ptrHandle->minFaceTargetDist)
                         {
@@ -344,8 +344,7 @@ void sysPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                 bool hasSignificantSpd =
                     (fabsf(physicsBody.vel.x) + fabsf(physicsBody.vel.y)
                      > 1e-6f);
-                bool hasSignificantRotSpd =
-                    (fabsf(physicsBody.rotVel) > 1e-5f);
+                bool hasSignificantRotSpd = (fabsf(physicsBody.rotVel) > 1e-5f);
                 if (hasSignificantRotSpd)
                 {
                     transform.rot += physicsBody.rotVel * dt;
@@ -588,8 +587,14 @@ static bool projectileCollision(const ColResolveParams& p)
                 vel.x += rand() % 10 - 5;
                 vel.y += rand() % 10 - 5;
                 trOth.rot = (rand() % 360) / 180.0f * M_PIf;
-                p.ptrHandle->engine->spawnItem(
-                    sectorId->id, trOth, handle, quantity, vel, otherEntId);
+
+                LG_D("Spawn item");
+                objb::ItemRecipe(handle, otherEntId).spawn({.ptrHandle = p.ptrHandle,
+                                                .sector = p.sector,
+                                                .pos = trOth.pos,
+                                                .rot = trOth.rot,
+                                                .vel = vel},
+                                               quantity);
             });
         ecs::EntityId actionEntId = reg->get<ecs::EntityId>(p.actionEnt);
         ecs::EntityId otherEntId = reg->get<ecs::EntityId>(p.otherEnt);
@@ -901,10 +906,12 @@ void sysAnchorFixedImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
             auto parent = regMap->getEntity(anchorFixed.ref);
             if (parent)
             {
-                const auto& parentTransform = reg->get<Transform>(parent->entity);
+                const auto& parentTransform =
+                    reg->get<Transform>(parent->entity);
                 const auto& parentTransformCache =
                     reg->get<TransformCache>(parent->entity);
-                const auto& parentSectorId = reg->get<ecs::SectorId>(parent->entity);
+                const auto& parentSectorId =
+                    reg->get<ecs::SectorId>(parent->entity);
                 vec2 anchorFixedPos = smath::rotateVec2(anchorFixed.pos,
                                                         parentTransformCache.s,
                                                         parentTransformCache.c);

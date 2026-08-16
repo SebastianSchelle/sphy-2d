@@ -100,6 +100,9 @@ class Engine
     ecs::EntityId spawnProjectile(world::Sector* sector,
                                   gobj::ProjectileHandle projectileHandle,
                                   ecs::EntityId exceptEntity);
+    ecs::EntityId spawnItem(world::Sector* sector,
+                            gobj::ItemHandle itemHandle,
+                            ecs::EntityId collexcept);
 
     void spawnProjectile(
         uint32_t sectorId,

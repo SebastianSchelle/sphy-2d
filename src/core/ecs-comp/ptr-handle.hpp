@@ -73,6 +73,7 @@ struct PtrHandle
     float linDrag;
     float minFaceTargetDist;
     float miningRate;
+    float itemLifetime;
     ai::TaskSystem* taskSystem;
     ecs::CollisionLayerMat* collisionLayerMat;
 #elif CLIENT

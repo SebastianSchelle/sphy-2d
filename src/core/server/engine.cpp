@@ -18,6 +18,7 @@
 #include <engine-impl.hpp>
 #include <net-shared.hpp>
 #include <objb-asteroid.hpp>
+#include <objb-item.hpp>
 #include <objb-module.hpp>
 #include <objb-projectile.hpp>
 #include <objb-recipes.hpp>
@@ -71,9 +72,9 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
         * CFG_UINT(config, 30.0f, "engine", "upd", "dump-int", "active-sector");
     ptrHandle->miningRate =
         CFG_FLOAT(config, 0.01f, "engine", "mining", "mining-rate");
-    int updThreads = CFG_UINT(config, 2.0f, "engine", "upd", "threads");
-    itemLifetime =
+    ptrHandle->itemLifetime =
         CFG_FLOAT(config, 600.0f, "engine", "items", "item-lifetime");
+    int updThreads = CFG_UINT(config, 2.0f, "engine", "upd", "threads");
     maxFps = CFG_FLOAT(config, 600.0f, "engine", "upd", "max-fps");
 
     updThreads = std::clamp(updThreads, 1, 16);
@@ -1180,16 +1181,18 @@ void Engine::broadcastEntityToClients(ecs::EntityId entityId)
     auto reg = sector->getRegistry()->getRegistry();
     entt::entity ent = slot->entity;
 
-    forActiveClients([this, entityId, slot, &reg](def::ClientInfo* clientInfo)
-    {
-        bool inActiveSector = clientInfo->getActiveSectors().count(slot->sectorId) > 0;
-        if (!inActiveSector || reg->valid(slot->entity)
-            || !reg->all_of<ecs::tag::OOSSync>(slot->entity))
+    forActiveClients(
+        [this, entityId, slot, &reg](def::ClientInfo* clientInfo)
         {
-            return;
-        }
-        sendAllComponents(entityId, clientInfo->clientInfo.connection);
-    });
+            bool inActiveSector =
+                clientInfo->getActiveSectors().count(slot->sectorId) > 0;
+            if (!inActiveSector || reg->valid(slot->entity)
+                || !reg->all_of<ecs::tag::OOSSync>(slot->entity))
+            {
+                return;
+            }
+            sendAllComponents(entityId, clientInfo->clientInfo.connection);
+        });
 }
 
 void Engine::broadcastEntityDestructionToClients(ecs::EntityId entityId)
@@ -1297,6 +1300,18 @@ ecs::EntityId Engine::spawnProjectile(world::Sector* sector,
         {
             return objb::Projectile::build(
                 ptrHandle, params, projectileHandle, exceptEntity);
+        });
+}
+
+ecs::EntityId Engine::spawnItem(world::Sector* sector,
+                                gobj::ItemHandle itemHandle,
+                                ecs::EntityId collExcept)
+{
+    return sector->spawnObject(
+        ptrHandle,
+        [this, itemHandle, collExcept](ecs::SpawnCallbackParams& params)
+        {
+            return objb::Item::build(ptrHandle, params, itemHandle, collExcept);
         });
 }
 

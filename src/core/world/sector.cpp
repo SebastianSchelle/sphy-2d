@@ -284,6 +284,7 @@ void Sector::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
 {
     for (const auto& entityId : entitiesToDestroy)
     {
+        // todo: remove broadphase stuff and think about other stuff to delete
         if(!sectorRegistry.destroyObject(entityId))
         {
             LG_W("Could not destroy entityId {}", entityId.toGenericHandle32());
