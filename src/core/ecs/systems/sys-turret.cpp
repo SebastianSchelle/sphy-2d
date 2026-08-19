@@ -82,7 +82,7 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                         }
                         auto* trTgt = sector->getRegistry()
                                           ->getRegistry()
-                                          ->try_get<ecs::Transform>(entity);
+                                          ->try_get<ecs::Transform>(slot->entity);
                         if (trTgt)
                         {
                             const vec2 tgtPos = trTgt->pos;

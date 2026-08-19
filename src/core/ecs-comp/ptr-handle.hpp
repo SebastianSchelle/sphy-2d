@@ -16,6 +16,7 @@ class TaskSystem;
 namespace ecs
 {
 class CollisionLayerMat;
+class AssetFactory;
 }
 #elif CLIENT
 namespace sphyc
@@ -76,6 +77,7 @@ struct PtrHandle
     float itemLifetime;
     ai::TaskSystem* taskSystem;
     ecs::CollisionLayerMat* collisionLayerMat;
+    ecs::AssetFactory* assetFactory;
 #elif CLIENT
     sphyc::Client* client;
 #endif

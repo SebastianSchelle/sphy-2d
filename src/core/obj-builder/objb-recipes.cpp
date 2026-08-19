@@ -35,6 +35,7 @@ ecs::EntityId ShipRecipe::spawn(const RecipeSpawnParams& params)
 
     // Place at desired pos
     Transform::position(reg, slot->entity, params.pos, params.rot);
+    params.sector->objectInitBroadphase(ptr, slot->entity);
     ptr->engine->broadcastEntityToClients(shipHull);
     return shipHull;
 }
@@ -56,6 +57,7 @@ ecs::EntityId AsteroidRecipe::spawn(const RecipeSpawnParams& params)
     auto reg = params.sector->getRegistry()->getRegistry();
     Transform::position(reg, slot->entity, params.pos, params.rot);
     Physics::naturalRot(reg, slot->entity, params.naturalRot);
+    params.sector->objectInitBroadphase(ptr, slot->entity);
     ptr->engine->broadcastEntityToClients(asteroid);
     return asteroid;
 }
@@ -84,6 +86,7 @@ ecs::EntityId ProjectileRecipe::spawn(const RecipeSpawnParams& params,
     const vec2 fireDir = smath::rotateVec2(vec2(0.0f, 1.0f), s, c);
     vec2 fireVel = fireDir * exitSpeed;
     Physics::velocity(reg, slot->entity, params.vel + fireVel);
+    params.sector->objectInitBroadphase(ptr, slot->entity);
     ptr->engine->broadcastEntityToClients(projectile);
     return projectile;
 }
@@ -111,6 +114,7 @@ ecs::EntityId ItemRecipe::spawn(const RecipeSpawnParams& params, float quantity)
 
     // Set velocity of item
     Physics::velocity(reg, slot->entity, params.vel);
+    params.sector->objectInitBroadphase(ptr, slot->entity);
     ptr->engine->broadcastEntityToClients(item);
     return item;
 }

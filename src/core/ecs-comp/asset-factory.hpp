@@ -9,6 +9,10 @@ namespace mod
 {
 class ResourceMap;
 }
+namespace world
+{
+class Sector;
+}
 
 namespace ecs
 {
@@ -26,16 +30,16 @@ class ComponentFactory
                                                entt::entity,
                                                entt::registry&,
                                                entt::entity)>;
-    using DeserializeIntoRegistryFunc =
-        std::function<void(Registry&,
-                           game_entity,
-                           bitsery::Deserializer<InputAdapter>&)>;
+    using DeserializeIntoRegistryFunc = std::function<
+        void(Registry&, game_entity, bitsery::Deserializer<InputAdapter>&)>;
     using SerializeFromRegistryFunc =
         std::function<void(entt::registry&,
                            entt::entity,
                            bitsery::Serializer<OutputAdapter>&)>;
-    using DestroyFunc = std::function<
-        void(ecs::PtrHandle* ptrHandle, entt::registry* reg, entt::entity)>;
+    using DestroyFunc = std::function<void(ecs::PtrHandle* ptrHandle,
+                                           entt::registry* reg,
+                                           entt::entity,
+                                           world::Sector* sector)>;
 
     struct ComponentHelper
     {

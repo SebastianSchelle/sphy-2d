@@ -45,6 +45,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
 {
     ptrHandle = new ecs::PtrHandle();
     ptrHandle->engine = this;
+    ptrHandle->assetFactory = &assetFactory;
     ptrHandle->registryMapping = &registryMapping;
     ptrHandle->systems = &systems;
     ptrHandle->taskSystem = &taskSystem;
@@ -138,28 +139,28 @@ void Engine::stop()
 
 void Engine::engineLoop()
 {
+    using Clock = std::chrono::steady_clock;
     long lastSaveTime = tim::nowU();
     long lastUpdateTime = tim::nowU();
     long lastFpsUpdate = tim::nowU();
+
+    const auto frameDuration =
+        std::chrono::microseconds((uint32_t)(1000000 / maxFps));
+    auto lastFrame = Clock::now();
+    auto nextFrame = lastFrame + frameDuration;
 
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     while (!stopRequested)
     {
-        long nowU = tim::nowU();
-        float dt = (nowU - lastUpdateTime) / 1000000.0f;
-        if (dt < 1e-6f)
-        {
-            dt = 1e-6f;
-        }
-        const float minDt = 1.0 / maxFps;
-        if (dt < minDt)
-        {
-            std::this_thread::sleep_for(
-                std::chrono::milliseconds((uint32_t)((minDt - dt) * 1000.0f)));
-            long nowU2 = tim::nowU();
-            dt = (nowU2 - lastUpdateTime) / 1000000.0f;
-        }
+        std::this_thread::sleep_until(nextFrame);
+        const auto now = Clock::now();
+        const auto nowU = tim::nowU();
+        const float dt = std::chrono::duration<float>(now - lastFrame).count();
+        lastFrame = now;
+        nextFrame += frameDuration;
+        if (nextFrame < now)
+            nextFrame = now;
         filteredFps = 0.9f * filteredFps + 0.1f * (1.0f / dt);
 
         DO_PERIODIC_U_EXTNOW(lastFpsUpdate,
@@ -230,8 +231,6 @@ void Engine::engineLoop()
         {
             parseCommandData(recQueueData);
         }
-        lastUpdateTime = nowU;
-        // std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     if (state == EngineState::Running || state == EngineState::Paused)
@@ -1349,7 +1348,38 @@ void Engine::testSpawn()
          {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
          {5, modManager.getModuleLib().getHandle("Small Mining Turret")}});
 
-    for (int i = 0; i < 1; ++i)
+    objb::ShipRecipe bumblebee(
+        modManager.getHullLib().getHandle("Bumblebee"),
+        {{0, modManager.getModuleLib().getHandle("Cargo Container S")},
+         {1, modManager.getModuleLib().getHandle("Cargo Container S")},
+         {2, modManager.getModuleLib().getHandle("Cargo Container S")},
+         {3, modManager.getModuleLib().getHandle("Cargo Container S")},
+         {4, modManager.getModuleLib().getHandle("Breeze")},
+         {5, modManager.getModuleLib().getHandle("Breeze Maneuver")}});
+
+    objb::ShipRecipe caterpillar(
+        modManager.getHullLib().getHandle("Caterpillar"),
+        {{0, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {1, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {2, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {3, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {5, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {6, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {7, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {8, modManager.getModuleLib().getHandle("Terran Bulk S")},
+         {9, modManager.getModuleLib().getHandle("Terran Bulk S")},
+         {10, modManager.getModuleLib().getHandle("Terran Bulk S")},
+         {11, modManager.getModuleLib().getHandle("Terran Bulk S")},
+         {12, modManager.getModuleLib().getHandle("Terran Bulk S")},
+         {13, modManager.getModuleLib().getHandle("Terran Bulk S")},
+         {14, modManager.getModuleLib().getHandle("Terran Bulk S")},
+         {15, modManager.getModuleLib().getHandle("Terran Bulk S")},
+         {16, modManager.getModuleLib().getHandle("Breeze")},
+         {17, modManager.getModuleLib().getHandle("Breeze Maneuver")},
+         {18, modManager.getModuleLib().getHandle("Breeze Maneuver")}});
+
+    for (int i = 0; i < 1000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1363,194 +1393,110 @@ void Engine::testSpawn()
                        .pos = pos,
                        .rot = rot});
         }
-        else /*if (i % 4 == 1)*/
+        else if (i % 4 == 1)
         {
             mosquito.spawn({.ptrHandle = ptrHandle,
                             .sector = sector,
                             .pos = pos,
                             .rot = rot});
         }
-    }
-    /*else if (i % 4 == 2)
-    {
-        ent = entitySpawner->spawnShipHull(
-            modManager.getHullLib().getHandle("Bumblebee"),
-            sectorId,
-            ecs::Transform{pos, rot});
-        entitySpawner->spawnModule(
-            ent,
-            modManager.getModuleLib().getHandle("Cargo Container S"),
-            0);
-        entitySpawner->spawnModule(
-            ent,
-            modManager.getModuleLib().getHandle("Cargo Container S"),
-            1);
-        entitySpawner->spawnModule(
-            ent,
-            modManager.getModuleLib().getHandle("Cargo Container S"),
-            2);
-        entitySpawner->spawnModule(
-            ent,
-            modManager.getModuleLib().getHandle("Cargo Container S"),
-            3);
-        entitySpawner->spawnModule(
-            ent, modManager.getModuleLib().getHandle("Breeze"), 4);
-        entitySpawner->spawnModule(
-            ent, modManager.getModuleLib().getHandle("Breeze Maneuver"),
-5); entitySpawner->spawnModule( ent,
-modManager.getModuleLib().getHandle("Breeze Maneuver"), 6);
-    }
-    else
-    {
-        ent = entitySpawner->spawnShipHull(
-            modManager.getHullLib().getHandle("Caterpillar"),
-            sectorId,
-            ecs::Transform{pos, rot});
-
-        for (int i = 0; i < 8; i++)
+        else if (i % 4 == 2)
         {
-            entitySpawner->spawnModule(
-                ent,
-                modManager.getModuleLib().getHandle("Small Mining
-Turret"), i);
+            bumblebee.spawn({.ptrHandle = ptrHandle,
+                             .sector = sector,
+                             .pos = pos,
+                             .rot = rot});
         }
-        for (int i = 8; i < 16; i++)
+        else
         {
-            entitySpawner->spawnModule(
-                ent,
-                modManager.getModuleLib().getHandle("Terran Bulk S"),
-                i);
+            caterpillar.spawn({.ptrHandle = ptrHandle,
+                .sector = sector,
+                .pos = pos,
+                .rot = rot});
         }
-        entitySpawner->spawnModule(
-            ent, modManager.getModuleLib().getHandle("Breeze"), 16);
-        entitySpawner->spawnModule(
-            ent,
-            modManager.getModuleLib().getHandle("Breeze Maneuver"),
-            17);
-        entitySpawner->spawnModule(
-            ent,
-            modManager.getModuleLib().getHandle("Breeze Maneuver"),
-            18);
     }
-    auto* phyThrust = reg.try_get<ecs::PhyThrust>(ecs.getEntity(ent));
-    if (phyThrust)
+    /*
+    static constexpr const char* kStationParts[] = {
+        "ter-strut-4", "ter-strut-3", "ter-habitat-1"};
+    static constexpr const char* kStationParts2[] = {"ter-solar-s",
+                                                     "ter-cont-s"};
+    static constexpr size_t kStationPartsCount =
+        sizeof(kStationParts) / sizeof(kStationParts[0]);
+    static constexpr size_t kStationParts2Count =
+        sizeof(kStationParts2) / sizeof(kStationParts2[0]);
+
+    for (int i = 0; i < 0; i++)
     {
-        //phyThrust->updateStatsFromEntity(ecs.getEntity(ent),
-ptrHandle);
-    }
-    auto* storage = reg.try_get<ecs::Storage>(ecs.getEntity(ent));
-    if (storage)
-    {
-        //storage->updateStatsFromEntity(ecs.getEntity(ent), ptrHandle);
-    }
-    auto* ai = reg.try_get<ecs::Ai>(ecs.getEntity(ent));
-    if (ai)
-    {
-        ai::TaskSystem* entityTaskSystem = &taskSystem;
-        if (auto* sectorId =
-reg.try_get<ecs::SectorId>(ecs.getEntity(ent)))
+        vec2 pos = vec2{posDist(gen), posDist(gen)};
+        float rot = rotDist(gen);
+        uint32_t sectorId = sectorPick(gen);
+        ecs::EntityId stationId =
+            entitySpawner->spawnStation(sectorId, ecs::Transform{pos, rot});
+
+        const char* partName1 = kStationParts[rand() % kStationPartsCount];
+        gobj::StationPartHandle partHandle1 =
+            modManager.getStationPartLib().getHandle(partName1);
+
+        gobj::StationPart* part1 =
+            modManager.getStationPartLib().getItem(partHandle1);
+        if (!part1)
         {
-            if (sectorId->id != world::INVALID_SECTOR_ID)
-            {
-                if (auto* sector = world.getSector(sectorId->id))
-                {
-                    entityTaskSystem = &sector->getTaskSystem();
-                }
-            }
-        }
-        // auto* taskStack =
-        // entityTaskSystem->getTaskStack(ai->stackHandle); if
-(taskStack)
-        // {
-        //     taskStack->setDefaultTask(ai::taskdata::UniversePatrol{
-        //         .config = {.allowedPosError = 100.0f,
-        //                    .allowedRotError = M_PIf}});
-        // }
-    }
-}
-
-static constexpr const char* kStationParts[] = {
-    "ter-strut-4", "ter-strut-3", "ter-habitat-1"};
-static constexpr const char* kStationParts2[] = {"ter-solar-s",
-                                                 "ter-cont-s"};
-static constexpr size_t kStationPartsCount =
-    sizeof(kStationParts) / sizeof(kStationParts[0]);
-static constexpr size_t kStationParts2Count =
-    sizeof(kStationParts2) / sizeof(kStationParts2[0]);
-
-for (int i = 0; i < 0; i++)
-{
-    vec2 pos = vec2{posDist(gen), posDist(gen)};
-    float rot = rotDist(gen);
-    uint32_t sectorId = sectorPick(gen);
-    ecs::EntityId stationId =
-        entitySpawner->spawnStation(sectorId, ecs::Transform{pos, rot});
-
-    const char* partName1 = kStationParts[rand() % kStationPartsCount];
-    gobj::StationPartHandle partHandle1 =
-        modManager.getStationPartLib().getHandle(partName1);
-
-    gobj::StationPart* part1 =
-        modManager.getStationPartLib().getItem(partHandle1);
-    if (!part1)
-    {
         LG_E("Spawn test station: station part '{}' not in library;
 skip", partName1); continue;
-    }
-    ecs::EntityId partId =
-        entitySpawner->addFirstStationPart(stationId, partHandle1, rot);
-    if (partId == ecs::EntityId::Invalid())
-    {
-        continue;
-    }
-
-    for (int j = 0; j < part1->connectors.size(); j++)
-    {
-        const char* partName2 =
-            kStationParts2[rand() % kStationParts2Count];
-        gobj::StationPartHandle partHandle2 =
-            modManager.getStationPartLib().getHandle(partName2);
-        gobj::StationPart* part2 =
-            modManager.getStationPartLib().getItem(partHandle2);
-        if (!part2 || part2->connectors.empty())
+        }
+        ecs::EntityId partId =
+            entitySpawner->addFirstStationPart(stationId, partHandle1, rot);
+        if (partId == ecs::EntityId::Invalid())
         {
             continue;
         }
-        entitySpawner->addStationPart(stationId,
-                                      partId,
-                                      partHandle2,
-                                      j,
-                                      rand() %
-part2->connectors.size());
-    }
 
-    // ecs::EntityId partId2 =
-    //     addStationPart(stationId,
-    //                    partId,
-    // modManager.getStationPartLib().getHandle("strut-1"),
-    //                    0,
-    //                    0);
-    // ecs::EntityId partId3 =
-    //     addStationPart(stationId,
-    //                    partId,
-    // modManager.getStationPartLib().getHandle("strut-1"),
-    //                    1,
-    //                    1);
-    // ecs::EntityId partId4 =
-    //     addStationPart(stationId,
-    //                    partId3,
-    // modManager.getStationPartLib().getHandle("tank-1"),
-    //                    0,
-    //                    0);
-    // ecs::EntityId partId5 =
-    //     addStationPart(stationId,
-    //                    partId4,
-    // modManager.getStationPartLib().getHandle("strut-1"),
-    //                    1,
-    //                    0);
-}
-*/
-    for (int i = 0; i < 10; ++i)
+        for (int j = 0; j < part1->connectors.size(); j++)
+        {
+            const char* partName2 =
+                kStationParts2[rand() % kStationParts2Count];
+            gobj::StationPartHandle partHandle2 =
+                modManager.getStationPartLib().getHandle(partName2);
+            gobj::StationPart* part2 =
+                modManager.getStationPartLib().getItem(partHandle2);
+            if (!part2 || part2->connectors.empty())
+            {
+                continue;
+            }
+            entitySpawner->addStationPart(stationId,
+                                          partId,
+                                          partHandle2,
+                                          j,
+                                          rand() % part2->connectors.size());
+        }
+
+        // ecs::EntityId partId2 =
+        //     addStationPart(stationId,
+        //                    partId,
+        // modManager.getStationPartLib().getHandle("strut-1"),
+        //                    0,
+        //                    0);
+        // ecs::EntityId partId3 =
+        //     addStationPart(stationId,
+        //                    partId,
+        // modManager.getStationPartLib().getHandle("strut-1"),
+        //                    1,
+        //                    1);
+        // ecs::EntityId partId4 =
+        //     addStationPart(stationId,
+        //                    partId3,
+        // modManager.getStationPartLib().getHandle("tank-1"),
+        //                    0,
+        //                    0);
+        // ecs::EntityId partId5 =
+        //     addStationPart(stationId,
+        //                    partId4,
+        // modManager.getStationPartLib().getHandle("strut-1"),
+        //                    1,
+        //                    0);
+    }
+    */
+    for (int i = 0; i < 1000; ++i)
     {
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};
@@ -1754,55 +1700,6 @@ void Engine::handleThirdPersonControl(def::ClientInfo* clientInfo,
             }
         }
     }
-}
-
-void Engine::spawnProjectile(uint32_t sectorId,
-                             vec2 pos,
-                             vec2 vel,
-                             gobj::ProjectileHandle projectileHandle,
-                             const ecs::EntityId& exceptEntity,
-                             vec2 parVel)
-{
-    /*
-    ecs::EntityId ent = entitySpawner->spawnProjectile(
-        sectorId, pos, vel, projectileHandle, exceptEntity, parVel);
-    if (ecs.validId(ent))
-    {
-        broadcastEntityToClients(ent);
-    }
-    */
-}
-
-void Engine::spawnAsteroid(uint32_t sectorId,
-                           const ecs::Transform& transform,
-                           const gobj::AsteroidHandle& asteroidHandle,
-                           float rotVel)
-{
-    /*
-    ecs::EntityId ent = entitySpawner->spawnAsteroid(
-        sectorId, transform, asteroidHandle, rotVel);
-    if (ecs.validId(ent))
-    {
-        broadcastEntityToClients(ent);
-    }
-    */
-}
-
-void Engine::spawnItem(uint32_t sectorId,
-                       const ecs::Transform& transform,
-                       const gobj::ItemHandle& itemHandle,
-                       float quantity,
-                       vec2 initialVel,
-                       ecs::EntityId collexcept)
-{
-    /*
-    ecs::EntityId ent = entitySpawner->spawnItem(
-        sectorId, transform, itemHandle, quantity, initialVel, collexcept);
-    if (ecs.validId(ent))
-    {
-        broadcastEntityToClients(ent);
-    }
-    */
 }
 
 void Engine::loadCollisionMatrix()

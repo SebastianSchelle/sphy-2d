@@ -1,5 +1,6 @@
 #include "comp-tag.hpp"
 #include "entt/entity/fwd.hpp"
+#include "logging.hpp"
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
 #include <ptr-handle.hpp>
@@ -186,7 +187,7 @@ ecs::EntityId Sector::spawnObject(ecs::PtrHandle* ptrHandle,
             {
                 return false;
             }
-            objectInitBroadphase(ptrHandle, clbParams.entity);
+            //objectInitBroadphase(ptrHandle, clbParams.entity);
             return true;
         });
     return res;
@@ -237,8 +238,9 @@ void Sector::objectInitBroadphase(ecs::PtrHandle* ptrHandle,
         if (broadphase->proxyId <= ecs::Broadphase::INVALID_PROXY_ID)
         {
             broadphase->proxyId = aabbTree.createProxy(aabb, entity);
-            broadphase->fatAABB = aabb;
         }
+        moveAabbProxy(broadphase->proxyId, aabb);
+        broadphase->fatAABB = aabb;
     }
 }
 
@@ -284,8 +286,7 @@ void Sector::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
 {
     for (const auto& entityId : entitiesToDestroy)
     {
-        // todo: remove broadphase stuff and think about other stuff to delete
-        if(!sectorRegistry.destroyObject(entityId))
+        if(!sectorRegistry.destroyObject(ptrHandle, entityId))
         {
             LG_W("Could not destroy entityId {}", entityId.toGenericHandle32());
             continue;

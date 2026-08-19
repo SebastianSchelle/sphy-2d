@@ -2,6 +2,8 @@
 #include "comp-ident.hpp"
 #include "entt/entity/entity.hpp"
 #include "logging.hpp"
+#include "ptr-handle.hpp"
+#include <asset-factory.hpp>
 #include <registry-mapping.hpp>
 #include <sector.hpp>
 
@@ -42,7 +44,8 @@ EntityId SectorRegistry::spawnObject(const SpawnCallback& spwnClb)
     registry.emplace<ecs::Flags>(entity);
     if (spwnClb)
     {
-        SpawnCallbackParams params{registry, sector->getTaskSystem(), entity, entityId};
+        SpawnCallbackParams params{
+            registry, sector->getTaskSystem(), entity, entityId};
         bool res = spwnClb(params);
         if (!res)
         {
@@ -63,7 +66,7 @@ bool SectorRegistry::migrateEntity(EntityId entityId,
         return false;
     }
     entt::entity newEntity = registry.create();
-    
+
     // copy all components to this new entity
 
     // Update SectorId to reflect new sector
@@ -71,7 +74,8 @@ bool SectorRegistry::migrateEntity(EntityId entityId,
         newEntity, sector->getId(), sector->getCoordX(), sector->getCoordY());
 
     // Update slot in global registry map and delete old entity in last sector
-    if(!registryMapping->updateEntitySector(entityId, sector->getId(), newEntity))
+    if (!registryMapping->updateEntitySector(
+            entityId, sector->getId(), newEntity))
     {
         LG_E("Couldn't update entities sector in global registry mapping");
         lastRegistry->getRegistry()->destroy(slot->entity);
@@ -83,13 +87,23 @@ bool SectorRegistry::migrateEntity(EntityId entityId,
     return true;
 }
 
-bool SectorRegistry::destroyObject(EntityId entityId)
+bool SectorRegistry::destroyObject(ecs::PtrHandle* ptrHandle, EntityId entityId)
 {
     const EntMapSlot* slot = registryMapping->getEntity(entityId);
     if (!slot)
     {
         LG_W("Slot invalid. Could not destroy object {}", entityId);
         return false;
+    }
+
+    // Call destruction functions of all components
+    for (auto helper :
+         ptrHandle->assetFactory->componentFactory.getComponentHelpers())
+    {
+        if (helper.second.destroy)
+        {
+            helper.second.destroy(ptrHandle, &registry, slot->entity, sector);
+        }
     }
     registry.destroy(slot->entity);
 

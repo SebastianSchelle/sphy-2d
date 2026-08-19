@@ -104,23 +104,6 @@ class Engine
                             gobj::ItemHandle itemHandle,
                             ecs::EntityId collexcept);
 
-    void spawnProjectile(
-        uint32_t sectorId,
-        vec2 pos,
-        vec2 vel,
-        gobj::ProjectileHandle projectileHandle,
-        const ecs::EntityId& exceptEntity = ecs::EntityId::Invalid(),
-        vec2 parVel = vec2(0.0f, 0.0f));
-    void spawnAsteroid(uint32_t sectorId,
-                       const ecs::Transform& transform,
-                       const gobj::AsteroidHandle& asteroidHandle,
-                       float rotVel);
-    void spawnItem(uint32_t sectorId,
-                   const ecs::Transform& transform,
-                   const gobj::ItemHandle& itemHandle,
-                   float quantity,
-                   vec2 initialVel = vec2(0.0f, 0.0f),
-                   ecs::EntityId collexcept = ecs::EntityId::Invalid());
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
     template <class T> void registerSlowDumpComponent();

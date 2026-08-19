@@ -1,3 +1,4 @@
+#include "sector.hpp"
 #include <asset-factory.hpp>
 #include <comp-ai.hpp>
 #include <comp-gfx.hpp>
@@ -51,19 +52,12 @@ void ComponentFactory::registerAllComponents()
     registerComponent<ecs::Collider>();
 #ifdef SERVER
     registerComponent<ecs::Broadphase>(
-        [](ecs::PtrHandle* ptrHandle, entt::registry* reg, entt::entity entity)
+        [](ecs::PtrHandle* ptrHandle, entt::registry* reg, entt::entity entity, world::Sector* sector)
         {
             auto* broadphase = reg->try_get<ecs::Broadphase>(entity);
-            auto* sectorId = reg->try_get<ecs::SectorId>(entity);
-            if (broadphase && sectorId
-                && sectorId->id != world::INVALID_SECTOR_ID)
+            if (broadphase && sector)
             {
-                world::Sector* sector =
-                    ptrHandle->world->getSector(sectorId->id);
-                if (sector)
-                {
-                    sector->destroyBroadphaseProxy(broadphase);
-                }
+                sector->destroyBroadphaseProxy(broadphase);
             }
         });
 #else
@@ -80,17 +74,15 @@ void ComponentFactory::registerAllComponents()
     registerComponent<ecs::tag::mod::ManeuverThruster>();
 #ifdef SERVER
     registerComponent<ecs::Ai>(
-        [](ecs::PtrHandle* ptrHandle, entt::registry* reg, entt::entity entity)
+        [](ecs::PtrHandle* ptrHandle, entt::registry* reg, entt::entity entity, world::Sector* sector)
         {
             auto* ai = reg->try_get<ecs::Ai>(entity);
             if (ai && ai::TaskStackHandle(ai->stackHandle).isValid())
             {
-                auto* sector = reg->try_get<ecs::SectorId>(entity);
                 ai::TaskSystem* taskSystem = ptrHandle->taskSystem;
-                if (sector && sector->id != world::INVALID_SECTOR_ID)
+                if (sector)
                 {
-                    taskSystem = &ptrHandle->world->getSector(sector->id)
-                                      ->getTaskSystem();
+                    taskSystem = &sector->getTaskSystem();
                 }
                 auto stackHandle = ai::TaskStackHandle(ai->stackHandle);
                 if (stackHandle.isValid())

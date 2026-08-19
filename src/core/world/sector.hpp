@@ -97,6 +97,7 @@ class Sector
     {
         return active;
     }
+    void objectInitBroadphase(ecs::PtrHandle* ptrHandle, entt::entity entity);
 #ifdef SERVER
     ecs::SectorRegistry* getRegistry()
     {
@@ -129,7 +130,6 @@ class Sector
     vector<ecs::ContactInfo> contactInfos;
 
   private:
-    void objectInitBroadphase(ecs::PtrHandle* ptrHandle, entt::entity entity);
 
     int32_t coordX;        // Sector coord X
     int32_t coordY;        // Sector coord Y

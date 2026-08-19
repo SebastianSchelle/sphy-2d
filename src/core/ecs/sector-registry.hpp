@@ -3,6 +3,7 @@
 
 #include "entt/entity/fwd.hpp"
 #include "entt/entt.hpp"
+#include "ptr-handle.hpp"
 #include "registry-mapping.hpp"
 #include "task-system.hpp"
 #include <comp-ident.hpp>
@@ -26,8 +27,7 @@ struct SpawnCallbackParams
     ecs::EntityId entityId;
 };
 
-typedef std::function<bool(SpawnCallbackParams& params)>
-    SpawnCallback;
+typedef std::function<bool(SpawnCallbackParams& params)> SpawnCallback;
 
 class SectorRegistry
 {
@@ -39,7 +39,7 @@ class SectorRegistry
                        const EntMapSlot* slot,
                        SectorRegistry* lastRegistry);
     EntityId spawnObject(const SpawnCallback& spwnClb);
-    bool destroyObject(EntityId entityId);
+    bool destroyObject(ecs::PtrHandle* ptrHandle, EntityId entityId);
 
     entt::registry* getRegistry()
     {
