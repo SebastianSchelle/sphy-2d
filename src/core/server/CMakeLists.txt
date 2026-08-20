@@ -32,6 +32,7 @@ set(LIBS_PUB
     sphy_misc_runtime
     sphy_misc_ai
     sphy_core_game_objects_objb
+    sphy_core_projectile
 )
 
 set(LIBS_PRIV

@@ -13,6 +13,12 @@ template <class T> struct FreeVecItemWrapper
     uint16_t generation;
 };
 
+enum class FreeVecForeachRet
+{
+    OK,
+    DESTROY,
+};
+
 template <class T> class FreeVec
 {
   public:
@@ -39,7 +45,10 @@ template <class T> class FreeVec
             : idx(idx), generation(generation)
         {
         }
-        Handle(uint64_t value) : idx(value & 0xffffffff), generation(value >> 32) {}
+        Handle(uint64_t value)
+            : idx(value & 0xffffffff), generation(value >> 32)
+        {
+        }
         uint64_t value() const
         {
             return ((uint64_t)generation << 32) | (uint64_t)idx;
@@ -75,6 +84,7 @@ template <class T> class FreeVec
     Handle addItem(const T& item);
     void removeItem(int idx);
     void removeItem(Handle handle);
+    void foreach (std::function<FreeVecForeachRet(T&)> clb);
 
     T* getItem(int idx, bool getCorpse = false);
     T* getItem(Handle handle, bool getCorpse = false);
@@ -137,10 +147,9 @@ template <class T> FreeVec<T>::Handle FreeVec<T>::addItem(const T& item)
     return Handle(idx, items[idx].generation);
 }
 
-template <class T>
-FreeVec<T>::Handle FreeVec<T>::firstAliveHandle() const
+template <class T> FreeVec<T>::Handle FreeVec<T>::firstAliveHandle() const
 {
-    for (int i = 0; i < items.size(); i++)
+    for (int i = 0; i < items.size(); ++i)
     {
         if (items[i].alive)
         {
@@ -148,6 +157,27 @@ FreeVec<T>::Handle FreeVec<T>::firstAliveHandle() const
         }
     }
     return Handle::Invalid();
+}
+
+template <class T>
+void FreeVec<T>::foreach (std::function<FreeVecForeachRet(T&)> clb)
+{
+    for (int i = 0; i < items.size(); ++i)
+    {
+        auto& item = items[i];
+        if (item.alive)
+        {
+            auto ret = clb(item.item);
+            switch (ret)
+            {
+                case FreeVecForeachRet::DESTROY:
+                    removeItem(i);
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
 }
 
 template <class T> FreeVecItemWrapper<T>* FreeVec<T>::getWrappedItem(int idx)

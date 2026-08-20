@@ -1,6 +1,7 @@
 #ifndef MODEL_HPP
 #define MODEL_HPP
 
+#include "proj-client.hpp"
 #include "sector.hpp"
 #include <client-def.hpp>
 #include <client-registry.hpp>
@@ -224,6 +225,7 @@ class Model
     tim::Timepoint lastTSync;
     def::ClientInfo clientInfo;
     ecs::ClientRegistry clientRegistry;
+    specsys::Projectiles projectiles;
 
     std::function<void(void)> afterLoadWorldClb;
     std::vector<ecs::EntityId> selectedEntities;

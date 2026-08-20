@@ -56,6 +56,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->modManager = &modManager;
     ptrHandle->frameCnt = 0;
     ptrHandle->collisionLayerMat = &collisionLayerMat;
+    ptrHandle->projPool = &projectilePool;
     ptrHandle->kpThrust =
         CFG_FLOAT(config, 25.0f, "engine", "physics", "kp-thrust");
     ptrHandle->kpTurn =

@@ -23,6 +23,7 @@ template <class T> class ItemLib
         {
             return Handle(0, 0);
         }
+        Handle() : idx(0), generation(0) {}
         Handle(GenericHandle genericHandle)
             : idx(genericHandle.idx), generation(genericHandle.gen)
         {

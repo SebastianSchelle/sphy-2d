@@ -30,6 +30,7 @@
 #include <task-system.hpp>
 #include <work-distributor.hpp>
 #include <world.hpp>
+#include <projectile.hpp>
 
 namespace ecs
 {
@@ -180,6 +181,7 @@ class Engine
     vector<entt::entity> globalEntities;
     ecs::PtrHandle* ptrHandle;
     cmd::CommandManager commandManager;
+    specsys::ProjectilePool projectilePool;
 
     uint32_t slowDumpUs;
     uint32_t activeSectorDumpUs;
