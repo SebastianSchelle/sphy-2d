@@ -831,7 +831,8 @@ void Model::drawProjectiles(gfx::RenderEngine& renderer,
     //             ecs::Projectile& projectile,
     //             ecs::Textures& textures)
     //         {
-    //             bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
+    //             bool sectorFilter = activeSectorId ==
+    //             world::INVALID_SECTOR_ID
     //                                 || sectorId.id == activeSectorId;
     //             if (sectorFilter)
     //             {
@@ -856,18 +857,16 @@ void Model::drawProjectiles(gfx::RenderEngine& renderer,
         {
             if (smath::pointInsideRect(proj.posNext.pos, viewRect))
             {
-                // renderer.drawEllipse(
-                //     proj.posNext.pos, vec2(1.0f, 4.0f), 0xffffffff, 1.0f);
-
-                    auto projectile = modManager->getProjectileLib().getItem(proj.proj);
-                    if (projectile)
-                    {
-                        drawTextures(renderer,
-                                     projectile->textures,
-                                     proj.rot,
-                                     gfx::RenderEngine::zIdxProjectile,
-                                     proj.posNext.pos);
-                    }
+                auto projectile =
+                    modManager->getProjectileLib().getItem(proj.proj);
+                if (projectile)
+                {
+                    drawTextures(renderer,
+                                 projectile->textures,
+                                 proj.rot,
+                                 gfx::RenderEngine::zIdxProjectile,
+                                 proj.posNext.pos);
+                }
             }
         });
 }
