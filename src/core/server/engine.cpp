@@ -1,12 +1,17 @@
 #include "bitsery/serializer.h"
+#include "client-def.hpp"
 #include "comp-ai.hpp"
 #include "ecs.hpp"
 #include "entt/entity/fwd.hpp"
+#include "free-vector.hpp"
+#include "lib-projectile.hpp"
 #include "lib-station-part.hpp"
 #include "logging.hpp"
+#include "projectile.hpp"
 #include "sector-registry.hpp"
 #include "sector.hpp"
 #include "std-inc.hpp"
+#include "sys-specsys.hpp"
 #include "task-basic.hpp"
 #include "task-system.hpp"
 #include <comp-gfx.hpp>
@@ -16,6 +21,7 @@
 #include <comp-tag.hpp>
 #include <comp-turret.hpp>
 #include <engine-impl.hpp>
+#include <iterator>
 #include <net-shared.hpp>
 #include <objb-asteroid.hpp>
 #include <objb-item.hpp>
@@ -56,7 +62,6 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->modManager = &modManager;
     ptrHandle->frameCnt = 0;
     ptrHandle->collisionLayerMat = &collisionLayerMat;
-    ptrHandle->projPool = &projectilePool;
     ptrHandle->kpThrust =
         CFG_FLOAT(config, 25.0f, "engine", "physics", "kp-thrust");
     ptrHandle->kpTurn =
@@ -102,10 +107,11 @@ void Engine::start()
     systems.registerSystem(ecs::sysMoveCtrl, 1);
     systems.registerSystem(ecs::sysPhyThrust, 2);
     systems.registerSystem(ecs::sysPhysics, 3);
-    systems.registerSystem(ecs::sysCollisionDetection, 4);
-    systems.registerSystem(ecs::sysAnchorFixed, 5);
-    systems.registerSystem(ecs::sysAi, 6);
-    systems.registerSystem(ecs::sysTurret, 7);
+    systems.registerSystem(ecs::sysProjPhysics, 4);
+    systems.registerSystem(ecs::sysCollisionDetection, 5);
+    systems.registerSystem(ecs::sysAnchorFixed, 6);
+    systems.registerSystem(ecs::sysAi, 7);
+    systems.registerSystem(ecs::sysTurret, 8);
 
     loadCollisionMatrix();
     registerConsoleCommands();
@@ -1065,8 +1071,47 @@ void Engine::runActiveSectorDump(long frameTime)
                             &clientInfo->clientInfo, sectorId, ptrHandle);
                     }
                 }
+                sendProjectileInfo(clientInfo);
             });
     }
+}
+
+void Engine::sendProjectileInfo(def::ClientInfo* client)
+{
+    prot::MsgComposer mcomp(net::SendType::UDP, client->clientInfo.udpEndpoint);
+    mcomp.startCommand(prot::cmd::SEND_PROJ_BEGIN, 0);
+    mcomp.execute(sendQueue);
+
+    auto sector = world.getSector(client->currentSector);
+    if (sector)
+    {
+        mcomp.resetData();
+        mcomp.startCommand(prot::cmd::SEND_PROJ_DATA, 0);
+        sector->foreachProj(
+            [client, &mcomp, this](specsys::Projectile& proj,
+                                   specsys::ProjectileHandle handle)
+            {
+                mcomp.ser->object(handle.toGenericHandle());
+                mcomp.ser->object(proj.transform);
+                mcomp.ser->object(proj.proj.toGenericHandle());
+                if (mcomp.ser->adapter().currentWritePos() + 6 + 16
+                    > prot::kMaxSerializedChunkBytes)
+                {
+                    mcomp.execute(sendQueue);
+                    mcomp.resetData();
+                    mcomp.startCommand(prot::cmd::SEND_PROJ_DATA, 0);
+                }
+                return con::FreeVecForeachRet::OK;
+            });
+        if (mcomp.ser->adapter().currentWritePos() > 0)
+        {
+            mcomp.execute(sendQueue);
+        }
+    }
+
+    mcomp.resetData();
+    mcomp.startCommand(prot::cmd::SEND_PROJ_END, 0);
+    mcomp.execute(sendQueue);
 }
 
 void Engine::handleTcpDisconnect(net::TcpConnection* conn,
@@ -1380,7 +1425,7 @@ void Engine::testSpawn()
          {17, modManager.getModuleLib().getHandle("Breeze Maneuver")},
          {18, modManager.getModuleLib().getHandle("Breeze Maneuver")}});
 
-    for (int i = 0; i < 1000; ++i)
+    for (int i = 0; i < 1; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1411,9 +1456,9 @@ void Engine::testSpawn()
         else
         {
             caterpillar.spawn({.ptrHandle = ptrHandle,
-                .sector = sector,
-                .pos = pos,
-                .rot = rot});
+                               .sector = sector,
+                               .pos = pos,
+                               .rot = rot});
         }
     }
     /*
@@ -1468,7 +1513,8 @@ skip", partName1); continue;
                                           partId,
                                           partHandle2,
                                           j,
-                                          rand() % part2->connectors.size());
+                                          rand() %
+part2->connectors.size());
         }
 
         // ecs::EntityId partId2 =
@@ -1569,6 +1615,7 @@ void Engine::markPlayerSectors()
                     reg->try_get<ecs::Transform>(slot->entity);
                 if (sectorId && transform)
                 {
+                    clientInfo->currentSector = sectorId->id;
                     clientInfo->addActiveSector(sectorId->id);
                     // todo: what threshold for neighboring sectors?
                     def::SectorPos neighbor;

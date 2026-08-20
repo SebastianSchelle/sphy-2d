@@ -84,7 +84,7 @@ template <class T> class FreeVec
     Handle addItem(const T& item);
     void removeItem(int idx);
     void removeItem(Handle handle);
-    void foreach (std::function<FreeVecForeachRet(T&)> clb);
+    void foreach (std::function<FreeVecForeachRet(T&, Handle)> clb);
 
     T* getItem(int idx, bool getCorpse = false);
     T* getItem(Handle handle, bool getCorpse = false);
@@ -160,14 +160,14 @@ template <class T> FreeVec<T>::Handle FreeVec<T>::firstAliveHandle() const
 }
 
 template <class T>
-void FreeVec<T>::foreach (std::function<FreeVecForeachRet(T&)> clb)
+void FreeVec<T>::foreach (std::function<FreeVecForeachRet(T&, Handle)> clb)
 {
-    for (int i = 0; i < items.size(); ++i)
+    for (uint32_t i = 0; i < items.size(); ++i)
     {
         auto& item = items[i];
         if (item.alive)
         {
-            auto ret = clb(item.item);
+            auto ret = clb(item.item, Handle{i, item.generation});
             switch (ret)
             {
                 case FreeVecForeachRet::DESTROY:

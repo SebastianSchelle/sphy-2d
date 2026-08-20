@@ -21,11 +21,13 @@ struct ProjClient
     bool hasPrev;
     TimedPos posPrev;
     TimedPos posNext;
+    float rot;
     gobj::ProjectileHandle proj;
 };
 using ProjHandleClient = typename con::FreeVec<ProjClient>::Handle;
 
-// todo: make this generalised so several systems can be exchanged e.g. missiles/projectiles/...
+// todo: make this generalised so several systems can be exchanged e.g.
+// missiles/projectiles/...
 class Projectiles
 {
   public:
@@ -33,11 +35,12 @@ class Projectiles
     ~Projectiles() {}
     void markInactive();
     void deleteInactive();
-    void updateProjectile(uint32_t idx,
-                          uint16_t gen,
+    void updateProjectile(const GenericHandle32& handle,
                           gobj::ProjectileHandle proj,
-                          tim::Timepoint t,
-                          vec2 pos);
+                          //tim::Timepoint t,
+                          vec2 pos,
+                          float rot);
+    void foreach(std::function<void(ProjClient& proj)> clb);
 
   private:
     unordered_map<uint32_t, ProjClient> projectiles;

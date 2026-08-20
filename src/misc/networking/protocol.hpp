@@ -128,6 +128,9 @@ const uint16_t CLIENT_INFO = 0x0010;
 const uint16_t TOTAL_NUM_ENTITIES = 0x0011;
 const uint16_t DESTROY_ENTITY = 0x0012;
 const uint16_t ACK_WORKSEQUENCER = 0x0013;
+const uint16_t SEND_PROJ_BEGIN = 0x0014;
+const uint16_t SEND_PROJ_DATA = 0x0015;
+const uint16_t SEND_PROJ_END = 0x0016;
 
 }  // namespace cmd
 

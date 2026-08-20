@@ -11,6 +11,7 @@
 #include <unordered_set>
 #ifdef SERVER
 #include "registry-mapping.hpp"
+#include <projectile.hpp>
 #include <sector-registry.hpp>
 #include <task-system.hpp>
 #endif
@@ -68,6 +69,10 @@ class Sector
     void markPlayerSector(bool player);
     void update(float dt, ecs::PtrHandle* ptrHandle);
     bool saveSector(const std::string& savedir);
+    void foreachProj(
+        std::function<con::FreeVecForeachRet(specsys::Projectile&,
+                                             specsys::ProjectileHandle handle)>
+            clb);
 #endif
     const float getWorldPosX() const
     {
@@ -107,6 +112,11 @@ class Sector
     {
         return taskSystem;
     }
+    void spawnProjectile(gobj::ProjectileHandle proj,
+                         vec2 vel,
+                         const ecs::Transform& tr,
+                         float lifetime,
+                         ecs::EntityId collExcept = ecs::EntityId::Invalid());
 #endif
     inline void addBroadphaseQueryEntity(entt::entity entity)
     {
@@ -130,7 +140,6 @@ class Sector
     vector<ecs::ContactInfo> contactInfos;
 
   private:
-
     int32_t coordX;        // Sector coord X
     int32_t coordY;        // Sector coord Y
     float sectorSize;      // Sector size
@@ -145,6 +154,7 @@ class Sector
     vector<ecs::EntityId> entitiesToDestroy;
     vector<SingleThreadedTaskFunction> singleThreadedTasks;
     vector<SectorMoveRequest> sectorMoveRequests;
+    specsys::ProjectilePool projectilePool;
 #endif
     con::DynamicAABBTree<entt::entity> aabbTree;
     bool active = false;

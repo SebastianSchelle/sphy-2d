@@ -3,15 +3,15 @@
 
 #include "proj-client.hpp"
 #include "sector.hpp"
+#include <RmlUi/Core/DataModelHandle.h>
+#include <asset-factory.hpp>
 #include <client-def.hpp>
 #include <client-registry.hpp>
-#include <asset-factory.hpp>
+#include <control-def.hpp>
 #include <exchange-sequence.hpp>
 #include <net-shared.hpp>
 #include <std-inc.hpp>
 #include <world.hpp>
-#include <control-def.hpp>
-#include <RmlUi/Core/DataModelHandle.h>
 
 namespace ecs
 {
@@ -165,6 +165,8 @@ class Model
                                     size_t dataEndPos);
     void handleDestroyEntity(bitsery::Deserializer<InputAdapter>& cmddes,
                              size_t dataEndPos);
+    void handleSendProjData(bitsery::Deserializer<InputAdapter>& cmddes,
+                            size_t dataEndPos);
     void notifyReady();
     void handleGetAabbTreeResp(bitsery::Deserializer<InputAdapter>& cmddes,
                                size_t dataEndPos);
@@ -173,17 +175,25 @@ class Model
     void drawOverlayAABBs(gfx::RenderEngine& renderer, float zoom);
     void drawObjects(gfx::RenderEngine& renderer,
                      const glm::vec4& viewRect,
-                     float zoom, uint32_t activeSectorId = world::INVALID_SECTOR_ID);
+                     float zoom,
+                     uint32_t activeSectorId = world::INVALID_SECTOR_ID);
     void drawShips(gfx::RenderEngine& renderer,
                    const glm::vec4& viewRect,
-                   float zoom, uint32_t activeSectorId = world::INVALID_SECTOR_ID);
+                   float zoom,
+                   uint32_t activeSectorId = world::INVALID_SECTOR_ID);
     void drawStations(gfx::RenderEngine& renderer,
                       const glm::vec4& viewRect,
-                      float zoom, uint32_t activeSectorId = world::INVALID_SECTOR_ID);
+                      float zoom,
+                      uint32_t activeSectorId = world::INVALID_SECTOR_ID);
     void drawTextures(gfx::RenderEngine& renderer,
                       const ecs::Textures& textures,
                       float rot,
                       const int8_t zIndex,
+                      const glm::vec2& worldPos);
+    void drawTextures(gfx::RenderEngine& renderer,
+                      gobj::TexturesHandle texHandle,
+                      float rot,
+                      const int8_t parentZ,
                       const glm::vec2& worldPos);
     void drawModuleTextures(gfx::RenderEngine& renderer,
                             const ecs::Transform& parentTransform,

@@ -30,7 +30,6 @@
 #include <task-system.hpp>
 #include <work-distributor.hpp>
 #include <world.hpp>
-#include <projectile.hpp>
 
 namespace ecs
 {
@@ -140,6 +139,7 @@ class Engine
     void registerConsoleCommands();
     void runSlowClientDump(long frameTime);
     void runActiveSectorDump(long frameTime);
+    void sendProjectileInfo(def::ClientInfo* client);
     void runConnectedClientWorkSequencers();
     void handleTcpDisconnect(net::TcpConnection* conn,
                              def::ClientInfoHandle disconnectedHandle);
@@ -181,7 +181,6 @@ class Engine
     vector<entt::entity> globalEntities;
     ecs::PtrHandle* ptrHandle;
     cmd::CommandManager commandManager;
-    specsys::ProjectilePool projectilePool;
 
     uint32_t slowDumpUs;
     uint32_t activeSectorDumpUs;

@@ -5,6 +5,7 @@ target_sources(sphy_core_ecs_systems INTERFACE
     sys-phy.cpp
     sys-turret.cpp
     sys-lifetime.cpp
+    sys-specsys.cpp
 )
 
 target_include_directories(sphy_core_ecs_systems

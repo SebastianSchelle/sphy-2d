@@ -9,10 +9,6 @@ namespace sphys
 {
 class Engine;
 }
-namespace specsys
-{
-class ProjectilePool;
-}
 namespace ai
 {
 class TaskSystem;
@@ -82,7 +78,6 @@ struct PtrHandle
     ai::TaskSystem* taskSystem;
     ecs::CollisionLayerMat* collisionLayerMat;
     ecs::AssetFactory* assetFactory;
-    specsys::ProjectilePool* projPool;
 #elif CLIENT
     sphyc::Client* client;
 #endif

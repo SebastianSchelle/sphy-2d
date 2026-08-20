@@ -1,5 +1,6 @@
 #include "comp-phy.hpp"
 #include "lib-modules.hpp"
+#include "lib-projectile.hpp"
 #include "lib-textures.hpp"
 #include "logging.hpp"
 #include "std-inc.hpp"
@@ -26,7 +27,8 @@ Model::Model(ui::UserInterface* userInterface,
              gfx::RenderEngine* renderer,
              std::function<void(void)> afterLoadWorldClb)
     : userInterface(userInterface), config(config), modManager(modManager),
-      renderer(renderer), afterLoadWorldClb(afterLoadWorldClb), clientRegistry(sendQueue)
+      renderer(renderer), afterLoadWorldClb(afterLoadWorldClb),
+      clientRegistry(sendQueue)
 {
     lastTSync = tim::getCurrentTimeU();
 
@@ -516,6 +518,15 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             }
             break;
         }
+        case prot::cmd::SEND_PROJ_BEGIN:
+            projectiles.markInactive();
+            break;
+        case prot::cmd::SEND_PROJ_END:
+            projectiles.deleteInactive();
+            break;
+        case prot::cmd::SEND_PROJ_DATA:
+            handleSendProjData(cmddes, dataEndPos);
+            break;
         default:
             break;
     }
@@ -811,34 +822,54 @@ void Model::drawProjectiles(gfx::RenderEngine& renderer,
                             float zoom,
                             uint32_t activeSectorId)
 {
-    auto& reg = clientRegistry.getRegistry();
-    reg.view<ecs::Transform, ecs::SectorId, ecs::Projectile, ecs::Textures>()
-        .each(
-            [this, &renderer, &viewRect, &reg, activeSectorId](
-                ecs::Transform& transform,
-                ecs::SectorId& sectorId,
-                ecs::Projectile& projectile,
-                ecs::Textures& textures)
+    // auto& reg = clientRegistry.getRegistry();
+    // reg.view<ecs::Transform, ecs::SectorId, ecs::Projectile, ecs::Textures>()
+    //     .each(
+    //         [this, &renderer, &viewRect, &reg, activeSectorId](
+    //             ecs::Transform& transform,
+    //             ecs::SectorId& sectorId,
+    //             ecs::Projectile& projectile,
+    //             ecs::Textures& textures)
+    //         {
+    //             bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
+    //                                 || sectorId.id == activeSectorId;
+    //             if (sectorFilter)
+    //             {
+    //                 glm::vec2 worldPos = world.getWorldPosSectorOffset(
+    //                                          sectorId.id,
+    //                                          renderer.getSectorOffsetX(),
+    //                                          renderer.getSectorOffsetY())
+    //                                      + transform.pos;
+    //                 if (smath::pointInsideRect(worldPos, viewRect))
+    //                 {
+    //                     drawTextures(renderer,
+    //                                  textures,
+    //                                  transform.rot,
+    //                                  gfx::RenderEngine::zIdxProjectile,
+    //                                  worldPos);
+    //                 }
+    //             }
+    //         });
+
+    projectiles.foreach (
+        [&renderer, &viewRect, this](specsys::ProjClient& proj)
+        {
+            if (smath::pointInsideRect(proj.posNext.pos, viewRect))
             {
-                bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
-                                    || sectorId.id == activeSectorId;
-                if (sectorFilter)
-                {
-                    glm::vec2 worldPos = world.getWorldPosSectorOffset(
-                                             sectorId.id,
-                                             renderer.getSectorOffsetX(),
-                                             renderer.getSectorOffsetY())
-                                         + transform.pos;
-                    if (smath::pointInsideRect(worldPos, viewRect))
+                // renderer.drawEllipse(
+                //     proj.posNext.pos, vec2(1.0f, 4.0f), 0xffffffff, 1.0f);
+
+                    auto projectile = modManager->getProjectileLib().getItem(proj.proj);
+                    if (projectile)
                     {
                         drawTextures(renderer,
-                                     textures,
-                                     transform.rot,
+                                     projectile->textures,
+                                     proj.rot,
                                      gfx::RenderEngine::zIdxProjectile,
-                                     worldPos);
+                                     proj.posNext.pos);
                     }
-                }
-            });
+            }
+        });
 }
 
 void Model::drawAsteroids(gfx::RenderEngine& renderer,
@@ -934,7 +965,8 @@ void Model::drawStationTextures(gfx::RenderEngine& renderer,
     auto& reg = clientRegistry.getRegistry();
     for (auto& stationPartRef : station.stationParts)
     {
-        game_entity stationPartEntity = clientRegistry.getEntity(stationPartRef.entityId);
+        game_entity stationPartEntity =
+            clientRegistry.getEntity(stationPartRef.entityId);
         if (stationPartEntity != entt::null)
         {
             auto* stationPartTextures =
@@ -1018,8 +1050,16 @@ void Model::drawTextures(gfx::RenderEngine& renderer,
                          const int8_t parentZ,
                          const glm::vec2& worldPos)
 {
-    auto* texturesItem = modManager->getTexturesLib().getItem(
-        gobj::TexturesHandle(textures.texturesHandle));
+    drawTextures(renderer, textures.texturesHandle, rot, parentZ, worldPos);
+}
+
+void Model::drawTextures(gfx::RenderEngine& renderer,
+                         gobj::TexturesHandle texHandle,
+                         float rot,
+                         const int8_t parentZ,
+                         const glm::vec2& worldPos)
+{
+    auto* texturesItem = modManager->getTexturesLib().getItem(texHandle);
     if (texturesItem)
     {
         for (const auto& texture : texturesItem->textures)
@@ -1156,7 +1196,8 @@ void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
                 {
                     ecs::EntityId entityId;
                     cmddes.object(entityId);
-                    game_entity entity = clientRegistry.enttFromServerId(entityId);
+                    game_entity entity =
+                        clientRegistry.enttFromServerId(entityId);
                     if (entity == entt::null)
                     {
                         continue;
@@ -1544,6 +1585,24 @@ void Model::handleDestroyEntity(bitsery::Deserializer<InputAdapter>& cmddes,
     ecs::EntityId entityId;
     cmddes.object(entityId);
     clientRegistry.destroyServerEntity(entityId);
+}
+
+void Model::handleSendProjData(bitsery::Deserializer<InputAdapter>& cmddes,
+                               size_t dataEndPos)
+{
+    int i = 0;
+    while ((int)cmddes.adapter().currentReadPos()
+           <= (int)(dataEndPos) - (6 + 16))
+    {
+        GenericHandle32 handle;
+        ecs::Transform tr;
+        GenericHandle proj;
+        cmddes.object(handle);
+        cmddes.object(tr);
+        cmddes.object(proj);
+        projectiles.updateProjectile(
+            handle, gobj::ProjectileHandle(proj), tr.pos, tr.rot);
+    }
 }
 
 }  // namespace sphyc

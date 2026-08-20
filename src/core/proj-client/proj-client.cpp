@@ -1,4 +1,4 @@
-#include "lib-projectile.hpp"
+#include "std-inc.hpp"
 #include <boost/date_time/posix_time/ptime.hpp>
 #include <proj-client.hpp>
 
@@ -28,42 +28,54 @@ void Projectiles::deleteInactive()
     }
 }
 
-void Projectiles::updateProjectile(uint32_t idx,
-                                   uint16_t gen,
+void Projectiles::updateProjectile(const GenericHandle32& handle,
                                    gobj::ProjectileHandle proj,
-                                   tim::Timepoint t,
-                                   vec2 pos)
+                                   // tim::Timepoint t,
+                                   vec2 pos,
+                                   float rot)
 {
-    auto it = projectiles.find(idx);
+    auto it = projectiles.find(handle.idx);
     if (it != projectiles.end())
     {
         auto& item = it->second;
         item.active = true;
-        if (item.generation == gen)
+        if (item.generation == handle.gen)
         {
             item.hasPrev = false;
             item.posPrev = item.posNext;
-            item.posNext = {.t = t, .pos = pos };
+            item.posNext = {.pos = pos};
+            // LG_D("Proj moved to {}", item.posNext.pos);
         }
         else
         {
             // New projectile on previously occupied slot
-            item.generation = gen;
+            item.generation = handle.gen;
             item.hasPrev = false;
             item.posPrev = item.posNext;
-            item.posNext = {.t = t, .pos = pos };
+            item.posNext = {.pos = pos};
             item.proj = proj;
+            item.rot = rot;
         }
     }
     else
     {
-        projectiles[idx] = ProjClient{
-            .generation = gen,
-            .active = true,
-            .hasPrev = false,
-            .posNext = {.t=t, .pos=pos},
-            .proj = proj
-        };
+        projectiles[handle.idx] = ProjClient{.generation = handle.gen,
+                                             .active = true,
+                                             .hasPrev = false,
+                                             .posNext = {.pos = pos},
+                                             .rot = rot,
+                                             .proj = proj};
+    }
+}
+
+void Projectiles::foreach (std::function<void(ProjClient& proj)> clb)
+{
+    for (auto& item : projectiles)
+    {
+        if (item.second.active)
+        {
+            clb(item.second);
+        }
     }
 }
 

@@ -102,6 +102,22 @@ vec2 Sector::getWorldPosSectorOffset(int32_t sectorOffsetX,
 
 #ifdef SERVER
 
+void Sector::spawnProjectile(gobj::ProjectileHandle proj,
+                             vec2 vel,
+                             const ecs::Transform& tr,
+                             float lifetime,
+                             ecs::EntityId collExcept)
+{
+    projectilePool.spawnProjectile(proj, vel, tr, lifetime, collExcept);
+}
+
+void Sector::foreachProj(
+    std::function<con::FreeVecForeachRet(specsys::Projectile&,
+                                         specsys::ProjectileHandle handle)> clb)
+{
+    projectilePool.foreach (clb);
+}
+
 void Sector::moveAabbProxy(int32_t proxyId, con::AABB& newAabb)
 {
     if (proxyId <= ecs::Broadphase::INVALID_PROXY_ID)
@@ -187,7 +203,7 @@ ecs::EntityId Sector::spawnObject(ecs::PtrHandle* ptrHandle,
             {
                 return false;
             }
-            //objectInitBroadphase(ptrHandle, clbParams.entity);
+            // objectInitBroadphase(ptrHandle, clbParams.entity);
             return true;
         });
     return res;
@@ -260,7 +276,7 @@ void Sector::markEntityForDestruction(ecs::PtrHandle* ptrHandle,
 {
     auto reg = sectorRegistry.getRegistry();
     auto slot = ptrHandle->registryMapping->getEntity(entityId);
-    if(!slot || slot->sectorId != id)
+    if (!slot || slot->sectorId != id)
     {
         return;
     }
@@ -286,7 +302,7 @@ void Sector::destroyMarkedEntities(ecs::PtrHandle* ptrHandle)
 {
     for (const auto& entityId : entitiesToDestroy)
     {
-        if(!sectorRegistry.destroyObject(ptrHandle, entityId))
+        if (!sectorRegistry.destroyObject(ptrHandle, entityId))
         {
             LG_W("Could not destroy entityId {}", entityId.toGenericHandle32());
             continue;

@@ -83,6 +83,7 @@ class ClientInfo
 #endif
 
     ecs::EntityId activeEntity;
+    uint32_t currentSector = 0;
     uint8_t flags;
     std::string name;
 

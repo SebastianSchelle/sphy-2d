@@ -12,34 +12,35 @@ namespace specsys
 
 struct Projectile
 {
-  public:
-    Projectile(gobj::ProjectileHandle proj,
-               vec2 vel,
-               const ecs::Transform& tr,
-               const ecs::EntityId collExc = ecs::EntityId::Invalid())
-        : vel(vel), transform(tr), collExcept(collExc), proj(proj)
-    {
-    }
-    ~Projectile(){}
-
     ecs::Transform transform;
     ecs::EntityId collExcept;
     gobj::ProjectileHandle proj;
     vec2 vel;
+    float lifetimeMax;
+    float lifetime = 0.0f;
 };
 using ProjectileHandle = typename con::FreeVec<Projectile>::Handle;
 
+#define SER_PROJECTILE_2                                                       \
+    SOBJ(o.transform);                                                         \
+    SOBJ(o.proj.toGenericHandle());
+
+EXT_SER(Projectile, SER_PROJECTILE_2)
 
 class ProjectilePool
 {
   public:
-    ProjectilePool(){}
-    ~ProjectilePool(){}
+    ProjectilePool() {}
+    ~ProjectilePool() {}
     ProjectileHandle spawnProjectile(gobj::ProjectileHandle proj,
                                      vec2 vel,
-                                     const ecs::Transform& tr);
+                                     const ecs::Transform& tr,
+                                     float lifetime,
+                                     ecs::EntityId collExcept = ecs::EntityId::Invalid());
     void destroyProjectile(ProjectileHandle handle);
-    void foreach (std::function<con::FreeVecForeachRet(Projectile&)> clb);
+    void foreach (
+        std::function<con::FreeVecForeachRet(Projectile&,
+                                             ProjectileHandle handle)> clb);
 
   private:
     con::FreeVec<Projectile> pool;

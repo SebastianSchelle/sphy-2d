@@ -1,4 +1,5 @@
 #include "sys-turret.hpp"
+#include "comp-phy.hpp"
 #include "logging.hpp"
 #include "objb-recipes.hpp"
 #ifdef SERVER
@@ -80,9 +81,10 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                             turret.fireMode = Turret::FireMode::None;
                             return;
                         }
-                        auto* trTgt = sector->getRegistry()
-                                          ->getRegistry()
-                                          ->try_get<ecs::Transform>(slot->entity);
+                        auto* trTgt =
+                            sector->getRegistry()
+                                ->getRegistry()
+                                ->try_get<ecs::Transform>(slot->entity);
                         if (trTgt)
                         {
                             const vec2 tgtPos = trTgt->pos;
@@ -156,6 +158,16 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                                  .vel = parVel},
                                 s,
                                 c);
+
+                            const vec2 fireDir =
+                                smath::rotateVec2(vec2(0.0f, 1.0f), s, c);
+                            vec2 fireVel = fireDir * 100.0f;
+                            sector->spawnProjectile(
+                                projectileData.projectile,
+                                parVel + fireVel,
+                                ecs::Transform{transform.pos + exit, firingRot},
+                                8.0f,
+                                module.parent);
                         }
                     }
                     break;
