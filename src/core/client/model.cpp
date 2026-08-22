@@ -891,53 +891,9 @@ void Model::drawItems(gfx::RenderEngine& renderer,
                       float zoom,
                       uint32_t activeSectorId)
 {
-    auto& reg = clientRegistry.getRegistry();
-    reg.view<ecs::Transform, ecs::SectorId, ecs::Item, ecs::SimpleTexture>()
-        .each(
-            [this, &renderer, &viewRect, &reg, activeSectorId](
-                ecs::Transform& transform,
-                ecs::SectorId& sectorId,
-                ecs::Item& item,
-                ecs::SimpleTexture& simpleTexture)
-            {
-                bool sectorFilter = activeSectorId ==
-                world::INVALID_SECTOR_ID
-                                    || sectorId.id == activeSectorId;
-                if (sectorFilter)
-                {
-                    glm::vec2 worldPos = world.getWorldPosSectorOffset(
-                                             sectorId.id,
-                                             renderer.getSectorOffsetX(),
-                                             renderer.getSectorOffsetY())
-                                         + transform.pos;
-                    if (smath::pointInsideRect(worldPos, viewRect))
-                    {
-                        mod::MappedTextureHandle mTexHandle =
-                            *(mod::MappedTextureHandle*)&simpleTexture
-                                 .textureHandle;
-                        const mod::MappedTexture* mappedTexture =
-                            modManager->getResourceMap().getMappedTexture(
-                                mTexHandle);
-                        gfx::TextureHandle texHandle =
-                            gfx::TextureHandle::Invalid();
-                        if (mappedTexture)
-                        {
-                            texHandle = mappedTexture->texHandle;
-                        }
-                        vec2 size = vec2(0.5f, 0.5f);
-                        renderer.getTexturePixelSize(texHandle, size);
-                        renderer.queueTexRect(worldPos,
-                                              size *
-                                              gfx::kTexturePixelToWorld,
-                                              texHandle,
-                                              transform.rot,
-                                              gfx::RenderEngine::zIdxItem,
-                                              0xffffffff);
-                    }
-                }
-            });
+    int i = 0;
     items.foreach (
-        [&renderer, &viewRect, this](opool::ItemClient& item)
+        [&renderer, &viewRect, this, &i](opool::ItemClient& item)
         {
             if (smath::pointInsideRect(item.transform.pos, viewRect))
             {
@@ -949,9 +905,11 @@ void Model::drawItems(gfx::RenderEngine& renderer,
                                  item.transform.rot,
                                  gfx::RenderEngine::zIdxProjectile,
                                  item.transform.pos);
+                    ++i;
                 }
             }
         });
+    LG_D("{}", i);
 }
 
 void Model::drawStationTextures(gfx::RenderEngine& renderer,
