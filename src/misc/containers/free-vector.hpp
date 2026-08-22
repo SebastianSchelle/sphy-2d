@@ -22,7 +22,7 @@ enum class FreeVecForeachRet
 template <class T> class FreeVec
 {
   public:
-    class Handle
+    class __attribute__((packed)) Handle
     {
       public:
         static Handle Invalid()

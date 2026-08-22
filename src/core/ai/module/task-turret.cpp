@@ -53,29 +53,33 @@ bool Turret::findBestTarget(TaskFunArgs* args,
     bestTarget.score = std::numeric_limits<float>::max();
     args->sector->queryBroadphase(
         {transform->pos - range, transform->pos + range},
-        [&, this](entt::entity entity)
+        [&, this](const world::BpUserData& data)
         {
-            if (!reg->valid(entity) || !reg->all_of<ecs::EntityId>(entity))
+            if (data.type == world::BpUserType::Ecs)
             {
-                return;
-            }
-            // todo: don't use transform pos, use nearest collision point
-            ScoreArgs scoreArgs = {
-                entity,
-                range,
-                *transform,
-                *turret,
-                turretData,
-            };
-            float score = scoreFunction(scoreArgs);
-            if (score > 0.0f)
-            {
-                if (score < bestTarget.score)
+                auto entity = data.data.ent;
+                if (!reg->valid(entity) || !reg->all_of<ecs::EntityId>(entity))
                 {
-                    bestTarget.entityId = reg->get<ecs::EntityId>(entity);
-                    bestTarget.score = score;
+                    return;
                 }
-                hit = true;
+                // todo: don't use transform pos, use nearest collision point
+                ScoreArgs scoreArgs = {
+                    entity,
+                    range,
+                    *transform,
+                    *turret,
+                    turretData,
+                };
+                float score = scoreFunction(scoreArgs);
+                if (score > 0.0f)
+                {
+                    if (score < bestTarget.score)
+                    {
+                        bestTarget.entityId = reg->get<ecs::EntityId>(entity);
+                        bestTarget.score = score;
+                    }
+                    hit = true;
+                }
             }
         });
     return hit;

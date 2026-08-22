@@ -1,7 +1,9 @@
 #ifndef SECTOR_HPP
 #define SECTOR_HPP
 
+#include "entt/entity/fwd.hpp"
 #include <comp-phy.hpp>
+#include <cstdint>
 #include <ptr-handle.hpp>
 #include <std-inc.hpp>
 #ifdef CLIENT
@@ -27,6 +29,24 @@ struct SectorMoveRequest
     ecs::EntityId entityId;
     uint32_t newSectorId;
 };
+
+#ifdef SERVER
+enum class BpUserType : uint8_t
+{
+    Ecs,
+    Item
+};
+union BpUserDataUnion
+{
+    entt::entity ent;
+    specsys::ProjectileHandle handle;
+};
+struct BpUserData
+{
+    BpUserType type;
+    BpUserDataUnion data;
+};
+#endif
 
 class Sector
 {
@@ -65,9 +85,9 @@ class Sector
     void destroyBroadphaseProxy(ecs::Broadphase* broadphase);
     void getAllAABBs(std::vector<con::AABB>& aabbs) const;
     void queryBroadphase(const con::AABB& aabb,
-                         std::function<void(entt::entity)> callback);
+                         std::function<void(const BpUserData&)> callback);
     void queryBroadphasePoint(const vec2& point,
-                         std::function<void(entt::entity)> callback);
+                              std::function<void(const BpUserData&)> callback);
     void markPlayerSector(bool player);
     void update(float dt, ecs::PtrHandle* ptrHandle);
     bool saveSector(const std::string& savedir);
@@ -104,8 +124,8 @@ class Sector
     {
         return active;
     }
-    void objectInitBroadphase(ecs::PtrHandle* ptrHandle, entt::entity entity);
 #ifdef SERVER
+    void objectInitBroadphase(ecs::PtrHandle* ptrHandle, entt::entity entity);
     ecs::SectorRegistry* getRegistry()
     {
         return &sectorRegistry;
@@ -119,11 +139,11 @@ class Sector
                          const ecs::Transform& tr,
                          float lifetime,
                          ecs::EntityId collExcept = ecs::EntityId::Invalid());
-#endif
     inline void addBroadphaseQueryEntity(entt::entity entity)
     {
         broadphaseQueryEntities.push_back(entity);
     }
+#endif
 #ifdef CLIENT
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
     void drawTacticalMap(gfx::RenderEngine& renderer,
@@ -157,8 +177,8 @@ class Sector
     vector<SingleThreadedTaskFunction> singleThreadedTasks;
     vector<SectorMoveRequest> sectorMoveRequests;
     specsys::ProjectilePool projectilePool;
+    con::DynamicAABBTree<BpUserData> aabbTree;
 #endif
-    con::DynamicAABBTree<entt::entity> aabbTree;
     bool active = false;
 #ifdef SERVER
     ai::TaskSystem taskSystem;

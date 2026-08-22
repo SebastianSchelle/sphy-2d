@@ -133,13 +133,13 @@ void Sector::getAllAABBs(std::vector<con::AABB>& aabbs) const
 }
 
 void Sector::queryBroadphase(const con::AABB& aabb,
-                             std::function<void(entt::entity)> callback)
+                             std::function<void(const BpUserData&)> callback)
 {
     aabbTree.query(aabb, callback);
 }
 
 void Sector::queryBroadphasePoint(const vec2& point,
-                             std::function<void(entt::entity)> callback)
+                                  std::function<void(const BpUserData&)> callback)
 {
     aabbTree.queryPoint(point, callback);
 }
@@ -259,7 +259,8 @@ void Sector::objectInitBroadphase(ecs::PtrHandle* ptrHandle,
             *transform, {c, s}, *collider, ptrHandle->colliderLib);
         if (broadphase->proxyId <= ecs::Broadphase::INVALID_PROXY_ID)
         {
-            broadphase->proxyId = aabbTree.createProxy(aabb, entity);
+            broadphase->proxyId =
+                aabbTree.createProxy(aabb, BpUserData{BpUserType::Ecs, entity});
         }
         moveAabbProxy(broadphase->proxyId, aabb);
         broadphase->fatAABB = aabb;

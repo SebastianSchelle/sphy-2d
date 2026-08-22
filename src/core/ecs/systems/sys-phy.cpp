@@ -1,6 +1,7 @@
 #include "comp-tag.hpp"
 #include "objb-recipes.hpp"
 #include "ptr-handle.hpp"
+#include "sector.hpp"
 #include <algorithm>
 #include <cmath>
 #include <comp-ident.hpp>
@@ -9,10 +10,7 @@
 #include <comp-struct.hpp>
 #include <optional>
 #include <sys-phy.hpp>
-
-#ifdef SERVER
 #include <engine.hpp>
-#endif
 
 namespace ecs
 {
@@ -32,7 +30,6 @@ constexpr float kContactPenetrationSlop = 0.005f;
 constexpr float kContactMaxBiasSpeed = 3.0f;
 constexpr int kContactSolverIterations = 5;
 
-#ifdef SERVER
 void sysMoveCtrlImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 {
     auto* reg = sector->getRegistry()->getRegistry();
@@ -411,8 +408,6 @@ struct ColResolveParams
     entt::entity otherEnt;
 };
 
-#ifdef SERVER
-
 namespace
 {
 constexpr float kGoldenAngleRad = 2.39996323f;
@@ -529,13 +524,13 @@ void damageAndMine(ecs::Asteroid& asteroid,
                         vel.y += rand() % 10 - 5;
                         float rot = (rand() % 360) / 180.0f * M_PIf;
 
-                        objb::ItemRecipe(handle, otherEntId)
+                        /*objb::ItemRecipe(handle, otherEntId)
                             .spawn({.ptrHandle = ptrHandle,
                                     .sector = sector,
                                     .pos = collPos,
                                     .rot = rot,
                                     .vel = vel},
-                                   quantity);
+                                   quantity);*/
                     });
     if (asteroid.volume <= 0.0f)
     {
@@ -585,96 +580,6 @@ static bool itemCollision(const ColResolveParams& p)
     return false;
 }
 
-static bool projectileCollision(const ColResolveParams& p)
-{
-    auto reg = p.sector->getRegistry()->getRegistry();
-    auto* projectile = reg->try_get<Projectile>(p.actionEnt);
-    if (!projectile)
-    {
-        LG_E("Projectile not found");
-        return false;
-    }
-    auto* projectileData = p.ptrHandle->modManager->getProjectileLib().getItem(
-        projectile->projectileHandle);
-    if (!projectileData)
-    {
-        LG_E("Projectile data not found");
-        return false;
-    }
-    auto* asteroid = reg->try_get<Asteroid>(p.otherEnt);
-    if (asteroid)
-    {
-        float dmg = (projectileData->damageType == def::DamageType::Mining
-                         ? projectileData->dmg
-                         : projectileData->dmg * 0.001f)
-                    * p.ptrHandle->miningRate;
-
-        asteroid->damage(
-            p.ptrHandle,
-            dmg,
-            [p, reg](gobj::ItemHandle handle, uint32_t quantity)
-            {
-                gobj::Item* item =
-                    p.ptrHandle->modManager->getItemLib().getItem(handle);
-                if (!item)
-                {
-                    return;
-                }
-                vec2 sourceVel = vec2(0.0f, 0.0f);
-                if (auto* projBody = reg->try_get<PhysicsBody>(p.actionEnt))
-                {
-                    sourceVel = projBody->vel;
-                }
-                const Transform* astTransform =
-                    reg->try_get<Transform>(p.otherEnt);
-                ecs::EntityId otherEntId = reg->get<ecs::EntityId>(p.otherEnt);
-
-                ecs::Transform trOth = reg->get<ecs::Transform>(p.otherEnt);
-                ecs::Transform& trAct = reg->get<ecs::Transform>(p.actionEnt);
-                vec2 dir = trAct.pos - trOth.pos;
-                vec2 vel = glm::normalize(dir) * 20.0f;
-                vel.x += rand() % 10 - 5;
-                vel.y += rand() % 10 - 5;
-                trOth.rot = (rand() % 360) / 180.0f * M_PIf;
-
-                objb::ItemRecipe(handle, otherEntId)
-                    .spawn({.ptrHandle = p.ptrHandle,
-                            .sector = p.sector,
-                            .pos = trOth.pos,
-                            .rot = trOth.rot,
-                            .vel = vel},
-                           quantity);
-            });
-        ecs::EntityId actionEntId = reg->get<ecs::EntityId>(p.actionEnt);
-        ecs::EntityId otherEntId = reg->get<ecs::EntityId>(p.otherEnt);
-        if (asteroid->volume <= 0.0f)
-        {
-            auto* asteroidData =
-                p.ptrHandle->modManager->getAsteroidLib().getItem(
-                    gobj::AsteroidHandle(asteroid->asteroidHandle));
-            if (asteroidData)
-            {
-                if (asteroidData->type == gobj::AsteroidType::Parent)
-                {
-                    auto& parentData = std::get<gobj::AsteroidParentdata>(
-                        asteroidData->content);
-                    auto* transform = reg->try_get<Transform>(p.otherEnt);
-                    if (transform)
-                    {
-                        // spawnParentAsteroidChildren(
-                        //     p, *transform, parentData, *asteroidData);
-                    }
-                }
-            }
-            p.sector->markEntityForDestruction(p.ptrHandle, otherEntId);
-        }
-        p.sector->markEntityForDestruction(p.ptrHandle, actionEntId);
-        return true;
-    }
-    return false;
-}
-#endif
-
 static inline bool
 colliderAction(PtrHandle* ptrHandle,
                world::Sector* sector,
@@ -691,12 +596,6 @@ colliderAction(PtrHandle* ptrHandle,
 
     switch (collider1.colliderType)
     {
-        case CollisionLayer::Projectile:
-        {
-            p.actionEnt = collision.first;
-            p.otherEnt = collision.second;
-            return projectileCollision(p);
-        }
         case CollisionLayer::Item:
         {
             p.actionEnt = collision.first;
@@ -708,12 +607,6 @@ colliderAction(PtrHandle* ptrHandle,
     }
     switch (collider2.colliderType)
     {
-        case CollisionLayer::Projectile:
-        {
-            p.actionEnt = collision.second;
-            p.otherEnt = collision.first;
-            return projectileCollision(p);
-        }
         case CollisionLayer::Item:
         {
             p.actionEnt = collision.second;
@@ -748,31 +641,36 @@ void sysCollisionDetectionImpl(world::Sector* sector,
         }
         sector->queryBroadphase(
             broadphase.fatAABB,
-            [sector, entity, reg](entt::entity entityOther)
+            [sector, entity, reg](const world::BpUserData& data)
             {
-                if (entity == entityOther)
+                if (data.type == world::BpUserType::Ecs)
                 {
-                    return;
+                    auto entityOther = data.data.ent;
+                    if (entity == entityOther)
+                    {
+                        return;
+                    }
+                    if (!reg->valid(entityOther)
+                        || !reg->all_of<Collider>(entityOther))
+                    {
+                        return;
+                    }
+                    auto& flagsMe = reg->get<ecs::Flags>(entity);
+                    auto& flagsOther = reg->get<ecs::Flags>(entityOther);
+                    if (flagsMe.hasFlag(ecs::Flags::Flag::MovedOrDestroyed)
+                        || flagsOther.hasFlag(
+                            ecs::Flags::Flag::MovedOrDestroyed))
+                    {
+                        return;
+                    }
+                    entt::entity lo = entity;
+                    entt::entity hi = entityOther;
+                    if (hi < lo)
+                    {
+                        std::swap(lo, hi);
+                    }
+                    sector->broadphaseCollisions.push_back({lo, hi});
                 }
-                if (!reg->valid(entityOther)
-                    || !reg->all_of<Collider>(entityOther))
-                {
-                    return;
-                }
-                auto& flagsMe = reg->get<ecs::Flags>(entity);
-                auto& flagsOther = reg->get<ecs::Flags>(entityOther);
-                if (flagsMe.hasFlag(ecs::Flags::Flag::MovedOrDestroyed)
-                    || flagsOther.hasFlag(ecs::Flags::Flag::MovedOrDestroyed))
-                {
-                    return;
-                }
-                entt::entity lo = entity;
-                entt::entity hi = entityOther;
-                if (hi < lo)
-                {
-                    std::swap(lo, hi);
-                }
-                sector->broadphaseCollisions.push_back({lo, hi});
             });
     }
     std::sort(sector->broadphaseCollisions.begin(),
@@ -976,7 +874,5 @@ void sysAnchorFixedImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
             }
         });
 }
-
-#endif
 
 }  // namespace ecs

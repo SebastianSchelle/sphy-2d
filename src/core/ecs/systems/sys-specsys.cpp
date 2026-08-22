@@ -3,6 +3,7 @@
 #include "free-vector.hpp"
 #include "lib-projectile.hpp"
 #include "logging.hpp"
+#include "sector.hpp"
 #include "std-inc.hpp"
 #include "sys-phy.hpp"
 #include <lib-collider.hpp>
@@ -75,49 +76,56 @@ void sysProjPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
             sector->queryBroadphasePoint(
                 trans.pos,
                 [slot, sector, &ret, ptrHandle, &trans, &projectile](
-                    entt::entity other)
+                    const world::BpUserData& data)
                 {
-                    if (slot && other == slot->entity
-                        && slot->sectorId == sector->getId())
+                    if (data.type == world::BpUserType::Ecs)
                     {
-                        return;
-                    }
-                    auto reg = sector->getRegistry()->getRegistry();
-                    auto coll = reg->try_get<ecs::Collider>(other);
-                    auto tr = reg->try_get<ecs::Transform>(other);
-                    auto trc = reg->try_get<ecs::TransformCache>(other);
-
-                    if (coll && tr && trc)
-                    {
-                        auto collItem =
-                            ptrHandle->modManager->getColliderLib().getItem(
-                                coll->colliderHandle);
-
-                        const auto v1 = &collItem->vertices;
-                        const size_t n1 = v1->size();
-                        thread_local std::vector<vec2> w1;
-                        w1.resize(v1->size());
-                        for (size_t i = 0; i < n1; ++i)
+                        auto other = data.data.ent;
+                        if (slot && other == slot->entity
+                            && slot->sectorId == sector->getId())
                         {
-                            const vec2& v = (*v1)[i];
-                            w1[i].x = trc->c * v.x - trc->s * v.y + tr->pos.x;
-                            w1[i].y = trc->s * v.x + trc->c * v.y + tr->pos.y;
+                            return;
                         }
-                        if (sat2d::pointInConvex(trans.pos, w1))
+                        auto reg = sector->getRegistry()->getRegistry();
+                        auto coll = reg->try_get<ecs::Collider>(other);
+                        auto tr = reg->try_get<ecs::Transform>(other);
+                        auto trc = reg->try_get<ecs::TransformCache>(other);
+
+                        if (coll && tr && trc)
                         {
-                            auto projData =
-                                ptrHandle->modManager->getProjectileLib()
-                                    .getItem(projectile.proj);
-                            if (projData)
+                            auto collItem =
+                                ptrHandle->modManager->getColliderLib().getItem(
+                                    coll->colliderHandle);
+
+                            const auto v1 = &collItem->vertices;
+                            const size_t n1 = v1->size();
+                            thread_local std::vector<vec2> w1;
+                            w1.resize(v1->size());
+                            for (size_t i = 0; i < n1; ++i)
                             {
-                                projColliderAction(ptrHandle,
-                                                   sector,
-                                                   coll->colliderType,
-                                                   other,
-                                                   *projData,
-                                                   projectile.transform.pos);
+                                const vec2& v = (*v1)[i];
+                                w1[i].x =
+                                    trc->c * v.x - trc->s * v.y + tr->pos.x;
+                                w1[i].y =
+                                    trc->s * v.x + trc->c * v.y + tr->pos.y;
                             }
-                            ret = con::FreeVecForeachRet::DESTROY;
+                            if (sat2d::pointInConvex(trans.pos, w1))
+                            {
+                                auto projData =
+                                    ptrHandle->modManager->getProjectileLib()
+                                        .getItem(projectile.proj);
+                                if (projData)
+                                {
+                                    projColliderAction(
+                                        ptrHandle,
+                                        sector,
+                                        coll->colliderType,
+                                        other,
+                                        *projData,
+                                        projectile.transform.pos);
+                                }
+                                ret = con::FreeVecForeachRet::DESTROY;
+                            }
                         }
                     }
                 });
