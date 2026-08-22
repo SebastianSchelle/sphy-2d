@@ -435,7 +435,8 @@ static float parentBreakupSpreadRadius(PtrHandle* ptrHandle,
 }
 
 static void
-spawnParentAsteroidChildren(const ColResolveParams& p,
+spawnParentAsteroidChildren(PtrHandle* ptrHandle,
+                            world::Sector* sector,
                             const Transform& parentTransform,
                             const gobj::AsteroidParentdata& parentData,
                             const gobj::Asteroid& parentDef)
@@ -453,8 +454,7 @@ spawnParentAsteroidChildren(const ColResolveParams& p,
         return;
     }
 
-    const float spreadRadius =
-        parentBreakupSpreadRadius(p.ptrHandle, parentDef);
+    const float spreadRadius = parentBreakupSpreadRadius(ptrHandle, parentDef);
     const vec2 center = parentTransform.pos;
     size_t spawnIndex = 0;
 
@@ -485,18 +485,11 @@ spawnParentAsteroidChildren(const ColResolveParams& p,
                 childTransform.rot = std::atan2(offset.x, offset.y);
             }
 
-            float rotVel = 0.0f;
-            if (auto* parentBody = p.sector->getRegistry()
-                                       ->getRegistry()
-                                       ->try_get<PhysicsBody>(p.otherEnt))
-            {
-                rotVel = parentBody->rotVel * 0.5f;
-            }
-
             objb::AsteroidRecipe rec2(entry.first);
-            // todo: add natural rotation, but first setup global random generator
-            rec2.spawn({.ptrHandle = p.ptrHandle,
-                        .sector = p.sector,
+            // todo: add natural rotation, but first setup global random
+            // generator
+            rec2.spawn({.ptrHandle = ptrHandle,
+                        .sector = sector,
                         .pos = childTransform.pos,
                         .rot = childTransform.rot,
                         .naturalRot = 0.0f});
@@ -506,6 +499,63 @@ spawnParentAsteroidChildren(const ColResolveParams& p,
 }
 
 }  // namespace
+
+
+void damageAndMine(ecs::Asteroid& asteroid,
+                   PtrHandle* ptrHandle,
+                   world::Sector* sector,
+                   float dmg,
+                   entt::entity ast,
+                   const vec2& collPos)
+{
+    auto reg = sector->getRegistry()->getRegistry();
+    asteroid.damage(ptrHandle,
+                    dmg,
+                    [sector, reg, ptrHandle, ast, collPos](
+                        gobj::ItemHandle handle, uint32_t quantity)
+                    {
+                        gobj::Item* item =
+                            ptrHandle->modManager->getItemLib().getItem(handle);
+                        if (!item)
+                        {
+                            return;
+                        }
+                        ecs::EntityId otherEntId = reg->get<ecs::EntityId>(ast);
+                        const Transform& astTransform =
+                            reg->get<Transform>(ast);
+                        vec2 dir = collPos - astTransform.pos;
+                        vec2 vel = glm::normalize(dir) * 20.0f;
+                        vel.x += rand() % 10 - 5;
+                        vel.y += rand() % 10 - 5;
+                        float rot = (rand() % 360) / 180.0f * M_PIf;
+
+                        objb::ItemRecipe(handle, otherEntId)
+                            .spawn({.ptrHandle = ptrHandle,
+                                    .sector = sector,
+                                    .pos = collPos,
+                                    .rot = rot,
+                                    .vel = vel},
+                                   quantity);
+                    });
+    if (asteroid.volume <= 0.0f)
+    {
+        auto* asteroidData = ptrHandle->modManager->getAsteroidLib().getItem(
+            gobj::AsteroidHandle(asteroid.asteroidHandle));
+        if (asteroidData)
+        {
+            if (asteroidData->type == gobj::AsteroidType::Parent)
+            {
+                auto& parentData =
+                    std::get<gobj::AsteroidParentdata>(asteroidData->content);
+                auto transform = reg->get<Transform>(ast);
+                spawnParentAsteroidChildren(
+                    ptrHandle, sector, transform, parentData, *asteroidData);
+            }
+        }
+        ecs::EntityId otherEntId = reg->get<ecs::EntityId>(ast);
+        sector->markEntityForDestruction(ptrHandle, otherEntId);
+    }
+}
 
 static bool itemCollision(const ColResolveParams& p)
 {
@@ -611,8 +661,8 @@ static bool projectileCollision(const ColResolveParams& p)
                     auto* transform = reg->try_get<Transform>(p.otherEnt);
                     if (transform)
                     {
-                        spawnParentAsteroidChildren(
-                            p, *transform, parentData, *asteroidData);
+                        // spawnParentAsteroidChildren(
+                        //     p, *transform, parentData, *asteroidData);
                     }
                 }
             }

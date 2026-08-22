@@ -35,7 +35,7 @@ struct Asteroid
         OBJB_GUARD(Collider::build(ptrHandle,
                                    params,
                                    asteroid->collider,
-                                   ecs::CollisionLayer::Ship),
+                                   ecs::CollisionLayer::Asteroid),
                    "Asteroid: Failed to build collider")
         // colliderData is ensured by Collider::build
         auto* colliderData =
