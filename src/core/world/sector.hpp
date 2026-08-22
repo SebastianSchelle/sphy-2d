@@ -13,10 +13,10 @@
 #include <unordered_set>
 #ifdef SERVER
 #include "registry-mapping.hpp"
-#include <sector-registry.hpp>
-#include <task-system.hpp>
 #include <obj-pool.hpp>
 #include <pool-objects.hpp>
+#include <sector-registry.hpp>
+#include <task-system.hpp>
 #endif
 
 namespace world
@@ -94,8 +94,11 @@ class Sector
     bool saveSector(const std::string& savedir);
     void foreachProj(
         std::function<con::FreeVecForeachRet(opool::Projectile&,
-            opool::ProjectileHandle handle)>
+                                             opool::ProjectileHandle handle)>
             clb);
+    void foreachItem(
+        std::function<con::FreeVecForeachRet(opool::Item&,
+                                             opool::ItemHandle handle)> clb);
 #endif
     const float getWorldPosX() const
     {
@@ -136,6 +139,7 @@ class Sector
         return taskSystem;
     }
     void spawnProjectile(const opool::Projectile& proj);
+    void spawnItem(const opool::Item& item);
     inline void addBroadphaseQueryEntity(entt::entity entity)
     {
         broadphaseQueryEntities.push_back(entity);
@@ -173,8 +177,9 @@ class Sector
     vector<ecs::EntityId> entitiesToDestroy;
     vector<SingleThreadedTaskFunction> singleThreadedTasks;
     vector<SectorMoveRequest> sectorMoveRequests;
-    opool::ObjectPool<opool::Projectile> projectilePool;
     con::DynamicAABBTree<BpUserData> aabbTree;
+    opool::ObjectPool<opool::Projectile> projectilePool;
+    opool::ObjectPool<opool::Item> itemPool;
 #endif
     bool active = false;
 #ifdef SERVER

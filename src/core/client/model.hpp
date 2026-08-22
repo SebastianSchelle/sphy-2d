@@ -5,14 +5,14 @@
 #include <RmlUi/Core/DataModelHandle.h>
 #include <asset-factory.hpp>
 #include <client-def.hpp>
+#include <client-pool-obj.hpp>
 #include <client-registry.hpp>
 #include <control-def.hpp>
 #include <exchange-sequence.hpp>
 #include <net-shared.hpp>
+#include <obj-pool-client.hpp>
 #include <std-inc.hpp>
 #include <world.hpp>
-#include <obj-pool-client.hpp>
-#include <client-pool-obj.hpp>
 
 namespace ecs
 {
@@ -168,6 +168,8 @@ class Model
                              size_t dataEndPos);
     void handleSendProjData(bitsery::Deserializer<InputAdapter>& cmddes,
                             size_t dataEndPos);
+    void handleSendItemData(bitsery::Deserializer<InputAdapter>& cmddes,
+                            size_t dataEndPos);
     void notifyReady();
     void handleGetAabbTreeResp(bitsery::Deserializer<InputAdapter>& cmddes,
                                size_t dataEndPos);
@@ -186,6 +188,11 @@ class Model
                       const glm::vec4& viewRect,
                       float zoom,
                       uint32_t activeSectorId = world::INVALID_SECTOR_ID);
+    void drawTexture(gfx::RenderEngine& renderer,
+                     const GenericHandle texture,
+                     float rot,
+                     const int8_t parentZ,
+                     const glm::vec2& worldPos);
     void drawTextures(gfx::RenderEngine& renderer,
                       const ecs::Textures& textures,
                       float rot,
@@ -237,6 +244,7 @@ class Model
     def::ClientInfo clientInfo;
     ecs::ClientRegistry clientRegistry;
     opool::OpoolClient<opool::ProjClient> projectiles;
+    opool::OpoolClient<opool::ItemClient> items;
 
     std::function<void(void)> afterLoadWorldClb;
     std::vector<ecs::EntityId> selectedEntities;

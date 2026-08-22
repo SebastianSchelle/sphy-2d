@@ -1,5 +1,6 @@
 #include "comp-tag.hpp"
 #include "objb-recipes.hpp"
+#include "pool-objects.hpp"
 #include "ptr-handle.hpp"
 #include "sector.hpp"
 #include <algorithm>
@@ -517,20 +518,20 @@ void damageAndMine(ecs::Asteroid& asteroid,
                         }
                         ecs::EntityId otherEntId = reg->get<ecs::EntityId>(ast);
                         const Transform& astTransform =
-                            reg->get<Transform>(ast);
+                        reg->get<Transform>(ast);
                         vec2 dir = collPos - astTransform.pos;
                         vec2 vel = glm::normalize(dir) * 20.0f;
                         vel.x += rand() % 10 - 5;
-                        vel.y += rand() % 10 - 5;
+                        vel.y += rand() % 10 - 5;    
                         float rot = (rand() % 360) / 180.0f * M_PIf;
-
-                        /*objb::ItemRecipe(handle, otherEntId)
-                            .spawn({.ptrHandle = ptrHandle,
-                                    .sector = sector,
-                                    .pos = collPos,
-                                    .rot = rot,
-                                    .vel = vel},
-                                   quantity);*/
+                        sector->spawnItem(opool::Item{
+                            .transform = {collPos, rot},
+                            .item = handle,
+                            .quantity = quantity,
+                            .vel = vel,
+                            .collExcept = otherEntId,
+                            .lifetimeMax = ptrHandle->itemLifetime
+                        });
                     });
     if (asteroid.volume <= 0.0f)
     {

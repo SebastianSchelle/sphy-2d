@@ -11,9 +11,14 @@ namespace ecs
 void sysProjPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle);
 
 const System sysProjPhysics = {.name = "sysProjPhysics",
-                            .sysFlags = SystemFlags::ActiveSector,
-                            .function = sysProjPhysicsImpl};
+                               .sysFlags = SystemFlags::ActiveSector,
+                               .function = sysProjPhysicsImpl};
 
+void sysItemPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle);
+
+const System sysItemPhysics = {.name = "sysItemPhysics",
+                               .sysFlags = SystemFlags::ActiveSector,
+                               .function = sysItemPhysicsImpl};
 }  // namespace ecs
 
 #endif

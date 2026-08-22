@@ -3,6 +3,7 @@
 
 #include "comp-ident.hpp"
 #include "comp-phy.hpp"
+#include "comp-struct.hpp"
 #include "free-vector.hpp"
 #include "lib-projectile.hpp"
 
@@ -20,11 +21,17 @@ struct Projectile
 };
 using ProjectileHandle = typename con::FreeVec<Projectile>::Handle;
 
-#define SER_PROJECTILE_2                                                       \
-    SOBJ(o.transform);                                                         \
-    SOBJ(o.proj.toGenericHandle());
-
-EXT_SER(Projectile, SER_PROJECTILE_2)
+struct Item
+{
+    ecs::Transform transform;
+    gobj::ItemHandle item;
+    uint32_t quantity;
+    vec2 vel;
+    ecs::EntityId collExcept;
+    float lifetimeMax;
+    float lifetime = 0.0f;
+};
+using ItemHandle = typename con::FreeVec<Item>::Handle;
 
 }  // namespace opool
 

@@ -8,6 +8,7 @@
 #include <type_traits>
 #include <variant>
 #ifdef SERVER
+#include "pool-objects.hpp"
 #include <engine.hpp>
 #endif
 
@@ -55,11 +56,24 @@ void Sector::spawnProjectile(const opool::Projectile& proj)
     projectilePool.spawnObject(proj);
 }
 
+void Sector::spawnItem(const opool::Item& item)
+{
+
+    itemPool.spawnObject(item);
+}
+
 void Sector::foreachProj(
     std::function<con::FreeVecForeachRet(opool::Projectile&,
         opool::ProjectileHandle handle)> clb)
 {
     projectilePool.foreach (clb);
+}
+
+void Sector::foreachItem(
+    std::function<con::FreeVecForeachRet(opool::Item&,
+        opool::ItemHandle handle)> clb)
+{
+    itemPool.foreach (clb);
 }
 
 void Sector::moveAabbProxy(int32_t proxyId, con::AABB& newAabb)

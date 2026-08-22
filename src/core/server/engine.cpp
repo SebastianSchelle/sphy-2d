@@ -20,10 +20,10 @@
 #include <engine-impl.hpp>
 #include <net-shared.hpp>
 #include <objb-asteroid.hpp>
-#include <objb-item.hpp>
 #include <objb-module.hpp>
 #include <objb-recipes.hpp>
 #include <objb-ship.hpp>
+#include <pool-objects.hpp>
 #include <protocol.hpp>
 #include <random>
 #include <server.hpp>
@@ -35,7 +35,6 @@
 #include <version.hpp>
 #include <work-distributor.hpp>
 #include <work-sequencer.hpp>
-#include <pool-objects.hpp>
 
 namespace sphys
 {
@@ -104,10 +103,11 @@ void Engine::start()
     systems.registerSystem(ecs::sysPhyThrust, 2);
     systems.registerSystem(ecs::sysPhysics, 3);
     systems.registerSystem(ecs::sysProjPhysics, 4);
-    systems.registerSystem(ecs::sysCollisionDetection, 5);
-    systems.registerSystem(ecs::sysAnchorFixed, 6);
-    systems.registerSystem(ecs::sysAi, 7);
-    systems.registerSystem(ecs::sysTurret, 8);
+    systems.registerSystem(ecs::sysItemPhysics, 5);
+    systems.registerSystem(ecs::sysCollisionDetection, 6);
+    systems.registerSystem(ecs::sysAnchorFixed, 7);
+    systems.registerSystem(ecs::sysAi, 8);
+    systems.registerSystem(ecs::sysTurret, 9);
 
     loadCollisionMatrix();
     registerConsoleCommands();
@@ -1068,6 +1068,7 @@ void Engine::runActiveSectorDump(long frameTime)
                     }
                 }
                 sendProjectileInfo(clientInfo);
+                sendItemInfo(clientInfo);
             });
     }
 }
@@ -1107,6 +1108,44 @@ void Engine::sendProjectileInfo(def::ClientInfo* client)
 
     mcomp.resetData();
     mcomp.startCommand(prot::cmd::SEND_PROJ_END, 0);
+    mcomp.execute(sendQueue);
+}
+
+void Engine::sendItemInfo(def::ClientInfo* client)
+{
+    prot::MsgComposer mcomp(net::SendType::UDP, client->clientInfo.udpEndpoint);
+    mcomp.startCommand(prot::cmd::SEND_ITEM_BEGIN, 0);
+    mcomp.execute(sendQueue);
+
+    auto sector = world.getSector(client->currentSector);
+    if (sector)
+    {
+        mcomp.resetData();
+        mcomp.startCommand(prot::cmd::SEND_ITEM_DATA, 0);
+        sector->foreachItem(
+            [client, &mcomp, this](opool::Item& item, opool::ItemHandle handle)
+            {
+                mcomp.ser->object(handle.toGenericHandle());
+                mcomp.ser->object(item.transform);
+                mcomp.ser->object(item.item.toGenericHandle());
+                mcomp.ser->value4b(item.quantity);
+                if (mcomp.ser->adapter().currentWritePos() + 6 + 16
+                    > prot::kMaxSerializedChunkBytes)
+                {
+                    mcomp.execute(sendQueue);
+                    mcomp.resetData();
+                    mcomp.startCommand(prot::cmd::SEND_ITEM_DATA, 0);
+                }
+                return con::FreeVecForeachRet::OK;
+            });
+        if (mcomp.ser->adapter().currentWritePos() > 0)
+        {
+            mcomp.execute(sendQueue);
+        }
+    }
+
+    mcomp.resetData();
+    mcomp.startCommand(prot::cmd::SEND_ITEM_END, 0);
     mcomp.execute(sendQueue);
 }
 
@@ -1331,18 +1370,6 @@ ecs::EntityId Engine::spawnAsteroid(world::Sector* sector,
         });
 }
 
-ecs::EntityId Engine::spawnItem(world::Sector* sector,
-                                gobj::ItemHandle itemHandle,
-                                ecs::EntityId collExcept)
-{
-    return sector->spawnObject(
-        ptrHandle,
-        [this, itemHandle, collExcept](ecs::SpawnCallbackParams& params)
-        {
-            return objb::Item::build(ptrHandle, params, itemHandle, collExcept);
-        });
-}
-
 void Engine::testSpawn()
 {
     static constexpr const char* kAssets[] = {
@@ -1408,7 +1435,7 @@ void Engine::testSpawn()
          {17, modManager.getModuleLib().getHandle("Breeze Maneuver")},
          {18, modManager.getModuleLib().getHandle("Breeze Maneuver")}});
 
-    for (int i = 0; i < 1000; ++i)
+    for (int i = 0; i < 10; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1526,7 +1553,7 @@ part2->connectors.size());
         //                    0);
     }
     */
-    for (int i = 0; i < 1000; ++i)
+    for (int i = 0; i < 10; ++i)
     {
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};

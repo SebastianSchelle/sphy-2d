@@ -1,3 +1,4 @@
+#include "client-pool-obj.hpp"
 #include "comp-phy.hpp"
 #include "lib-modules.hpp"
 #include "lib-projectile.hpp"
@@ -527,6 +528,15 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         case prot::cmd::SEND_PROJ_DATA:
             handleSendProjData(cmddes, dataEndPos);
             break;
+        case prot::cmd::SEND_ITEM_BEGIN:
+            items.markInactive();
+            break;
+        case prot::cmd::SEND_ITEM_END:
+            items.deleteInactive();
+            break;
+        case prot::cmd::SEND_ITEM_DATA:
+            handleSendItemData(cmddes, dataEndPos);
+            break;
         default:
             break;
     }
@@ -890,7 +900,8 @@ void Model::drawItems(gfx::RenderEngine& renderer,
                 ecs::Item& item,
                 ecs::SimpleTexture& simpleTexture)
             {
-                bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
+                bool sectorFilter = activeSectorId ==
+                world::INVALID_SECTOR_ID
                                     || sectorId.id == activeSectorId;
                 if (sectorFilter)
                 {
@@ -916,7 +927,8 @@ void Model::drawItems(gfx::RenderEngine& renderer,
                         vec2 size = vec2(0.5f, 0.5f);
                         renderer.getTexturePixelSize(texHandle, size);
                         renderer.queueTexRect(worldPos,
-                                              size * gfx::kTexturePixelToWorld,
+                                              size *
+                                              gfx::kTexturePixelToWorld,
                                               texHandle,
                                               transform.rot,
                                               gfx::RenderEngine::zIdxItem,
@@ -924,6 +936,22 @@ void Model::drawItems(gfx::RenderEngine& renderer,
                     }
                 }
             });
+    items.foreach (
+        [&renderer, &viewRect, this](opool::ItemClient& item)
+        {
+            if (smath::pointInsideRect(item.transform.pos, viewRect))
+            {
+                auto itemData = modManager->getItemLib().getItem(item.item);
+                if (itemData)
+                {
+                    drawTexture(renderer,
+                                 itemData->worldTexture,
+                                 item.transform.rot,
+                                 gfx::RenderEngine::zIdxProjectile,
+                                 item.transform.pos);
+                }
+            }
+        });
 }
 
 void Model::drawStationTextures(gfx::RenderEngine& renderer,
@@ -1012,6 +1040,30 @@ void Model::drawModuleTextures(gfx::RenderEngine& renderer,
         }
     }
 }  // namespace sphyc
+
+void Model::drawTexture(gfx::RenderEngine& renderer,
+                        const GenericHandle texture,
+                        float rot,
+                        const int8_t parentZ,
+                        const glm::vec2& worldPos)
+{
+    const mod::MappedTexture* mappedTexture =
+        modManager->getResourceMap().getMappedTexture(
+            *(mod::MappedTextureHandle*)&texture);
+    gfx::TextureHandle texHandle = gfx::TextureHandle::Invalid();
+    if (mappedTexture)
+    {
+        texHandle = mappedTexture->texHandle;
+    }
+    vec2 size = vec2(0.5f, 0.5f);
+    renderer.getTexturePixelSize(texHandle, size);
+    renderer.queueTexRect(worldPos,
+                          size * gfx::kTexturePixelToWorld,
+                          texHandle,
+                          rot,
+                          gfx::RenderEngine::zIdxItem,
+                          0xffffffff);
+}
 
 void Model::drawTextures(gfx::RenderEngine& renderer,
                          const ecs::Textures& textures,
@@ -1569,8 +1621,30 @@ void Model::handleSendProjData(bitsery::Deserializer<InputAdapter>& cmddes,
         cmddes.object(handle);
         cmddes.object(tr);
         cmddes.object(proj);
-        projectiles.updateProjectile(
-            handle, opool::ProjClient::Params{.tr=tr, .proj=proj});
+        projectiles.updateObject(
+            handle, opool::ProjClient::Params{.tr = tr, .proj = proj});
+    }
+}
+
+void Model::handleSendItemData(bitsery::Deserializer<InputAdapter>& cmddes,
+                               size_t dataEndPos)
+{
+    int i = 0;
+    while ((int)cmddes.adapter().currentReadPos()
+           <= (int)(dataEndPos) - (6 + 16))
+    {
+        GenericHandle32 handle;
+        ecs::Transform transform;
+        GenericHandle item;
+        uint32_t quantity;
+        cmddes.object(handle);
+        cmddes.object(transform);
+        cmddes.object(item);
+        cmddes.value4b(quantity);
+        items.updateObject(handle,
+                           opool::ItemClient::Params{.transform = transform,
+                                                     .item = item,
+                                                     .quantity = quantity});
     }
 }
 

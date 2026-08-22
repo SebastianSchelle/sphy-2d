@@ -19,7 +19,7 @@ template <class T> class OpoolClient
     ~OpoolClient() {}
     void markInactive();
     void deleteInactive();
-    void updateProjectile(const GenericHandle32& handle, const T::Params& p);
+    void updateObject(const GenericHandle32& handle, const T::Params& p);
     void foreach (std::function<void(T& proj)> clb);
 
   private:
@@ -27,7 +27,7 @@ template <class T> class OpoolClient
 };
 
 template <class T>
-void OpoolClient<T>::updateProjectile(const GenericHandle32& handle,
+void OpoolClient<T>::updateObject(const GenericHandle32& handle,
                                       const T::Params& p)
 {
     auto it = objects.find(handle.idx);

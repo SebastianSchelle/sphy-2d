@@ -131,6 +131,9 @@ const uint16_t ACK_WORKSEQUENCER = 0x0013;
 const uint16_t SEND_PROJ_BEGIN = 0x0014;
 const uint16_t SEND_PROJ_DATA = 0x0015;
 const uint16_t SEND_PROJ_END = 0x0016;
+const uint16_t SEND_ITEM_BEGIN = 0x0017;
+const uint16_t SEND_ITEM_DATA = 0x0018;
+const uint16_t SEND_ITEM_END = 0x0019;
 
 }  // namespace cmd
 

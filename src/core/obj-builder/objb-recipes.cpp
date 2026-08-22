@@ -2,7 +2,6 @@
 #include "logging.hpp"
 #include "objb-general.hpp"
 #include "objb-ship.hpp"
-#include "objb-item.hpp"
 #include "ptr-handle.hpp"
 #include <engine.hpp>
 #include <mod-manager.hpp>
@@ -60,34 +59,6 @@ ecs::EntityId AsteroidRecipe::spawn(const RecipeSpawnParams& params)
     params.sector->objectInitBroadphase(ptr, slot->entity);
     ptr->engine->broadcastEntityToClients(asteroid);
     return asteroid;
-}
-
-ecs::EntityId ItemRecipe::spawn(const RecipeSpawnParams& params, float quantity)
-{
-    auto ptr = params.ptrHandle;
-
-    // Spawn asteroid
-    auto item = ptr->engine->spawnItem(
-        params.sector, itemHandle, collExcept);
-
-    // Place at desired pos and rotation
-    auto slot = ptr->registryMapping->getEntity(item);
-    if (!slot)
-    {
-        LG_E("No registry slot found for entity {}", item);
-        return ecs::EntityId::Invalid();
-    }
-    auto reg = params.sector->getRegistry()->getRegistry();
-    Transform::position(reg, slot->entity, params.pos, params.rot);
-
-    // Set amount
-    Item::quantity(reg, slot->entity, quantity);
-
-    // Set velocity of item
-    Physics::velocity(reg, slot->entity, params.vel);
-    params.sector->objectInitBroadphase(ptr, slot->entity);
-    ptr->engine->broadcastEntityToClients(item);
-    return item;
 }
 
 }  // namespace objb

@@ -58,21 +58,6 @@ class AsteroidRecipe
     gobj::AsteroidHandle asteroidHandle;
 };
 
-class ItemRecipe
-{
-  public:
-    ItemRecipe(gobj::ItemHandle itemHandle,
-               ecs::EntityId collExcept = ecs::EntityId::Invalid())
-        : itemHandle(itemHandle), collExcept(collExcept)
-    {
-    }
-    ecs::EntityId spawn(const RecipeSpawnParams& params, float quantity);
-
-  private:
-    gobj::ItemHandle itemHandle;
-    ecs::EntityId collExcept;
-};
-
 }  // namespace objb
 
 #endif

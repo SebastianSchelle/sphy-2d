@@ -97,9 +97,6 @@ class Engine
                               uint32_t slotIdx);
     ecs::EntityId spawnAsteroid(world::Sector* sector,
                                 gobj::AsteroidHandle asteroidHandle);
-    ecs::EntityId spawnItem(world::Sector* sector,
-                            gobj::ItemHandle itemHandle,
-                            ecs::EntityId collexcept);
 
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
@@ -137,6 +134,7 @@ class Engine
     void runSlowClientDump(long frameTime);
     void runActiveSectorDump(long frameTime);
     void sendProjectileInfo(def::ClientInfo* client);
+    void sendItemInfo(def::ClientInfo* client);
     void runConnectedClientWorkSequencers();
     void handleTcpDisconnect(net::TcpConnection* conn,
                              def::ClientInfoHandle disconnectedHandle);
