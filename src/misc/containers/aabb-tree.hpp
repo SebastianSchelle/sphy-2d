@@ -70,6 +70,15 @@ struct AABB
             return false;
         return true;
     }
+
+    bool containsPoint(const vec2& point) const
+    {
+        if (upper.x < point.x || lower.x > point.x)
+            return false;
+        if (upper.y < point.y || lower.y > point.y)
+            return false;
+        return true;    
+    }
 };
 
 
@@ -152,6 +161,35 @@ template <typename T> class DynamicAABBTree
             stack.pop();
 
             if (!nodes[node].box.overlaps(box))
+                continue;
+
+            if (nodes[node].isLeaf())
+            {
+                cb(nodes[node].id);
+            }
+            else
+            {
+                stack.push(nodes[node].left);
+                stack.push(nodes[node].right);
+            }
+        }
+    }
+
+    template <typename Callback>
+    void queryPoint(const vec2& point, Callback cb) const
+    {
+        if (root == -1)
+            return;
+
+        std::stack<int> stack;
+        stack.push(root);
+
+        while (!stack.empty())
+        {
+            int node = stack.top();
+            stack.pop();
+
+            if (!nodes[node].box.containsPoint(point))
                 continue;
 
             if (nodes[node].isLeaf())

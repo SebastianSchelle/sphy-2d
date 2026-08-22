@@ -1425,7 +1425,7 @@ void Engine::testSpawn()
          {17, modManager.getModuleLib().getHandle("Breeze Maneuver")},
          {18, modManager.getModuleLib().getHandle("Breeze Maneuver")}});
 
-    for (int i = 0; i < 1; ++i)
+    for (int i = 0; i < 500; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);

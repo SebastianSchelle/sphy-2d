@@ -138,6 +138,12 @@ void Sector::queryBroadphase(const con::AABB& aabb,
     aabbTree.query(aabb, callback);
 }
 
+void Sector::queryBroadphasePoint(const vec2& point,
+                             std::function<void(entt::entity)> callback)
+{
+    aabbTree.queryPoint(point, callback);
+}
+
 void Sector::markPlayerSector(bool player)
 {
     active = player;

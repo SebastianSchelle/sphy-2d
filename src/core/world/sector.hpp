@@ -66,6 +66,8 @@ class Sector
     void getAllAABBs(std::vector<con::AABB>& aabbs) const;
     void queryBroadphase(const con::AABB& aabb,
                          std::function<void(entt::entity)> callback);
+    void queryBroadphasePoint(const vec2& point,
+                         std::function<void(entt::entity)> callback);
     void markPlayerSector(bool player);
     void update(float dt, ecs::PtrHandle* ptrHandle);
     bool saveSector(const std::string& savedir);

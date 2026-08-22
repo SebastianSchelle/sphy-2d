@@ -150,23 +150,23 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                                     parVel = physBody->vel;
                                 }
                             }
-                            ballisticData.recipe.spawn(
-                                {.ptrHandle = ptrHandle,
-                                 .sector = sector,
-                                 .pos = transform.pos + exit,
-                                 .rot = firingRot,
-                                 .vel = parVel},
-                                s,
-                                c);
+                            // ballisticData.recipe.spawn(
+                            //     {.ptrHandle = ptrHandle,
+                            //      .sector = sector,
+                            //      .pos = transform.pos + exit,
+                            //      .rot = firingRot,
+                            //      .vel = parVel},
+                            //     s,
+                            //     c);
 
                             const vec2 fireDir =
                                 smath::rotateVec2(vec2(0.0f, 1.0f), s, c);
-                            vec2 fireVel = fireDir * 100.0f;
+                            vec2 fireVel = fireDir * 50.0f;
                             sector->spawnProjectile(
                                 projectileData.projectile,
                                 parVel + fireVel,
                                 ecs::Transform{transform.pos + exit, firingRot},
-                                8.0f,
+                                2.0f,
                                 module.parent);
                         }
                     }

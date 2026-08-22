@@ -20,11 +20,11 @@
 #include <cmath>
 #include <concurrentqueue.h>
 #include <cstdint>
+#include <entt/entity/entity.hpp>
 #include <filesystem>
 #include <fstream>
 #include <glm/glm.hpp>
 #include <limits>
-#include <entt/entity/entity.hpp>
 
 // cmath / POSIX do not guarantee M_PI; M_PIf is non-standard (GNU extension).
 #ifndef M_PI
@@ -713,6 +713,43 @@ inline bool convexConvex(const std::vector<vec2>& a, const std::vector<vec2>& b)
     float pen;
     return convexConvexMTV(a, b, n, pen);
 }
+
+// inline bool pointInConvexPolygon(const vec2& point,
+//                                  const std::vector<vec2>& polygon)
+// {
+//     if (polygon.size() < 3)
+//     {
+//         return false;
+//     }
+
+//     constexpr float kEps = 1e-6f;
+
+//     bool positive = false;
+//     bool negative = false;
+
+//     for (size_t i = 0; i < polygon.size(); ++i)
+//     {
+//         const vec2& a = polygon[i];
+//         const vec2& b = polygon[(i + 1) % polygon.size()];
+
+//         const vec2 edge = b - a;
+//         const vec2 rel = point - a;
+
+//         const float cross = edge.x * rel.y - edge.y * rel.x;
+
+//         if (cross > kEps)
+//             positive = true;
+//         else if (cross < -kEps)
+//             negative = true;
+//         else
+//             return false;  // On edge
+
+//         if (positive && negative)
+//             return false;
+//     }
+
+//     return true;
+// }
 
 }  // namespace sat2d
 

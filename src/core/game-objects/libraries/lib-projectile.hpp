@@ -17,6 +17,7 @@ struct Projectile
     float dmg = 1.0f;
     float lifetime = 10.0f;
     def::DamageType damageType = def::DamageType::Kinetic;
+    // todo: remove collider and change textures to texture, unnecessary overkill
     TexturesHandle textures = TexturesHandle::Invalid();
     ColliderHandle collider = ColliderHandle::Invalid();
 
