@@ -1,7 +1,6 @@
 #ifndef MODEL_HPP
 #define MODEL_HPP
 
-#include "proj-client.hpp"
 #include "sector.hpp"
 #include <RmlUi/Core/DataModelHandle.h>
 #include <asset-factory.hpp>
@@ -12,6 +11,8 @@
 #include <net-shared.hpp>
 #include <std-inc.hpp>
 #include <world.hpp>
+#include <obj-pool-client.hpp>
+#include <client-pool-obj.hpp>
 
 namespace ecs
 {
@@ -235,7 +236,7 @@ class Model
     tim::Timepoint lastTSync;
     def::ClientInfo clientInfo;
     ecs::ClientRegistry clientRegistry;
-    specsys::Projectiles projectiles;
+    opool::OpoolClient<opool::ProjClient> projectiles;
 
     std::function<void(void)> afterLoadWorldClb;
     std::vector<ecs::EntityId> selectedEntities;

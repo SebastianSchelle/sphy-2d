@@ -1,13 +1,10 @@
 #include "bitsery/serializer.h"
 #include "client-def.hpp"
 #include "comp-ai.hpp"
-#include "ecs.hpp"
 #include "entt/entity/fwd.hpp"
 #include "free-vector.hpp"
 #include "lib-projectile.hpp"
-#include "lib-station-part.hpp"
 #include "logging.hpp"
-#include "projectile.hpp"
 #include "sector-registry.hpp"
 #include "sector.hpp"
 #include "std-inc.hpp"
@@ -21,7 +18,6 @@
 #include <comp-tag.hpp>
 #include <comp-turret.hpp>
 #include <engine-impl.hpp>
-#include <iterator>
 #include <net-shared.hpp>
 #include <objb-asteroid.hpp>
 #include <objb-item.hpp>
@@ -39,6 +35,7 @@
 #include <version.hpp>
 #include <work-distributor.hpp>
 #include <work-sequencer.hpp>
+#include <pool-objects.hpp>
 
 namespace sphys
 {
@@ -1087,8 +1084,8 @@ void Engine::sendProjectileInfo(def::ClientInfo* client)
         mcomp.resetData();
         mcomp.startCommand(prot::cmd::SEND_PROJ_DATA, 0);
         sector->foreachProj(
-            [client, &mcomp, this](specsys::Projectile& proj,
-                                   specsys::ProjectileHandle handle)
+            [client, &mcomp, this](opool::Projectile& proj,
+                                   opool::ProjectileHandle handle)
             {
                 mcomp.ser->object(handle.toGenericHandle());
                 mcomp.ser->object(proj.transform);

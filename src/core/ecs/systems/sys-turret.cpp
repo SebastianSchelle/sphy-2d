@@ -1,16 +1,10 @@
 #include "sys-turret.hpp"
 #include "comp-phy.hpp"
 #include "lib-projectile.hpp"
-#include "logging.hpp"
-#include "objb-recipes.hpp"
-#ifdef SERVER
 #include <engine.hpp>
-#endif
 
 namespace ecs
 {
-
-#ifdef SERVER
 
 constexpr float kAngleErrorThreshold = 2.0f * M_PIf / 180.0f;
 
@@ -161,12 +155,13 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                             const vec2 fireDir =
                                 smath::rotateVec2(vec2(0.0f, 1.0f), s, c);
                             vec2 fireVel = fireDir * projectileData.exitSpeed;
-                            sector->spawnProjectile(
-                                projectileData.projectile,
-                                parVel + fireVel,
-                                ecs::Transform{transform.pos + exit, firingRot},
-                                proj->lifetime,
-                                module.parent);
+                            sector->spawnProjectile(opool::Projectile{
+                                .transform = ecs::Transform{transform.pos + exit, firingRot},
+                                .collExcept = module.parent,
+                                .proj = projectileData.projectile,
+                                .vel = parVel + fireVel,
+                                .lifetimeMax = proj->lifetime
+                            });
                         }
                     }
                     break;
@@ -178,5 +173,5 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
             }
         });
 }
-#endif
+
 }  // namespace ecs

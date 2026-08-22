@@ -41,58 +41,6 @@ void Sector::init(int x,
 #endif
 }
 
-
-/*
-bool Sector::addEntity(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
-{
-    if (!ptrHandle->ecs->validId(entityId))
-    {
-        LG_W("Entity not valid: {}", entityId);
-        return false;
-    }
-    auto reg = ptrHandle->registry;
-    auto it = std::find_if(entityRefs.begin(),
-                           entityRefs.end(),
-                           [entityId](const EntRef& ref)
-                           { return ref.entityId == entityId; });
-    if (it != entityRefs.end())
-    {
-        LG_W("Entity already in sector: {}", entityId);
-        return false;
-    }
-    entt::entity entity = ptrHandle->ecs->getEntity(entityId);
-    entityRefs.push_back(EntRef{entityId, entity});
-    auto& sector = reg->get<ecs::SectorId>(entity);
-    sector.id = id;
-    sector.x = (uint32_t)coordX;
-    sector.y = (uint32_t)coordY;
-    // add AABB calculation from polygon
-    auto& transform = reg->get<ecs::Transform>(entity);
-    auto* collider = reg->try_get<ecs::Collider>(entity);
-    auto* broadphase = reg->try_get<ecs::Broadphase>(entity);
-    if (collider && broadphase)
-    {
-        auto* transformCache = reg->try_get<ecs::TransformCache>(entity);
-        float c = cosf(transform.rot);
-        float s = sinf(transform.rot);
-        if (transformCache)
-        {
-            transformCache->c = c;
-            transformCache->s = s;
-        }
-        con::AABB aabb = ecs::calculateAABB(
-            transform, {c, s}, *collider, ptrHandle->colliderLib);
-        if (broadphase->proxyId <= ecs::Broadphase::INVALID_PROXY_ID)
-        {
-            broadphase->proxyId = aabbTree.createProxy(aabb, entity);
-            broadphase->fatAABB = aabb;
-        }
-    }
-    return true;
-}
-*/
-
-
 vec2 Sector::getWorldPosSectorOffset(int32_t sectorOffsetX,
                                      int32_t sectorOffsetY) const
 {
@@ -102,18 +50,14 @@ vec2 Sector::getWorldPosSectorOffset(int32_t sectorOffsetX,
 
 #ifdef SERVER
 
-void Sector::spawnProjectile(gobj::ProjectileHandle proj,
-                             vec2 vel,
-                             const ecs::Transform& tr,
-                             float lifetime,
-                             ecs::EntityId collExcept)
+void Sector::spawnProjectile(const opool::Projectile& proj)
 {
-    projectilePool.spawnProjectile(proj, vel, tr, lifetime, collExcept);
+    projectilePool.spawnObject(proj);
 }
 
 void Sector::foreachProj(
-    std::function<con::FreeVecForeachRet(specsys::Projectile&,
-                                         specsys::ProjectileHandle handle)> clb)
+    std::function<con::FreeVecForeachRet(opool::Projectile&,
+        opool::ProjectileHandle handle)> clb)
 {
     projectilePool.foreach (clb);
 }

@@ -13,9 +13,10 @@
 #include <unordered_set>
 #ifdef SERVER
 #include "registry-mapping.hpp"
-#include <projectile.hpp>
 #include <sector-registry.hpp>
 #include <task-system.hpp>
+#include <obj-pool.hpp>
+#include <pool-objects.hpp>
 #endif
 
 namespace world
@@ -39,7 +40,7 @@ enum class BpUserType : uint8_t
 union BpUserDataUnion
 {
     entt::entity ent;
-    specsys::ProjectileHandle handle;
+    opool::ProjectileHandle handle;
 };
 struct BpUserData
 {
@@ -92,8 +93,8 @@ class Sector
     void update(float dt, ecs::PtrHandle* ptrHandle);
     bool saveSector(const std::string& savedir);
     void foreachProj(
-        std::function<con::FreeVecForeachRet(specsys::Projectile&,
-                                             specsys::ProjectileHandle handle)>
+        std::function<con::FreeVecForeachRet(opool::Projectile&,
+            opool::ProjectileHandle handle)>
             clb);
 #endif
     const float getWorldPosX() const
@@ -134,11 +135,7 @@ class Sector
     {
         return taskSystem;
     }
-    void spawnProjectile(gobj::ProjectileHandle proj,
-                         vec2 vel,
-                         const ecs::Transform& tr,
-                         float lifetime,
-                         ecs::EntityId collExcept = ecs::EntityId::Invalid());
+    void spawnProjectile(const opool::Projectile& proj);
     inline void addBroadphaseQueryEntity(entt::entity entity)
     {
         broadphaseQueryEntities.push_back(entity);
@@ -176,7 +173,7 @@ class Sector
     vector<ecs::EntityId> entitiesToDestroy;
     vector<SingleThreadedTaskFunction> singleThreadedTasks;
     vector<SectorMoveRequest> sectorMoveRequests;
-    specsys::ProjectilePool projectilePool;
+    opool::ObjectPool<opool::Projectile> projectilePool;
     con::DynamicAABBTree<BpUserData> aabbTree;
 #endif
     bool active = false;

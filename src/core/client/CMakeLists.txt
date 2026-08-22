@@ -42,7 +42,7 @@ set(LIBS_PUB
     sphy_misc_runtime
     sphy_client_render
     sphy_client_ui
-    sphy_core_proj_client
+    sphy_core_opool_client
 )
 
 set(BGFX_BUILD ${BGFX_DIR}/build/cmake)

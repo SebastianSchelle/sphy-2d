@@ -822,38 +822,8 @@ void Model::drawProjectiles(gfx::RenderEngine& renderer,
                             float zoom,
                             uint32_t activeSectorId)
 {
-    // auto& reg = clientRegistry.getRegistry();
-    // reg.view<ecs::Transform, ecs::SectorId, ecs::Projectile, ecs::Textures>()
-    //     .each(
-    //         [this, &renderer, &viewRect, &reg, activeSectorId](
-    //             ecs::Transform& transform,
-    //             ecs::SectorId& sectorId,
-    //             ecs::Projectile& projectile,
-    //             ecs::Textures& textures)
-    //         {
-    //             bool sectorFilter = activeSectorId ==
-    //             world::INVALID_SECTOR_ID
-    //                                 || sectorId.id == activeSectorId;
-    //             if (sectorFilter)
-    //             {
-    //                 glm::vec2 worldPos = world.getWorldPosSectorOffset(
-    //                                          sectorId.id,
-    //                                          renderer.getSectorOffsetX(),
-    //                                          renderer.getSectorOffsetY())
-    //                                      + transform.pos;
-    //                 if (smath::pointInsideRect(worldPos, viewRect))
-    //                 {
-    //                     drawTextures(renderer,
-    //                                  textures,
-    //                                  transform.rot,
-    //                                  gfx::RenderEngine::zIdxProjectile,
-    //                                  worldPos);
-    //                 }
-    //             }
-    //         });
-
     projectiles.foreach (
-        [&renderer, &viewRect, this](specsys::ProjClient& proj)
+        [&renderer, &viewRect, this](opool::ProjClient& proj)
         {
             if (smath::pointInsideRect(proj.posNext.pos, viewRect))
             {
@@ -1600,7 +1570,7 @@ void Model::handleSendProjData(bitsery::Deserializer<InputAdapter>& cmddes,
         cmddes.object(tr);
         cmddes.object(proj);
         projectiles.updateProjectile(
-            handle, gobj::ProjectileHandle(proj), tr.pos, tr.rot);
+            handle, opool::ProjClient::Params{.tr=tr, .proj=proj});
     }
 }
 

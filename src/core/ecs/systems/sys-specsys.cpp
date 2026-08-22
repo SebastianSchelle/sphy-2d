@@ -2,13 +2,11 @@
 #include "entt/entity/fwd.hpp"
 #include "free-vector.hpp"
 #include "lib-projectile.hpp"
-#include "logging.hpp"
 #include "sector.hpp"
 #include "std-inc.hpp"
 #include "sys-phy.hpp"
 #include <lib-collider.hpp>
 #include <mod-manager.hpp>
-#include <projectile.hpp>
 #include <sys-specsys.hpp>
 #include <world.hpp>
 
@@ -47,8 +45,8 @@ static inline void projColliderAction(PtrHandle* ptrHandle,
 void sysProjPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 {
     sector->foreachProj(
-        [ptrHandle, dt, sector](specsys::Projectile& projectile,
-                                specsys::ProjectileHandle handle)
+        [ptrHandle, dt, sector](opool::Projectile& projectile,
+            opool::ProjectileHandle handle)
         {
             // LIFETIME
             projectile.lifetime += dt;

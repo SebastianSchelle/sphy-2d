@@ -5,6 +5,7 @@
 #include <std-inc.hpp>
 #include <sys-defs.hpp>
 #include <world.hpp>
+#include <comp-struct.hpp>
 
 namespace ecs
 {
