@@ -62,35 +62,6 @@ ecs::EntityId AsteroidRecipe::spawn(const RecipeSpawnParams& params)
     return asteroid;
 }
 
-ecs::EntityId ProjectileRecipe::spawn(const RecipeSpawnParams& params,
-                                      float s,
-                                      float c)
-{
-    auto ptr = params.ptrHandle;
-
-    // Spawn asteroid
-    auto projectile = ptr->engine->spawnProjectile(
-        params.sector, projectileHandle, exceptEntity);
-
-    // Place at desired pos and rotation
-    auto slot = ptr->registryMapping->getEntity(projectile);
-    if (!slot)
-    {
-        LG_E("No registry slot found for entity {}", projectile);
-        return ecs::EntityId::Invalid();
-    }
-    auto reg = params.sector->getRegistry()->getRegistry();
-    Transform::position(reg, slot->entity, params.pos, params.rot);
-
-    // calculate exit velocity
-    const vec2 fireDir = smath::rotateVec2(vec2(0.0f, 1.0f), s, c);
-    vec2 fireVel = fireDir * exitSpeed;
-    Physics::velocity(reg, slot->entity, params.vel + fireVel);
-    params.sector->objectInitBroadphase(ptr, slot->entity);
-    ptr->engine->broadcastEntityToClients(projectile);
-    return projectile;
-}
-
 ecs::EntityId ItemRecipe::spawn(const RecipeSpawnParams& params, float quantity)
 {
     auto ptr = params.ptrHandle;

@@ -97,9 +97,6 @@ class Engine
                               uint32_t slotIdx);
     ecs::EntityId spawnAsteroid(world::Sector* sector,
                                 gobj::AsteroidHandle asteroidHandle);
-    ecs::EntityId spawnProjectile(world::Sector* sector,
-                                  gobj::ProjectileHandle projectileHandle,
-                                  ecs::EntityId exceptEntity);
     ecs::EntityId spawnItem(world::Sector* sector,
                             gobj::ItemHandle itemHandle,
                             ecs::EntityId collexcept);

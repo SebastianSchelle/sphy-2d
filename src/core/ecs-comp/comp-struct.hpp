@@ -12,6 +12,11 @@ enum class ModuleType : uint8_t;
 enum class StationPartType : uint8_t;
 }  // namespace gobj
 
+namespace world
+{
+class Sector;
+}
+
 namespace gobj
 {
 struct Item;
@@ -155,12 +160,17 @@ struct Asteroid
                 float damage,
                 std::function<void(gobj::ItemHandle handle, uint32_t quantity)>
                     harvestCallback);
+    void damageAndMine(PtrHandle* ptrHandle,
+                       world::Sector* sector,
+                       float dmg,
+                       entt::entity ast,
+                       const vec2& collPos);
 #endif
 };
 
 #define SER_ASTEROID                                                           \
     SOBJ(o.asteroidHandle);                                                    \
-    S4b(o.volume);                                                               \
+    S4b(o.volume);                                                             \
     S4b(o.harvestProgress);
 EXT_SER(Asteroid, SER_ASTEROID)
 EXT_DES(Asteroid, SER_ASTEROID)
@@ -173,7 +183,9 @@ struct Item
     float quantity;
 };
 
-#define SER_ITEM SOBJ(o.itemHandle); S4b(o.quantity);
+#define SER_ITEM                                                               \
+    SOBJ(o.itemHandle);                                                        \
+    S4b(o.quantity);
 EXT_SER(Item, SER_ITEM)
 EXT_DES(Item, SER_ITEM)
 

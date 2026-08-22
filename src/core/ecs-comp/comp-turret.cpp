@@ -16,13 +16,7 @@ Turret::fromGobjTurretData(const gobj::mdata::Turret& turretData,
         {
             auto projData =
                 std::get<gobj::mdata::Turret::ProjectileData>(turretData.data);
-            return ProjectileData{
-                .reloadTimer = 0.0f,
-#ifdef SERVER
-                .recipe = objb::ProjectileRecipe(
-                    projData.projectile, exceptEntId, projData.exitSpeed)
-#endif
-            };
+            return ProjectileData{.reloadTimer = 0.0f};
         }
         case def::TurretType::Laser:
             return LaserData{};

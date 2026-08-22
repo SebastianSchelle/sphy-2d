@@ -3,9 +3,6 @@
 
 #include "comp-ident.hpp"
 #include "lib-projectile.hpp"
-#ifdef SERVER
-#include "objb-recipes.hpp"
-#endif
 #include <lib-modules.hpp>
 #include <std-inc.hpp>
 #include <turret-def.hpp>
@@ -52,12 +49,6 @@ struct Turret
     struct ProjectileData
     {
         float reloadTimer = 0.0f;
-#ifdef SERVER
-        objb::ProjectileRecipe recipe =
-            objb::ProjectileRecipe(gobj::ProjectileHandle::Invalid(),
-                                   ecs::EntityId::Invalid(),
-                                   0.0f);
-#endif
     };
     struct LaserData
     {

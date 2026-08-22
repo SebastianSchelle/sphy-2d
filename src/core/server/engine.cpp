@@ -26,7 +26,6 @@
 #include <objb-asteroid.hpp>
 #include <objb-item.hpp>
 #include <objb-module.hpp>
-#include <objb-projectile.hpp>
 #include <objb-recipes.hpp>
 #include <objb-ship.hpp>
 #include <protocol.hpp>
@@ -1335,19 +1334,6 @@ ecs::EntityId Engine::spawnAsteroid(world::Sector* sector,
         });
 }
 
-ecs::EntityId Engine::spawnProjectile(world::Sector* sector,
-                                      gobj::ProjectileHandle projectileHandle,
-                                      ecs::EntityId exceptEntity)
-{
-    return sector->spawnObject(
-        ptrHandle,
-        [this, projectileHandle, exceptEntity](ecs::SpawnCallbackParams& params)
-        {
-            return objb::Projectile::build(
-                ptrHandle, params, projectileHandle, exceptEntity);
-        });
-}
-
 ecs::EntityId Engine::spawnItem(world::Sector* sector,
                                 gobj::ItemHandle itemHandle,
                                 ecs::EntityId collExcept)
@@ -1425,7 +1411,7 @@ void Engine::testSpawn()
          {17, modManager.getModuleLib().getHandle("Breeze Maneuver")},
          {18, modManager.getModuleLib().getHandle("Breeze Maneuver")}});
 
-    for (int i = 0; i < 500; ++i)
+    for (int i = 0; i < 1; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);

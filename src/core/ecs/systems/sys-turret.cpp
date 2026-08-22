@@ -1,5 +1,6 @@
 #include "sys-turret.hpp"
 #include "comp-phy.hpp"
+#include "lib-projectile.hpp"
 #include "logging.hpp"
 #include "objb-recipes.hpp"
 #ifdef SERVER
@@ -129,6 +130,13 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                         else if (turret.fireMode != Turret::FireMode::None
                                  && turret.isFiring)
                         {
+                            const gobj::Projectile* proj =
+                                ptrHandle->modManager->getProjectileLib()
+                                    .getItem(projectileData.projectile);
+                            if(!proj)
+                            {
+                                break;
+                            }
                             ballisticData.reloadTimer =
                                 projectileData.reloadTime;
                             const float firingRot =
@@ -150,23 +158,14 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                                     parVel = physBody->vel;
                                 }
                             }
-                            // ballisticData.recipe.spawn(
-                            //     {.ptrHandle = ptrHandle,
-                            //      .sector = sector,
-                            //      .pos = transform.pos + exit,
-                            //      .rot = firingRot,
-                            //      .vel = parVel},
-                            //     s,
-                            //     c);
-
                             const vec2 fireDir =
                                 smath::rotateVec2(vec2(0.0f, 1.0f), s, c);
-                            vec2 fireVel = fireDir * 50.0f;
+                            vec2 fireVel = fireDir * projectileData.exitSpeed;
                             sector->spawnProjectile(
                                 projectileData.projectile,
                                 parVel + fireVel,
                                 ecs::Transform{transform.pos + exit, firingRot},
-                                2.0f,
+                                proj->lifetime,
                                 module.parent);
                         }
                     }

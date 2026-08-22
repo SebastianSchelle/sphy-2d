@@ -1,9 +1,17 @@
 #include "comp-struct.hpp"
+#include "comp-ident.hpp"
+#include "entt/entity/fwd.hpp"
+#include "logging.hpp"
 #include "ptr-handle.hpp"
 #include <lib-asteroid.hpp>
 #include <lib-item.hpp>
 #include <mod-manager.hpp>
 #include <random>
+#include <sector.hpp>
+#ifdef SERVER
+#include <objb-recipes.hpp>
+#include <comp-phy.hpp>
+#endif
 
 namespace ecs
 {
@@ -51,12 +59,12 @@ pickCompositionItem(const gobj::AsteroidComposition& composition)
 
 }  // namespace
 
-void Asteroid::damage(
-    PtrHandle* ptrHandle,
-    float damage,
-    std::function<void(gobj::ItemHandle handle, uint32_t quantity)> harvestCallback)
+void Asteroid::damage(PtrHandle* ptrHandle,
+                      float dmg,
+                      std::function<void(gobj::ItemHandle handle,
+                                         uint32_t quantity)> harvestCallback)
 {
-    volume -= damage;
+    volume -= dmg;
     gobj::Asteroid* asteroidData =
         ptrHandle->modManager->getAsteroidLib().getItem(
             gobj::AsteroidHandle(asteroidHandle));
@@ -70,7 +78,7 @@ void Asteroid::damage(
         {
             auto& fragment =
                 std::get<gobj::AsteroidFragmentdata>(asteroidData->content);
-            harvestProgress += damage;
+            harvestProgress += dmg;
             while (harvestProgress >= 10.0f)
             {
                 const gobj::ItemHandle itemHandle =

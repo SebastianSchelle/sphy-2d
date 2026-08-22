@@ -1,7 +1,10 @@
 #include "comp-phy.hpp"
+#include "entt/entity/fwd.hpp"
 #include "free-vector.hpp"
+#include "lib-projectile.hpp"
 #include "logging.hpp"
 #include "std-inc.hpp"
+#include "sys-phy.hpp"
 #include <lib-collider.hpp>
 #include <mod-manager.hpp>
 #include <projectile.hpp>
@@ -10,6 +13,35 @@
 
 namespace ecs
 {
+
+static inline void projColliderAction(PtrHandle* ptrHandle,
+                                      world::Sector* sector,
+                                      CollisionLayer collLayer,
+                                      const entt::entity other,
+                                      const gobj::Projectile& projData,
+                                      const vec2& collPos)
+{
+    auto reg = sector->getRegistry()->getRegistry();
+    switch (collLayer)
+    {
+        case CollisionLayer::Asteroid:
+        {
+            auto* asteroid = reg->try_get<Asteroid>(other);
+            if (!asteroid)
+            {
+                return;
+            }
+            float dmg = (projData.damageType == def::DamageType::Mining
+                             ? projData.dmg
+                             : projData.dmg * 0.001f)
+                        * ptrHandle->miningRate;
+            damageAndMine(
+                *asteroid, ptrHandle, sector, projData.dmg, other, collPos);
+        }
+        default:
+            break;
+    }
+}
 
 void sysProjPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 {
@@ -42,7 +74,8 @@ void sysProjPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
             auto ret = con::FreeVecForeachRet::OK;
             sector->queryBroadphasePoint(
                 trans.pos,
-                [slot, sector, &ret, ptrHandle, &trans](entt::entity other)
+                [slot, sector, &ret, ptrHandle, &trans, &projectile](
+                    entt::entity other)
                 {
                     if (slot && other == slot->entity
                         && slot->sectorId == sector->getId())
@@ -72,6 +105,18 @@ void sysProjPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                         }
                         if (sat2d::pointInConvex(trans.pos, w1))
                         {
+                            auto projData =
+                                ptrHandle->modManager->getProjectileLib()
+                                    .getItem(projectile.proj);
+                            if (projData)
+                            {
+                                projColliderAction(ptrHandle,
+                                                   sector,
+                                                   coll->colliderType,
+                                                   other,
+                                                   *projData,
+                                                   projectile.transform.pos);
+                            }
                             ret = con::FreeVecForeachRet::DESTROY;
                         }
                     }

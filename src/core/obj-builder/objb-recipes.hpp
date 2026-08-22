@@ -73,24 +73,6 @@ class ItemRecipe
     ecs::EntityId collExcept;
 };
 
-class ProjectileRecipe
-{
-  public:
-    ProjectileRecipe(gobj::ProjectileHandle projectileHandle,
-                     ecs::EntityId exceptEntity,
-                     float exitSpeed)
-        : projectileHandle(projectileHandle), exceptEntity(exceptEntity),
-          exitSpeed(exitSpeed)
-    {
-    }
-    ecs::EntityId spawn(const RecipeSpawnParams& params, float s, float c);
-
-  private:
-    gobj::ProjectileHandle projectileHandle;
-    ecs::EntityId exceptEntity;
-    float exitSpeed;
-};
-
 }  // namespace objb
 
 #endif
