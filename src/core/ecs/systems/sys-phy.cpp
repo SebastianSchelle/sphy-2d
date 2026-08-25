@@ -553,34 +553,6 @@ void damageAndMine(ecs::Asteroid& asteroid,
     }
 }
 
-static bool itemCollision(const ColResolveParams& p)
-{
-    auto reg = p.sector->getRegistry()->getRegistry();
-    auto* item = reg->try_get<Item>(p.actionEnt);
-    auto* storage = reg->try_get<Storage>(p.otherEnt);
-    if (!storage || !item)
-    {
-        return false;
-    }
-    auto* itemData =
-        p.ptrHandle->modManager->getItemLib().getItem(item->itemHandle);
-    if (!itemData)
-    {
-        LG_E("Item data not found");
-        return false;
-    }
-    uint32_t amountAdded =
-        storage->tryAddItem(item->itemHandle, *itemData, item->quantity);
-    item->quantity -= amountAdded;
-    if (item->quantity <= 0)
-    {
-        ecs::EntityId actionEntId = reg->get<ecs::EntityId>(p.actionEnt);
-        p.sector->markEntityForDestruction(p.ptrHandle, actionEntId);
-        return true;
-    }
-    return false;
-}
-
 static inline bool
 colliderAction(PtrHandle* ptrHandle,
                world::Sector* sector,
@@ -597,23 +569,11 @@ colliderAction(PtrHandle* ptrHandle,
 
     switch (collider1.colliderType)
     {
-        case CollisionLayer::Item:
-        {
-            p.actionEnt = collision.first;
-            p.otherEnt = collision.second;
-            return itemCollision(p);
-        }
         default:
             break;
     }
     switch (collider2.colliderType)
     {
-        case CollisionLayer::Item:
-        {
-            p.actionEnt = collision.second;
-            p.otherEnt = collision.first;
-            return itemCollision(p);
-        }
         default:
             break;
     }
