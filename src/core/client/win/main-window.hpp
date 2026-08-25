@@ -272,9 +272,6 @@ class MainWindow
     AtlasDebugView atlasDebug;
     sphyc::Model model;
 
-    tim::Timepoint lastLoopTime;
-    float frameTimeFiltered = 0.0f;
-
     UiDocHandle modLoadingHandle;
 
     std::thread loadingThread;
@@ -298,6 +295,8 @@ class MainWindow
     float dragThreshold = 0.0f;
     uint32_t dragBoxColor = 0x20ffffff;
     float dragBoxThickness = 1.0f;
+    float maxFps;
+    float filteredFps = 60.0f;
 
 };
 

@@ -104,6 +104,7 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
 
     uint8_t logLevel = CFG_UINT(config, 1.0f, "loglevel");
     debug::createLogger("logs/logClient.txt", logLevel);
+    maxFps = CFG_FLOAT(config, 60.0f, "gfx", "max-fps");
     dragThreshold =
         CFG_FLOAT(config, 300.0f, "input", "drag-threshold", "world");
     dragBoxColor = CFG_UINT(
@@ -256,23 +257,28 @@ bool MainWindow::createWindow()
 
 void MainWindow::winLoop()
 {
-    lastLoopTime = tim::getCurrentTimeU();
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    tim::Timepoint lastSelectedEntitiesMoveCmd = tim::getCurrentTimeU();
+    using Clock = std::chrono::steady_clock;
+    const auto frameDuration =
+        std::chrono::microseconds((uint32_t)(1000000 / maxFps));
+    auto lastFrame = Clock::now();
+    auto nextFrame = lastFrame + frameDuration;
 
     while (!glfwWindowShouldClose(window))
     {
+        std::this_thread::sleep_until(nextFrame);
+        const auto now = Clock::now();
+        const auto nowU = tim::nowU();
+        const float dt = std::chrono::duration<float>(now - lastFrame).count();
+        lastFrame = now;
+        nextFrame += frameDuration;
+        if (nextFrame < now)
+            nextFrame = now;
+        filteredFps = 0.9f * filteredFps + 0.1f * (1.0f / dt);
+
         determineUiEnvironment();
         processUiTasks();
 
-        tim::Timepoint now = tim::getCurrentTimeU();
-        float deltaTime = (float)tim::durationU(lastLoopTime, now) / 1000000.0f;
-        lastLoopTime = now;
-        frameTimeFiltered = 0.9f * frameTimeFiltered + 0.1f * deltaTime;
-        debugData.viewData.fpsSmoothed =
-            frameTimeFiltered > 1e-6f ? 1.0f / frameTimeFiltered : 0.f;
-
-        model.modelLoop(deltaTime);
+        model.modelLoop(dt);
 
         mouseState.mz = 0;
         glfwPollEvents();
@@ -327,7 +333,7 @@ void MainWindow::winLoop()
 
         if (userInterface.isDebugOpen())
         {
-            updateDebugDataModel(deltaTime, mouseOverUi);
+            updateDebugDataModel(dt, mouseOverUi);
             rmlModelDebug.DirtyAllVariables();
         }
 
@@ -914,8 +920,7 @@ void MainWindow::updateMenuDataModel()
 void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
 {
     debugData.viewData.frameMs = deltaTimeSec * 1000.f;
-    debugData.viewData.fpsSmoothed =
-        frameTimeFiltered > 1e-6f ? 1.0f / frameTimeFiltered : 0.f;
+    debugData.viewData.fpsSmoothed = filteredFps;
     debugData.viewData.zoom = renderEngine.getWorldZoom();
     debugData.viewData.camX = renderEngine.getWorldCameraPosition().x;
     debugData.viewData.camY = renderEngine.getWorldCameraPosition().y;
