@@ -191,8 +191,10 @@ class Model
     void drawTexture(gfx::RenderEngine& renderer,
                      const GenericHandle texture,
                      float rot,
+                     const vec2& size,
                      const int8_t parentZ,
-                     const glm::vec2& worldPos);
+                     const glm::vec2& worldPos,
+                     bool useTexSize = false);
     void drawTextures(gfx::RenderEngine& renderer,
                       const ecs::Textures& textures,
                       float rot,

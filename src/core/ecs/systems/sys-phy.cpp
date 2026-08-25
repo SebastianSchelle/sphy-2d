@@ -9,9 +9,9 @@
 #include <comp-phy.hpp>
 #include <comp-storage.hpp>
 #include <comp-struct.hpp>
+#include <engine.hpp>
 #include <optional>
 #include <sys-phy.hpp>
-#include <engine.hpp>
 
 namespace ecs
 {
@@ -505,34 +505,34 @@ void damageAndMine(ecs::Asteroid& asteroid,
                    const vec2& collPos)
 {
     auto reg = sector->getRegistry()->getRegistry();
-    asteroid.damage(ptrHandle,
-                    dmg,
-                    [sector, reg, ptrHandle, ast, collPos](
-                        gobj::ItemHandle handle, uint32_t quantity)
-                    {
-                        gobj::Item* item =
-                            ptrHandle->modManager->getItemLib().getItem(handle);
-                        if (!item)
-                        {
-                            return;
-                        }
-                        ecs::EntityId otherEntId = reg->get<ecs::EntityId>(ast);
-                        const Transform& astTransform =
-                        reg->get<Transform>(ast);
-                        vec2 dir = collPos - astTransform.pos;
-                        vec2 vel = glm::normalize(dir) * 20.0f;
-                        vel.x += rand() % 10 - 5;
-                        vel.y += rand() % 10 - 5;    
-                        float rot = (rand() % 360) / 180.0f * M_PIf;
-                        sector->spawnItem(opool::Item{
-                            .transform = {collPos, rot},
+    asteroid.damage(
+        ptrHandle,
+        dmg,
+        [sector, reg, ptrHandle, ast, collPos](gobj::ItemHandle handle,
+                                               uint32_t quantity)
+        {
+            gobj::Item* item =
+                ptrHandle->modManager->getItemLib().getItem(handle);
+            if (!item)
+            {
+                return;
+            }
+            ecs::EntityId otherEntId = reg->get<ecs::EntityId>(ast);
+            const Transform& astTransform = reg->get<Transform>(ast);
+            vec2 dir = collPos - astTransform.pos;
+            vec2 vel = glm::normalize(dir) * 20.0f;
+            vel.x += rand() % 10 - 5;
+            vel.y += rand() % 10 - 5;
+            float rot = (rand() % 360) / 180.0f * M_PIf;
+            sector->spawnItem(
+                ptrHandle,
+                opool::Item{.transform = {collPos, rot},
                             .item = handle,
                             .quantity = quantity,
                             .vel = vel,
                             .collExcept = otherEntId,
-                            .lifetimeMax = ptrHandle->itemLifetime
-                        });
-                    });
+                            .lifetimeMax = ptrHandle->itemLifetime});
+        });
     if (asteroid.volume <= 0.0f)
     {
         auto* asteroidData = ptrHandle->modManager->getAsteroidLib().getItem(
@@ -642,7 +642,7 @@ void sysCollisionDetectionImpl(world::Sector* sector,
         }
         sector->queryBroadphase(
             broadphase.fatAABB,
-            [sector, entity, reg](const world::BpUserData& data)
+            [sector, entity, reg, ptrHandle](const world::BpUserData& data)
             {
                 if (data.type == world::BpUserType::Ecs)
                 {
@@ -671,6 +671,44 @@ void sysCollisionDetectionImpl(world::Sector* sector,
                         std::swap(lo, hi);
                     }
                     sector->broadphaseCollisions.push_back({lo, hi});
+                }
+                else if (data.type == world::BpUserType::Item)
+                {
+                    // todo: refactor and add proper item storage handling. Put in separate function
+                    auto coll = reg->get<Collider>(entity);
+                    auto trc = reg->get<TransformCache>(entity);
+                    auto tr = reg->get<Transform>(entity);
+                    if (coll.colliderType == CollisionLayer::Ship)
+                    {
+                        auto itemHandle = data.data.itemHandle;
+                        auto item = sector->getItem(itemHandle);
+                        if (item)
+                        {
+                            auto collItem =
+                                ptrHandle->modManager->getColliderLib().getItem(
+                                    coll.colliderHandle);
+                            if(!collItem)
+                            {
+                                return;
+                            }
+                            const auto v1 = &collItem->vertices;
+                            const size_t n1 = v1->size();
+                            thread_local std::vector<vec2> w1;
+                            w1.resize(v1->size());
+                            for (size_t i = 0; i < n1; ++i)
+                            {
+                                const vec2& v = (*v1)[i];
+                                w1[i].x =
+                                    trc.c * v.x - trc.s * v.y + tr.pos.x;
+                                w1[i].y =
+                                    trc.s * v.x + trc.c * v.y + tr.pos.y;
+                            }
+                            if (sat2d::pointInConvex(item->transform.pos, w1))
+                            {
+                                sector->removeItem(itemHandle);
+                            }
+                        }
+                    }
                 }
             });
     }

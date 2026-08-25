@@ -40,7 +40,7 @@ enum class BpUserType : uint8_t
 union BpUserDataUnion
 {
     entt::entity ent;
-    opool::ProjectileHandle handle;
+    opool::ItemHandle itemHandle;
 };
 struct BpUserData
 {
@@ -84,6 +84,7 @@ class Sector
         std::function<void(const SectorMoveRequest& request)> callback);
     void moveAabbProxy(int32_t proxyId, con::AABB& newAabb);
     void destroyBroadphaseProxy(ecs::Broadphase* broadphase);
+    void destroyBroadphaseProxyId(int32_t proxyId);
     void getAllAABBs(std::vector<con::AABB>& aabbs) const;
     void queryBroadphase(const con::AABB& aabb,
                          std::function<void(const BpUserData&)> callback);
@@ -99,6 +100,7 @@ class Sector
     void foreachItem(
         std::function<con::FreeVecForeachRet(opool::Item&,
                                              opool::ItemHandle handle)> clb);
+    opool::Item* getItem(opool::ItemHandle handle);
 #endif
     const float getWorldPosX() const
     {
@@ -130,6 +132,12 @@ class Sector
     }
 #ifdef SERVER
     void objectInitBroadphase(ecs::PtrHandle* ptrHandle, entt::entity entity);
+    void itemInitBroadphase(ecs::PtrHandle* ptrHandle,
+                            opool::ItemHandle handle,
+                            opool::Item& item);
+    void itemUpdateBroadphase(ecs::PtrHandle* ptrHandle,
+                              opool::ItemHandle handle,
+                              opool::Item& item);
     ecs::SectorRegistry* getRegistry()
     {
         return &sectorRegistry;
@@ -139,7 +147,8 @@ class Sector
         return taskSystem;
     }
     void spawnProjectile(const opool::Projectile& proj);
-    void spawnItem(const opool::Item& item);
+    void spawnItem(ecs::PtrHandle* ptrHandle, const opool::Item& item);
+    void removeItem(opool::ItemHandle handle);
     inline void addBroadphaseQueryEntity(entt::entity entity)
     {
         broadphaseQueryEntities.push_back(entity);

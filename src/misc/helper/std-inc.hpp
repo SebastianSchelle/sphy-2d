@@ -883,6 +883,11 @@ insert_sorted(std::vector<T>& vec, T const& item, Pred pred)
         return x;                                                              \
     }
 
+namespace gfx
+{
+    constexpr float kTexturePixelToWorld = 0.15f;
+}
+
 // Do not `using smath::Rect` at file scope: macOS SDK (MacTypes.h) defines a
 // global `struct Rect`; a using-declaration would collide with Carbon's type.
 

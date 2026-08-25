@@ -26,8 +26,6 @@ namespace gfx
 #define SHAPE_TYPE_TRIANGLE 3.0f
 #define SHAPE_TYPE_LINE 4.0f
 
-constexpr float kTexturePixelToWorld = 0.15f;
-
 enum class GameViewMode
 {
     ThirdPerson,

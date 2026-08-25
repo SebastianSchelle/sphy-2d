@@ -891,9 +891,9 @@ void Model::drawItems(gfx::RenderEngine& renderer,
                       float zoom,
                       uint32_t activeSectorId)
 {
-    int i = 0;
+    // int i = 0;
     items.foreach (
-        [&renderer, &viewRect, this, &i](opool::ItemClient& item)
+        [&renderer, &viewRect, this](opool::ItemClient& item)
         {
             if (smath::pointInsideRect(item.transform.pos, viewRect))
             {
@@ -901,15 +901,17 @@ void Model::drawItems(gfx::RenderEngine& renderer,
                 if (itemData)
                 {
                     drawTexture(renderer,
-                                 itemData->worldTexture,
-                                 item.transform.rot,
-                                 gfx::RenderEngine::zIdxProjectile,
-                                 item.transform.pos);
-                    ++i;
+                                itemData->worldTexture,
+                                item.transform.rot,
+                                vec2{0.0f, 0.0f},
+                                gfx::RenderEngine::zIdxProjectile,
+                                item.transform.pos,
+                                true);
+                    // ++i;
                 }
             }
         });
-    LG_D("{}", i);
+    // LG_D("{}", i);
 }
 
 void Model::drawStationTextures(gfx::RenderEngine& renderer,
@@ -1002,8 +1004,10 @@ void Model::drawModuleTextures(gfx::RenderEngine& renderer,
 void Model::drawTexture(gfx::RenderEngine& renderer,
                         const GenericHandle texture,
                         float rot,
+                        const vec2& size,
                         const int8_t parentZ,
-                        const glm::vec2& worldPos)
+                        const glm::vec2& worldPos,
+                        bool useTexSize)
 {
     const mod::MappedTexture* mappedTexture =
         modManager->getResourceMap().getMappedTexture(
@@ -1013,10 +1017,18 @@ void Model::drawTexture(gfx::RenderEngine& renderer,
     {
         texHandle = mappedTexture->texHandle;
     }
-    vec2 size = vec2(0.5f, 0.5f);
-    renderer.getTexturePixelSize(texHandle, size);
+    vec2 mySize;
+    if (useTexSize)
+    {
+        renderer.getTexturePixelSize(texHandle, mySize);
+        mySize = mySize * gfx::kTexturePixelToWorld;
+    }
+    else
+    {
+        mySize = size;
+    }
     renderer.queueTexRect(worldPos,
-                          size * gfx::kTexturePixelToWorld,
+                          mySize,
                           texHandle,
                           rot,
                           gfx::RenderEngine::zIdxItem,

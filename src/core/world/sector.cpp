@@ -1,3 +1,4 @@
+#include "aabb-tree.hpp"
 #include "comp-tag.hpp"
 #include "entt/entity/fwd.hpp"
 #include "logging.hpp"
@@ -39,6 +40,14 @@ void Sector::init(int x,
     dirty = true;
 #ifdef SERVER
     sectorRegistry.init(regMapping, this);
+    itemPool.setDestroyFunction(
+        [this](opool::Item& item, opool::ItemHandle handle)
+        {
+            if (item.proxyId > ecs::Broadphase::INVALID_PROXY_ID)
+            {
+                destroyBroadphaseProxyId(item.proxyId);
+            }
+        });
 #endif
 }
 
@@ -56,22 +65,36 @@ void Sector::spawnProjectile(const opool::Projectile& proj)
     projectilePool.spawnObject(proj);
 }
 
-void Sector::spawnItem(const opool::Item& item)
+void Sector::spawnItem(ecs::PtrHandle* ptrHandle, const opool::Item& item)
 {
+    auto handle = itemPool.spawnObject(item);
+    auto* i = itemPool.getObject(handle);
+    if (i)
+    {
+        itemInitBroadphase(ptrHandle, handle, *i);
+    }
+}
 
-    itemPool.spawnObject(item);
+opool::Item* Sector::getItem(opool::ItemHandle handle)
+{
+    return itemPool.getObject(handle);
+}
+
+void Sector::removeItem(opool::ItemHandle handle)
+{
+    itemPool.destroyObject(handle);
 }
 
 void Sector::foreachProj(
     std::function<con::FreeVecForeachRet(opool::Projectile&,
-        opool::ProjectileHandle handle)> clb)
+                                         opool::ProjectileHandle handle)> clb)
 {
     projectilePool.foreach (clb);
 }
 
 void Sector::foreachItem(
     std::function<con::FreeVecForeachRet(opool::Item&,
-        opool::ItemHandle handle)> clb)
+                                         opool::ItemHandle handle)> clb)
 {
     itemPool.foreach (clb);
 }
@@ -96,8 +119,9 @@ void Sector::queryBroadphase(const con::AABB& aabb,
     aabbTree.query(aabb, callback);
 }
 
-void Sector::queryBroadphasePoint(const vec2& point,
-                                  std::function<void(const BpUserData&)> callback)
+void Sector::queryBroadphasePoint(
+    const vec2& point,
+    std::function<void(const BpUserData&)> callback)
 {
     aabbTree.queryPoint(point, callback);
 }
@@ -225,6 +249,40 @@ void Sector::objectInitBroadphase(ecs::PtrHandle* ptrHandle,
     }
 }
 
+void Sector::itemInitBroadphase(ecs::PtrHandle* ptrHandle,
+                                opool::ItemHandle handle,
+                                opool::Item& item)
+{
+    auto reg = sectorRegistry.getRegistry();
+    const vec2 pos = item.transform.pos;
+    con::AABB aabb{
+        .lower = pos - opool::Item::HalfSize,
+        .upper = pos + opool::Item::HalfSize,
+    };
+    if (item.proxyId <= ecs::Broadphase::INVALID_PROXY_ID)
+    {
+        item.proxyId = aabbTree.createProxy(
+            aabb,
+            BpUserData{.type = BpUserType::Item,
+                       .data = BpUserDataUnion{.itemHandle = handle}});
+    }
+}
+
+void Sector::itemUpdateBroadphase(ecs::PtrHandle* ptrHandle,
+                                  opool::ItemHandle handle,
+                                  opool::Item& item)
+{
+    if (item.proxyId > ecs::Broadphase::INVALID_PROXY_ID)
+    {
+        const vec2 pos = item.transform.pos;
+        con::AABB newAabb{
+            .lower = pos - opool::Item::HalfSize,
+            .upper = pos + opool::Item::HalfSize,
+        };
+        moveAabbProxy(item.proxyId, newAabb);
+    }
+}
+
 void Sector::destroyBroadphaseProxy(ecs::Broadphase* broadphase)
 {
     if (!broadphase)
@@ -232,8 +290,13 @@ void Sector::destroyBroadphaseProxy(ecs::Broadphase* broadphase)
         LG_W("broadphase is null");
         return;
     }
-    aabbTree.destroyProxy(broadphase->proxyId);
+    destroyBroadphaseProxyId(broadphase->proxyId);
     broadphase->proxyId = ecs::Broadphase::INVALID_PROXY_ID;
+}
+
+void Sector::destroyBroadphaseProxyId(int32_t id)
+{
+    aabbTree.destroyProxy(id);
 }
 
 void Sector::markEntityForDestruction(ecs::PtrHandle* ptrHandle,

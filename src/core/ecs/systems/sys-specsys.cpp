@@ -163,60 +163,60 @@ void sysItemPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                 }
                 else
                 {
-                    // todo: update broadphase here to enable collision within ecs systems
+                    sector->itemUpdateBroadphase(ptrHandle, handle, item);
                 }
 
                 // Stop if something is hit
-                auto slot =
-                    ptrHandle->registryMapping->getEntity(item.collExcept);
-                sector->queryBroadphasePoint(
-                    trans.pos,
-                    [slot, sector, ptrHandle, &trans, &item](
-                        const world::BpUserData& data)
-                    {
-                        if (data.type == world::BpUserType::Ecs)
-                        {
-                            // todo: For now don't care about ecs collision when moving
-                            // auto other = data.data.ent;
-                            // if (slot && other == slot->entity)
-                            // {
-                            //     return;
-                            // }
+                // auto slot =
+                //     ptrHandle->registryMapping->getEntity(item.collExcept);
+                // sector->queryBroadphasePoint(
+                //     trans.pos,
+                //     [slot, sector, ptrHandle, &trans, &item](
+                //         const world::BpUserData& data)
+                //     {
+                //         if (data.type == world::BpUserType::Ecs)
+                //         {
+                //             // todo: For now don't care about ecs collision when moving
+                //             // auto other = data.data.ent;
+                //             // if (slot && other == slot->entity)
+                //             // {
+                //             //     return;
+                //             // }
 
-                            // auto reg = sector->getRegistry()->getRegistry();
-                            // auto coll = reg->try_get<ecs::Collider>(other);
-                            // auto tr = reg->try_get<ecs::Transform>(other);
-                            // auto trc = reg->try_get<ecs::TransformCache>(other);
-                            // if (coll && tr && trc)
-                            // {
-                            //     auto collItem =
-                            //         ptrHandle->modManager->getColliderLib()
-                            //             .getItem(coll->colliderHandle);
+                //             // auto reg = sector->getRegistry()->getRegistry();
+                //             // auto coll = reg->try_get<ecs::Collider>(other);
+                //             // auto tr = reg->try_get<ecs::Transform>(other);
+                //             // auto trc = reg->try_get<ecs::TransformCache>(other);
+                //             // if (coll && tr && trc)
+                //             // {
+                //             //     auto collItem =
+                //             //         ptrHandle->modManager->getColliderLib()
+                //             //             .getItem(coll->colliderHandle);
 
-                            //     const auto v1 = &collItem->vertices;
-                            //     const size_t n1 = v1->size();
-                            //     thread_local std::vector<vec2> w1;
-                            //     w1.resize(v1->size());
-                            //     for (size_t i = 0; i < n1; ++i)
-                            //     {
-                            //         const vec2& v = (*v1)[i];
-                            //         w1[i].x =
-                            //             trc->c * v.x - trc->s * v.y + tr->pos.x;
-                            //         w1[i].y =
-                            //             trc->s * v.x + trc->c * v.y + tr->pos.y;
-                            //     }
-                            //     if (sat2d::pointInConvex(trans.pos, w1))
-                            //     {
-                            //         item.vel = vec2(0.0f, 0.0f);
-                            //     }
-                            // }
-                        }
-                        else if (data.type == world::BpUserType::Item)
-                        {
-                            // when near other item stop
-                            item.vel = vec2(0.0f, 0.0f);
-                        }
-                    });
+                //             //     const auto v1 = &collItem->vertices;
+                //             //     const size_t n1 = v1->size();
+                //             //     thread_local std::vector<vec2> w1;
+                //             //     w1.resize(v1->size());
+                //             //     for (size_t i = 0; i < n1; ++i)
+                //             //     {
+                //             //         const vec2& v = (*v1)[i];
+                //             //         w1[i].x =
+                //             //             trc->c * v.x - trc->s * v.y + tr->pos.x;
+                //             //         w1[i].y =
+                //             //             trc->s * v.x + trc->c * v.y + tr->pos.y;
+                //             //     }
+                //             //     if (sat2d::pointInConvex(trans.pos, w1))
+                //             //     {
+                //             //         item.vel = vec2(0.0f, 0.0f);
+                //             //     }
+                //             // }
+                //         }
+                //         else if (data.type == world::BpUserType::Item)
+                //         {
+                //             // when near other item stop
+                //             item.vel = vec2(0.0f, 0.0f);
+                //         }
+                //     });
             }
             return con::FreeVecForeachRet::OK;
         });

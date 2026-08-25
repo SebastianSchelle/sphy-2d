@@ -6,6 +6,7 @@
 #include "comp-struct.hpp"
 #include "free-vector.hpp"
 #include "lib-projectile.hpp"
+#include "std-inc.hpp"
 
 namespace opool
 {
@@ -23,6 +24,10 @@ using ProjectileHandle = typename con::FreeVec<Projectile>::Handle;
 
 struct Item
 {
+    static constexpr int32_t INVALID_PROXY_ID = -1;
+    static constexpr float ITEM_TEX_SIZE = 0.5f * 15.0f * gfx::kTexturePixelToWorld;
+    static constexpr vec2 HalfSize = vec2(ITEM_TEX_SIZE, ITEM_TEX_SIZE);
+
     ecs::Transform transform;
     gobj::ItemHandle item;
     uint32_t quantity;
@@ -30,6 +35,7 @@ struct Item
     ecs::EntityId collExcept;
     float lifetimeMax;
     float lifetime = 0.0f;
+    int32_t proxyId = INVALID_PROXY_ID;
 };
 using ItemHandle = typename con::FreeVec<Item>::Handle;
 

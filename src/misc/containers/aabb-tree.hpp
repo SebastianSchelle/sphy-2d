@@ -121,6 +121,17 @@ template <typename T> class DynamicAABBTree
         return node;
     }
 
+    int createProxyNoFat(const AABB& box, const T& id)
+    {
+        int node = allocateNode();
+        nodes[node].box = box;
+        nodes[node].id = id;
+        nodes[node].height = 0;
+
+        insertLeaf(node);
+        return node;
+    }
+
     void destroyProxy(int node)
     {
         if (node <= 0 || node >= (int)nodes.size())
@@ -142,6 +153,21 @@ template <typename T> class DynamicAABBTree
             return;
         }
         newBox.fatten(fatMargin);
+        removeLeaf(node);
+        nodes[node].box = newBox;
+        insertLeaf(node);
+    }
+
+    void moveProxyNoFat(int node, const AABB& newBox)
+    {
+        if (node <= 0 || node >= (int)nodes.size())
+        {
+            return;
+        }
+        if (nodes[node].box.contains(newBox))
+        {
+            return;
+        }
         removeLeaf(node);
         nodes[node].box = newBox;
         insertLeaf(node);

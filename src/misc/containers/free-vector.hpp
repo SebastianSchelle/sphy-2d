@@ -116,6 +116,11 @@ template <class T> class FreeVec
             return Handle::Invalid();
         }
     }
+    void setDestroyFunction(
+        std::function<void(T&, typename con::FreeVec<T>::Handle)> clb)
+    {
+        onDestroy = clb;
+    }
 
     // const std::unordered_map<std::string, int> &getIdMap() const { return
     // idMap; };
@@ -124,6 +129,7 @@ template <class T> class FreeVec
   private:
     std::vector<FreeVecItemWrapper<T>> items;
     std::vector<int> freeSlots;
+    std::function<void(T&, typename con::FreeVec<T>::Handle)> onDestroy;
 };
 
 template <class T> FreeVec<T>::Handle FreeVec<T>::addItem(const T& item)
@@ -233,7 +239,12 @@ template <class T> void FreeVec<T>::removeItem(int idx)
 {
     if (idx < items.size() && idx >= 0 && items[idx].alive)
     {
-        items[idx].alive = false;
+        FreeVecItemWrapper<T>& item = items[idx];
+        if (onDestroy)
+        {
+            onDestroy(item.item, Handle{(uint32_t)idx, item.generation});
+        }
+        item.alive = false;
         freeSlots.push_back(idx);
     }
 }
