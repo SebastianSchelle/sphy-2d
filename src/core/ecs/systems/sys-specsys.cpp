@@ -1,4 +1,5 @@
 #include "comp-phy.hpp"
+#include "comp-storage.hpp"
 #include "entt/entity/fwd.hpp"
 #include "free-vector.hpp"
 #include "lib-projectile.hpp"
@@ -137,6 +138,8 @@ void sysItemPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
     sector->foreachItem(
         [ptrHandle, dt, sector](opool::Item& item, opool::ItemHandle handle)
         {
+            con::FreeVecForeachRet ret = con::FreeVecForeachRet::OK;
+                
             // LIFETIME
             item.lifetime += dt;
             if (item.lifetime > item.lifetimeMax)
@@ -166,59 +169,77 @@ void sysItemPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                     sector->itemUpdateBroadphase(ptrHandle, handle, item);
                 }
 
-                // Stop if something is hit
-                // auto slot =
-                //     ptrHandle->registryMapping->getEntity(item.collExcept);
-                // sector->queryBroadphasePoint(
-                //     trans.pos,
-                //     [slot, sector, ptrHandle, &trans, &item](
-                //         const world::BpUserData& data)
-                //     {
-                //         if (data.type == world::BpUserType::Ecs)
-                //         {
-                //             // todo: For now don't care about ecs collision when moving
-                //             // auto other = data.data.ent;
-                //             // if (slot && other == slot->entity)
-                //             // {
-                //             //     return;
-                //             // }
+                auto slot =
+                    ptrHandle->registryMapping->getEntity(item.collExcept);
+                sector->queryBroadphasePoint(
+                    trans.pos,
+                    [slot, sector, ptrHandle, &trans, &item, &ret](
+                        const world::BpUserData& data)
+                    {
+                        if (data.type == world::BpUserType::Ecs)
+                        {
+                            // todo: For now don't care about ecs collision when
+                            // moving
+                            auto other = data.data.ent;
+                            if (slot && other == slot->entity)
+                            {
+                                return;
+                            }
 
-                //             // auto reg = sector->getRegistry()->getRegistry();
-                //             // auto coll = reg->try_get<ecs::Collider>(other);
-                //             // auto tr = reg->try_get<ecs::Transform>(other);
-                //             // auto trc = reg->try_get<ecs::TransformCache>(other);
-                //             // if (coll && tr && trc)
-                //             // {
-                //             //     auto collItem =
-                //             //         ptrHandle->modManager->getColliderLib()
-                //             //             .getItem(coll->colliderHandle);
-
-                //             //     const auto v1 = &collItem->vertices;
-                //             //     const size_t n1 = v1->size();
-                //             //     thread_local std::vector<vec2> w1;
-                //             //     w1.resize(v1->size());
-                //             //     for (size_t i = 0; i < n1; ++i)
-                //             //     {
-                //             //         const vec2& v = (*v1)[i];
-                //             //         w1[i].x =
-                //             //             trc->c * v.x - trc->s * v.y + tr->pos.x;
-                //             //         w1[i].y =
-                //             //             trc->s * v.x + trc->c * v.y + tr->pos.y;
-                //             //     }
-                //             //     if (sat2d::pointInConvex(trans.pos, w1))
-                //             //     {
-                //             //         item.vel = vec2(0.0f, 0.0f);
-                //             //     }
-                //             // }
-                //         }
-                //         else if (data.type == world::BpUserType::Item)
-                //         {
-                //             // when near other item stop
-                //             item.vel = vec2(0.0f, 0.0f);
-                //         }
-                //     });
+                            auto reg = sector->getRegistry()->getRegistry();
+                            auto coll = reg->get<ecs::Collider>(other);
+                            auto tr = reg->get<ecs::Transform>(other);
+                            auto trc = reg->get<ecs::TransformCache>(other);
+                            auto collItem =
+                                ptrHandle->modManager->getColliderLib().getItem(
+                                    coll.colliderHandle);
+                            if (!collItem)
+                            {
+                                return;
+                            }
+                            const auto v1 = &collItem->vertices;
+                            const size_t n1 = v1->size();
+                            thread_local std::vector<vec2> w1;
+                            w1.resize(v1->size());
+                            for (size_t i = 0; i < n1; ++i)
+                            {
+                                const vec2& v = (*v1)[i];
+                                w1[i].x = trc.c * v.x - trc.s * v.y + tr.pos.x;
+                                w1[i].y = trc.s * v.x + trc.c * v.y + tr.pos.y;
+                            }
+                            if (sat2d::pointInConvex(trans.pos, w1))
+                            {
+                                if (coll.colliderType
+                                    == ecs::CollisionLayer::Ship)
+                                {
+                                    auto* storage =
+                                        reg->try_get<ecs::Storage>(other);
+                                    auto* itemData =
+                                        ptrHandle->modManager->getItemLib()
+                                            .getItem(item.item);
+                                    if (storage && itemData)
+                                    {
+                                        uint32_t amountAdded =
+                                            storage->tryAddItem(item.item,
+                                                                *itemData,
+                                                                item.quantity);
+                                        item.quantity -= amountAdded;
+                                        if (item.quantity <= 0)
+                                        {
+                                            ret = con::FreeVecForeachRet::DESTROY;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else if (data.type == world::BpUserType::Item)
+                        {
+                            // when near other item stop
+                            // item.vel = vec2(0.0f, 0.0f);
+                        }
+                    });
             }
-            return con::FreeVecForeachRet::OK;
+            return ret;
         });
 }
 

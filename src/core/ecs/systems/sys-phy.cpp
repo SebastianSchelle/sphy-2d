@@ -620,6 +620,56 @@ colliderAction(PtrHandle* ptrHandle,
     return false;
 }
 
+static inline void collideWithItem(ecs::PtrHandle* ptrHandle,
+                                   world::Sector* sector,
+                                   entt::entity entity,
+                                   opool::ItemHandle itemHandle)
+{
+    auto reg = sector->getRegistry()->getRegistry();
+    auto coll = reg->get<Collider>(entity);
+    auto trc = reg->get<TransformCache>(entity);
+    auto tr = reg->get<Transform>(entity);
+    if (coll.colliderType == CollisionLayer::Ship)
+    {
+        auto item = sector->getItem(itemHandle);
+        if (item)
+        {
+            auto collItem = ptrHandle->modManager->getColliderLib().getItem(
+                coll.colliderHandle);
+            if (!collItem)
+            {
+                return;
+            }
+            const auto v1 = &collItem->vertices;
+            const size_t n1 = v1->size();
+            thread_local std::vector<vec2> w1;
+            w1.resize(v1->size());
+            for (size_t i = 0; i < n1; ++i)
+            {
+                const vec2& v = (*v1)[i];
+                w1[i].x = trc.c * v.x - trc.s * v.y + tr.pos.x;
+                w1[i].y = trc.s * v.x + trc.c * v.y + tr.pos.y;
+            }
+            if (sat2d::pointInConvex(item->transform.pos, w1))
+            {
+                auto* storage = reg->try_get<Storage>(entity);
+                auto* itemData =
+                    ptrHandle->modManager->getItemLib().getItem(item->item);
+                if (storage && itemData)
+                {
+                    uint32_t amountAdded = storage->tryAddItem(
+                        item->item, *itemData, item->quantity);
+                    item->quantity -= amountAdded;
+                    if (item->quantity <= 0)
+                    {
+                        sector->removeItem(itemHandle);
+                    }
+                }
+            }
+        }
+    }
+}
+
 void sysCollisionDetectionImpl(world::Sector* sector,
                                float dt,
                                PtrHandle* ptrHandle)
@@ -674,41 +724,8 @@ void sysCollisionDetectionImpl(world::Sector* sector,
                 }
                 else if (data.type == world::BpUserType::Item)
                 {
-                    // todo: refactor and add proper item storage handling. Put in separate function
-                    auto coll = reg->get<Collider>(entity);
-                    auto trc = reg->get<TransformCache>(entity);
-                    auto tr = reg->get<Transform>(entity);
-                    if (coll.colliderType == CollisionLayer::Ship)
-                    {
-                        auto itemHandle = data.data.itemHandle;
-                        auto item = sector->getItem(itemHandle);
-                        if (item)
-                        {
-                            auto collItem =
-                                ptrHandle->modManager->getColliderLib().getItem(
-                                    coll.colliderHandle);
-                            if(!collItem)
-                            {
-                                return;
-                            }
-                            const auto v1 = &collItem->vertices;
-                            const size_t n1 = v1->size();
-                            thread_local std::vector<vec2> w1;
-                            w1.resize(v1->size());
-                            for (size_t i = 0; i < n1; ++i)
-                            {
-                                const vec2& v = (*v1)[i];
-                                w1[i].x =
-                                    trc.c * v.x - trc.s * v.y + tr.pos.x;
-                                w1[i].y =
-                                    trc.s * v.x + trc.c * v.y + tr.pos.y;
-                            }
-                            if (sat2d::pointInConvex(item->transform.pos, w1))
-                            {
-                                sector->removeItem(itemHandle);
-                            }
-                        }
-                    }
+                    auto itemHandle = data.data.itemHandle;
+                    collideWithItem(ptrHandle, sector, entity, itemHandle);
                 }
             });
     }
