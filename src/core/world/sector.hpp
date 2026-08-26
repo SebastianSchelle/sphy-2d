@@ -45,8 +45,8 @@ union BpUserDataUnion
 };
 struct BpUserData
 {
-    BpUserType type;
-    BpUserDataUnion data;
+    BpUserType type = BpUserType::Ecs;
+    BpUserDataUnion data = {.ent=entt::null};
 };
 #endif
 

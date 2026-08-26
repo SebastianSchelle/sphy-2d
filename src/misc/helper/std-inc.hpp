@@ -539,6 +539,106 @@ inline vec2 centroid(const std::vector<vec2>& poly)
     return sum / static_cast<float>(poly.size());
 }
 
+// Ray:
+//
+//     P(t) = origin + dir * t
+//
+// where dir does not have to be normalized.
+// The returned distance is the scalar t such that:
+//
+//     hitPoint = origin + dir * t
+//
+// If dir is normalized, t is the actual world-space distance.
+//
+// Convex polygon only; vertices in consistent winding (CW or CCW).
+//
+// Returns true if the ray intersects the polygon for:
+//     0 <= t <= maxT
+//
+// If origin is inside the polygon, hitT will be 0.
+inline bool rayVsConvex(const vec2& origin,
+                        const vec2& dir,
+                        float maxT,
+                        const std::vector<vec2>& poly,
+                        float& hitT,
+                        vec2& hitPoint)
+{
+    const size_t n = poly.size();
+    if (n < 3 || maxT < 0.0f)
+    {
+        return false;
+    }
+    constexpr float kEps = 1e-6f;
+    const float dirLenSq = glm::dot(dir, dir);
+    if (dirLenSq < 1e-12f)
+    {
+        return false;
+    }
+    float area2 = 0.0f;
+    for (size_t i = 0; i < n; ++i)
+    {
+        const vec2& a = poly[i];
+        const vec2& b = poly[(i + 1) % n];
+        area2 += a.x * b.y - b.x * a.y;
+    }
+    if (std::fabs(area2) < kEps)
+    {
+        return false;
+    }
+    const float windingSign = area2 > 0.0f ? 1.0f : -1.0f;
+    float tEnter = 0.0f;
+    float tExit = maxT;
+
+    for (size_t i = 0; i < n; ++i)
+    {
+        const vec2& a = poly[i];
+        const vec2& b = poly[(i + 1) % n];
+        const vec2 edge = b - a;
+        const float c0 =
+            windingSign
+            * (edge.x * (origin.y - a.y) - edge.y * (origin.x - a.x));
+
+        const float cd = windingSign * (edge.x * dir.y - edge.y * dir.x);
+        if (std::fabs(cd) < kEps)
+        {
+            if (c0 < -kEps)
+            {
+                return false;
+            }
+            continue;
+        }
+        const float t = -c0 / cd;
+        if (cd > 0.0f)
+        {
+            // t >= -c0/cd
+            tEnter = std::max(tEnter, t);
+        }
+        else
+        {
+            // t <= -c0/cd
+            tExit = std::min(tExit, t);
+        }
+
+        if (tEnter > tExit + kEps)
+        {
+            return false;
+        }
+    }
+    if (tExit < -kEps || tEnter > maxT + kEps)
+    {
+        return false;
+    }
+    hitT = std::max(0.0f, tEnter);
+
+    if (hitT > maxT)
+    {
+        return false;
+    }
+    hitPoint = origin + dir * hitT;
+    return true;
+}
+
+
 // Convex polygon only; vertices in consistent winding (CW or CCW).
 inline bool pointInConvex(const vec2& p, const std::vector<vec2>& poly)
 {
@@ -587,6 +687,22 @@ inline float convexPolygonArea(const std::vector<vec2>& poly)
         twice += v0.x * v1.y - v0.y * v1.x;
     }
     return 0.5f * std::fabs(twice);
+}
+
+inline void translateVertices(const vector<vec2>& vertices,
+                              vector<vec2>& translated,
+                              const vec2& pos,
+                              float c,
+                              float s)
+{
+    const size_t n = vertices.size();
+    translated.resize(n);
+    for (size_t i = 0; i < n; ++i)
+    {
+        const vec2& v = vertices[i];
+        translated[i].x = c * v.x - s * v.y + pos.x;
+        translated[i].y = s * v.x + c * v.y + pos.y;
+    }
 }
 
 inline bool intervalsOverlapOnAxis(const std::vector<vec2>& a,
@@ -885,7 +1001,7 @@ insert_sorted(std::vector<T>& vec, T const& item, Pred pred)
 
 namespace gfx
 {
-    constexpr float kTexturePixelToWorld = 0.15f;
+constexpr float kTexturePixelToWorld = 0.15f;
 }
 
 // Do not `using smath::Rect` at file scope: macOS SDK (MacTypes.h) defines a

@@ -95,8 +95,8 @@ struct Module
                 OBJB_GUARD(Ai::build(ptrHandle,
                                      params,
                                      ai::taskdata::Turret{
-                                         ai::taskdata::Turret::Mode::Player,
-                                         ai::taskdata::Turret::ConfigPlayer{}}),
+                                         ai::taskdata::Turret::Mode::Mine,
+                                         ai::taskdata::Turret::ConfigMine{}}),
                            "Failed to add Ai to turret module")
                 break;
             }

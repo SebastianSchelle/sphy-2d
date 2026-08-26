@@ -561,16 +561,18 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                                               .item = item,
                                               .quantity = quantity});
             })
-            OPOOL_RECV(BEAM, beams, 6 + 16, {
+            OPOOL_RECV(BEAM, beams, 6 + 20, {
                 GenericHandle32 handle;
-                ecs::Transform origin;
+                vec2 p1;
+                vec2 p2;
                 GenericHandle beam;
                 cmddes.object(handle);
-                cmddes.object(origin);
+                cmddes.object(p1);
+                cmddes.object(p2);
                 cmddes.object(beam);
-                beams.updateObject(
-                    handle,
-                    opool::BeamClient::Params{.tr = origin, .beam = beam});
+                beams.updateObject(handle,
+                                   opool::BeamClient::Params{
+                                       .p1 = p1, .p2 = p2, .beam = beam});
             })
         default:
             break;
@@ -871,7 +873,6 @@ void Model::drawProjectiles(gfx::RenderEngine& renderer,
     projectiles.foreach (
         [&renderer, &viewRect, this](opool::ProjClient& proj)
         {
-            LG_D("Proj: {} {}", proj.posNext.pos, proj.proj.toGenericHandle());
             if (smath::pointInsideRect(proj.posNext.pos, viewRect))
             {
                 auto projectile =
@@ -896,23 +897,15 @@ void Model::drawBeams(gfx::RenderEngine& renderer,
     beams.foreach (
         [&renderer, &viewRect, this](opool::BeamClient& beam)
         {
-            if (smath::pointInsideRect(beam.trNext.tr.pos, viewRect))
+            if (smath::pointInsideRect(beam.lNext.pos1, viewRect))
             {
                 auto beamD = modManager->getBeamLib().getItem(beam.beam);
                 if (beamD)
                 {
-                    const float rot = beam.trNext.tr.rot;
-                    const vec2 pos = beam.trNext.tr.pos;
-                    const float s = sinf(rot);
-                    const float c = cosf(rot);
-                    const vec2 pos2 =
-                        pos
-                        + smath::rotateVec2(
-                            beamD->range * vec2(0.0f, 1.0f), s, c);
-                    renderer.drawLine(pos,
-                                      pos2,
+                    renderer.drawLine(beam.lNext.pos1,
+                                      beam.lNext.pos2,
                                       0xffffffff,
-                                      0.1f,
+                                      0.3f,
                                       gfx::RenderEngine::zIdxProjectile);
                 }
             }

@@ -76,6 +76,8 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
         CFG_FLOAT(config, 0.01f, "engine", "mining", "mining-rate");
     ptrHandle->itemLifetime =
         CFG_FLOAT(config, 600.0f, "engine", "items", "item-lifetime");
+    ptrHandle->volumeMultiplier =
+        CFG_FLOAT(config, 1.0f, "engine", "modules", "volume-multiplier");
     int updThreads = CFG_UINT(config, 2.0f, "engine", "upd", "threads");
     maxFps = CFG_FLOAT(config, 600.0f, "engine", "upd", "max-fps");
 
@@ -98,16 +100,18 @@ void Engine::start()
 {
     assetFactory.componentFactory.registerAllComponents();
 
-    systems.registerSystem(ecs::sysLifetime, 0);
-    systems.registerSystem(ecs::sysMoveCtrl, 1);
-    systems.registerSystem(ecs::sysPhyThrust, 2);
-    systems.registerSystem(ecs::sysPhysics, 3);
-    systems.registerSystem(ecs::sysProjPhysics, 4);
-    systems.registerSystem(ecs::sysItemPhysics, 5);
-    systems.registerSystem(ecs::sysCollisionDetection, 6);
-    systems.registerSystem(ecs::sysAnchorFixed, 7);
-    systems.registerSystem(ecs::sysAi, 8);
-    systems.registerSystem(ecs::sysTurret, 9);
+    int i = 0;
+    systems.registerSystem(ecs::sysLifetime, i += 10);
+    systems.registerSystem(ecs::sysMoveCtrl, i += 10);
+    systems.registerSystem(ecs::sysPhyThrust, i += 10);
+    systems.registerSystem(ecs::sysPhysics, i += 10);
+    systems.registerSystem(ecs::sysItemPhysics, i += 10);
+    systems.registerSystem(ecs::sysCollisionDetection, i += 10);
+    systems.registerSystem(ecs::sysAnchorFixed, i += 10);
+    systems.registerSystem(ecs::sysAi, i += 10);
+    systems.registerSystem(ecs::sysTurret, i += 10);
+    systems.registerSystem(ecs::sysProjPhysics, i += 10);
+    systems.registerSystem(ecs::sysBeamPhysics, i += 10);
 
     loadCollisionMatrix();
     registerConsoleCommands();
@@ -1095,13 +1099,14 @@ void Engine::runActiveSectorDump(long frameTime)
                 sendOpoolData<opool::Beam>(
                     clientInfo,
                     prot::cmd::SEND_BEGIN_BEAM,
-                    6 + 16,
+                    6 + 20,
                     [](bitsery::Serializer<OutputAdapter>& ser,
                        opool::Beam& item,
                        opool::BeamHandle handle)
                     {
                         ser.object(handle.toGenericHandle());
-                        ser.object(item.origin);
+                        ser.object(item.origin.pos);
+                        ser.object(item.point2);
                         ser.object(item.beam.toGenericHandle());
                     });
             });
@@ -1351,7 +1356,7 @@ void Engine::testSpawn()
          {1, modManager.getModuleLib().getHandle("Breeze Maneuver")},
          {2, modManager.getModuleLib().getHandle("Breeze Maneuver")},
          {3, modManager.getModuleLib().getHandle("Beam Miner")},
-         {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {4, modManager.getModuleLib().getHandle("Beam Miner")},
          {5, modManager.getModuleLib().getHandle("Terran Bulk S")}});
 
     objb::ShipRecipe mosquito(

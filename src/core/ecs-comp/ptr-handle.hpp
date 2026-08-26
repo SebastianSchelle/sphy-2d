@@ -75,6 +75,7 @@ struct PtrHandle
     float minFaceTargetDist;
     float miningRate;
     float itemLifetime;
+    float volumeMultiplier;
     ai::TaskSystem* taskSystem;
     ecs::CollisionLayerMat* collisionLayerMat;
     ecs::AssetFactory* assetFactory;

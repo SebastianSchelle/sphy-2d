@@ -15,10 +15,11 @@ struct TimedPos
     vec2 pos;
 };
 
-struct TimedTr
+struct TimedLine
 {
     tim::Timepoint t;
-    ecs::Transform tr;
+    vec2 pos1;
+    vec2 pos2;
 };
 
 struct ProjClient
@@ -52,24 +53,25 @@ struct BeamClient
 {
     struct Params
     {
-        ecs::Transform tr;
+        vec2 p1;
+        vec2 p2;
         gobj::BeamHandle beam;
     };
     bool hasPrev;
-    TimedTr trPrev;
-    TimedTr trNext;
+    TimedLine lPrev;
+    TimedLine lNext;
     gobj::BeamHandle beam;
 
     BeamClient() {}
     BeamClient(const Params& p)
-        : hasPrev(false), beam(p.beam), trNext{.tr = p.tr}
+        : hasPrev(false), beam(p.beam), lNext{.pos1 = p.p1, .pos2 = p.p2}
     {
     }
     void update(const Params& p)
     {
         hasPrev = true;
-        trPrev = trNext;
-        trNext = {.tr = p.tr};
+        lPrev = lNext;
+        lNext = {.pos1 = p.p1, .pos2 = p.p2};
     }
 };
 using BeamHandleClient = typename con::FreeVec<BeamClient>::Handle;

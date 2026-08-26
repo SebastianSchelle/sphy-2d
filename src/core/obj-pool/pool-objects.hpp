@@ -42,6 +42,7 @@ using ItemHandle = typename con::FreeVec<Item>::Handle;
 struct Beam
 {
     ecs::Transform origin;
+    vec2 point2;
     ecs::EntityId collExcept;
     gobj::BeamHandle beam;
 };

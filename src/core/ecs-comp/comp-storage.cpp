@@ -62,7 +62,7 @@ void Storage::updateStatsFromEntity(entt::entity entity,
                              gobj::ItemStorageType::NumStorageTypes);
                          i++)
                     {
-                        cargo[i].capacity += storage.volume[i];
+                        cargo[i].capacity += storage.volume[i] * ptrHandle->volumeMultiplier;
                     }
                 }
             }
