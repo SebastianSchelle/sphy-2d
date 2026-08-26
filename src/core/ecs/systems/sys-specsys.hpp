@@ -14,6 +14,12 @@ const System sysProjPhysics = {.name = "sysProjPhysics",
                                .sysFlags = SystemFlags::ActiveSector,
                                .function = sysProjPhysicsImpl};
 
+void sysBeamPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle);
+
+const System sysBeamPhysics = {.name = "sysBeamPhysics",
+                               .sysFlags = SystemFlags::ActiveSector,
+                               .function = sysBeamPhysicsImpl};
+
 void sysItemPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle);
 
 const System sysItemPhysics = {.name = "sysItemPhysics",

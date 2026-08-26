@@ -422,10 +422,9 @@ bool ModManager::loadGameLibs(PtrHandles& ptrHandles, const ModInfo& modInfo)
         }
     }
     std::sort(yamlPaths.begin(), yamlPaths.end());
-    for (GameLibLoadPhase phase :
-         {GameLibLoadPhase::Dependencies,
-          GameLibLoadPhase::Ammunition,
-          GameLibLoadPhase::GameObjects})
+    for (GameLibLoadPhase phase : {GameLibLoadPhase::Dependencies,
+                                   GameLibLoadPhase::Ammunition,
+                                   GameLibLoadPhase::GameObjects})
     {
         for (const std::string& gameObjectPath : yamlPaths)
         {
@@ -473,7 +472,7 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
                              const gobj::Textures textures =
                                  gobj::Textures::fromYaml(node, resourceMap);
                              texturesLib.addItem(objName, textures);
-                             LG_I("Added textures: {}: {}", objName, textures);
+                             LG_I("Added textures: {}", objName);
                          });
         foreachObjectDef(libs["map-icon"],
                          [&](const std::string& objName, const YAML::Node& node)
@@ -481,7 +480,7 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
                              const gobj::MapIcon mapIcon =
                                  gobj::MapIcon::fromYaml(node, resourceMap);
                              mapIconLib.addItem(objName, mapIcon);
-                             LG_I("Added map icon: {}: {}", objName, mapIcon);
+                             LG_I("Added map icon: {}", objName);
                          });
         foreachObjectDef(libs["collider"],
                          [&](const std::string& objName, const YAML::Node& node)
@@ -489,15 +488,16 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
                              const gobj::Collider collider =
                                  gobj::Collider::fromYaml(node, resourceMap);
                              colliderLib.addItem(objName, collider);
-                             LG_I("Added collider: {}: {}", objName, collider);
+                             LG_I("Added collider: {}", objName);
                          });
         foreachObjectDef(libs["items"],
                          [&](const std::string& objName, const YAML::Node& node)
                          {
-                             const gobj::Item item = gobj::Item::fromYaml(node, resourceMap);
+                             const gobj::Item item =
+                                 gobj::Item::fromYaml(node, resourceMap);
                              string key = item.name != "" ? item.name : objName;
                              itemLib.addItem(key, item);
-                             LG_I("Added item: {}: {}", key, item);
+                             LG_I("Added item: {}", key);
                          });
     }
     else if (phase == GameLibLoadPhase::Ammunition)
@@ -506,22 +506,30 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
                          [&](const std::string& objName, const YAML::Node& node)
                          {
                              const gobj::Projectile projectile =
-                                 gobj::Projectile::fromYaml(
-                                     node, texturesLib, colliderLib);
-                             string key = projectile.name != "" ? projectile.name
-                                                                : objName;
+                                 gobj::Projectile::fromYaml(node, texturesLib);
+                             string key = projectile.name != ""
+                                              ? projectile.name
+                                              : objName;
                              projectileLib.addItem(key, projectile);
-                             LG_I("Added projectile: {}: {}", key, projectile);
+                             LG_I("Added projectile: {}", key);
                          });
         foreachObjectDef(libs["missiles"],
                          [&](const std::string& objName, const YAML::Node& node)
                          {
-                             const gobj::Missile missile = gobj::Missile::fromYaml(
-                                 node, texturesLib, colliderLib);
+                             const gobj::Missile missile =
+                                 gobj::Missile::fromYaml(node, texturesLib);
                              string key =
                                  missile.name != "" ? missile.name : objName;
                              missileLib.addItem(key, missile);
-                             LG_I("Added missile: {}: {}", key, missile);
+                             LG_I("Added missile: {}", key);
+                         });
+        foreachObjectDef(libs["beams"],
+                         [&](const std::string& objName, const YAML::Node& node)
+                         {
+                             const gobj::Beam beam = gobj::Beam::fromYaml(node);
+                             string key = beam.name != "" ? beam.name : objName;
+                             beamLib.addItem(key, beam);
+                             LG_I("Added beam: {}", key);
                          });
     }
     else
@@ -530,11 +538,11 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
                          [&](const std::string& objName, const YAML::Node& node)
                          {
                              const gobj::Module module = gobj::Module::fromYaml(
-                                 node, texturesLib, projectileLib, missileLib);
+                                 node, texturesLib, projectileLib, missileLib, beamLib);
                              string key =
                                  module.name != "" ? module.name : objName;
                              moduleLib.addItem(key, module);
-                             LG_I("Added module: {}: {}", key, module);
+                             LG_I("Added module: {}", key);
                          });
         foreachObjectDef(libs["hull"],
                          [&](const std::string& objName, const YAML::Node& node)
@@ -543,7 +551,7 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
                                  node, texturesLib, colliderLib);
                              string key = hull.name != "" ? hull.name : objName;
                              hullLib.addItem(key, hull);
-                             LG_I("Added hull blueprint: {}: {}", key, hull);
+                             LG_I("Added hull blueprint: {}", key);
                          });
         foreachObjectDef(
             libs["station-part"],
@@ -554,7 +562,7 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
                 string key =
                     stationPart.name != "" ? stationPart.name : objName;
                 stationPartLib.addItem(key, stationPart);
-                LG_I("Added station part: {}: {}", key, stationPart);
+                LG_I("Added station part: {}", key);
             });
         std::vector<std::pair<std::string, YAML::Node>> asteroidYamlEntries;
         foreachObjectDef(libs["asteroids"],
@@ -566,7 +574,7 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
                                  asteroid.name != "" ? asteroid.name : objName;
                              asteroidLib.addItem(key, asteroid);
                              asteroidYamlEntries.emplace_back(key, node);
-                             LG_I("Added asteroid: {}: {}", key, asteroid);
+                             LG_I("Added asteroid: {}", key);
                          });
         for (const auto& [key, node] : asteroidYamlEntries)
         {

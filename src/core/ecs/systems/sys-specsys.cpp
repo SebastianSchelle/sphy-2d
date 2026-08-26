@@ -133,13 +133,30 @@ void sysProjPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
         });
 }
 
+
+void sysBeamPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
+{
+    sector->foreachProj(
+        [ptrHandle, dt, sector](opool::Projectile& projectile,
+                                opool::ProjectileHandle handle)
+        {
+            // LIFETIME
+            projectile.lifetime += dt;
+            if (projectile.lifetime > projectile.lifetimeMax)
+            {
+                return con::FreeVecForeachRet::DESTROY;
+            }
+            return con::FreeVecForeachRet::OK;
+        });
+}
+
 void sysItemPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 {
     sector->foreachItem(
         [ptrHandle, dt, sector](opool::Item& item, opool::ItemHandle handle)
         {
             con::FreeVecForeachRet ret = con::FreeVecForeachRet::OK;
-                
+
             // LIFETIME
             item.lifetime += dt;
             if (item.lifetime > item.lifetimeMax)
@@ -226,7 +243,8 @@ void sysItemPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                                         item.quantity -= amountAdded;
                                         if (item.quantity <= 0)
                                         {
-                                            ret = con::FreeVecForeachRet::DESTROY;
+                                            ret =
+                                                con::FreeVecForeachRet::DESTROY;
                                         }
                                     }
                                 }

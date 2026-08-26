@@ -16,4 +16,5 @@ target_include_directories(sphy_core_ecs_components
 
 target_link_libraries(sphy_core_ecs_components
     INTERFACE
+    sphy_core_obj_pool
 )

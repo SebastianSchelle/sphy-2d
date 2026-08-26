@@ -116,17 +116,15 @@ struct Turret
 {
     struct ProjectileData
     {
-        float projDmg = 1.0f;
         float exitSpeed = 1000.0f;
         float reloadTime = 1.0f;
         ProjectileHandle projectile = ProjectileHandle::Invalid();
     };
     struct LaserData
     {
-        float dps = 1.0f;
-        float beamWidth = 1.0f;
-        float beamLength = 1000.0f;
-        uint32_t beamColor = 0xFFFFFFFF;
+        float onTime = 1.0f;
+        float offTime = 1.0f;
+        BeamHandle beam = BeamHandle::Invalid();
     };
     struct ArcData
     {
@@ -141,7 +139,6 @@ struct Turret
     };
     struct RailgunData
     {
-        float projDmg = 1.0f;
         float exitSpeed = 1000.0f;
         ProjectileHandle projectile = ProjectileHandle::Invalid();
     };
@@ -160,7 +157,8 @@ struct Turret
     static Turret fromYaml(
         const YAML::Node& node,
         con::ItemLib<gobj::Projectile>& projectileLib,
-        const con::ItemLib<gobj::Missile>& missileLib);
+        con::ItemLib<gobj::Missile>& missileLib,
+        con::ItemLib<gobj::Beam>& beamLib);
 };
 using Data =
     std::variant<MainThruster, ManeuverThruster, Storage, Hangar, Turret>;
@@ -182,7 +180,8 @@ struct Module
         const YAML::Node& node,
         const con::ItemLib<gobj::Textures>& texturesLib,
         con::ItemLib<gobj::Projectile>& projectileLib,
-        const con::ItemLib<gobj::Missile>& missileLib);
+         con::ItemLib<gobj::Missile>& missileLib,
+        con::ItemLib<gobj::Beam>& beamLib);
 };
 
 using ModuleHandle = typename con::ItemLib<Module>::Handle;

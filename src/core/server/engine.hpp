@@ -134,7 +134,13 @@ class Engine
     void runSlowClientDump(long frameTime);
     void runActiveSectorDump(long frameTime);
     void sendProjectileInfo(def::ClientInfo* client);
-    void sendItemInfo(def::ClientInfo* client);
+    template <class T>
+    void sendOpoolData(
+        def::ClientInfo* client,
+        uint16_t startId,
+        std::function<void(bitsery::Serializer<OutputAdapter>& ser,
+                           T&,
+                           typename con::FreeVec<T>::Handle handle)> serClb);
     void runConnectedClientWorkSequencers();
     void handleTcpDisconnect(net::TcpConnection* conn,
                              def::ClientInfoHandle disconnectedHandle);

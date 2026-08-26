@@ -210,6 +210,10 @@ class ModManager
     {
         return asteroidLib;
     }
+    con::ItemLib<gobj::Beam>& getBeamLib()
+    {
+        return beamLib;
+    }
   private:
     bool checkDependency(const std::string& modId,
                          std::vector<std::string>& modList,
@@ -263,6 +267,7 @@ class ModManager
     con::ItemLib<gobj::Missile> missileLib;
     con::ItemLib<gobj::Item> itemLib;
     con::ItemLib<gobj::Asteroid> asteroidLib;
+    con::ItemLib<gobj::Beam> beamLib;
 };
 
 }  // namespace mod

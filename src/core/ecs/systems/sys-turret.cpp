@@ -1,6 +1,12 @@
 #include "sys-turret.hpp"
+#include "comp-ident.hpp"
 #include "comp-phy.hpp"
+#include "comp-turret.hpp"
+#include "entt/entity/fwd.hpp"
 #include "lib-projectile.hpp"
+#include "logging.hpp"
+#include "ptr-handle.hpp"
+#include "turret-def.hpp"
 #include <engine.hpp>
 
 namespace ecs
@@ -24,6 +30,52 @@ static inline float gotoAngle(gobj::mdata::Turret& libTurretData,
     const float maxStep = libTurretData.rotSpeed * dt;
     const float delta = smath::angleError(tgtAngle, currentAngle);
     return currentAngle + std::clamp(delta, -maxStep, maxStep);
+}
+
+inline static void calcExit(const ecs::Transform& parentTr,
+                            const ecs::Turret& turr,
+                            const vec2& barrelExit,
+                            vec2& exit,
+                            float& rot)
+{
+    rot = parentTr.rot + turr.currentAngle;
+    const float s = sinf(rot);
+    const float c = cosf(rot);
+    exit = smath::rotateVec2(barrelExit, s, c);
+}
+
+
+inline static void calcExitNDir(const ecs::Transform& parentTr,
+                                const ecs::Turret& turr,
+                                float exitSpeed,
+                                const vec2& barrelExit,
+                                vec2& exit,
+                                float& rot,
+                                vec2& vel)
+{
+    rot = parentTr.rot + turr.currentAngle;
+    const float s = sinf(rot);
+    const float c = cosf(rot);
+    exit = smath::rotateVec2(barrelExit, s, c);
+    const vec2 fireDir = smath::rotateVec2(vec2(0.0f, 1.0f), s, c);
+    vel = fireDir * exitSpeed;
+}
+
+inline vec2 getParentVel(ecs::PtrHandle* ptrHandle,
+                         entt::registry* reg,
+                         ecs::EntityId parent)
+{
+    vec2 parVel = vec2(0.0f, 0.0f);
+    auto slot = ptrHandle->registryMapping->getEntity(parent);
+    if (slot)
+    {
+        auto* physBody = reg->try_get<PhysicsBody>(slot->entity);
+        if (physBody)
+        {
+            parVel = physBody->vel;
+        }
+    }
+    return parVel;
 }
 
 void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
@@ -127,46 +179,100 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                             const gobj::Projectile* proj =
                                 ptrHandle->modManager->getProjectileLib()
                                     .getItem(projectileData.projectile);
-                            if(!proj)
+                            if (!proj)
                             {
                                 break;
                             }
                             ballisticData.reloadTimer =
                                 projectileData.reloadTime;
-                            const float firingRot =
-                                transform.rot + turret.currentAngle;
-                            const float s = sinf(firingRot);
-                            const float c = cosf(firingRot);
-                            const vec2 exit = smath::rotateVec2(
-                                libTurretData.barrelExits[0], s, c);
 
-                            vec2 parVel = vec2(0.0f, 0.0f);
-                            auto slot = ptrHandle->registryMapping->getEntity(
-                                module.parent);
-                            if (slot)
-                            {
-                                auto* physBody =
-                                    reg->try_get<PhysicsBody>(slot->entity);
-                                if (physBody)
-                                {
-                                    parVel = physBody->vel;
-                                }
-                            }
-                            const vec2 fireDir =
-                                smath::rotateVec2(vec2(0.0f, 1.0f), s, c);
-                            vec2 fireVel = fireDir * projectileData.exitSpeed;
+                            vec2 exit;
+                            float rot;
+                            vec2 vel;
+                            calcExitNDir(transform,
+                                         turret,
+                                         projectileData.exitSpeed,
+                                         libTurretData.barrelExits[0],
+                                         exit,
+                                         rot,
+                                         vel);
+                            vec2 parVel =
+                                getParentVel(ptrHandle, reg, module.parent);
                             sector->spawnProjectile(opool::Projectile{
-                                .transform = ecs::Transform{transform.pos + exit, firingRot},
+                                .transform =
+                                    ecs::Transform{transform.pos + exit, rot},
                                 .collExcept = module.parent,
                                 .proj = projectileData.projectile,
-                                .vel = parVel + fireVel,
-                                .lifetimeMax = proj->lifetime
-                            });
+                                .vel = parVel + vel,
+                                .lifetimeMax = proj->lifetime});
                         }
                     }
                     break;
                     case def::TurretType::Railgun:
                     case def::TurretType::Missile:
+                        break;
+                    case def::TurretType::Laser:
+                    {
+                        using LState = Turret::LaserData::LaserState;
+                        gobj::mdata::Turret::LaserData& laserData =
+                            std::get<gobj::mdata::Turret::LaserData>(
+                                libTurretData.data);
+                        Turret::LaserData& laserState =
+                            std::get<Turret::LaserData>(turret.data);
+
+
+                        if (laserState.state == LState::Off)
+                        {
+                            if (laserState.timer >= 0.0f)
+                            {
+                                laserState.timer -= dt;
+                            }
+                            else if (turret.fireMode != Turret::FireMode::None
+                                     && turret.isFiring)
+                            {
+                                vec2 exit;
+                                float rot;
+                                calcExit(transform,
+                                         turret,
+                                         libTurretData.barrelExits[0],
+                                         exit,
+                                         rot);
+                                laserState.beam = sector->spawnBeam(opool::Beam{
+                                    .origin{.pos = exit, .rot = rot}});
+                                laserState.timer = laserData.onTime;
+                                laserState.state = LState::On;
+                                LG_D("Laser on");
+                            }
+                        }
+                        else
+                        {
+                            if (laserState.timer >= 0.0f)
+                            {
+                                laserState.timer -= dt;
+                                auto* beam = sector->getBeam(laserState.beam);
+                                if (beam)
+                                {
+                                    vec2 exit;
+                                    float rot;
+                                    calcExit(transform,
+                                             turret,
+                                             libTurretData.barrelExits[0],
+                                             exit,
+                                             rot);
+                                    beam->origin.pos = exit;
+                                    beam->origin.rot = rot;
+                                }
+                            }
+                            else
+                            {
+                                sector->removeBeam(laserState.beam);
+                                laserState.timer = laserData.offTime;
+                                laserState.state = LState::Off;
+                                LG_D("Laser off");
+                            }
+                        }
+                    }
+                    break;
                     default:
                         break;
                 }

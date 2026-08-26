@@ -3,6 +3,7 @@
 
 #include "comp-tag.hpp"
 #include "engine.hpp"
+#include "free-vector.hpp"
 #include "protocol.hpp"
 
 namespace sphys
@@ -205,6 +206,48 @@ void Engine::registerActiveSectorDumpComponent(DumpFilter filter)
                 mcomp.execute(sendQueue);
             }
         }));
+}
+
+template <class T>
+void Engine::sendOpoolData(
+    def::ClientInfo* client,
+    uint16_t startId,
+    std::function<void(bitsery::Serializer<OutputAdapter>& ser,
+                       T&,
+                       typename con::FreeVec<T>::Handle handle)> serClb)
+{
+    prot::MsgComposer mcomp(net::SendType::UDP, client->clientInfo.udpEndpoint);
+    mcomp.startCommand(startId, 0);
+    mcomp.execute(sendQueue);
+
+    auto sector = world.getSector(client->currentSector);
+    if (sector)
+    {
+        mcomp.resetData();
+        mcomp.startCommand(startId + 1, 0);
+        sector->foreachOpool<T>(
+            [client, &mcomp, this, startId, serClb](
+                T& item, con::FreeVec<T>::Handle handle)
+            {
+                serClb(*mcomp.ser, item, handle);
+                if (mcomp.ser->adapter().currentWritePos() + 6 + 16
+                    > prot::kMaxSerializedChunkBytes)
+                {
+                    mcomp.execute(sendQueue);
+                    mcomp.resetData();
+                    mcomp.startCommand(startId + 1, 0);
+                }
+                return con::FreeVecForeachRet::OK;
+            });
+        if (mcomp.ser->adapter().currentWritePos() > 0)
+        {
+            mcomp.execute(sendQueue);
+        }
+    }
+
+    mcomp.resetData();
+    mcomp.startCommand(startId + 2, 0);
+    mcomp.execute(sendQueue);
 }
 
 }  // namespace sphys

@@ -1067,86 +1067,42 @@ void Engine::runActiveSectorDump(long frameTime)
                             &clientInfo->clientInfo, sectorId, ptrHandle);
                     }
                 }
-                sendProjectileInfo(clientInfo);
-                sendItemInfo(clientInfo);
+                sendOpoolData<opool::Projectile>(
+                    clientInfo,
+                    prot::cmd::SEND_BEGIN_PROJ,
+                    [](bitsery::Serializer<OutputAdapter>& ser,
+                       opool::Projectile& item,
+                       opool::ProjectileHandle handle)
+                    {
+                        ser.object(handle.toGenericHandle());
+                        ser.object(item.transform);
+                        ser.object(item.proj.toGenericHandle());
+                    });
+                sendOpoolData<opool::Item>(
+                    clientInfo,
+                    prot::cmd::SEND_BEGIN_ITEM,
+                    [](bitsery::Serializer<OutputAdapter>& ser,
+                       opool::Item& item,
+                       opool::ItemHandle handle)
+                    {
+                        ser.object(handle.toGenericHandle());
+                        ser.object(item.transform);
+                        ser.object(item.item.toGenericHandle());
+                        ser.value4b(item.quantity);
+                    });
+                sendOpoolData<opool::Beam>(
+                    clientInfo,
+                    prot::cmd::SEND_BEGIN_BEAM,
+                    [](bitsery::Serializer<OutputAdapter>& ser,
+                       opool::Beam& item,
+                       opool::BeamHandle handle)
+                    {
+                        ser.object(handle.toGenericHandle());
+                        ser.object(item.origin);
+                        ser.object(item.beam.toGenericHandle());
+                    });
             });
     }
-}
-
-void Engine::sendProjectileInfo(def::ClientInfo* client)
-{
-    prot::MsgComposer mcomp(net::SendType::UDP, client->clientInfo.udpEndpoint);
-    mcomp.startCommand(prot::cmd::SEND_PROJ_BEGIN, 0);
-    mcomp.execute(sendQueue);
-
-    auto sector = world.getSector(client->currentSector);
-    if (sector)
-    {
-        mcomp.resetData();
-        mcomp.startCommand(prot::cmd::SEND_PROJ_DATA, 0);
-        sector->foreachProj(
-            [client, &mcomp, this](opool::Projectile& proj,
-                                   opool::ProjectileHandle handle)
-            {
-                mcomp.ser->object(handle.toGenericHandle());
-                mcomp.ser->object(proj.transform);
-                mcomp.ser->object(proj.proj.toGenericHandle());
-                if (mcomp.ser->adapter().currentWritePos() + 6 + 16
-                    > prot::kMaxSerializedChunkBytes)
-                {
-                    mcomp.execute(sendQueue);
-                    mcomp.resetData();
-                    mcomp.startCommand(prot::cmd::SEND_PROJ_DATA, 0);
-                }
-                return con::FreeVecForeachRet::OK;
-            });
-        if (mcomp.ser->adapter().currentWritePos() > 0)
-        {
-            mcomp.execute(sendQueue);
-        }
-    }
-
-    mcomp.resetData();
-    mcomp.startCommand(prot::cmd::SEND_PROJ_END, 0);
-    mcomp.execute(sendQueue);
-}
-
-void Engine::sendItemInfo(def::ClientInfo* client)
-{
-    prot::MsgComposer mcomp(net::SendType::UDP, client->clientInfo.udpEndpoint);
-    mcomp.startCommand(prot::cmd::SEND_ITEM_BEGIN, 0);
-    mcomp.execute(sendQueue);
-
-    auto sector = world.getSector(client->currentSector);
-    if (sector)
-    {
-        mcomp.resetData();
-        mcomp.startCommand(prot::cmd::SEND_ITEM_DATA, 0);
-        sector->foreachItem(
-            [client, &mcomp, this](opool::Item& item, opool::ItemHandle handle)
-            {
-                mcomp.ser->object(handle.toGenericHandle());
-                mcomp.ser->object(item.transform);
-                mcomp.ser->object(item.item.toGenericHandle());
-                mcomp.ser->value4b(item.quantity);
-                if (mcomp.ser->adapter().currentWritePos() + 6 + 16
-                    > prot::kMaxSerializedChunkBytes)
-                {
-                    mcomp.execute(sendQueue);
-                    mcomp.resetData();
-                    mcomp.startCommand(prot::cmd::SEND_ITEM_DATA, 0);
-                }
-                return con::FreeVecForeachRet::OK;
-            });
-        if (mcomp.ser->adapter().currentWritePos() > 0)
-        {
-            mcomp.execute(sendQueue);
-        }
-    }
-
-    mcomp.resetData();
-    mcomp.startCommand(prot::cmd::SEND_ITEM_END, 0);
-    mcomp.execute(sendQueue);
 }
 
 void Engine::handleTcpDisconnect(net::TcpConnection* conn,
@@ -1391,7 +1347,7 @@ void Engine::testSpawn()
         {{0, modManager.getModuleLib().getHandle("Breeze")},
          {1, modManager.getModuleLib().getHandle("Breeze Maneuver")},
          {2, modManager.getModuleLib().getHandle("Breeze Maneuver")},
-         {3, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {3, modManager.getModuleLib().getHandle("Beam Miner")},
          {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
          {5, modManager.getModuleLib().getHandle("Terran Bulk S")}});
 

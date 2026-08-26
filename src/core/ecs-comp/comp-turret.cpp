@@ -14,20 +14,18 @@ Turret::fromGobjTurretData(const gobj::mdata::Turret& turretData,
     {
         case def::TurretType::Projectile:
         {
-            auto projData =
-                std::get<gobj::mdata::Turret::ProjectileData>(turretData.data);
-            return ProjectileData{.reloadTimer = 0.0f};
+            return ProjectileData();
         }
         case def::TurretType::Laser:
-            return LaserData{};
+            return LaserData();
         case def::TurretType::Arc:
-            return ArcData{};
+            return ArcData();
         case def::TurretType::Missile:
-            return MissileData{};
+            return MissileData();
         case def::TurretType::Railgun:
-            return RailgunData{};
+            return RailgunData();
         default:
-            return ProjectileData{0.0f};
+            return ProjectileData();
     }
 }
 

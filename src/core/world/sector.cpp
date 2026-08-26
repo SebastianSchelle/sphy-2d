@@ -1,6 +1,7 @@
 #include "aabb-tree.hpp"
 #include "comp-tag.hpp"
 #include "entt/entity/fwd.hpp"
+#include "free-vector.hpp"
 #include "logging.hpp"
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
@@ -65,6 +66,11 @@ void Sector::spawnProjectile(const opool::Projectile& proj)
     projectilePool.spawnObject(proj);
 }
 
+opool::BeamHandle Sector::spawnBeam(const opool::Beam& beam)
+{
+    return beamPool.spawnObject(beam);
+}
+
 void Sector::spawnItem(ecs::PtrHandle* ptrHandle, const opool::Item& item)
 {
     auto handle = itemPool.spawnObject(item);
@@ -80,9 +86,19 @@ opool::Item* Sector::getItem(opool::ItemHandle handle)
     return itemPool.getObject(handle);
 }
 
+opool::Beam* Sector::getBeam(opool::BeamHandle handle)
+{
+    return beamPool.getObject(handle);
+}
+
 void Sector::removeItem(opool::ItemHandle handle)
 {
     itemPool.destroyObject(handle);
+}
+
+void Sector::removeBeam(opool::BeamHandle handle)
+{
+    beamPool.destroyObject(handle);
 }
 
 void Sector::foreachProj(
@@ -90,6 +106,13 @@ void Sector::foreachProj(
                                          opool::ProjectileHandle handle)> clb)
 {
     projectilePool.foreach (clb);
+}
+
+void Sector::foreachBeam(
+    std::function<con::FreeVecForeachRet(opool::Beam&,
+                                         opool::BeamHandle handle)> clb)
+{
+    beamPool.foreach (clb);
 }
 
 void Sector::foreachItem(

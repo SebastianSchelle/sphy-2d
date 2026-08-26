@@ -4,8 +4,7 @@ namespace gobj
 {
 
 Projectile Projectile::fromYaml(const YAML::Node& node,
-                               const con::ItemLib<gobj::Textures>& texturesLib,
-                               const con::ItemLib<gobj::Collider>& colliderLib)
+                                const con::ItemLib<gobj::Textures>& texturesLib)
 {
     Projectile projectile;
     TRY_YAML_DICT(projectile.name, node["name"], projectile.name);
@@ -13,29 +12,22 @@ Projectile Projectile::fromYaml(const YAML::Node& node,
         projectile.description, node["description"], projectile.description);
     TRY_YAML_DICT(projectile.dmg, node["dmg"], projectile.dmg);
     TRY_YAML_DICT(projectile.lifetime, node["lifetime"], projectile.lifetime);
-    string damageTypeStr =
-        string(magic_enum::enum_name(projectile.damageType));
+    string damageTypeStr = string(magic_enum::enum_name(projectile.damageType));
     TRY_YAML_DICT(damageTypeStr, node["damage-type"], damageTypeStr);
-    projectile.damageType = magic_enum::enum_cast<def::DamageType>(damageTypeStr)
-                                .value_or(def::DamageType::Kinetic);
+    projectile.damageType =
+        magic_enum::enum_cast<def::DamageType>(damageTypeStr)
+            .value_or(def::DamageType::Kinetic);
     string texturesName = "";
     TRY_YAML_DICT(texturesName, node["textures"], "");
     if (texturesName != "")
     {
         projectile.textures = texturesLib.getHandle(texturesName);
     }
-    string colliderName = "";
-    TRY_YAML_DICT(colliderName, node["collider"], "");
-    if (colliderName != "")
-    {
-        projectile.collider = colliderLib.getHandle(colliderName);
-    }
     return projectile;
 }
 
 Missile Missile::fromYaml(const YAML::Node& node,
-                          const con::ItemLib<gobj::Textures>& texturesLib,
-                          const con::ItemLib<gobj::Collider>& colliderLib)
+                          const con::ItemLib<gobj::Textures>& texturesLib)
 {
     Missile missile;
     TRY_YAML_DICT(missile.name, node["name"], missile.name);
@@ -56,13 +48,23 @@ Missile Missile::fromYaml(const YAML::Node& node,
     {
         missile.textures = texturesLib.getHandle(texturesName);
     }
-    string colliderName = "";
-    TRY_YAML_DICT(colliderName, node["collider"], "");
-    if (colliderName != "")
-    {
-        missile.collider = colliderLib.getHandle(colliderName);
-    }
     return missile;
+}
+
+Beam Beam::fromYaml(const YAML::Node& node)
+{
+    Beam beam;
+    TRY_YAML_DICT(beam.name, node["name"], beam.name);
+    TRY_YAML_DICT(
+        beam.description, node["description"], beam.description);
+    TRY_YAML_DICT(beam.dps, node["dps"], beam.dps);
+    TRY_YAML_DICT(beam.range, node["range"], beam.range);
+    TRY_YAML_DICT(beam.lifetime, node["lifetime"], beam.lifetime);
+    string damageTypeStr = string(magic_enum::enum_name(beam.damageType));
+    TRY_YAML_DICT(damageTypeStr, node["damage-type"], damageTypeStr);
+    beam.damageType = magic_enum::enum_cast<def::DamageType>(damageTypeStr)
+                             .value_or(def::DamageType::Explosive);
+    return beam;
 }
 
 }  // namespace gobj

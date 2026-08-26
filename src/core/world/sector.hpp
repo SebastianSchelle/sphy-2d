@@ -2,6 +2,7 @@
 #define SECTOR_HPP
 
 #include "entt/entity/fwd.hpp"
+#include "free-vector.hpp"
 #include <comp-phy.hpp>
 #include <cstdint>
 #include <ptr-handle.hpp>
@@ -97,10 +98,18 @@ class Sector
         std::function<con::FreeVecForeachRet(opool::Projectile&,
                                              opool::ProjectileHandle handle)>
             clb);
+    void foreachBeam(
+        std::function<con::FreeVecForeachRet(opool::Beam&,
+                                             opool::BeamHandle handle)> clb);
     void foreachItem(
         std::function<con::FreeVecForeachRet(opool::Item&,
                                              opool::ItemHandle handle)> clb);
     opool::Item* getItem(opool::ItemHandle handle);
+
+    template <class T>
+    void foreachOpool(
+        std::function<
+            con::FreeVecForeachRet(T&, typename con::FreeVec<T>::Handle handle)> clb);
 #endif
     const float getWorldPosX() const
     {
@@ -147,6 +156,9 @@ class Sector
         return taskSystem;
     }
     void spawnProjectile(const opool::Projectile& proj);
+    opool::BeamHandle spawnBeam(const opool::Beam& beam);
+    opool::Beam* getBeam(opool::BeamHandle handle);
+    void removeBeam(opool::BeamHandle handle);
     void spawnItem(ecs::PtrHandle* ptrHandle, const opool::Item& item);
     void removeItem(opool::ItemHandle handle);
     inline void addBroadphaseQueryEntity(entt::entity entity)
@@ -189,12 +201,38 @@ class Sector
     con::DynamicAABBTree<BpUserData> aabbTree;
     opool::ObjectPool<opool::Projectile> projectilePool;
     opool::ObjectPool<opool::Item> itemPool;
+    opool::ObjectPool<opool::Beam> beamPool;
 #endif
     bool active = false;
 #ifdef SERVER
     ai::TaskSystem taskSystem;
 #endif
 };
+
+#ifdef SERVER
+
+template<> void Sector::foreachOpool<opool::Projectile>(
+    std::function<
+        con::FreeVecForeachRet(opool::Projectile&, opool::ProjectileHandle handle)> clb)
+{
+    projectilePool.foreach (clb);
+}
+
+template<> void Sector::foreachOpool<opool::Item>(
+    std::function<
+        con::FreeVecForeachRet(opool::Item&, opool::ItemHandle handle)> clb)
+{
+    itemPool.foreach (clb);
+}
+
+template<> void Sector::foreachOpool<opool::Beam>(
+    std::function<
+        con::FreeVecForeachRet(opool::Beam&, opool::BeamHandle handle)> clb)
+{
+    itemPool.foreach (clb);
+}
+
+#endif
 
 }  // namespace world
 

@@ -519,22 +519,22 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             }
             break;
         }
-        case prot::cmd::SEND_PROJ_BEGIN:
+        case prot::cmd::SEND_BEGIN_PROJ:
             projectiles.markInactive();
             break;
-        case prot::cmd::SEND_PROJ_END:
+        case prot::cmd::SEND_END_PROJ:
             projectiles.deleteInactive();
             break;
-        case prot::cmd::SEND_PROJ_DATA:
+        case prot::cmd::SEND_DATA_PROJ:
             handleSendProjData(cmddes, dataEndPos);
             break;
-        case prot::cmd::SEND_ITEM_BEGIN:
+        case prot::cmd::SEND_BEGIN_ITEM:
             items.markInactive();
             break;
-        case prot::cmd::SEND_ITEM_END:
+        case prot::cmd::SEND_END_ITEM:
             items.deleteInactive();
             break;
-        case prot::cmd::SEND_ITEM_DATA:
+        case prot::cmd::SEND_DATA_ITEM:
             handleSendItemData(cmddes, dataEndPos);
             break;
         default:
@@ -1578,6 +1578,7 @@ void Model::handleDestroyEntity(bitsery::Deserializer<InputAdapter>& cmddes,
     clientRegistry.destroyServerEntity(entityId);
 }
 
+// todo: template this
 void Model::handleSendProjData(bitsery::Deserializer<InputAdapter>& cmddes,
                                size_t dataEndPos)
 {

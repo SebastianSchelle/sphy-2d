@@ -53,6 +53,23 @@ resolveMissileHandle(const string& key,
     return handle;
 }
 
+BeamHandle resolveBeamHandle(const string& key,
+                             const con::ItemLib<gobj::Beam>& beamLib)
+{
+    if (key.empty())
+    {
+        LG_E("Beam key is empty");
+        return BeamHandle::Invalid();
+    }
+    auto handle = beamLib.getHandle(key);
+    if (!handle.isValid())
+    {
+        LG_E("Beam {} not found", key);
+        return BeamHandle::Invalid();
+    }
+    return handle;
+}
+
 }  // namespace
 
 MainThruster MainThruster::fromYaml(const YAML::Node& node)
@@ -109,7 +126,8 @@ Hangar Hangar::fromYaml(const YAML::Node& node)
 
 Turret Turret::fromYaml(const YAML::Node& node,
                         con::ItemLib<gobj::Projectile>& projectileLib,
-                        const con::ItemLib<gobj::Missile>& missileLib)
+                        con::ItemLib<gobj::Missile>& missileLib,
+                        con::ItemLib<gobj::Beam>& beamLib)
 {
     Turret turret{};
     string turretTypeStr = string(magic_enum::enum_name(turret.type));
@@ -139,18 +157,13 @@ Turret Turret::fromYaml(const YAML::Node& node,
         static_cast<uint8_t>(std::min<size_t>(255, turret.barrelExits.size()));
     TRY_YAML_DICT(turret.rotSpeed, node["rot-speed"], turret.rotSpeed);
 
-    string projectileKey;
-    TRY_YAML_DICT(projectileKey, node["projectile"], "");
-    string missileKey;
-    TRY_YAML_DICT(missileKey, node["missile"], "");
-
     switch (turret.type)
     {
         case def::TurretType::Projectile:
         {
+            string projectileKey;
+            TRY_YAML_DICT(projectileKey, node["projectile"], "");
             ProjectileData projectile{};
-            TRY_YAML_DICT(
-                projectile.projDmg, node["proj-dmg"], projectile.projDmg);
             TRY_YAML_DICT(
                 projectile.exitSpeed, node["exit-speed"], projectile.exitSpeed);
             TRY_YAML_DICT(projectile.reloadTime,
@@ -172,8 +185,9 @@ Turret Turret::fromYaml(const YAML::Node& node,
         }
         case def::TurretType::Railgun:
         {
+            string projectileKey;
+            TRY_YAML_DICT(projectileKey, node["projectile"], "");
             RailgunData railgun{};
-            TRY_YAML_DICT(railgun.projDmg, node["proj-dmg"], railgun.projDmg);
             TRY_YAML_DICT(
                 railgun.exitSpeed, node["exit-speed"], railgun.exitSpeed);
             railgun.projectile =
@@ -192,6 +206,8 @@ Turret Turret::fromYaml(const YAML::Node& node,
         }
         case def::TurretType::Missile:
         {
+            string missileKey;
+            TRY_YAML_DICT(missileKey, node["missile"], "");
             MissileData missile{};
             missile.missile = resolveMissileHandle(missileKey, missileLib);
             turret.data = missile;
@@ -199,14 +215,22 @@ Turret Turret::fromYaml(const YAML::Node& node,
         }
         case def::TurretType::Laser:
         {
+            string beamKey;
+            TRY_YAML_DICT(beamKey, node["beam"], "");
             LaserData laser{};
-            TRY_YAML_DICT(laser.dps, node["dps"], laser.dps);
-            TRY_YAML_DICT(laser.beamWidth, node["beam-width"], laser.beamWidth);
-            TRY_YAML_DICT(
-                laser.beamLength, node["beam-length"], laser.beamLength);
-            TRY_YAML_DICT(laser.beamColor, node["beam-color"], laser.beamColor);
+            TRY_YAML_DICT(laser.onTime, node["on-time"], laser.onTime);
+            TRY_YAML_DICT(laser.offTime, node["off-time"], laser.offTime);
+            laser.beam = resolveBeamHandle(beamKey, beamLib);
             turret.data = laser;
-            turret.range = laser.beamLength;
+            auto* beamData = beamLib.getItem(laser.beam);
+            if (beamData)
+            {
+                turret.range = beamData->range;
+            }
+            else
+            {
+                turret.range = 0.0f;
+            }
             break;
         }
         case def::TurretType::Arc:
@@ -231,7 +255,8 @@ Turret Turret::fromYaml(const YAML::Node& node,
 Module Module::fromYaml(const YAML::Node& node,
                         const con::ItemLib<gobj::Textures>& texturesLib,
                         con::ItemLib<gobj::Projectile>& projectileLib,
-                        const con::ItemLib<gobj::Missile>& missileLib)
+                        con::ItemLib<gobj::Missile>& missileLib,
+                        con::ItemLib<gobj::Beam>& beamLib)
 {
     Module module;
     TRY_YAML_DICT(module.name, node["name"], "");
@@ -276,7 +301,7 @@ Module Module::fromYaml(const YAML::Node& node,
                 break;
             case ModuleType::Turret:
                 module.data = mdata::Turret::fromYaml(
-                    dataNode, projectileLib, missileLib);
+                    dataNode, projectileLib, missileLib, beamLib);
                 break;
             default:
                 break;

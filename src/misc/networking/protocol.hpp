@@ -21,8 +21,8 @@
 #define CMDAT_FIN_REM_TAIL_BYTES(removeTailBytes)                              \
     cmdser.adapter().currentWritePos(3);                                       \
     cmdser.value4b((uint32_t)(cmdser.adapter().writtenBytesCount()             \
-                              - prot::kCommandHeaderSize                     \
-                              - (removeTailBytes)));                          \
+                              - prot::kCommandHeaderSize                       \
+                              - (removeTailBytes)));                           \
     cmdData.data.resize(cmdser.adapter().writtenBytesCount()                   \
                         - (removeTailBytes));
 
@@ -36,7 +36,7 @@
     cmdser.adapter().currentWritePos(prot::kUdpPayloadOffset);
 #define CMDAT_FIN_TOKEN()                                                      \
     cmdser.adapter().currentWritePos(prot::kUdpCommandHeaderOffset + 3);       \
-    cmdser.value4b((uint32_t)(cmdser.adapter().writtenBytesCount()            \
+    cmdser.value4b((uint32_t)(cmdser.adapter().writtenBytesCount()             \
                               - prot::kUdpPayloadOffset));                     \
     cmdData.data.resize(cmdser.adapter().writtenBytesCount());
 
@@ -78,14 +78,20 @@ bool writeCommand(bitsery::Serializer<OutputAdapter>& cmdser,
 class MsgComposer
 {
   public:
-    MsgComposer(net::SendType type, const udp::endpoint& endpoint, bool useToken = true);
+    MsgComposer(net::SendType type,
+                const udp::endpoint& endpoint,
+                bool useToken = true);
     MsgComposer(net::SendType type, net::TcpConnection* tcpConnection);
     ~MsgComposer();
     void resetData();
     void startCommand(uint16_t cmd, uint8_t flags);
     void execute(ConcurrentQueue<net::CmdQueueData>& sendQueue);
-    bool hasData() const { return hasContent; }
+    bool hasData() const
+    {
+        return hasContent;
+    }
     bitsery::Serializer<OutputAdapter>* ser = nullptr;
+
   private:
     void finishCommand();
     net::CmdQueueData cmdData;
@@ -109,6 +115,11 @@ struct MoveToFlags
     uint8_t queue : 1 = 0;
 };
 
+#define OPOOL_IDS(name, addr)                                                  \
+    const uint16_t SEND_BEGIN_##name = (addr);                                 \
+    const uint16_t SEND_DATA_##name = (addr) + 1;                              \
+    const uint16_t SEND_END_##name = (addr) + 2;
+
 const uint16_t LOG = 0x0001;
 const uint16_t TIME_SYNC = 0x0002;
 const uint16_t AUTHENTICATE = 0x0003;
@@ -128,12 +139,10 @@ const uint16_t CLIENT_INFO = 0x0010;
 const uint16_t TOTAL_NUM_ENTITIES = 0x0011;
 const uint16_t DESTROY_ENTITY = 0x0012;
 const uint16_t ACK_WORKSEQUENCER = 0x0013;
-const uint16_t SEND_PROJ_BEGIN = 0x0014;
-const uint16_t SEND_PROJ_DATA = 0x0015;
-const uint16_t SEND_PROJ_END = 0x0016;
-const uint16_t SEND_ITEM_BEGIN = 0x0017;
-const uint16_t SEND_ITEM_DATA = 0x0018;
-const uint16_t SEND_ITEM_END = 0x0019;
+
+OPOOL_IDS(PROJ, 0x1014)
+OPOOL_IDS(ITEM, 0x1017)
+OPOOL_IDS(BEAM, 0x101A)
 
 }  // namespace cmd
 

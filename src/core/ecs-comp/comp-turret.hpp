@@ -2,8 +2,8 @@
 #define COMP_TURRET_HPP
 
 #include "comp-ident.hpp"
-#include "lib-projectile.hpp"
 #include <lib-modules.hpp>
+#include <pool-objects.hpp>
 #include <std-inc.hpp>
 #include <turret-def.hpp>
 
@@ -48,10 +48,24 @@ struct Turret
 
     struct ProjectileData
     {
+        ProjectileData() : reloadTimer(0.0f) {}
         float reloadTimer = 0.0f;
     };
     struct LaserData
     {
+        enum class LaserState
+        {
+            On,
+            Off
+        };
+        LaserData()
+            : state(LaserState::Off), timer(0.0f),
+              beam(opool::BeamHandle::Invalid())
+        {
+        }
+        LaserState state;
+        float timer = 0.0f;
+        opool::BeamHandle beam;
     };
     struct PlasmaData
     {

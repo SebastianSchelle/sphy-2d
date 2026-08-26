@@ -246,6 +246,7 @@ class Model
     def::ClientInfo clientInfo;
     ecs::ClientRegistry clientRegistry;
     opool::OpoolClient<opool::ProjClient> projectiles;
+    opool::OpoolClient<opool::BeamClient> beams;
     opool::OpoolClient<opool::ItemClient> items;
 
     std::function<void(void)> afterLoadWorldClb;

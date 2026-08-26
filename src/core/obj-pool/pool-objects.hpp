@@ -39,6 +39,14 @@ struct Item
 };
 using ItemHandle = typename con::FreeVec<Item>::Handle;
 
+struct Beam
+{
+    ecs::Transform origin;
+    ecs::EntityId collExcept;
+    gobj::BeamHandle beam;
+};
+using BeamHandle = typename con::FreeVec<Beam>::Handle;
+
 }  // namespace opool
 
 #endif
