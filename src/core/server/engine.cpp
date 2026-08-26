@@ -1070,6 +1070,7 @@ void Engine::runActiveSectorDump(long frameTime)
                 sendOpoolData<opool::Projectile>(
                     clientInfo,
                     prot::cmd::SEND_BEGIN_PROJ,
+                    6 + 16,
                     [](bitsery::Serializer<OutputAdapter>& ser,
                        opool::Projectile& item,
                        opool::ProjectileHandle handle)
@@ -1081,6 +1082,7 @@ void Engine::runActiveSectorDump(long frameTime)
                 sendOpoolData<opool::Item>(
                     clientInfo,
                     prot::cmd::SEND_BEGIN_ITEM,
+                    6 + 20,
                     [](bitsery::Serializer<OutputAdapter>& ser,
                        opool::Item& item,
                        opool::ItemHandle handle)
@@ -1093,6 +1095,7 @@ void Engine::runActiveSectorDump(long frameTime)
                 sendOpoolData<opool::Beam>(
                     clientInfo,
                     prot::cmd::SEND_BEGIN_BEAM,
+                    6 + 16,
                     [](bitsery::Serializer<OutputAdapter>& ser,
                        opool::Beam& item,
                        opool::BeamHandle handle)

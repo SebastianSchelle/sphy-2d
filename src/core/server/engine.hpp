@@ -138,6 +138,7 @@ class Engine
     void sendOpoolData(
         def::ClientInfo* client,
         uint16_t startId,
+        size_t junkSize,
         std::function<void(bitsery::Serializer<OutputAdapter>& ser,
                            T&,
                            typename con::FreeVec<T>::Handle handle)> serClb);

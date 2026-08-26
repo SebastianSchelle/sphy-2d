@@ -229,7 +229,7 @@ template<> void Sector::foreachOpool<opool::Beam>(
     std::function<
         con::FreeVecForeachRet(opool::Beam&, opool::BeamHandle handle)> clb)
 {
-    itemPool.foreach (clb);
+    beamPool.foreach (clb);
 }
 
 #endif

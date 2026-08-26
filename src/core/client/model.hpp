@@ -166,10 +166,11 @@ class Model
                                     size_t dataEndPos);
     void handleDestroyEntity(bitsery::Deserializer<InputAdapter>& cmddes,
                              size_t dataEndPos);
-    void handleSendProjData(bitsery::Deserializer<InputAdapter>& cmddes,
-                            size_t dataEndPos);
-    void handleSendItemData(bitsery::Deserializer<InputAdapter>& cmddes,
-                            size_t dataEndPos);
+    void handleSendOpool(
+        bitsery::Deserializer<InputAdapter>& cmddes,
+        size_t dataEndPos,
+        size_t juckSize,
+        std::function<void(bitsery::Deserializer<InputAdapter>& cmddes)> clb);
     void notifyReady();
     void handleGetAabbTreeResp(bitsery::Deserializer<InputAdapter>& cmddes,
                                size_t dataEndPos);
@@ -218,6 +219,10 @@ class Model
                          const glm::vec4& viewRect,
                          float zoom,
                          uint32_t activeSectorId = world::INVALID_SECTOR_ID);
+    void drawBeams(gfx::RenderEngine& renderer,
+                   const glm::vec4& viewRect,
+                   float zoom,
+                   uint32_t activeSectorId = world::INVALID_SECTOR_ID);
     void drawAsteroids(gfx::RenderEngine& renderer,
                        const glm::vec4& viewRect,
                        float zoom,

@@ -212,6 +212,7 @@ template <class T>
 void Engine::sendOpoolData(
     def::ClientInfo* client,
     uint16_t startId,
+    size_t junkSize,
     std::function<void(bitsery::Serializer<OutputAdapter>& ser,
                        T&,
                        typename con::FreeVec<T>::Handle handle)> serClb)
@@ -226,11 +227,11 @@ void Engine::sendOpoolData(
         mcomp.resetData();
         mcomp.startCommand(startId + 1, 0);
         sector->foreachOpool<T>(
-            [client, &mcomp, this, startId, serClb](
+            [client, &mcomp, this, startId, serClb, junkSize](
                 T& item, con::FreeVec<T>::Handle handle)
             {
                 serClb(*mcomp.ser, item, handle);
-                if (mcomp.ser->adapter().currentWritePos() + 6 + 16
+                if (mcomp.ser->adapter().currentWritePos() + junkSize
                     > prot::kMaxSerializedChunkBytes)
                 {
                     mcomp.execute(sendQueue);

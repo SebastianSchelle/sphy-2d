@@ -41,7 +41,7 @@ inline static void calcExit(const ecs::Transform& parentTr,
     rot = parentTr.rot + turr.currentAngle;
     const float s = sinf(rot);
     const float c = cosf(rot);
-    exit = smath::rotateVec2(barrelExit, s, c);
+    exit = parentTr.pos + smath::rotateVec2(barrelExit, s, c);
 }
 
 
@@ -56,7 +56,7 @@ inline static void calcExitNDir(const ecs::Transform& parentTr,
     rot = parentTr.rot + turr.currentAngle;
     const float s = sinf(rot);
     const float c = cosf(rot);
-    exit = smath::rotateVec2(barrelExit, s, c);
+    exit = parentTr.pos + smath::rotateVec2(barrelExit, s, c);
     const vec2 fireDir = smath::rotateVec2(vec2(0.0f, 1.0f), s, c);
     vel = fireDir * exitSpeed;
 }
@@ -199,8 +199,7 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                             vec2 parVel =
                                 getParentVel(ptrHandle, reg, module.parent);
                             sector->spawnProjectile(opool::Projectile{
-                                .transform =
-                                    ecs::Transform{transform.pos + exit, rot},
+                                .transform = ecs::Transform{exit, rot},
                                 .collExcept = module.parent,
                                 .proj = projectileData.projectile,
                                 .vel = parVel + vel,
@@ -220,15 +219,16 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                         Turret::LaserData& laserState =
                             std::get<Turret::LaserData>(turret.data);
 
-
+                        const bool fire =
+                            turret.fireMode != Turret::FireMode::None
+                            && turret.isFiring;
                         if (laserState.state == LState::Off)
                         {
-                            if (laserState.timer >= 0.0f)
+                            if ((laserState.timer >= 0.0f && laserData.offTime > 0.0001f))
                             {
                                 laserState.timer -= dt;
                             }
-                            else if (turret.fireMode != Turret::FireMode::None
-                                     && turret.isFiring)
+                            else if (fire)
                             {
                                 vec2 exit;
                                 float rot;
@@ -238,7 +238,9 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                                          exit,
                                          rot);
                                 laserState.beam = sector->spawnBeam(opool::Beam{
-                                    .origin{.pos = exit, .rot = rot}});
+                                    .origin{.pos = exit, .rot = rot},
+                                    .collExcept = module.parent,
+                                    .beam = laserData.beam});
                                 laserState.timer = laserData.onTime;
                                 laserState.state = LState::On;
                                 LG_D("Laser on");
@@ -246,7 +248,7 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                         }
                         else
                         {
-                            if (laserState.timer >= 0.0f)
+                            if ((laserState.timer >= 0.0f || laserData.offTime <= 0.0001f) && fire)
                             {
                                 laserState.timer -= dt;
                                 auto* beam = sector->getBeam(laserState.beam);
@@ -268,7 +270,6 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                                 sector->removeBeam(laserState.beam);
                                 laserState.timer = laserData.offTime;
                                 laserState.state = LState::Off;
-                                LG_D("Laser off");
                             }
                         }
                     }

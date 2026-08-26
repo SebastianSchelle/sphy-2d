@@ -4,6 +4,7 @@
 #include "lib-projectile.hpp"
 #include "lib-textures.hpp"
 #include "logging.hpp"
+#include "render-engine.hpp"
 #include "std-inc.hpp"
 #include <comp-gfx.hpp>
 #include <comp-ident.hpp>
@@ -18,6 +19,22 @@
 #include <world-def.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/norm.hpp>
+
+
+#define OPOOL_RECV(name, opool_n, junkSize, block)                             \
+    case prot::cmd::SEND_BEGIN_##name:                                         \
+        opool_n.markInactive();                                                \
+        break;                                                                 \
+    case prot::cmd::SEND_END_##name:                                           \
+        opool_n.deleteInactive();                                              \
+        break;                                                                 \
+    case prot::cmd::SEND_DATA_##name:                                          \
+        handleSendOpool(cmddes,                                                \
+                        dataEndPos,                                            \
+                        junkSize,                                              \
+                        [this](bitsery::Deserializer<InputAdapter>& cmddes)    \
+                        { block });                                            \
+        break;
 
 namespace sphyc
 {
@@ -519,24 +536,42 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             }
             break;
         }
-        case prot::cmd::SEND_BEGIN_PROJ:
-            projectiles.markInactive();
-            break;
-        case prot::cmd::SEND_END_PROJ:
-            projectiles.deleteInactive();
-            break;
-        case prot::cmd::SEND_DATA_PROJ:
-            handleSendProjData(cmddes, dataEndPos);
-            break;
-        case prot::cmd::SEND_BEGIN_ITEM:
-            items.markInactive();
-            break;
-        case prot::cmd::SEND_END_ITEM:
-            items.deleteInactive();
-            break;
-        case prot::cmd::SEND_DATA_ITEM:
-            handleSendItemData(cmddes, dataEndPos);
-            break;
+            OPOOL_RECV(PROJ, projectiles, 6 + 16, {
+                GenericHandle32 handle;
+                ecs::Transform tr;
+                GenericHandle proj;
+                cmddes.object(handle);
+                cmddes.object(tr);
+                cmddes.object(proj);
+                projectiles.updateObject(
+                    handle, opool::ProjClient::Params{.tr = tr, .proj = proj});
+            })
+            OPOOL_RECV(ITEM, items, 6 + 20, {
+                GenericHandle32 handle;
+                ecs::Transform transform;
+                GenericHandle item;
+                uint32_t quantity;
+                cmddes.object(handle);
+                cmddes.object(transform);
+                cmddes.object(item);
+                cmddes.value4b(quantity);
+                items.updateObject(
+                    handle,
+                    opool::ItemClient::Params{.transform = transform,
+                                              .item = item,
+                                              .quantity = quantity});
+            })
+            OPOOL_RECV(BEAM, beams, 6 + 16, {
+                GenericHandle32 handle;
+                ecs::Transform origin;
+                GenericHandle beam;
+                cmddes.object(handle);
+                cmddes.object(origin);
+                cmddes.object(beam);
+                beams.updateObject(
+                    handle,
+                    opool::BeamClient::Params{.tr = origin, .beam = beam});
+            })
         default:
             break;
     }
@@ -752,6 +787,7 @@ void Model::drawObjects(gfx::RenderEngine& renderer,
 {
     drawItems(renderer, viewRect, zoom, activeSectorId);
     drawProjectiles(renderer, viewRect, zoom, activeSectorId);
+    drawBeams(renderer, viewRect, zoom, activeSectorId);
     drawStations(renderer, viewRect, zoom, activeSectorId);
     drawShips(renderer, viewRect, zoom, activeSectorId);
     drawAsteroids(renderer, viewRect, zoom, activeSectorId);
@@ -835,6 +871,7 @@ void Model::drawProjectiles(gfx::RenderEngine& renderer,
     projectiles.foreach (
         [&renderer, &viewRect, this](opool::ProjClient& proj)
         {
+            LG_D("Proj: {} {}", proj.posNext.pos, proj.proj.toGenericHandle());
             if (smath::pointInsideRect(proj.posNext.pos, viewRect))
             {
                 auto projectile =
@@ -846,6 +883,37 @@ void Model::drawProjectiles(gfx::RenderEngine& renderer,
                                  proj.rot,
                                  gfx::RenderEngine::zIdxProjectile,
                                  proj.posNext.pos);
+                }
+            }
+        });
+}
+
+void Model::drawBeams(gfx::RenderEngine& renderer,
+                      const glm::vec4& viewRect,
+                      float zoom,
+                      uint32_t activeSectorId)
+{
+    beams.foreach (
+        [&renderer, &viewRect, this](opool::BeamClient& beam)
+        {
+            if (smath::pointInsideRect(beam.trNext.tr.pos, viewRect))
+            {
+                auto beamD = modManager->getBeamLib().getItem(beam.beam);
+                if (beamD)
+                {
+                    const float rot = beam.trNext.tr.rot;
+                    const vec2 pos = beam.trNext.tr.pos;
+                    const float s = sinf(rot);
+                    const float c = cosf(rot);
+                    const vec2 pos2 =
+                        pos
+                        + smath::rotateVec2(
+                            beamD->range * vec2(0.0f, 1.0f), s, c);
+                    renderer.drawLine(pos,
+                                      pos2,
+                                      0xffffffff,
+                                      0.1f,
+                                      gfx::RenderEngine::zIdxProjectile);
                 }
             }
         });
@@ -1579,43 +1647,16 @@ void Model::handleDestroyEntity(bitsery::Deserializer<InputAdapter>& cmddes,
 }
 
 // todo: template this
-void Model::handleSendProjData(bitsery::Deserializer<InputAdapter>& cmddes,
-                               size_t dataEndPos)
+void Model::handleSendOpool(
+    bitsery::Deserializer<InputAdapter>& cmddes,
+    size_t dataEndPos,
+    size_t junkSize,
+    std::function<void(bitsery::Deserializer<InputAdapter>& cmddes)> clb)
 {
-    int i = 0;
     while ((int)cmddes.adapter().currentReadPos()
-           <= (int)(dataEndPos) - (6 + 16))
+           <= (int)(dataEndPos) - (int)junkSize)
     {
-        GenericHandle32 handle;
-        ecs::Transform tr;
-        GenericHandle proj;
-        cmddes.object(handle);
-        cmddes.object(tr);
-        cmddes.object(proj);
-        projectiles.updateObject(
-            handle, opool::ProjClient::Params{.tr = tr, .proj = proj});
-    }
-}
-
-void Model::handleSendItemData(bitsery::Deserializer<InputAdapter>& cmddes,
-                               size_t dataEndPos)
-{
-    int i = 0;
-    while ((int)cmddes.adapter().currentReadPos()
-           <= (int)(dataEndPos) - (6 + 16))
-    {
-        GenericHandle32 handle;
-        ecs::Transform transform;
-        GenericHandle item;
-        uint32_t quantity;
-        cmddes.object(handle);
-        cmddes.object(transform);
-        cmddes.object(item);
-        cmddes.value4b(quantity);
-        items.updateObject(handle,
-                           opool::ItemClient::Params{.transform = transform,
-                                                     .item = item,
-                                                     .quantity = quantity});
+        clb(cmddes);
     }
 }
 
