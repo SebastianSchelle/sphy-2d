@@ -1020,7 +1020,24 @@ insert_sorted(std::vector<T>& vec, T const& item, Pred pred)
 namespace gfx
 {
 constexpr float kTexturePixelToWorld = 0.15f;
-}
+
+enum class GameViewMode : uint8_t
+{
+    ThirdPerson,
+    TacticalMap,
+    StrategicMap,
+    Menu,
+    AtlasDebug,
+    ModdingTools,
+    Count,
+    Connecting,
+};
+
+#define SER_GMV S1b(*(uint8_t*)&o);
+EXT_SER(GameViewMode, SER_GMV)
+EXT_DES(GameViewMode, SER_GMV)
+
+}  // namespace gfx
 
 // Do not `using smath::Rect` at file scope: macOS SDK (MacTypes.h) defines a
 // global `struct Rect`; a using-declaration would collide with Carbon's type.

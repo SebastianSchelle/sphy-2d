@@ -1,5 +1,6 @@
 #include "client-pool-obj.hpp"
 #include "comp-phy.hpp"
+#include "config-manager.hpp"
 #include "lib-modules.hpp"
 #include "lib-projectile.hpp"
 #include "lib-textures.hpp"
@@ -14,7 +15,7 @@
 #include <exchange-sequence.hpp>
 #include <model.hpp>
 #include <protocol.hpp>
-#include <ui/user-interface.hpp>
+#include <user-interface.hpp>
 #include <version.hpp>
 #include <world-def.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
@@ -49,10 +50,12 @@ Model::Model(ui::UserInterface* userInterface,
       clientRegistry(sendQueue)
 {
     lastTSync = tim::getCurrentTimeU();
-
     assetFactory.componentFactory.registerAllComponents();
-
     lastGetAabbTree = tim::nowU();
+
+    intFastCliServ =
+        CFG_UINT(config, 100.0f, "net", "dump-int", "fast-cli-serv");
+
     registerConnectSequence();
 }
 
@@ -185,7 +188,7 @@ void Model::modelLoopGame(float dt)
     static tim::Timepoint testTime = tim::getCurrentTimeU();
     static tim::Timepoint lastReqAllComponents = tim::getCurrentTimeU();
     static tim::Timepoint lastGetAabbTree = tim::getCurrentTimeU();
-    static tim::Timepoint lastSendThirdPersonControl = tim::getCurrentTimeU();
+    static tim::Timepoint lastFastCliServ = tim::getCurrentTimeU();
 
     if (renderer->getViewMode() == gfx::GameViewMode::ThirdPerson
         || renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
@@ -215,13 +218,10 @@ void Model::modelLoopGame(float dt)
         }
     }
 
-    if (renderer->getViewMode() == gfx::GameViewMode::ThirdPerson)
-    {
-        DO_PERIODIC_EXTNOW(lastSendThirdPersonControl,
-                           30000,
-                           now,
-                           [this]() { sendThirdPersonControl(); });
-    }
+    DO_PERIODIC_EXTNOW(lastFastCliServ,
+                       intFastCliServ,
+                       now,
+                       [this]() { fastClientToServerUpdate(); });
 
     if (timeSyncData.cnt == 0)
     {
@@ -1611,13 +1611,29 @@ game_entity Model::getActiveEntity()
     return clientRegistry.getEntity(clientInfo.activeEntity);
 }
 
-void Model::sendThirdPersonControl()
+void Model::fastClientToServerUpdate()
 {
     prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
-    mcomp.startCommand(prot::cmd::THIRD_PERSON_CTRL, 0);
-    mcomp.ser->object(thirdPersonControl);
+
+    if (renderer->getViewMode() == gfx::GameViewMode::ThirdPerson)
+    {
+        mcomp.startCommand(prot::cmd::THIRD_PERSON_CTRL, 0);
+        mcomp.ser->object(thirdPersonControl);
+        mcomp.finishCommand();
+    }
+    mcomp.startCommand(prot::cmd::CLIENT_VIEW_RECT, 0);
+    mcomp.ser->object(clientInfo.clientViewRect);
+
     mcomp.execute(sendQueue);
 }
+
+// void Model::sendThirdPersonControl()
+// {
+//     prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
+//     mcomp.startCommand(prot::cmd::THIRD_PERSON_CTRL, 0);
+//     mcomp.ser->object(thirdPersonControl);
+//     mcomp.execute(sendQueue);
+// }
 
 void Model::setupDataModelConnecting()
 {

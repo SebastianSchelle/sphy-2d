@@ -199,12 +199,11 @@ class MainWindow
     void setupMouseState();
     void ProcessMouseStateNoui();
     void handleWinResize();
-
+    void updateClientViewRect();
     void startLoading();
     void loadingLoop();
     void processUiTasks();
     void drainUiTasksForShutdown();
-
     void setupDataModelDebug();
     void updateDebugDataModel(float deltaTimeSec, bool ptrOverUi);
     void setupDataModelMenu();

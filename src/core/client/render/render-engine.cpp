@@ -4,6 +4,7 @@
 #include "logging.hpp"
 #include "std-inc.hpp"
 #include "vertex-defines.hpp"
+#include "world-def.hpp"
 #include <algorithm>
 
 namespace gfx
@@ -1260,12 +1261,26 @@ void RenderEngine::applyCameraSectorRebase()
 void RenderEngine::screenToSectorCoords(const vec2& screenPx,
                                         def::SectorCoords& sectorCoords) const
 {
+    vec2 worldPos = screenToWorldPixel(screenPx);
+    worldToSectorCoords(worldPos, sectorCoords);
+}
+
+void RenderEngine::screenToSectorCoordsRel(
+    const vec2& screenRel,
+    def::SectorCoords& sectorCoords) const
+{
+    vec2 worldPos = screenToWorldRel(screenRel);
+    worldToSectorCoords(worldPos, sectorCoords);
+}
+
+void RenderEngine::worldToSectorCoords(const vec2& worldPos,
+                                       def::SectorCoords& sectorCoords) const
+{
     if (!worldShape)
     {
         return;
     }
     const float sectorSizeHalf = worldShape->sectorSize / 2.0f;
-    vec2 worldPos = screenToWorldPixel(screenPx);
     int xOffset = (int)floorf(worldPos.x / worldShape->sectorSize + 0.5f);
     sectorCoords.pos.x = std::clamp(
         xOffset + sectorOffsetX, 0, (int32_t)(worldShape->numSectorX - 1));
@@ -1311,7 +1326,8 @@ bool RenderEngine::getTexturePixelSize(const std::string& name,
     return getTexturePixelSize(handle, sizePx);
 }
 
-bool RenderEngine::getTexturePixelSize(TextureHandle textureHandle, glm::vec2& sizePx)
+bool RenderEngine::getTexturePixelSize(TextureHandle textureHandle,
+                                       glm::vec2& sizePx)
 {
     Texture* texture = textureLoader.getTextureLib().getItem(textureHandle);
     if (texture == nullptr)

@@ -1,6 +1,7 @@
 #ifndef CLIENT_DEF_HPP
 #define CLIENT_DEF_HPP
 
+#include "world-def.hpp"
 #include <comp-ident.hpp>
 #include <control-def.hpp>
 #include <item-lib.hpp>
@@ -13,6 +14,20 @@ namespace def
 
 #define CLIENT_FLAG_EN_CONSOLE 1 << 0
 static constexpr size_t CLIENT_INFO_NAME_MAX = 256;
+
+struct ClientViewRect
+{
+    gfx::GameViewMode viewMode;
+    SectorCoords tl;
+    SectorCoords br;
+};
+
+#define SER_CLIENT_VIEW_RECT                                                   \
+    SOBJ(o.viewMode);                                                          \
+    SOBJ(o.tl);                                                                \
+    SOBJ(o.br);
+EXT_SER(ClientViewRect, SER_CLIENT_VIEW_RECT)
+EXT_DES(ClientViewRect, SER_CLIENT_VIEW_RECT)
 
 class ClientInfo
 {
@@ -86,6 +101,7 @@ class ClientInfo
     uint32_t currentSector = 0;
     uint8_t flags;
     std::string name;
+    ClientViewRect clientViewRect;
 
   private:
     std::set<uint32_t> activeSectors;

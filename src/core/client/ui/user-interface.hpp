@@ -15,7 +15,7 @@ using UiDocHandle = con::ItemLib<Rml::ElementDocument*>::Handle;
 
 namespace gfx
 {
-    enum class GameViewMode;
+    enum class GameViewMode : uint8_t;
 }
 
 namespace ui

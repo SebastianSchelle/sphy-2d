@@ -95,6 +95,10 @@ class Model
     void gotoModdingTools();
     void gotoAtlasDebug();
     void gotoMenu();
+    void setClientViewRect(const def::ClientViewRect& cvr)
+    {
+        clientInfo.clientViewRect = cvr;
+    }
     void toggleTacticalView();
     void toggleStrategicView();
     void centerViewOnPlayer();
@@ -234,7 +238,7 @@ class Model
     void registerConnectSequence();
     uint32_t getActiveSectorId();
     game_entity getActiveEntity();
-    void sendThirdPersonControl();
+    void fastClientToServerUpdate();
 
     cfg::ConfigManager& config;
     net::TimeSync timeSyncData;
@@ -263,6 +267,7 @@ class Model
 
     long lastGetAabbTree;
     def::ThirdPersonControl thirdPersonControl;
+    uint16_t intFastCliServ;
 };
 
 }  // namespace sphyc

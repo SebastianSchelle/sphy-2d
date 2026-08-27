@@ -26,18 +26,6 @@ namespace gfx
 #define SHAPE_TYPE_TRIANGLE 3.0f
 #define SHAPE_TYPE_LINE 4.0f
 
-enum class GameViewMode
-{
-    ThirdPerson,
-    TacticalMap,
-    StrategicMap,
-    Menu,
-    AtlasDebug,
-    ModdingTools,
-    Count,
-    Connecting,
-};
-
 struct PersistentCamPos
 {
     float x;
@@ -194,6 +182,10 @@ class RenderEngine
     vec2 screenToWorldRel(const vec2& screenPosRel) const;
     void screenToSectorCoords(const glm::vec2& screenPx,
                               def::SectorCoords& sectorCoords) const;
+    void screenToSectorCoordsRel(const vec2& screenRel,
+                                 def::SectorCoords& sectorCoords) const;
+    void worldToSectorCoords(const vec2& worldPos,
+                             def::SectorCoords& sectorCoords) const;
     void getViewportRect(smath::Rect& rect) const;
 
     TextureHandle loadTexture(const std::string& name,
@@ -224,11 +216,12 @@ class RenderEngine
     std::string getAtlasRegistrySummary() const;
     void fillAtlasDebugGpuArrayOptions(
         std::vector<AtlasDebugSelectOption>& out) const;
-    void fillAtlasDebugLayerOptions(
-        int gpuArrayIndex,
-        std::vector<AtlasDebugSelectOption>& out) const;
-    void fillAtlasDebugMipOptions(int gpuArrayIndex,
-                                 std::vector<AtlasDebugSelectOption>& out) const;
+    void
+    fillAtlasDebugLayerOptions(int gpuArrayIndex,
+                               std::vector<AtlasDebugSelectOption>& out) const;
+    void
+    fillAtlasDebugMipOptions(int gpuArrayIndex,
+                             std::vector<AtlasDebugSelectOption>& out) const;
     void fillAtlasDebugKindPickRows(std::vector<AtlasDebugKindPickRow>& out);
 
     ShaderHandle loadShader(const std::string& name,

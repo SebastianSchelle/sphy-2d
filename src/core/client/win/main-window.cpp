@@ -1,9 +1,10 @@
 #include "GLFW/glfw3.h"
 #include "RmlUi/Core/Core.h"
 #include "bgfx/defines.h"
+#include "client-def.hpp"
 #include "control-def.hpp"
 #include "std-inc.hpp"
-#include "vertex-defines.hpp"
+#include "world-def.hpp"
 #include <bgfx/platform.h>
 #include <bx/bx.h>
 #include <comp-ident.hpp>
@@ -331,6 +332,8 @@ void MainWindow::winLoop()
             }
         }
 
+        updateClientViewRect();
+
         if (userInterface.isDebugOpen())
         {
             updateDebugDataModel(dt, mouseOverUi);
@@ -383,6 +386,15 @@ void MainWindow::winLoop()
         userInterface.render();
         renderEngine.endFrame();
     }
+}
+
+void MainWindow::updateClientViewRect()
+{
+    def::SectorCoords tl, br;
+    renderEngine.screenToSectorCoordsRel(vec2(-1.0, 1.0), tl);
+    renderEngine.screenToSectorCoordsRel(vec2(1.0, -1.0), br);
+    model.setClientViewRect(def::ClientViewRect{
+        .viewMode = renderEngine.getViewMode(), .tl = tl, .br = br});
 }
 
 void MainWindow::renderMenu()

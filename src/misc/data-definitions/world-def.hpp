@@ -21,8 +21,8 @@ enum class Direction
 
 struct SectorPos
 {
-    uint32_t x;
-    uint32_t y;
+    uint32_t x = 0;
+    uint32_t y = 0;
 
     bool operator==(const SectorPos& other) const
     {
@@ -41,7 +41,7 @@ struct SectorPos
 struct SectorCoords
 {
     SectorPos pos;
-    vec2 sectorPos;
+    vec2 sectorPos = vec2(0.0f, 0.0f);
     bool operator==(const SectorCoords& other) const
     {
         return pos == other.pos && sectorPos == other.sectorPos;
@@ -50,7 +50,8 @@ struct SectorCoords
     {
         return pos != other.pos || sectorPos != other.sectorPos;
     }
-    static const SectorCoords& minX(const SectorCoords& a, const SectorCoords& b)
+    static const SectorCoords& minX(const SectorCoords& a,
+                                    const SectorCoords& b)
     {
         if (a.pos.x < b.pos.x)
         {
@@ -69,7 +70,8 @@ struct SectorCoords
             return b;
         }
     }
-    static const SectorCoords& minY(const SectorCoords& a, const SectorCoords& b)
+    static const SectorCoords& minY(const SectorCoords& a,
+                                    const SectorCoords& b)
     {
         if (a.pos.y < b.pos.y)
         {
@@ -88,7 +90,8 @@ struct SectorCoords
             return b;
         }
     }
-    static const SectorCoords& maxX(const SectorCoords& a, const SectorCoords& b)
+    static const SectorCoords& maxX(const SectorCoords& a,
+                                    const SectorCoords& b)
     {
         if (a.pos.x > b.pos.x)
         {
@@ -107,7 +110,8 @@ struct SectorCoords
             return b;
         }
     }
-    static const SectorCoords& maxY(const SectorCoords& a, const SectorCoords& b)
+    static const SectorCoords& maxY(const SectorCoords& a,
+                                    const SectorCoords& b)
     {
         if (a.pos.y > b.pos.y)
         {
@@ -161,8 +165,8 @@ EXT_DES(WorldShape, SER_WORLD_SHAPE)
 
 namespace world
 {
-    const uint32_t INVALID_SECTOR_ID = 0xFFFFFFFF;
-    const uint32_t REGISTRY_GLOBAL = 0xFFFFFFFF;
+const uint32_t INVALID_SECTOR_ID = 0xFFFFFFFF;
+const uint32_t REGISTRY_GLOBAL = 0xFFFFFFFF;
 }  // namespace world
 
 EXT_FMT(def::SectorPos, "({}, {})", o.x, o.y);

@@ -86,6 +86,7 @@ class MsgComposer
     void resetData();
     void startCommand(uint16_t cmd, uint8_t flags);
     void execute(ConcurrentQueue<net::CmdQueueData>& sendQueue);
+    void finishCommand();
     bool hasData() const
     {
         return hasContent;
@@ -93,7 +94,6 @@ class MsgComposer
     bitsery::Serializer<OutputAdapter>* ser = nullptr;
 
   private:
-    void finishCommand();
     net::CmdQueueData cmdData;
     size_t currCmdPos = 0;
     size_t currLenPos = 0;
@@ -139,10 +139,11 @@ const uint16_t CLIENT_INFO = 0x0010;
 const uint16_t TOTAL_NUM_ENTITIES = 0x0011;
 const uint16_t DESTROY_ENTITY = 0x0012;
 const uint16_t ACK_WORKSEQUENCER = 0x0013;
+const uint16_t CLIENT_VIEW_RECT = 0x0014;
 
-OPOOL_IDS(PROJ, 0x1014)
-OPOOL_IDS(ITEM, 0x1017)
-OPOOL_IDS(BEAM, 0x101A)
+OPOOL_IDS(PROJ, 0x1000)
+OPOOL_IDS(ITEM, 0x1003)
+OPOOL_IDS(BEAM, 0x1006)
 
 }  // namespace cmd
 

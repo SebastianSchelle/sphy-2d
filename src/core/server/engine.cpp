@@ -68,18 +68,18 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     ptrHandle->minFaceTargetDist =
         CFG_FLOAT(config, 1.0f, "engine", "physics", "min-face-target-dist");
     slowDumpUs =
-        1000 * CFG_UINT(config, 1000.0f, "engine", "upd", "dump-int", "slow");
+        1000 * CFG_UINT(config, 1000.0f, "engine", "net", "dump-int", "slow");
     activeSectorDumpUs =
         1000
-        * CFG_UINT(config, 30.0f, "engine", "upd", "dump-int", "active-sector");
+        * CFG_UINT(config, 30.0f, "engine", "net", "dump-int", "active-sector");
     ptrHandle->miningRate =
         CFG_FLOAT(config, 0.01f, "engine", "mining", "mining-rate");
     ptrHandle->itemLifetime =
         CFG_FLOAT(config, 600.0f, "engine", "items", "item-lifetime");
     ptrHandle->volumeMultiplier =
         CFG_FLOAT(config, 1.0f, "engine", "modules", "volume-multiplier");
-    int updThreads = CFG_UINT(config, 2.0f, "engine", "upd", "threads");
-    maxFps = CFG_FLOAT(config, 600.0f, "engine", "upd", "max-fps");
+    int updThreads = CFG_UINT(config, 2.0f, "engine", "proc", "threads");
+    maxFps = CFG_FLOAT(config, 600.0f, "engine", "proc", "max-fps");
 
     updThreads = std::clamp(updThreads, 1, 16);
     workDistributor.init(updThreads);
@@ -849,6 +849,11 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 handleThirdPersonControl(clientInfo, tcpConnection);
             }
             break;
+        }
+        case prot::cmd::CLIENT_VIEW_RECT:
+        {
+            cmddes.object(clientInfo->clientViewRect);
+            auto &t = clientInfo->clientViewRect;
         }
         default:
             break;
