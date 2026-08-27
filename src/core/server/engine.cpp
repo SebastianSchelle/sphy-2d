@@ -853,7 +853,7 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         case prot::cmd::CLIENT_VIEW_RECT:
         {
             cmddes.object(clientInfo->clientViewRect);
-            auto &t = clientInfo->clientViewRect;
+            auto& t = clientInfo->clientViewRect;
         }
         default:
             break;
@@ -1352,58 +1352,61 @@ void Engine::testSpawn()
                                                   world.getSectorCount() - 1);
 
     // New spawner test
-    objb::ShipRecipe bee(
-        modManager.getHullLib().getHandle("Bee"),
-        {{0, modManager.getModuleLib().getHandle("Breeze")},
-         {1, modManager.getModuleLib().getHandle("Breeze Maneuver")},
-         {2, modManager.getModuleLib().getHandle("Breeze Maneuver")},
-         {3, modManager.getModuleLib().getHandle("Beam Miner")},
-         {4, modManager.getModuleLib().getHandle("Collector Mk1")},
-         {5, modManager.getModuleLib().getHandle("Terran Bulk S")}});
+    gobj::ShipRecipe bee{
+        .hullHandle = modManager.getHullLib().getHandle("Bee"),
+        .modSlot = {{0, modManager.getModuleLib().getHandle("Breeze")},
+                    {1, modManager.getModuleLib().getHandle("Breeze Maneuver")},
+                    {2, modManager.getModuleLib().getHandle("Breeze Maneuver")},
+                    {3, modManager.getModuleLib().getHandle("Beam Miner")},
+                    {4, modManager.getModuleLib().getHandle("Collector Mk1")},
+                    {5, modManager.getModuleLib().getHandle("Terran Bulk S")}}};
 
-    objb::ShipRecipe mosquito(
-        modManager.getHullLib().getHandle("Mosquito"),
-        {{0, modManager.getModuleLib().getHandle("Breeze")},
-         {1, modManager.getModuleLib().getHandle("Breeze Maneuver")},
-         {2, modManager.getModuleLib().getHandle("Breeze Maneuver")},
-         {3, modManager.getModuleLib().getHandle("Small Mining Turret")},
-         {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
-         {5, modManager.getModuleLib().getHandle("Small Mining Turret")}});
+    gobj::ShipRecipe mosquito{
+        .hullHandle = modManager.getHullLib().getHandle("Mosquito"),
+        .modSlot = {
+            {0, modManager.getModuleLib().getHandle("Breeze")},
+            {1, modManager.getModuleLib().getHandle("Breeze Maneuver")},
+            {2, modManager.getModuleLib().getHandle("Breeze Maneuver")},
+            {3, modManager.getModuleLib().getHandle("Small Mining Turret")},
+            {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
+            {5, modManager.getModuleLib().getHandle("Small Mining Turret")}}};
 
-    objb::ShipRecipe bumblebee(
-        modManager.getHullLib().getHandle("Bumblebee"),
-        {{0, modManager.getModuleLib().getHandle("Cargo Container S")},
-         {1, modManager.getModuleLib().getHandle("Cargo Container S")},
-         {2, modManager.getModuleLib().getHandle("Cargo Container S")},
-         {3, modManager.getModuleLib().getHandle("Cargo Container S")},
-         {4, modManager.getModuleLib().getHandle("Breeze")},
-         {5, modManager.getModuleLib().getHandle("Breeze Maneuver")}});
+    gobj::ShipRecipe bumblebee{
+        .hullHandle = modManager.getHullLib().getHandle("Bumblebee"),
+        .modSlot = {
+            {0, modManager.getModuleLib().getHandle("Cargo Container S")},
+            {1, modManager.getModuleLib().getHandle("Cargo Container S")},
+            {2, modManager.getModuleLib().getHandle("Cargo Container S")},
+            {3, modManager.getModuleLib().getHandle("Cargo Container S")},
+            {4, modManager.getModuleLib().getHandle("Breeze")},
+            {5, modManager.getModuleLib().getHandle("Breeze Maneuver")}}};
 
-    objb::ShipRecipe caterpillar(
-        modManager.getHullLib().getHandle("Caterpillar"),
-        {{0, modManager.getModuleLib().getHandle("Collector Mk1")},
-         {1, modManager.getModuleLib().getHandle("Collector Mk1")},
-         {2, modManager.getModuleLib().getHandle("Beam Miner")},
-         {3, modManager.getModuleLib().getHandle("Beam Miner")},
-         {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
-         {5, modManager.getModuleLib().getHandle("Small Mining Turret")},
-         {6, modManager.getModuleLib().getHandle("Small Mining Turret")},
-         {7, modManager.getModuleLib().getHandle("Small Mining Turret")},
-         {8, modManager.getModuleLib().getHandle("Terran Bulk S")},
-         {9, modManager.getModuleLib().getHandle("Terran Bulk S")},
-         {10, modManager.getModuleLib().getHandle("Terran Bulk S")},
-         {11, modManager.getModuleLib().getHandle("Terran Bulk S")},
-         {12, modManager.getModuleLib().getHandle("Terran Bulk S")},
-         {13, modManager.getModuleLib().getHandle("Terran Bulk S")},
-         {14, modManager.getModuleLib().getHandle("Terran Bulk S")},
-         {15, modManager.getModuleLib().getHandle("Terran Bulk S")},
-         {16, modManager.getModuleLib().getHandle("Breeze")},
-         {17, modManager.getModuleLib().getHandle("Breeze Maneuver")},
-         {18, modManager.getModuleLib().getHandle("Breeze Maneuver")}});
+    gobj::ShipRecipe caterpillar{
+        .hullHandle = modManager.getHullLib().getHandle("Caterpillar"),
+        .modSlot = {
+            {0, modManager.getModuleLib().getHandle("Collector Mk1")},
+            {1, modManager.getModuleLib().getHandle("Collector Mk1")},
+            {2, modManager.getModuleLib().getHandle("Beam Miner")},
+            {3, modManager.getModuleLib().getHandle("Beam Miner")},
+            {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
+            {5, modManager.getModuleLib().getHandle("Small Mining Turret")},
+            {6, modManager.getModuleLib().getHandle("Small Mining Turret")},
+            {7, modManager.getModuleLib().getHandle("Small Mining Turret")},
+            {8, modManager.getModuleLib().getHandle("Terran Bulk S")},
+            {9, modManager.getModuleLib().getHandle("Terran Bulk S")},
+            {10, modManager.getModuleLib().getHandle("Terran Bulk S")},
+            {11, modManager.getModuleLib().getHandle("Terran Bulk S")},
+            {12, modManager.getModuleLib().getHandle("Terran Bulk S")},
+            {13, modManager.getModuleLib().getHandle("Terran Bulk S")},
+            {14, modManager.getModuleLib().getHandle("Terran Bulk S")},
+            {15, modManager.getModuleLib().getHandle("Terran Bulk S")},
+            {16, modManager.getModuleLib().getHandle("Breeze")},
+            {17, modManager.getModuleLib().getHandle("Breeze Maneuver")},
+            {18, modManager.getModuleLib().getHandle("Breeze Maneuver")}}};
 
     bool first = true;
 
-    for (int i = 0; i < 100000; ++i)
+    for (int i = 0; i < 10; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1412,10 +1415,12 @@ void Engine::testSpawn()
 
         if (i % 4 == 0)
         {
-            auto ent = bee.spawn({.ptrHandle = ptrHandle,
-                       .sector = sector,
-                       .pos = pos,
-                       .rot = rot});
+            auto ent = objb::ShipRecipe::spawn(
+                modManager.getShipRecipeLib().getHandle("Mining Bee"),
+                {.ptrHandle = ptrHandle,
+                 .sector = sector,
+                 .pos = pos,
+                 .rot = rot});
             if (first)
             {
                 auto clientInfo = clientLib.getItem(testclient);
@@ -1424,24 +1429,24 @@ void Engine::testSpawn()
         }
         else if (i % 4 == 1)
         {
-            mosquito.spawn({.ptrHandle = ptrHandle,
-                            .sector = sector,
-                            .pos = pos,
-                            .rot = rot});
+            // mosquito.spawn({.ptrHandle = ptrHandle,
+            //                 .sector = sector,
+            //                 .pos = pos,
+            //                 .rot = rot});
         }
         else if (i % 4 == 2)
         {
-            bumblebee.spawn({.ptrHandle = ptrHandle,
-                             .sector = sector,
-                             .pos = pos,
-                             .rot = rot});
+            // bumblebee.spawn({.ptrHandle = ptrHandle,
+            //                  .sector = sector,
+            //                  .pos = pos,
+            //                  .rot = rot});
         }
         else
         {
-            auto ent = caterpillar.spawn({.ptrHandle = ptrHandle,
-                                          .sector = sector,
-                                          .pos = pos,
-                                          .rot = rot});
+            // auto ent = caterpillar.spawn({.ptrHandle = ptrHandle,
+            //                               .sector = sector,
+            //                               .pos = pos,
+            //                               .rot = rot});
         }
     }
     /*
@@ -1471,7 +1476,7 @@ void Engine::testSpawn()
         if (!part1)
         {
         LG_E("Spawn test station: station part '{}' not in library;
-skip", partName1); continue;
+    skip", partName1); continue;
         }
         ecs::EntityId partId =
             entitySpawner->addFirstStationPart(stationId, partHandle1, rot);
@@ -1497,7 +1502,7 @@ skip", partName1); continue;
                                           partHandle2,
                                           j,
                                           rand() %
-part2->connectors.size());
+    part2->connectors.size());
         }
 
         // ecs::EntityId partId2 =

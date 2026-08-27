@@ -7,18 +7,12 @@
 #include <lib-item.hpp>
 #include <lib-modules.hpp>
 #include <lib-projectile.hpp>
-#include <mod-manager.hpp>
+#include <lib-recipes.hpp>
 #include <ptr-handle.hpp>
 #include <sector.hpp>
 
 namespace objb
 {
-
-struct ModuleSlot
-{
-    uint32_t slot;
-    gobj::ModuleHandle modHandle;
-};
 
 struct RecipeSpawnParams
 {
@@ -30,20 +24,10 @@ struct RecipeSpawnParams
     float naturalRot = 0.0f;
 };
 
-class ShipRecipe
+namespace ShipRecipe
 {
-  public:
-    ShipRecipe(gobj::HullHandle hullHandle,
-               const std::vector<ModuleSlot> modSlots)
-        : hullHandle(hullHandle), modSlot(modSlots)
-    {
-    }
-    ecs::EntityId spawn(const RecipeSpawnParams& params);
-
-  private:
-    gobj::HullHandle hullHandle;
-    std::vector<ModuleSlot> modSlot;
-};
+  ecs::EntityId spawn(const gobj::ShipRecipeHandle handle, const RecipeSpawnParams& params);
+}
 
 class AsteroidRecipe
 {

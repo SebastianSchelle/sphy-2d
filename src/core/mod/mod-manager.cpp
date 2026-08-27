@@ -1,3 +1,4 @@
+#include "lib-recipes.hpp"
 #include <algorithm>
 #include <daScript/daScript.h>
 #include <daScript/daScriptModule.h>
@@ -424,7 +425,8 @@ bool ModManager::loadGameLibs(PtrHandles& ptrHandles, const ModInfo& modInfo)
     std::sort(yamlPaths.begin(), yamlPaths.end());
     for (GameLibLoadPhase phase : {GameLibLoadPhase::Dependencies,
                                    GameLibLoadPhase::Ammunition,
-                                   GameLibLoadPhase::GameObjects})
+                                   GameLibLoadPhase::GameObjects,
+                                   GameLibLoadPhase::Recipes})
     {
         for (const std::string& gameObjectPath : yamlPaths)
         {
@@ -532,18 +534,18 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
                              LG_I("Added beam: {}", key);
                          });
     }
-    else
+    else if (phase == GameLibLoadPhase::GameObjects)
     {
-        foreachObjectDef(libs["module"],
-                         [&](const std::string& objName, const YAML::Node& node)
-                         {
-                             const gobj::Module module = gobj::Module::fromYaml(
-                                 node, texturesLib, projectileLib, missileLib, beamLib);
-                             string key =
-                                 module.name != "" ? module.name : objName;
-                             moduleLib.addItem(key, module);
-                             LG_I("Added module: {}", key);
-                         });
+        foreachObjectDef(
+            libs["module"],
+            [&](const std::string& objName, const YAML::Node& node)
+            {
+                const gobj::Module module = gobj::Module::fromYaml(
+                    node, texturesLib, projectileLib, missileLib, beamLib);
+                string key = module.name != "" ? module.name : objName;
+                moduleLib.addItem(key, module);
+                LG_I("Added module: {}", key);
+            });
         foreachObjectDef(libs["hull"],
                          [&](const std::string& objName, const YAML::Node& node)
                          {
@@ -586,6 +588,19 @@ bool ModManager::loadGameLib(PtrHandles& ptrHandles,
             }
             gobj::Asteroid::loadChildrenFromYaml(*asteroid, node, asteroidLib);
         }
+    }
+    else
+    {
+        foreachObjectDef(
+            libs["ship-recipes"],
+            [&](const std::string& objName, const YAML::Node& node)
+            {
+                const gobj::ShipRecipe shipRecipe =
+                    gobj::ShipRecipe::fromYaml(node, hullLib, moduleLib);
+                string key = shipRecipe.name != "" ? shipRecipe.name : objName;
+                shipRecipeLib.addItem(key, shipRecipe);
+                LG_I("Added ship recipe: {}", key);
+            });
     }
     return true;
 }

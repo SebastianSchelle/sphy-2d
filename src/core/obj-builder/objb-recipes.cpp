@@ -1,3 +1,4 @@
+#include <objb-recipes.hpp>
 #include "comp-ident.hpp"
 #include "logging.hpp"
 #include "objb-general.hpp"
@@ -5,18 +6,24 @@
 #include "ptr-handle.hpp"
 #include <engine.hpp>
 #include <mod-manager.hpp>
-#include <objb-recipes.hpp>
 
 namespace objb
 {
-
-ecs::EntityId ShipRecipe::spawn(const RecipeSpawnParams& params)
+namespace ShipRecipe
+{
+ecs::EntityId spawn(const gobj::ShipRecipeHandle handle, const RecipeSpawnParams& params)
 {
     auto ptr = params.ptrHandle;
+    auto recipe = ptr->modManager->getShipRecipeLib().getItem(handle);
+    if(!recipe)
+    {
+        LG_W("Ship recipe from handle {} not found", handle.toGenericHandle());
+        return ecs::EntityId::Invalid();
+    }
 
     // Spawn ship + modules
-    auto shipHull = ptr->engine->spawnShipHull(params.sector, hullHandle);
-    for (auto ms : modSlot)
+    auto shipHull = ptr->engine->spawnShipHull(params.sector, recipe->hullHandle);
+    for (auto ms : recipe->modSlot)
     {
         auto mod = ptr->engine->spawnModule(
             params.sector, shipHull, ms.modHandle, ms.slot);
@@ -38,6 +45,7 @@ ecs::EntityId ShipRecipe::spawn(const RecipeSpawnParams& params)
     ptr->engine->broadcastEntityToClients(shipHull);
     return shipHull;
 }
+}  // namespace ShipRecipe
 
 ecs::EntityId AsteroidRecipe::spawn(const RecipeSpawnParams& params)
 {

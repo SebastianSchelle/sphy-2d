@@ -8,6 +8,7 @@ target_sources(sphy_core_game_objects_libs INTERFACE
     lib-projectile.cpp
     lib-item.cpp
     lib-asteroid.cpp
+    lib-recipes.cpp
 )
 
 target_include_directories(sphy_core_game_objects_libs

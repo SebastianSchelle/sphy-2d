@@ -1,6 +1,7 @@
 #ifndef MOD_MANAGER_HPP
 #define MOD_MANAGER_HPP
 
+#include "lib-recipes.hpp"
 #ifdef CLIENT
 // Forward declarations only: including RmlUi here forces RTTI in
 // mod-manager.cpp (RmlUi uses typeid) and breaks -fno-rtti matching with
@@ -27,6 +28,7 @@ class UserInterface;
 #include <lib-projectile.hpp>
 #include <lib-item.hpp>
 #include <lib-asteroid.hpp>
+#include <lib-recipes.hpp>
 
 #ifdef FMT_THROW
 #pragma push_macro("FMT_THROW")
@@ -213,6 +215,10 @@ class ModManager
     {
         return beamLib;
     }
+    con::ItemLib<gobj::ShipRecipe>& getShipRecipeLib()
+    {
+        return shipRecipeLib;
+    }
   private:
     bool checkDependency(const std::string& modId,
                          std::vector<std::string>& modList,
@@ -240,9 +246,9 @@ class ModManager
     enum class GameLibLoadPhase : uint8_t
     {
         Dependencies,
-        /** Projectiles and missiles (before modules that reference them). */
         Ammunition,
         GameObjects,
+        Recipes
     };
     bool loadGameLib(PtrHandles& ptrHandles,
                      const std::string& path,
@@ -267,6 +273,7 @@ class ModManager
     con::ItemLib<gobj::Item> itemLib;
     con::ItemLib<gobj::Asteroid> asteroidLib;
     con::ItemLib<gobj::Beam> beamLib;
+    con::ItemLib<gobj::ShipRecipe> shipRecipeLib;
 };
 
 }  // namespace mod
