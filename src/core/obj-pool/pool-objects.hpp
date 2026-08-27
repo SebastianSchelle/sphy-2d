@@ -36,6 +36,7 @@ struct Item
     float lifetimeMax;
     float lifetime = 0.0f;
     int32_t proxyId = INVALID_PROXY_ID;
+    bool reserved;
 };
 using ItemHandle = typename con::FreeVec<Item>::Handle;
 

@@ -104,6 +104,7 @@ void ComponentFactory::registerAllComponents()
     registerComponent<ecs::Lifetime>();
     registerComponent<ecs::Item>();
     registerComponent<ecs::SimpleTexture>();
+    registerComponent<ecs::Collector>();
 }
 
 AssetFactory::AssetFactory() {}

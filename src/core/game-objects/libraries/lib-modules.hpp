@@ -86,6 +86,7 @@ enum class ModuleType : uint8_t
     Storage,
     Hangar,
     Turret,
+    Collector,
 };
 
 namespace mdata
@@ -111,6 +112,12 @@ struct Hangar
     def::ShipClass maxShipClass;
     float hangarSpace;
     static Hangar fromYaml(const YAML::Node& node);
+};
+struct Collector
+{
+    float spd = 0.5f;
+    BeamHandle beam;
+    static Collector fromYaml(const YAML::Node& node, con::ItemLib<gobj::Beam>& beamLib);
 };
 struct Turret
 {
@@ -161,7 +168,7 @@ struct Turret
         con::ItemLib<gobj::Beam>& beamLib);
 };
 using Data =
-    std::variant<MainThruster, ManeuverThruster, Storage, Hangar, Turret>;
+    std::variant<MainThruster, ManeuverThruster, Storage, Hangar, Collector, Turret>;
 
 }  // namespace mdata
 

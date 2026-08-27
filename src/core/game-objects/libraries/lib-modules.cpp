@@ -124,6 +124,17 @@ Hangar Hangar::fromYaml(const YAML::Node& node)
     return hangar;
 }
 
+Collector Collector::fromYaml(const YAML::Node& node,
+                              con::ItemLib<gobj::Beam>& beamLib)
+{
+    Collector collector{};
+    TRY_YAML_DICT(collector.spd, node["spd"], collector.spd);
+    string beamKey;
+    TRY_YAML_DICT(beamKey, node["beam"], "");
+    collector.beam = resolveBeamHandle(beamKey, beamLib);
+    return collector;
+}
+
 Turret Turret::fromYaml(const YAML::Node& node,
                         con::ItemLib<gobj::Projectile>& projectileLib,
                         con::ItemLib<gobj::Missile>& missileLib,
@@ -298,6 +309,9 @@ Module Module::fromYaml(const YAML::Node& node,
                 break;
             case ModuleType::Hangar:
                 module.data = mdata::Hangar::fromYaml(dataNode);
+                break;
+            case ModuleType::Collector:
+                module.data = mdata::Collector::fromYaml(dataNode, beamLib);
                 break;
             case ModuleType::Turret:
                 module.data = mdata::Turret::fromYaml(

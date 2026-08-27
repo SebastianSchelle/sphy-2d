@@ -46,7 +46,7 @@ union BpUserDataUnion
 struct BpUserData
 {
     BpUserType type = BpUserType::Ecs;
-    BpUserDataUnion data = {.ent=entt::null};
+    BpUserDataUnion data = {.ent = entt::null};
 };
 #endif
 
@@ -94,22 +94,36 @@ class Sector
     void markPlayerSector(bool player);
     void update(float dt, ecs::PtrHandle* ptrHandle);
     bool saveSector(const std::string& savedir);
-    void foreachProj(
-        std::function<con::FreeVecForeachRet(opool::Projectile&,
-                                             opool::ProjectileHandle handle)>
-            clb);
-    void foreachBeam(
-        std::function<con::FreeVecForeachRet(opool::Beam&,
-                                             opool::BeamHandle handle)> clb);
-    void foreachItem(
-        std::function<con::FreeVecForeachRet(opool::Item&,
-                                             opool::ItemHandle handle)> clb);
-    opool::Item* getItem(opool::ItemHandle handle);
-
     template <class T>
-    void foreachOpool(
-        std::function<
-            con::FreeVecForeachRet(T&, typename con::FreeVec<T>::Handle handle)> clb);
+    void foreachOpool(std::function<con::FreeVecForeachRet(
+                          T&,
+                          typename con::FreeVec<T>::Handle handle)> clb);
+
+    template <class T> T* getOpool(typename con::FreeVec<T>::Handle handle);
+    void objectInitBroadphase(ecs::PtrHandle* ptrHandle, entt::entity entity);
+    void itemInitBroadphase(ecs::PtrHandle* ptrHandle,
+                            opool::ItemHandle handle,
+                            opool::Item& item);
+    void itemUpdateBroadphase(ecs::PtrHandle* ptrHandle,
+                              opool::ItemHandle handle,
+                              opool::Item& item);
+    ecs::SectorRegistry* getRegistry()
+    {
+        return &sectorRegistry;
+    }
+    ai::TaskSystem& getTaskSystem()
+    {
+        return taskSystem;
+    }
+    template <class T>
+    typename con::FreeVec<T>::Handle spawnOpool(ecs::PtrHandle* ptrHandle,
+                                                const T& item);
+    template <class T>
+    void removeOpool(typename con::FreeVec<T>::Handle handle);
+    inline void addBroadphaseQueryEntity(entt::entity entity)
+    {
+        broadphaseQueryEntities.push_back(entity);
+    }
 #endif
     const float getWorldPosX() const
     {
@@ -139,33 +153,6 @@ class Sector
     {
         return active;
     }
-#ifdef SERVER
-    void objectInitBroadphase(ecs::PtrHandle* ptrHandle, entt::entity entity);
-    void itemInitBroadphase(ecs::PtrHandle* ptrHandle,
-                            opool::ItemHandle handle,
-                            opool::Item& item);
-    void itemUpdateBroadphase(ecs::PtrHandle* ptrHandle,
-                              opool::ItemHandle handle,
-                              opool::Item& item);
-    ecs::SectorRegistry* getRegistry()
-    {
-        return &sectorRegistry;
-    }
-    ai::TaskSystem& getTaskSystem()
-    {
-        return taskSystem;
-    }
-    void spawnProjectile(const opool::Projectile& proj);
-    opool::BeamHandle spawnBeam(const opool::Beam& beam);
-    opool::Beam* getBeam(opool::BeamHandle handle);
-    void removeBeam(opool::BeamHandle handle);
-    void spawnItem(ecs::PtrHandle* ptrHandle, const opool::Item& item);
-    void removeItem(opool::ItemHandle handle);
-    inline void addBroadphaseQueryEntity(entt::entity entity)
-    {
-        broadphaseQueryEntities.push_back(entity);
-    }
-#endif
 #ifdef CLIENT
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
     void drawTacticalMap(gfx::RenderEngine& renderer,
@@ -211,25 +198,88 @@ class Sector
 
 #ifdef SERVER
 
-template<> void Sector::foreachOpool<opool::Projectile>(
-    std::function<
-        con::FreeVecForeachRet(opool::Projectile&, opool::ProjectileHandle handle)> clb)
+template <>
+void Sector::foreachOpool<opool::Projectile>(
+    std::function<con::FreeVecForeachRet(opool::Projectile&,
+                                         opool::ProjectileHandle handle)> clb)
 {
     projectilePool.foreach (clb);
 }
 
-template<> void Sector::foreachOpool<opool::Item>(
-    std::function<
-        con::FreeVecForeachRet(opool::Item&, opool::ItemHandle handle)> clb)
+template <>
+void Sector::foreachOpool<opool::Item>(
+    std::function<con::FreeVecForeachRet(opool::Item&,
+                                         opool::ItemHandle handle)> clb)
 {
     itemPool.foreach (clb);
 }
 
-template<> void Sector::foreachOpool<opool::Beam>(
-    std::function<
-        con::FreeVecForeachRet(opool::Beam&, opool::BeamHandle handle)> clb)
+template <>
+void Sector::foreachOpool<opool::Beam>(
+    std::function<con::FreeVecForeachRet(opool::Beam&,
+                                         opool::BeamHandle handle)> clb)
 {
     beamPool.foreach (clb);
+}
+
+template <> opool::Item* Sector::getOpool<opool::Item>(opool::ItemHandle handle)
+{
+    return itemPool.getObject(handle);
+}
+
+template <>
+opool::Projectile*
+Sector::getOpool<opool::Projectile>(opool::ProjectileHandle handle)
+{
+    return projectilePool.getObject(handle);
+}
+
+template <> opool::Beam* Sector::getOpool<opool::Beam>(opool::BeamHandle handle)
+{
+    return beamPool.getObject(handle);
+}
+
+template <> void Sector::removeOpool<opool::Beam>(opool::BeamHandle handle)
+{
+    beamPool.destroyObject(handle);
+}
+
+template <> void Sector::removeOpool<opool::Item>(opool::ItemHandle handle)
+{
+    itemPool.destroyObject(handle);
+}
+
+template <>
+void Sector::removeOpool<opool::Projectile>(opool::ProjectileHandle handle)
+{
+    projectilePool.destroyObject(handle);
+}
+
+template <>
+opool::ItemHandle Sector::spawnOpool<opool::Item>(ecs::PtrHandle* ptrHandle,
+                                          const opool::Item& item)
+{
+    auto handle = itemPool.spawnObject(item);
+    auto* i = itemPool.getObject(handle);
+    if (i)
+    {
+        itemInitBroadphase(ptrHandle, handle, *i);
+    }
+    return handle;
+}
+
+template <>
+opool::ProjectileHandle Sector::spawnOpool<opool::Projectile>(ecs::PtrHandle* ptrHandle,
+                                          const opool::Projectile& proj)
+{
+    return projectilePool.spawnObject(proj);
+}
+
+template <>
+opool::BeamHandle Sector::spawnOpool<opool::Beam>(ecs::PtrHandle* ptrHandle,
+                                          const opool::Beam& beam)
+{
+    return beamPool.spawnObject(beam);
 }
 
 #endif

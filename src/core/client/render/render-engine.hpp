@@ -115,12 +115,12 @@ class RenderEngine
     constexpr static const int8_t zIdxMapIconHull = 0;
     constexpr static const int8_t zIdxMapIconStation = 100;
 
-    constexpr static const int8_t zIdxItem = -100;
     constexpr static const int8_t zIdxAsteroid = -50;
     constexpr static const int8_t zIdxShipHull = 0;
     constexpr static const int8_t zIdxStation = 50;
     constexpr static const int8_t zIdxProjectile = 99;
     constexpr static const int8_t zIdxDrone = 100;
+    constexpr static const int8_t zIdxItem = 110;
 
     enum class RenderState
     {

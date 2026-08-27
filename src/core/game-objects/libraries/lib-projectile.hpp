@@ -45,7 +45,8 @@ struct Beam
     string description;
     float dps = 10.0f;
     float range = 10.0f;
-    float lifetime = 1.0f;
+    float width = 0.5f;
+    uint32_t color = 0xffffffff;
     def::DamageType damageType = def::DamageType::Energy;
 
     static Beam fromYaml(const YAML::Node& node);
@@ -80,12 +81,11 @@ EXT_FMT(gobj::Missile,
         o.textures.toString());
 
 EXT_FMT(gobj::Beam,
-        "(name: {}, description: {}, dps: {}, lifetime: "
-        "{}, damageType: {})",
+        "(name: {}, description: {}, dps: {} "
+        "damageType: {})",
         o.name,
         o.description,
         o.dps,
-        o.lifetime,
         o.damageType);
 
 #endif

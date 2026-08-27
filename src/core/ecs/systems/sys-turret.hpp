@@ -15,6 +15,14 @@ const System sysTurret = {.name = "sysTurret",
                           .sysFlags = SystemFlags::ActiveSector,
                           .function = sysTurretImpl};
 
+void sysCollectorImpl(world::Sector* sector,
+                      const float dt,
+                      PtrHandle* ptrHandle);
+
+const System sysCollector = {.name = "sysCollector",
+                          .sysFlags = SystemFlags::ActiveSector,
+                          .function = sysCollectorImpl};
+
 }  // namespace ecs
 
 #endif  // SYS_TURRET_HPP

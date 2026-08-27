@@ -524,7 +524,7 @@ void damageAndMine(ecs::Asteroid& asteroid,
             vel.x += rand() % 10 - 5;
             vel.y += rand() % 10 - 5;
             float rot = (rand() % 360) / 180.0f * M_PIf;
-            sector->spawnItem(
+            sector->spawnOpool<opool::Item>(
                 ptrHandle,
                 opool::Item{.transform = {collPos, rot},
                             .item = handle,
@@ -591,7 +591,7 @@ static inline void collideWithItem(ecs::PtrHandle* ptrHandle,
     auto tr = reg->get<Transform>(entity);
     if (coll.colliderType == CollisionLayer::Ship)
     {
-        auto item = sector->getItem(itemHandle);
+        auto item = sector->getOpool<opool::Item>(itemHandle);
         if (item)
         {
             auto collItem = ptrHandle->modManager->getColliderLib().getItem(
@@ -622,7 +622,7 @@ static inline void collideWithItem(ecs::PtrHandle* ptrHandle,
                     item->quantity -= amountAdded;
                     if (item->quantity <= 0)
                     {
-                        sector->removeItem(itemHandle);
+                        sector->removeOpool<opool::Item>(itemHandle);
                     }
                 }
             }

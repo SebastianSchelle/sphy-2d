@@ -59,7 +59,8 @@ Beam Beam::fromYaml(const YAML::Node& node)
         beam.description, node["description"], beam.description);
     TRY_YAML_DICT(beam.dps, node["dps"], beam.dps);
     TRY_YAML_DICT(beam.range, node["range"], beam.range);
-    TRY_YAML_DICT(beam.lifetime, node["lifetime"], beam.lifetime);
+    TRY_YAML_DICT(beam.width, node["width"], beam.width);
+    TRY_YAML_DICT(beam.color, node["color"], beam.color);
     string damageTypeStr = string(magic_enum::enum_name(beam.damageType));
     TRY_YAML_DICT(damageTypeStr, node["damage-type"], damageTypeStr);
     beam.damageType = magic_enum::enum_cast<def::DamageType>(damageTypeStr)

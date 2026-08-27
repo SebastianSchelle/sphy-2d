@@ -65,6 +65,14 @@ template <class T> class FreeVec
         {
             return generation;
         }
+        bool operator==(const Handle& other) const
+        {
+            return idx == other.idx && generation == other.generation;
+        }
+        bool operator!=(const Handle& other) const
+        {
+            return !(*this == other);
+        }
 
       private:
         uint32_t idx;
@@ -215,7 +223,16 @@ template <class T> T* FreeVec<T>::getItem(Handle handle, bool getCorpse)
 {
     if (handle.isValid())
     {
-        return getItem(handle.getIdx(), getCorpse);
+        FreeVecItemWrapper<T>* wrapper = getWrappedItem(handle.getIdx());
+        if (wrapper && (wrapper->alive || getCorpse)
+            && wrapper->generation == handle.getGeneration())
+        {
+            return getItem(handle.getIdx(), getCorpse);
+        }
+        else
+        {
+            return nullptr;
+        }
     }
     else
     {

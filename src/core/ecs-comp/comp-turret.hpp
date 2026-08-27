@@ -189,6 +189,23 @@ EXT_DES(Turret::EntityData, SER_TURRET_ENTITY_DATA)
 EXT_SER(Turret, SER_TURRET)
 EXT_DES(Turret, SER_TURRET)
 
+
+struct Collector
+{
+    static const uint16_t VERSION = 1;
+    static constexpr string NAME = "collector";
+
+    bool en = true;
+    GenericHandle32 currTarget;
+    GenericHandle32 beamHandle;
+    uint16_t counter;
+};
+
+#define SER_COLLECTOR S1b(o.en);
+
+EXT_SER(Collector, SER_COLLECTOR)
+EXT_DES(Collector, SER_COLLECTOR)
+
 }  // namespace ecs
 
 #endif  // COMP_TURRET_HPP

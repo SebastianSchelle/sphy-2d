@@ -16,6 +16,8 @@ enum class DamageType : uint8_t
     Explosive,
     Ion,    
     Mining,
+    Repair,
+    Collector,
     NumDamageTypes,
 };
 

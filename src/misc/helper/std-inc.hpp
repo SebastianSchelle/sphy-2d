@@ -920,6 +920,15 @@ struct GenericHandle
     }
     uint16_t idx;
     uint16_t gen;
+
+    bool operator==(const GenericHandle& other) const
+    {
+        return idx == other.idx && gen == other.gen;
+    }
+    bool operator!=(const GenericHandle& other) const
+    {
+        return !(*this == other);
+    }
 };
 
 struct GenericHandle32
@@ -930,6 +939,15 @@ struct GenericHandle32
     }
     uint32_t idx;
     uint16_t gen;
+
+    bool operator==(const GenericHandle32& other) const
+    {
+        return idx == other.idx && gen == other.gen;
+    }
+    bool operator!=(const GenericHandle32& other) const
+    {
+        return !(*this == other);
+    }
 };
 
 bool tryParseFloat(const string& text, float& outValue);

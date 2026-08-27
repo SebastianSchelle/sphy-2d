@@ -5,6 +5,8 @@
 #include "comp-phy.hpp"
 #include "comp-struct.hpp"
 #include "lib-modules.hpp"
+#include "pool-objects.hpp"
+#include "std-inc.hpp"
 #include <comp-turret.hpp>
 #include <mod-manager.hpp>
 #include <objb-general.hpp>
@@ -30,6 +32,22 @@ struct Turret
                 .data = ecs::Turret::fromGobjTurretData(data, exceptEntId),
                 .currentAngle = 0.0f,
                 .isFiring = false,
+            });
+        return true;
+    }
+};
+
+struct Collector
+{
+    static bool build(ecs::PtrHandle* ptrHandle,
+                      ecs::SpawnCallbackParams& params)
+    {
+        params.reg.emplace_or_replace<ecs::Collector>(
+            params.entity,
+            ecs::Collector{
+                .en = true,
+                .currTarget = GenericHandle32::Invalid(),
+                .beamHandle = GenericHandle32::Invalid(),
             });
         return true;
     }
@@ -83,6 +101,9 @@ struct Module
             case gobj::ModuleType::ManeuverThruster:
                 break;
             case gobj::ModuleType::Storage:
+                break;
+            case gobj::ModuleType::Collector:
+                OBJB_GUARD(Collector::build(ptrHandle, params), "");
                 break;
             case gobj::ModuleType::Turret:
             {

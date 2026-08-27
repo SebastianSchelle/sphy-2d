@@ -3,11 +3,17 @@
 #include "comp-phy.hpp"
 #include "comp-turret.hpp"
 #include "entt/entity/fwd.hpp"
+#include "glm/geometric.hpp"
+#include "lib-modules.hpp"
 #include "lib-projectile.hpp"
 #include "logging.hpp"
+#include "pool-objects.hpp"
 #include "ptr-handle.hpp"
+#include "std-inc.hpp"
 #include "turret-def.hpp"
 #include <engine.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/norm.hpp>
 
 namespace ecs
 {
@@ -198,12 +204,14 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                                          vel);
                             vec2 parVel =
                                 getParentVel(ptrHandle, reg, module.parent);
-                            sector->spawnProjectile(opool::Projectile{
-                                .transform = ecs::Transform{exit, rot},
-                                .collExcept = module.parent,
-                                .proj = projectileData.projectile,
-                                .vel = parVel + vel,
-                                .lifetimeMax = proj->lifetime});
+                            sector->spawnOpool<opool::Projectile>(
+                                ptrHandle,
+                                opool::Projectile{
+                                    .transform = ecs::Transform{exit, rot},
+                                    .collExcept = module.parent,
+                                    .proj = projectileData.projectile,
+                                    .vel = parVel + vel,
+                                    .lifetimeMax = proj->lifetime});
                         }
                     }
                     break;
@@ -224,7 +232,8 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                             && turret.isFiring;
                         if (laserState.state == LState::Off)
                         {
-                            if ((laserState.timer >= 0.0f && laserData.offTime > 0.0001f))
+                            if ((laserState.timer >= 0.0f
+                                 && laserData.offTime > 0.0001f))
                             {
                                 laserState.timer -= dt;
                             }
@@ -237,21 +246,26 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                                          libTurretData.barrelExits[0],
                                          exit,
                                          rot);
-                                laserState.beam = sector->spawnBeam(opool::Beam{
-                                    .origin{.pos = exit, .rot = rot},
-                                    .collExcept = module.parent,
-                                    .beam = laserData.beam});
+                                laserState.beam =
+                                    sector->spawnOpool<opool::Beam>(
+                                        ptrHandle,
+                                        opool::Beam{
+                                            .origin{.pos = exit, .rot = rot},
+                                            .collExcept = module.parent,
+                                            .beam = laserData.beam});
                                 laserState.timer = laserData.onTime;
                                 laserState.state = LState::On;
-                                LG_D("Laser on");
                             }
                         }
                         else
                         {
-                            if ((laserState.timer >= 0.0f || laserData.offTime <= 0.0001f) && fire)
+                            if ((laserState.timer >= 0.0f
+                                 || laserData.offTime <= 0.0001f)
+                                && fire)
                             {
                                 laserState.timer -= dt;
-                                auto* beam = sector->getBeam(laserState.beam);
+                                auto* beam = sector->getOpool<opool::Beam>(
+                                    laserState.beam);
                                 if (beam)
                                 {
                                     vec2 exit;
@@ -267,7 +281,8 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                             }
                             else
                             {
-                                sector->removeBeam(laserState.beam);
+                                sector->removeOpool<opool::Beam>(
+                                    laserState.beam);
                                 laserState.timer = laserData.offTime;
                                 laserState.state = LState::Off;
                             }
@@ -276,6 +291,144 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                     break;
                     default:
                         break;
+                }
+            }
+        });
+}
+
+
+void sysCollectorImpl(world::Sector* sector,
+                      const float dt,
+                      PtrHandle* ptrHandle)
+{
+    auto* reg = sector->getRegistry()->getRegistry();
+    reg->view<Collector, Module, Transform, SectorId>().each(
+        [ptrHandle, dt, reg, sector](auto entity,
+                                     auto& collector,
+                                     auto& module,
+                                     auto& transform,
+                                     auto& sectorId)
+        {
+            if (!collector.en)
+            {
+                return;
+            }
+            if (collector.currTarget != GenericHandle32::Invalid())
+            {
+                auto* item =
+                    sector->getOpool<opool::Item>(collector.currTarget);
+                if (item)
+                {
+                    gobj::ModuleHandle moduleHandle = module.moduleHandle;
+                    gobj::Module* moduleItem =
+                        ptrHandle->modManager->getModuleLib().getItem(
+                            moduleHandle);
+                    if (moduleItem
+                        && moduleItem->type == gobj::ModuleType::Collector)
+                    {
+                        gobj::mdata::Collector collectorData =
+                            std::get<gobj::mdata::Collector>(moduleItem->data);
+                        auto beam =
+                            sector->getOpool<opool::Beam>(collector.beamHandle);
+                        if (beam)
+                        {
+                            beam->origin.pos = transform.pos;
+                            beam->point2 = item->transform.pos;
+                            item->vel = glm::normalize(transform.pos
+                                                       - item->transform.pos)
+                                        * collectorData.spd;
+                        }
+                    }
+                }
+                else
+                {
+                    sector->removeOpool<opool::Beam>(collector.beamHandle);
+                    collector.currTarget = GenericHandle32::Invalid();
+                }
+            }
+            else
+            {
+                if(collector.counter--)
+                {
+                    return;
+                }
+                collector.counter = 50;
+                gobj::ModuleHandle moduleHandle = module.moduleHandle;
+                gobj::Module* moduleItem =
+                    ptrHandle->modManager->getModuleLib().getItem(moduleHandle);
+                if (moduleItem
+                    && moduleItem->type == gobj::ModuleType::Collector)
+                {
+                    gobj::mdata::Collector collectorData =
+                        std::get<gobj::mdata::Collector>(moduleItem->data);
+                    gobj::Beam* beam =
+                        ptrHandle->modManager->getBeamLib().getItem(
+                            collectorData.beam);
+                    if (!beam)
+                    {
+                        return;
+                    }
+                    const float range = beam->range;
+                    const vec2 pos1 =
+                        transform.pos - vec2(range / 2.0f, range / 2.0f);
+                    const vec2 pos2 =
+                        transform.pos + vec2(range / 2.0f, range / 2.0f);
+
+                    const vec2 aa = vec2(std::min(pos1.x, pos2.x),
+                                         std::min(pos1.y, pos2.y));
+                    const vec2 bb = vec2(std::max(pos1.x, pos2.x),
+                                         std::max(pos1.y, pos2.y));
+                    const con::AABB aabb = {.lower = aa, .upper = bb};
+
+                    opool::ItemHandle selectedItemHandle =
+                        opool::ItemHandle::Invalid();
+                    float dist2 = INFINITY;
+                    opool::Item* selectedItem;
+                    sector->queryBroadphase(
+                        aabb,
+                        [reg,
+                         ptrHandle,
+                         sector,
+                         &transform,
+                         range,
+                         &beam,
+                         &dist2,
+                         &selectedItemHandle,
+                         &selectedItem](const world::BpUserData& data)
+                        {
+                            if (data.type == world::BpUserType::Item)
+                            {
+                                opool::ItemHandle ih = data.data.itemHandle;
+                                auto item = sector->getOpool<opool::Item>(ih);
+                                if (item && !item->reserved)
+                                {
+                                    float dist2loc = glm::length2(
+                                        item->transform.pos - transform.pos);
+                                    if (dist2loc < range * range
+                                        && dist2loc < dist2)
+                                    {
+                                        dist2 = dist2loc;
+                                        selectedItemHandle = ih;
+                                        selectedItem = item;
+                                    }
+                                }
+                            }
+                        });
+                    if (dist2 != INFINITY)
+                    {
+                        selectedItem->reserved = true;
+                        collector.currTarget =
+                            selectedItemHandle.toGenericHandle();
+                        collector.beamHandle =
+                            sector
+                                ->spawnOpool<opool::Beam>(
+                                    ptrHandle,
+                                    opool::Beam{.origin = transform.pos,
+                                                .point2 =
+                                                    selectedItem->transform.pos,
+                                                .beam = collectorData.beam})
+                                .toGenericHandle();
+                    }
                 }
             }
         });

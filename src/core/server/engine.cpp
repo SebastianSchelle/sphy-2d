@@ -112,6 +112,7 @@ void Engine::start()
     systems.registerSystem(ecs::sysTurret, i += 10);
     systems.registerSystem(ecs::sysProjPhysics, i += 10);
     systems.registerSystem(ecs::sysBeamPhysics, i += 10);
+    systems.registerSystem(ecs::sysCollector, i += 10);
 
     loadCollisionMatrix();
     registerConsoleCommands();
@@ -1356,7 +1357,7 @@ void Engine::testSpawn()
          {1, modManager.getModuleLib().getHandle("Breeze Maneuver")},
          {2, modManager.getModuleLib().getHandle("Breeze Maneuver")},
          {3, modManager.getModuleLib().getHandle("Beam Miner")},
-         {4, modManager.getModuleLib().getHandle("Beam Miner")},
+         {4, modManager.getModuleLib().getHandle("Collector Mk1")},
          {5, modManager.getModuleLib().getHandle("Terran Bulk S")}});
 
     objb::ShipRecipe mosquito(
@@ -1379,14 +1380,14 @@ void Engine::testSpawn()
 
     objb::ShipRecipe caterpillar(
         modManager.getHullLib().getHandle("Caterpillar"),
-        {{0, modManager.getModuleLib().getHandle("Small Mining Turret")},
-         {1, modManager.getModuleLib().getHandle("Small Mining Turret")},
-         {2, modManager.getModuleLib().getHandle("Small Mining Turret")},
-         {3, modManager.getModuleLib().getHandle("Small Mining Turret")},
+        {{0, modManager.getModuleLib().getHandle("Beam Miner")},
+         {1, modManager.getModuleLib().getHandle("Beam Miner")},
+         {2, modManager.getModuleLib().getHandle("Beam Miner")},
+         {3, modManager.getModuleLib().getHandle("Beam Miner")},
          {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
          {5, modManager.getModuleLib().getHandle("Small Mining Turret")},
-         {6, modManager.getModuleLib().getHandle("Small Mining Turret")},
-         {7, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {6, modManager.getModuleLib().getHandle("Collector Mk1")},
+         {7, modManager.getModuleLib().getHandle("Collector Mk1")},
          {8, modManager.getModuleLib().getHandle("Terran Bulk S")},
          {9, modManager.getModuleLib().getHandle("Terran Bulk S")},
          {10, modManager.getModuleLib().getHandle("Terran Bulk S")},
@@ -1399,7 +1400,7 @@ void Engine::testSpawn()
          {17, modManager.getModuleLib().getHandle("Breeze Maneuver")},
          {18, modManager.getModuleLib().getHandle("Breeze Maneuver")}});
 
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < 1000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1517,7 +1518,7 @@ part2->connectors.size());
         //                    0);
     }
     */
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < 500; ++i)
     {
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};

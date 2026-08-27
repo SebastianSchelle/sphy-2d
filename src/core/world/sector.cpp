@@ -61,67 +61,6 @@ vec2 Sector::getWorldPosSectorOffset(int32_t sectorOffsetX,
 
 #ifdef SERVER
 
-void Sector::spawnProjectile(const opool::Projectile& proj)
-{
-    projectilePool.spawnObject(proj);
-}
-
-opool::BeamHandle Sector::spawnBeam(const opool::Beam& beam)
-{
-    return beamPool.spawnObject(beam);
-}
-
-void Sector::spawnItem(ecs::PtrHandle* ptrHandle, const opool::Item& item)
-{
-    auto handle = itemPool.spawnObject(item);
-    auto* i = itemPool.getObject(handle);
-    if (i)
-    {
-        itemInitBroadphase(ptrHandle, handle, *i);
-    }
-}
-
-opool::Item* Sector::getItem(opool::ItemHandle handle)
-{
-    return itemPool.getObject(handle);
-}
-
-opool::Beam* Sector::getBeam(opool::BeamHandle handle)
-{
-    return beamPool.getObject(handle);
-}
-
-void Sector::removeItem(opool::ItemHandle handle)
-{
-    itemPool.destroyObject(handle);
-}
-
-void Sector::removeBeam(opool::BeamHandle handle)
-{
-    beamPool.destroyObject(handle);
-}
-
-void Sector::foreachProj(
-    std::function<con::FreeVecForeachRet(opool::Projectile&,
-                                         opool::ProjectileHandle handle)> clb)
-{
-    projectilePool.foreach (clb);
-}
-
-void Sector::foreachBeam(
-    std::function<con::FreeVecForeachRet(opool::Beam&,
-                                         opool::BeamHandle handle)> clb)
-{
-    beamPool.foreach (clb);
-}
-
-void Sector::foreachItem(
-    std::function<con::FreeVecForeachRet(opool::Item&,
-                                         opool::ItemHandle handle)> clb)
-{
-    itemPool.foreach (clb);
-}
-
 void Sector::moveAabbProxy(int32_t proxyId, con::AABB& newAabb)
 {
     if (proxyId <= ecs::Broadphase::INVALID_PROXY_ID)

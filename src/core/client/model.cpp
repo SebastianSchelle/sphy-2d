@@ -904,8 +904,8 @@ void Model::drawBeams(gfx::RenderEngine& renderer,
                 {
                     renderer.drawLine(beam.lNext.pos1,
                                       beam.lNext.pos2,
-                                      0xffffffff,
-                                      0.3f,
+                                      beamD->color,
+                                      beamD->width,
                                       gfx::RenderEngine::zIdxProjectile);
                 }
             }
@@ -965,7 +965,7 @@ void Model::drawItems(gfx::RenderEngine& renderer,
                                 itemData->worldTexture,
                                 item.transform.rot,
                                 vec2{0.0f, 0.0f},
-                                gfx::RenderEngine::zIdxProjectile,
+                                gfx::RenderEngine::zIdxItem,
                                 item.transform.pos,
                                 true);
                     // ++i;

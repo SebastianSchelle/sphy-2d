@@ -8,6 +8,7 @@
 #include "sector.hpp"
 #include "std-inc.hpp"
 #include "sys-phy.hpp"
+#include "turret-def.hpp"
 #include <cmath>
 #include <lib-collider.hpp>
 #include <mod-manager.hpp>
@@ -175,6 +176,10 @@ void sysBeamPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
             {
                 return con::FreeVecForeachRet::DESTROY;
             }
+            if(beamData->damageType == def::DamageType::Collector)
+            {
+                return con::FreeVecForeachRet::OK;
+            }
             const vec2 pos = beam.origin.pos;
             const float rot = beam.origin.rot;
             const float s = sinf(rot);
@@ -264,7 +269,7 @@ void sysBeamPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 
 void sysItemPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 {
-    sector->foreachItem(
+    sector->foreachOpool<opool::Item>(
         [ptrHandle, dt, sector](opool::Item& item, opool::ItemHandle handle)
         {
             con::FreeVecForeachRet ret = con::FreeVecForeachRet::OK;
