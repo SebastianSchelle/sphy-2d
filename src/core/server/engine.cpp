@@ -1421,32 +1421,38 @@ void Engine::testSpawn()
                  .sector = sector,
                  .pos = pos,
                  .rot = rot});
+        }
+        else if (i % 4 == 1)
+        {
+            auto ent = objb::ShipRecipe::spawn(
+                modManager.getShipRecipeLib().getHandle("War Caterpillar"),
+                {.ptrHandle = ptrHandle,
+                 .sector = sector,
+                 .pos = pos,
+                 .rot = rot});
             if (first)
             {
                 auto clientInfo = clientLib.getItem(testclient);
                 clientInfo->activeEntity = ent;
             }
         }
-        else if (i % 4 == 1)
-        {
-            // mosquito.spawn({.ptrHandle = ptrHandle,
-            //                 .sector = sector,
-            //                 .pos = pos,
-            //                 .rot = rot});
-        }
         else if (i % 4 == 2)
         {
-            // bumblebee.spawn({.ptrHandle = ptrHandle,
-            //                  .sector = sector,
-            //                  .pos = pos,
-            //                  .rot = rot});
+            auto ent = objb::ShipRecipe::spawn(
+                modManager.getShipRecipeLib().getHandle("War Caterpillar"),
+                {.ptrHandle = ptrHandle,
+                 .sector = sector,
+                 .pos = pos,
+                 .rot = rot});
         }
         else
         {
-            // auto ent = caterpillar.spawn({.ptrHandle = ptrHandle,
-            //                               .sector = sector,
-            //                               .pos = pos,
-            //                               .rot = rot});
+            auto ent = objb::ShipRecipe::spawn(
+                modManager.getShipRecipeLib().getHandle("War Caterpillar"),
+                {.ptrHandle = ptrHandle,
+                 .sector = sector,
+                 .pos = pos,
+                 .rot = rot});
         }
     }
     /*
@@ -1531,7 +1537,7 @@ void Engine::testSpawn()
         //                    0);
     }
     */
-    for (int i = 0; i < 100000; ++i)
+    for (int i = 0; i < 100; ++i)
     {
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};
