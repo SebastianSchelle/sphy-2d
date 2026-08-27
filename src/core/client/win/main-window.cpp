@@ -626,7 +626,6 @@ void MainWindow::startLoading()
                         return false;
                     }
                 },
-                .assetFactory = model.getAssetFactory(),
             };
             if (!modManager.loadMods(ptrHandles))
             {

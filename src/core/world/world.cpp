@@ -1,4 +1,5 @@
 #include "comp-phy.hpp"
+#include <asset-factory.hpp>
 #include <comp-ai.hpp>
 #include <comp-ident.hpp>
 #include <config-manager.hpp>
@@ -592,15 +593,31 @@ void World::handleSectorMoveRequests(ecs::PtrHandle* ptrHandle)
 {
     for (uint32_t sectorId = 0; sectorId < sectors.getSize(); sectorId++)
     {
-        sectors.at(sectorId)->forSectorMoveRequests(
-            [this, ptrHandle](const SectorMoveRequest& request)
+        auto oldSector = sectors.at(sectorId);
+        auto oldReg = oldSector->getRegistry()->getRegistry();
+        oldSector->forSectorMoveRequests(
+            [this, oldSector, oldReg, ptrHandle](
+                const SectorMoveRequest& request)
             {
-                if (!switchSector(
-                        ptrHandle, request.entityId, request.newSectorId))
+                auto slot =
+                    ptrHandle->registryMapping->getEntity(request.entityId);
+                if (!slot)
                 {
-                    LG_E("Failed to switch sector for entity: {} to sector: {}",
-                         request.entityId,
-                         request.newSectorId);
+                    return;
+                }
+                // Create entity in new sector
+                auto newSector = getSector(request.newSectorId);
+                if (!newSector)
+                {
+                    return;
+                }
+                if(!newSector->migrateObject(ptrHandle, request.entityId))
+                {
+                    LG_E("Sector migration failed");
+                }
+                else
+                {
+                    LG_D("Successful sector migration");
                 }
             });
     }

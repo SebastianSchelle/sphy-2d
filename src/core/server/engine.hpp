@@ -178,7 +178,7 @@ class Engine
     cfg::ConfigManager saveConfig;
     cfg::ConfigManager& config;
     std::string saveFolder;
-    ecs::AssetFactory assetFactory;
+    ecs::ComponentFactory componentFactory;
     vector<ecs::EntityId> globalEntityIds;
     vector<entt::entity> globalEntities;
     ecs::PtrHandle* ptrHandle;
@@ -195,6 +195,8 @@ class Engine
 
     float itemLifetime;
     ai::TaskSystem taskSystem;
+
+    def::ClientInfoHandle testclient;
 
   public:
     // ecs::Ecs ecs;

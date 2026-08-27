@@ -57,7 +57,8 @@ EntityId SectorRegistry::spawnObject(const SpawnCallback& spwnClb)
     return entityId;
 }
 
-bool SectorRegistry::migrateEntity(EntityId entityId,
+bool SectorRegistry::migrateEntity(ecs::PtrHandle* ptrHandle,
+                                   EntityId entityId,
                                    const EntMapSlot* slot,
                                    SectorRegistry* lastRegistry)
 {
@@ -68,10 +69,19 @@ bool SectorRegistry::migrateEntity(EntityId entityId,
     entt::entity newEntity = registry.create();
 
     // copy all components to this new entity
+    for (const auto& [hash, helper] :
+         ptrHandle->componentFactory->getComponentHelpers())
+    {
+        LG_D("Copy component {}", helper.name);
+        helper.assetCopier(
+            *lastRegistry->getRegistry(), slot->entity, registry, newEntity);
+    }
 
     // Update SectorId to reflect new sector
     auto sectorId = registry.emplace_or_replace<ecs::SectorId>(
         newEntity, sector->getId(), sector->getCoordX(), sector->getCoordY());
+
+    lastRegistry->getRegistry()->destroy(slot->entity);
 
     // Update slot in global registry map and delete old entity in last sector
     if (!registryMapping->updateEntitySector(
@@ -83,7 +93,6 @@ bool SectorRegistry::migrateEntity(EntityId entityId,
         registryMapping->unregisterEntityId(entityId);
         return false;
     }
-    lastRegistry->getRegistry()->destroy(slot->entity);
     return true;
 }
 
@@ -97,8 +106,7 @@ bool SectorRegistry::destroyObject(ecs::PtrHandle* ptrHandle, EntityId entityId)
     }
 
     // Call destruction functions of all components
-    for (auto helper :
-         ptrHandle->assetFactory->componentFactory.getComponentHelpers())
+    for (auto helper : ptrHandle->componentFactory->getComponentHelpers())
     {
         if (helper.second.destroy)
         {

@@ -81,9 +81,6 @@ class World
                                     ecs::SectorId* sectorId,
                                     ecs::Transform* transform,
                                     ecs::PtrHandle* ptrHandle);
-    void addSectorMoveRequest(ecs::PtrHandle* ptrHandle,
-                              ecs::EntityId entityId,
-                              uint32_t newSectorId);
     bool moveEntityTo(ecs::PtrHandle* ptrHandle,
                       ecs::EntityId entityId,
                       uint32_t sectorId,

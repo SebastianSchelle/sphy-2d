@@ -16,7 +16,7 @@ class TaskSystem;
 namespace ecs
 {
 class CollisionLayerMat;
-class AssetFactory;
+class ComponentFactory;
 }  // namespace ecs
 #elif CLIENT
 namespace sphyc
@@ -78,7 +78,7 @@ struct PtrHandle
     float volumeMultiplier;
     ai::TaskSystem* taskSystem;
     ecs::CollisionLayerMat* collisionLayerMat;
-    ecs::AssetFactory* assetFactory;
+    ecs::ComponentFactory* componentFactory;
 #elif CLIENT
     sphyc::Client* client;
 #endif

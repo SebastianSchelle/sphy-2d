@@ -863,30 +863,29 @@ void sysAnchorFixedImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                                          auto& sectorId)
         {
             auto parent = regMap->getEntity(anchorFixed.ref);
-            if (parent)
+            if (!parent)
+            {
+                LG_W("AnchorFixed parent not found for entity {}", entityId);
+                sector->markEntityForDestruction(ptrHandle, entityId);
+            }
+
+            if (parent->sectorId != sector->getId())
+            {
+                sector->addSectorMoveRequest(
+                    ptrHandle,
+                    world::SectorMoveRequest{entityId, parent->sectorId});
+            }
+            else
             {
                 const auto& parentTransform =
                     reg->get<Transform>(parent->entity);
                 const auto& parentTransformCache =
                     reg->get<TransformCache>(parent->entity);
-                const auto& parentSectorId =
-                    reg->get<ecs::SectorId>(parent->entity);
                 vec2 anchorFixedPos = smath::rotateVec2(anchorFixed.pos,
                                                         parentTransformCache.s,
                                                         parentTransformCache.c);
                 transform.pos = parentTransform.pos + anchorFixedPos;
                 transform.rot = parentTransform.rot + anchorFixed.rot;
-                if (parentSectorId.id != sectorId.id)
-                {
-                    sector->addSectorMoveRequest(
-                        ptrHandle,
-                        world::SectorMoveRequest{entityId, parentSectorId.id});
-                }
-            }
-            else
-            {
-                LG_W("AnchorFixed parent not found for entity {}", entityId);
-                sector->markEntityForDestruction(ptrHandle, entityId);
             }
         });
 }

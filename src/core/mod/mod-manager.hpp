@@ -66,7 +66,6 @@ struct PtrHandles
     /// loop runs the task.
     std::function<bool(std::function<bool()>)> runUiBool;
 #endif
-    ecs::AssetFactory* assetFactory;
     mod::Mod* currentMod;
 };
 

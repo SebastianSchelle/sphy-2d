@@ -46,7 +46,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
 {
     ptrHandle = new ecs::PtrHandle();
     ptrHandle->engine = this;
-    ptrHandle->assetFactory = &assetFactory;
+    ptrHandle->componentFactory = &componentFactory;
     ptrHandle->registryMapping = &registryMapping;
     ptrHandle->systems = &systems;
     ptrHandle->taskSystem = &taskSystem;
@@ -98,7 +98,7 @@ Engine::~Engine()
 
 void Engine::start()
 {
-    assetFactory.componentFactory.registerAllComponents();
+    componentFactory.registerAllComponents();
 
     int i = 0;
     systems.registerSystem(ecs::sysLifetime, i += 10);
@@ -121,7 +121,7 @@ void Engine::start()
     registerActiveSectorDumpComponent<ecs::Transform>();
     registerActiveSectorDumpComponent<ecs::Turret>();
 
-    def::ClientInfoHandle handle = registerClient(
+    testclient = registerClient(
         def::ClientInfo("Based Laser King",
                         net::ClientInfo{
                             .token = "1234abcd1234abcd",
@@ -129,8 +129,6 @@ void Engine::start()
                             .address = asio::ip::make_address("0.0.0.0"),
                         },
                         CLIENT_FLAG_EN_CONSOLE));
-    auto clientInfo = clientLib.getItem(handle);
-    clientInfo->activeEntity = ecs::EntityId{0, 1};
 
     // engineThread = std::thread([this]() { engineLoop(); });
     engineLoop();
@@ -404,7 +402,7 @@ bool Engine::loadMods()
         LG_E("Failed to check dependencies");
         return false;
     }
-    mod::PtrHandles ptrHandles{.assetFactory = &assetFactory};
+    mod::PtrHandles ptrHandles;
     if (!modManager.loadMods(ptrHandles))
     {
         LG_E("Failed to load mods");
@@ -901,7 +899,7 @@ void Engine::registerConsoleCommands()
         },
         "List all commands, or: help <cmd> [subcmd ...] (e.g. help asset "
         "list)");
-
+    /*
     commandManager.registerCommand(
         {"asset", "list"},
         [this](const cmd::CommandArgs& a)
@@ -927,7 +925,6 @@ void Engine::registerConsoleCommands()
         { return assetFactory.assetInfo(a.flags.at("-a")); },
         "Print information for one asset",
         {{"-a", "Asset id", true}});
-    /*
     commandManager.registerCommand(
         {"phy", "set"},
         [this](const cmd::CommandArgs& a) -> std::string
@@ -1279,8 +1276,7 @@ void Engine::sendAllComponents(world::Sector* sector,
     mcomp.ser->object(entityId);
     auto reg = sector->getRegistry()->getRegistry();
     uint16_t numComponents = 0;
-    for (auto& [hash, helper] :
-         assetFactory.componentFactory.getComponentHelpers())
+    for (auto& [hash, helper] : componentFactory.getComponentHelpers())
     {
         helper.serializeFromRegistry(*reg, entity, *mcomp.ser);
         numComponents++;
@@ -1380,14 +1376,14 @@ void Engine::testSpawn()
 
     objb::ShipRecipe caterpillar(
         modManager.getHullLib().getHandle("Caterpillar"),
-        {{0, modManager.getModuleLib().getHandle("Beam Miner")},
-         {1, modManager.getModuleLib().getHandle("Beam Miner")},
+        {{0, modManager.getModuleLib().getHandle("Collector Mk1")},
+         {1, modManager.getModuleLib().getHandle("Collector Mk1")},
          {2, modManager.getModuleLib().getHandle("Beam Miner")},
          {3, modManager.getModuleLib().getHandle("Beam Miner")},
          {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
          {5, modManager.getModuleLib().getHandle("Small Mining Turret")},
-         {6, modManager.getModuleLib().getHandle("Collector Mk1")},
-         {7, modManager.getModuleLib().getHandle("Collector Mk1")},
+         {6, modManager.getModuleLib().getHandle("Small Mining Turret")},
+         {7, modManager.getModuleLib().getHandle("Small Mining Turret")},
          {8, modManager.getModuleLib().getHandle("Terran Bulk S")},
          {9, modManager.getModuleLib().getHandle("Terran Bulk S")},
          {10, modManager.getModuleLib().getHandle("Terran Bulk S")},
@@ -1400,7 +1396,9 @@ void Engine::testSpawn()
          {17, modManager.getModuleLib().getHandle("Breeze Maneuver")},
          {18, modManager.getModuleLib().getHandle("Breeze Maneuver")}});
 
-    for (int i = 0; i < 1000; ++i)
+    bool first = true;
+
+    for (int i = 0; i < 1; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1409,10 +1407,15 @@ void Engine::testSpawn()
 
         if (i % 4 == 0)
         {
-            bee.spawn({.ptrHandle = ptrHandle,
+            auto ent = bee.spawn({.ptrHandle = ptrHandle,
                        .sector = sector,
                        .pos = pos,
                        .rot = rot});
+            if (first)
+            {
+                auto clientInfo = clientLib.getItem(testclient);
+                clientInfo->activeEntity = ent;
+            }
         }
         else if (i % 4 == 1)
         {
@@ -1430,10 +1433,10 @@ void Engine::testSpawn()
         }
         else
         {
-            caterpillar.spawn({.ptrHandle = ptrHandle,
-                               .sector = sector,
-                               .pos = pos,
-                               .rot = rot});
+            auto ent = caterpillar.spawn({.ptrHandle = ptrHandle,
+                                          .sector = sector,
+                                          .pos = pos,
+                                          .rot = rot});
         }
     }
     /*
@@ -1518,7 +1521,7 @@ part2->connectors.size());
         //                    0);
     }
     */
-    for (int i = 0; i < 500; ++i)
+    for (int i = 0; i < 1; ++i)
     {
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};

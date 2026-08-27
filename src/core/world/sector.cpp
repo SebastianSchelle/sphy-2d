@@ -177,8 +177,17 @@ bool Sector::migrateObject(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
         LG_W("Entities last sector does not seem to exist");
         return false;
     }
-    bool res =
-        sectorRegistry.migrateEntity(entityId, slot, lastSector->getRegistry());
+    // handle broadphase
+    // todo: from old sector, and create in new sector
+    auto* broadphase =
+        sectorRegistry.getRegistry()->try_get<ecs::Broadphase>(slot->entity);
+    if (broadphase)
+    {
+        destroyBroadphaseProxy(broadphase);
+    }
+    // todo: Handle task stack
+    bool res = sectorRegistry.migrateEntity(
+        ptrHandle, entityId, slot, lastSector->getRegistry());
     return res;
 }
 
@@ -319,11 +328,13 @@ void Sector::executeSingleThreadedTasks(ecs::PtrHandle* ptrHandle)
 void Sector::addSectorMoveRequest(ecs::PtrHandle* ptrHandle,
                                   const SectorMoveRequest& request)
 {
-    /*
-    auto reg = ptrHandle->registry;
-    auto entity = ptrHandle->ecs->getEntity(request.entityId);
-    auto& flags = reg->get<ecs::Flags>(entity);
-
+    auto reg = sectorRegistry.getRegistry();
+    auto slot = ptrHandle->registryMapping->getEntity(request.entityId);
+    if (!slot)
+    {
+        return;
+    }
+    auto& flags = reg->get<ecs::Flags>(slot->entity);
     if (flags.hasFlag((ecs::Flags::Flag)(ecs::Flags::Flag::Destroyed
                                          | ecs::Flags::Flag::Moved)))
     {
@@ -331,19 +342,16 @@ void Sector::addSectorMoveRequest(ecs::PtrHandle* ptrHandle,
     }
     flags.setFlag(ecs::Flags::Flag::Moved);
     sectorMoveRequests.push_back(request);
-    */
 }
 
 void Sector::forSectorMoveRequests(
     std::function<void(const SectorMoveRequest& request)> callback)
 {
-    /*
     for (const auto& request : sectorMoveRequests)
     {
         callback(request);
     }
     sectorMoveRequests.clear();
-    */
 }
 
 #endif

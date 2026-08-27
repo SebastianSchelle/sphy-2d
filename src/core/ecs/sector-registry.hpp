@@ -35,7 +35,8 @@ class SectorRegistry
     SectorRegistry();
     ~SectorRegistry();
     void init(RegistryMapping* registryMapping, world::Sector* sector);
-    bool migrateEntity(EntityId entityId,
+    bool migrateEntity(ecs::PtrHandle* ptrHandle,
+                       EntityId entityId,
                        const EntMapSlot* slot,
                        SectorRegistry* lastRegistry);
     EntityId spawnObject(const SpawnCallback& spwnClb);
