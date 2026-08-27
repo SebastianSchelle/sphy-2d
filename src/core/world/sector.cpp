@@ -1,8 +1,10 @@
 #include "aabb-tree.hpp"
+#include "comp-ai.hpp"
 #include "comp-tag.hpp"
 #include "entt/entity/fwd.hpp"
 #include "free-vector.hpp"
 #include "logging.hpp"
+#include "std-inc.hpp"
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
 #include <ptr-handle.hpp>
@@ -162,6 +164,8 @@ ecs::EntityId Sector::spawnObject(ecs::PtrHandle* ptrHandle,
 bool Sector::migrateObject(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
 {
     auto regMap = ptrHandle->registryMapping;
+    auto newReg = sectorRegistry.getRegistry();
+
     auto slot = regMap->getEntity(entityId);
     if (!slot)
     {
@@ -177,17 +181,42 @@ bool Sector::migrateObject(ecs::PtrHandle* ptrHandle, ecs::EntityId entityId)
         LG_W("Entities last sector does not seem to exist");
         return false;
     }
-    // handle broadphase
-    // todo: from old sector, and create in new sector
-    auto* broadphase =
-        sectorRegistry.getRegistry()->try_get<ecs::Broadphase>(slot->entity);
+    auto oldReg = lastSector->getRegistry()->getRegistry();
+
+    // destroy old broadphase proxy
+    auto* broadphase = oldReg->try_get<ecs::Broadphase>(slot->entity);
     if (broadphase)
     {
-        destroyBroadphaseProxy(broadphase);
+        lastSector->destroyBroadphaseProxy(broadphase);
     }
-    // todo: Handle task stack
+
+    // Move task stack
+    auto* ai = oldReg->try_get<ecs::Ai>(slot->entity);
+    if (ai)
+    {
+        ai->stackHandle = lastSector->getTaskSystem()
+                              .moveTaskStackTo(ai->stackHandle, taskSystem)
+                              .toGenericHandle();
+    }
+
+    // Clear flags
+    auto* flags = oldReg->try_get<ecs::Flags>(slot->entity);
+    if (flags)
+    {
+        flags->removeFlag(ecs::Flags::Moved);
+    }
+
     bool res = sectorRegistry.migrateEntity(
         ptrHandle, entityId, slot, lastSector->getRegistry());
+
+    auto newSlot = regMap->getEntity(entityId);
+    if (!newSlot)
+    {
+        LG_W("Could not get new migrated slot");
+        return false;
+    }
+    objectInitBroadphase(ptrHandle, newSlot->entity);
+
     return res;
 }
 

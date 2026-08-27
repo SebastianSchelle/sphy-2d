@@ -15,6 +15,9 @@ namespace ecs
 
 struct EntityId
 {
+    static const uint16_t VERSION = 1;
+    static constexpr string NAME = "entity-id";
+
     EntityId() : index(0), generation(0) {}
     EntityId(uint32_t index, uint16_t generation)
         : index(index), generation(generation)
@@ -62,6 +65,9 @@ EXT_DES(EntityId, SER_ENTITY_ID)
 
 struct Flags
 {
+    static const uint16_t VERSION = 1;
+    static constexpr string NAME = "flags";
+
     enum Flag
     {
         None = 0x0000,

@@ -72,7 +72,6 @@ bool SectorRegistry::migrateEntity(ecs::PtrHandle* ptrHandle,
     for (const auto& [hash, helper] :
          ptrHandle->componentFactory->getComponentHelpers())
     {
-        LG_D("Copy component {}", helper.name);
         helper.assetCopier(
             *lastRegistry->getRegistry(), slot->entity, registry, newEntity);
     }
@@ -88,7 +87,6 @@ bool SectorRegistry::migrateEntity(ecs::PtrHandle* ptrHandle,
             entityId, sector->getId(), newEntity))
     {
         LG_E("Couldn't update entities sector in global registry mapping");
-        lastRegistry->getRegistry()->destroy(slot->entity);
         registry.destroy(newEntity);
         registryMapping->unregisterEntityId(entityId);
         return false;

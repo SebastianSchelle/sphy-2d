@@ -43,6 +43,7 @@ void ComponentFactory::loadComponent(const std::string& name,
 
 void ComponentFactory::registerAllComponents()
 {
+    registerComponent<ecs::EntityId>();
     registerComponent<ecs::Transform>();
     registerComponent<ecs::SectorId>();
     registerComponent<ecs::PhysicsBody>();
@@ -105,6 +106,7 @@ void ComponentFactory::registerAllComponents()
     registerComponent<ecs::Item>();
     registerComponent<ecs::SimpleTexture>();
     registerComponent<ecs::Collector>();
+    registerComponent<ecs::Flags>();
 }
 
 AssetFactory::AssetFactory() {}
