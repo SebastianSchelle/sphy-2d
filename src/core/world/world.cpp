@@ -615,10 +615,6 @@ void World::handleSectorMoveRequests(ecs::PtrHandle* ptrHandle)
                 {
                     LG_E("Sector migration failed");
                 }
-                else
-                {
-                    LG_D("Successful sector migration");
-                }
             });
     }
 }
@@ -651,6 +647,11 @@ void World::markPlayerSectors(const std::set<uint32_t>& playerSectors)
 Sector* World::getSector(uint32_t sectorId)
 {
     return sectors.at(sectorId);
+}
+
+Sector* World::getSectorByCoords(uint32_t x, uint32_t y)
+{
+    return sectors.at(x, y);
 }
 
 def::SectorPos World::idToSectorCoords(uint32_t sectorId) const

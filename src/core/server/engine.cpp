@@ -1,3 +1,4 @@
+#include "aabb-tree.hpp"
 #include "bitsery/serializer.h"
 #include "client-def.hpp"
 #include "comp-ai.hpp"
@@ -71,9 +72,9 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
         CFG_FLOAT(config, 1.0f, "engine", "physics", "min-face-target-dist");
     slowDumpUs =
         1000 * CFG_UINT(config, 1000.0f, "engine", "net", "dump-int", "slow");
-    activeSectorDumpUs =
+    intFast3rd =
         1000
-        * CFG_UINT(config, 30.0f, "engine", "net", "dump-int", "active-sector");
+        * CFG_UINT(config, 100.0f, "engine", "net", "dump-int", "fast-3rd");
     ptrHandle->miningRate =
         CFG_FLOAT(config, 0.01f, "engine", "mining", "mining-rate");
     ptrHandle->itemLifetime =
@@ -218,8 +219,9 @@ void Engine::engineLoop()
             {
                 update(dt);
                 runConnectedClientWorkSequencers();
-                runActiveSectorDump(nowU);
+                // runActiveSectorDump(nowU);
                 runSlowClientDump(nowU);
+                clientUpd3rd(nowU);
                 DO_PERIODIC_U_EXTNOW(lastSaveTime, TIM_5M, nowU, saveGame)
             }
             break;
@@ -1064,8 +1066,8 @@ void Engine::runActiveSectorDump(long frameTime)
         def::ClientInfoHandle handle = activeClientHandles[i];
         def::ClientInfo* clientInfo = clientLib.getItem(handle);
         DO_PERIODIC_U_EXTNOW(
-            clientInfo->lastActiveSectorDump,
-            activeSectorDumpUs,
+            clientInfo->lastClientUpdFast3rd,
+            intFast3rd,
             frameTime,
             [&]()
             {
@@ -1116,6 +1118,65 @@ void Engine::runActiveSectorDump(long frameTime)
                         ser.object(item.beam.toGenericHandle());
                     });
             });
+    }
+}
+
+void Engine::clientUpd3rd(long frameTime)
+{
+    forActiveClients(
+        [this, frameTime](def::ClientInfo* clientInfo)
+        {
+            DO_PERIODIC_U_EXTNOW(clientInfo->lastClientUpdFast3rd,
+                                 intFast3rd,
+                                 frameTime,
+                                 [&]()
+                                 { clientUpdFast3rd(clientInfo, frameTime); });
+        });
+}
+
+void Engine::clientUpdFast3rd(def::ClientInfo* clientInfo, long frameTime)
+{
+    LG_D("upd");
+    const auto& tl = clientInfo->clientViewRect.tl;
+    const auto& br = clientInfo->clientViewRect.br;
+    const float halfSize = world.getWorldShape().sectorSize / 2.0f;
+    for (uint32_t secX = tl.pos.x; secX <= br.pos.x; ++secX)
+    {
+        for (uint32_t secY = tl.pos.y; secY <= br.pos.y; ++secY)
+        {
+            auto sector = world.getSectorByCoords(secX, secY);
+            if (sector)
+            {
+                const vec2 lower(
+                    (secX == tl.pos.x) ? tl.sectorPos.x : -halfSize,
+                    (secY == tl.pos.y) ? tl.sectorPos.y : -halfSize);
+                const vec2 upper((secX == br.pos.x) ? br.sectorPos.x : halfSize,
+                                 (secY == br.pos.y) ? br.sectorPos.y
+                                                    : halfSize);
+                const con::AABB aabb{.lower = lower, .upper = upper};
+                const auto& udpEnd = clientInfo->clientInfo.udpEndpoint;
+                prot::MsgComposer mcItem(net::SendType::UDP, udpEnd);
+                prot::MsgComposer mcEcs(net::SendType::UDP, udpEnd);
+                // send item begin
+                sector->queryBroadphase(aabb,
+                                        [](const world::BpUserData& data)
+                                        {
+                                            if (data.type
+                                                == world::BpUserType::Item)
+                                            {
+                                                // time + items
+                                            }
+                                            if (data.type
+                                                == world::BpUserType::Ecs)
+                                            {
+                                                // time + required components e.g. transform, thrust
+                                            }
+                                        });
+                // send item end
+            }
+            LG_D("Sector ({}, {}):", secX, secY);
+            LG_D("Bounds {}, {}", lower, upper);
+        }
     }
 }
 
@@ -1376,7 +1437,7 @@ void Engine::testSpawn()
 
     bool first = true;
 
-    for (int i = 0; i < 1000; ++i)
+    for (int i = 0; i < 10000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1475,7 +1536,7 @@ void Engine::testSpawn()
         //                    0);
     }
     */
-    for (int i = 0; i < 1000; ++i)
+    for (int i = 0; i < 10000; ++i)
     {
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};

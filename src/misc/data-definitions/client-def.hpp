@@ -41,7 +41,7 @@ class ClientInfo
         this->name = name;
         this->clientInfo = clientInfo;
         this->lastSlowDump = tim::nowU();
-        this->lastActiveSectorDump = tim::nowU();
+        this->lastClientUpdFast3rd = tim::nowU();
         this->flags = flags;
         this->thirdPersonControl.flags = 0;
     }
@@ -61,7 +61,7 @@ class ClientInfo
 #ifdef SERVER
     net::ClientInfo clientInfo;
     long lastSlowDump;
-    long lastActiveSectorDump;
+    long lastClientUpdFast3rd;
     ThirdPersonControl thirdPersonControl;
 
     void addWorkFunction(work::WorkFunction workFunction)

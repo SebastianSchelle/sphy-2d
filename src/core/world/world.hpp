@@ -51,6 +51,7 @@ class World
 #endif
     void iterateSectors(IterateSectorClb clb);
     Sector* getSector(uint32_t sectorId);
+    Sector* getSectorByCoords(uint32_t x, uint32_t y);
     uint32_t getSectorCount() const
     {
         return sectors.getSize();
