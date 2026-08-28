@@ -5,6 +5,7 @@
 #include "free-vector.hpp"
 #include "lib-projectile.hpp"
 #include "logging.hpp"
+#include "rand-gen.hpp"
 #include "sector-registry.hpp"
 #include "sector.hpp"
 #include "std-inc.hpp"
@@ -42,7 +43,8 @@ namespace sphys
 Engine::Engine(const sphy::CmdLinOptionsServer& options,
                cfg::ConfigManager& config)
     : options(options), config(config), state(EngineState::Init), saveConfig(),
-      saveFolder(options.savedir), commandManager()
+      saveFolder(options.savedir), commandManager(), randWorldGen(0),
+      randTest(0)
 {
     ptrHandle = new ecs::PtrHandle();
     ptrHandle->engine = this;
@@ -412,7 +414,8 @@ bool Engine::loadMods()
 
 void Engine::saveGame()
 {
-    world.saveWorld(saveFolder);
+    // todo: reactivate saving
+    // world.saveWorld(saveFolder);
 }
 
 def::ClientInfoHandle Engine::registerClient(const def::ClientInfo& clientInfo)
@@ -1351,16 +1354,6 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
 
-    // New spawner test
-    gobj::ShipRecipe bee{
-        .hullHandle = modManager.getHullLib().getHandle("Bee"),
-        .modSlot = {{0, modManager.getModuleLib().getHandle("Breeze")},
-                    {1, modManager.getModuleLib().getHandle("Breeze Maneuver")},
-                    {2, modManager.getModuleLib().getHandle("Breeze Maneuver")},
-                    {3, modManager.getModuleLib().getHandle("Beam Miner")},
-                    {4, modManager.getModuleLib().getHandle("Collector Mk1")},
-                    {5, modManager.getModuleLib().getHandle("Terran Bulk S")}}};
-
     gobj::ShipRecipe mosquito{
         .hullHandle = modManager.getHullLib().getHandle("Mosquito"),
         .modSlot = {
@@ -1381,78 +1374,23 @@ void Engine::testSpawn()
             {4, modManager.getModuleLib().getHandle("Breeze")},
             {5, modManager.getModuleLib().getHandle("Breeze Maneuver")}}};
 
-    gobj::ShipRecipe caterpillar{
-        .hullHandle = modManager.getHullLib().getHandle("Caterpillar"),
-        .modSlot = {
-            {0, modManager.getModuleLib().getHandle("Collector Mk1")},
-            {1, modManager.getModuleLib().getHandle("Collector Mk1")},
-            {2, modManager.getModuleLib().getHandle("Beam Miner")},
-            {3, modManager.getModuleLib().getHandle("Beam Miner")},
-            {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
-            {5, modManager.getModuleLib().getHandle("Small Mining Turret")},
-            {6, modManager.getModuleLib().getHandle("Small Mining Turret")},
-            {7, modManager.getModuleLib().getHandle("Small Mining Turret")},
-            {8, modManager.getModuleLib().getHandle("Terran Bulk S")},
-            {9, modManager.getModuleLib().getHandle("Terran Bulk S")},
-            {10, modManager.getModuleLib().getHandle("Terran Bulk S")},
-            {11, modManager.getModuleLib().getHandle("Terran Bulk S")},
-            {12, modManager.getModuleLib().getHandle("Terran Bulk S")},
-            {13, modManager.getModuleLib().getHandle("Terran Bulk S")},
-            {14, modManager.getModuleLib().getHandle("Terran Bulk S")},
-            {15, modManager.getModuleLib().getHandle("Terran Bulk S")},
-            {16, modManager.getModuleLib().getHandle("Breeze")},
-            {17, modManager.getModuleLib().getHandle("Breeze Maneuver")},
-            {18, modManager.getModuleLib().getHandle("Breeze Maneuver")}}};
-
     bool first = true;
 
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < 1000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
         uint32_t sectorId = sectorPick(gen);
         auto sector = world.getSector(sectorId);
 
-        if (i % 4 == 0)
+        auto ent = objb::ShipRecipe::spawn(
+            modManager.getShipRecipeLib().randomHandle(randTest),
+            {.ptrHandle = ptrHandle, .sector = sector, .pos = pos, .rot = rot});
+
+        if (first)
         {
-            auto ent = objb::ShipRecipe::spawn(
-                modManager.getShipRecipeLib().getHandle("Mining Bee"),
-                {.ptrHandle = ptrHandle,
-                 .sector = sector,
-                 .pos = pos,
-                 .rot = rot});
-        }
-        else if (i % 4 == 1)
-        {
-            auto ent = objb::ShipRecipe::spawn(
-                modManager.getShipRecipeLib().getHandle("War Caterpillar"),
-                {.ptrHandle = ptrHandle,
-                 .sector = sector,
-                 .pos = pos,
-                 .rot = rot});
-            if (first)
-            {
-                auto clientInfo = clientLib.getItem(testclient);
-                clientInfo->activeEntity = ent;
-            }
-        }
-        else if (i % 4 == 2)
-        {
-            auto ent = objb::ShipRecipe::spawn(
-                modManager.getShipRecipeLib().getHandle("War Caterpillar"),
-                {.ptrHandle = ptrHandle,
-                 .sector = sector,
-                 .pos = pos,
-                 .rot = rot});
-        }
-        else
-        {
-            auto ent = objb::ShipRecipe::spawn(
-                modManager.getShipRecipeLib().getHandle("War Caterpillar"),
-                {.ptrHandle = ptrHandle,
-                 .sector = sector,
-                 .pos = pos,
-                 .rot = rot});
+            auto clientInfo = clientLib.getItem(testclient);
+            clientInfo->activeEntity = ent;
         }
     }
     /*
@@ -1537,7 +1475,7 @@ void Engine::testSpawn()
         //                    0);
     }
     */
-    for (int i = 0; i < 100; ++i)
+    for (int i = 0; i < 1000; ++i)
     {
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};

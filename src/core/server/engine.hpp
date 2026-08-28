@@ -30,6 +30,7 @@
 #include <task-system.hpp>
 #include <work-distributor.hpp>
 #include <world.hpp>
+#include <rand-gen.hpp>
 
 namespace ecs
 {
@@ -198,8 +199,9 @@ class Engine
 
     def::ClientInfoHandle testclient;
 
-  public:
-    // ecs::Ecs ecs;
+    misc::RandGen randWorldGen;
+    misc::RandGen randTest;
+
 };
 
 }  // namespace sphys

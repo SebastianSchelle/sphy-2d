@@ -1,6 +1,7 @@
 #ifndef GAME_LIB_HPP
 #define GAME_LIB_HPP
 
+#include "rand-gen.hpp"
 #include <std-inc.hpp>
 
 namespace con
@@ -81,6 +82,8 @@ template <class T> class ItemLib
     Handle getHandle(const std::string& name) const;
     T* getItem(int idx, bool getCorpse = false);
     T* getItem(Handle handle, bool getCorpse = false);
+    T* randomItem(misc::RandGen& gen);
+    Handle randomHandle(misc::RandGen& gen);
     ILibItemWrapper<T>* getWrappedItem(int idx);
     uint16_t getGeneration(int idx) const;
     Handle firstAliveHandle() const;
@@ -247,6 +250,46 @@ template <class T> T* ItemLib<T>::getItem(Handle handle, bool getCorpse)
     {
         return nullptr;
     }
+}
+
+template <class T> T* ItemLib<T>::randomItem(misc::RandGen& gen)
+{
+    const size_t itemCnt = idMap.size();
+    if (itemCnt > 0)
+    {
+        const size_t vecSize = items.size();
+        while (1)
+        {
+            const int randIdx = gen.int_range(0, vecSize);
+            ILibItemWrapper<T>& wrapper = items[randIdx];
+            if (wrapper.alive)
+            {
+                return &wrapper.item;
+            }
+        }
+    }
+    return nullptr;
+}
+
+
+template <class T>
+ItemLib<T>::Handle ItemLib<T>::randomHandle(misc::RandGen& gen)
+{
+    const size_t itemCnt = idMap.size();
+    if (itemCnt > 0)
+    {
+        const size_t vecSize = items.size();
+        while (1)
+        {
+            const uint16_t randIdx = (uint16_t)gen.int_range(0, vecSize - 1);
+            const ILibItemWrapper<T>& wrapper = items[randIdx];
+            if (wrapper.alive)
+            {
+                return {randIdx, wrapper.generation};
+            }
+        }
+    }
+    return ItemLib<T>::Handle::Invalid();
 }
 
 template <class T> uint16_t ItemLib<T>::getGeneration(int idx) const
