@@ -44,8 +44,8 @@ namespace sphys
 Engine::Engine(const sphy::CmdLinOptionsServer& options,
                cfg::ConfigManager& config)
     : options(options), config(config), state(EngineState::Init), saveConfig(),
-      saveFolder(options.savedir), commandManager(), randWorldGen(0),
-      randTest(0)
+      saveFolder(options.savedir), commandManager(), randWorldGen(7),
+      randTest(7)
 {
     ptrHandle = new ecs::PtrHandle();
     ptrHandle->engine = this;
@@ -221,9 +221,9 @@ void Engine::engineLoop()
             {
                 update(dt);
                 runConnectedClientWorkSequencers();
-                runActiveSectorDump(nowU);
+                // runActiveSectorDump(nowU);
                 runSlowClientDump(nowU);
-                // clientUpd3rd(nowU);
+                clientUpd3rd(nowU);
                 DO_PERIODIC_U_EXTNOW(lastSaveTime, intAutosave, nowU, saveGame)
             }
             break;
@@ -1137,7 +1137,6 @@ void Engine::clientUpd3rd(long frameTime)
 
 void Engine::clientUpdFast3rd(def::ClientInfo* clientInfo, long frameTime)
 {
-    LG_D("upd");
     const auto& tl = clientInfo->clientViewRect.tl;
     const auto& br = clientInfo->clientViewRect.br;
     const float halfSize = world.getWorldShape().sectorSize / 2.0f;
@@ -1159,22 +1158,58 @@ void Engine::clientUpdFast3rd(def::ClientInfo* clientInfo, long frameTime)
                 prot::MsgComposer mcItem(net::SendType::UDP, udpEnd);
                 prot::MsgComposer mcEcs(net::SendType::UDP, udpEnd);
                 // send item begin
+                mcItem.startCommand(prot::cmd::SEND_BEGIN_ITEM, 0);
+                mcItem.ser->value4b(sector->getId());
+                mcItem.execute(sendQueue);
+
+                mcItem.resetData();
+                mcItem.startCommand(prot::cmd::SEND_DATA_ITEM, 0);
+                mcItem.ser->value4b(sector->getId());
+
                 sector->queryBroadphase(
                     aabb,
-                    [](const world::BpUserData& data)
+                    [this, &mcItem, sector](const world::BpUserData& data)
                     {
                         if (data.type == world::BpUserType::Item)
                         {
+                            auto handle = data.data.itemHandle;
+                            auto* item = sector->getOpool<opool::Item>(handle);
+                            if (!item)
+                            {
+                                return;
+                            }
+                            mcItem.ser->object(handle.toGenericHandle());
+                            mcItem.ser->object(item->transform);
+                            mcItem.ser->object(item->item.toGenericHandle());
+                            mcItem.ser->value4b(item->quantity);
                             // time + items
+                            if (mcItem.ser->adapter().currentWritePos() + 20
+                                > prot::kMaxSerializedChunkBytes)
+                            {
+                                mcItem.execute(sendQueue);
+                                mcItem.resetData();
+                                mcItem.startCommand(prot::cmd::SEND_DATA_ITEM,
+                                                    0);
+                                mcItem.ser->value4b(sector->getId());
+                            }
                         }
                         if (data.type == world::BpUserType::Ecs)
                         {
                             // time + required components e.g. transform, thrust
                         }
                     });
+
+                // Flush unfinished packets
+                if (mcItem.ser->adapter().currentWritePos() > 0)
+                {
+                    mcItem.execute(sendQueue);
+                }
+
                 // send item end
-                LG_D("Sector ({}, {}):", secX, secY);
-                LG_D("Bounds {}, {}", lower, upper);
+                mcItem.resetData();
+                mcItem.startCommand(prot::cmd::SEND_END_ITEM, 0);
+                mcItem.ser->value4b(sector->getId());
+                mcItem.execute(sendQueue);
             }
         }
     }

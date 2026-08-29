@@ -9,9 +9,10 @@
 #include <std-inc.hpp>
 #ifdef CLIENT
 #include <render-engine.hpp>
+#include <obj-pool-client.hpp>
+#include <client-pool-obj.hpp>
 #endif
 #include <aabb-tree.hpp>
-#include <unordered_set>
 #ifdef SERVER
 #include "registry-mapping.hpp"
 #include <obj-pool.hpp>
@@ -169,6 +170,11 @@ class Sector
     std::vector<std::pair<entt::entity, entt::entity>> broadphaseCollisions;
     std::vector<entt::entity> broadphaseQueryEntities;
     vector<ecs::ContactInfo> contactInfos;
+#ifdef CLIENT
+    opool::OpoolClient<opool::ProjClient> projectiles;
+    opool::OpoolClient<opool::BeamClient> beams;
+    opool::OpoolClient<opool::ItemClient> items;
+#endif
 
   private:
     int32_t coordX;        // Sector coord X
@@ -179,7 +185,6 @@ class Sector
     float worldPosY;       // Sector center Y in world coords
     Sector* neighbors[8];  // Neighboring Sectors (8 neighbors)
     bool dirty;            // Sector dirty flag
-
 #ifdef SERVER
     ecs::SectorRegistry sectorRegistry;
     vector<ecs::EntityId> entitiesToDestroy;
@@ -189,11 +194,9 @@ class Sector
     opool::ObjectPool<opool::Projectile> projectilePool;
     opool::ObjectPool<opool::Item> itemPool;
     opool::ObjectPool<opool::Beam> beamPool;
-#endif
-    bool active = false;
-#ifdef SERVER
     ai::TaskSystem taskSystem;
 #endif
+    bool active = false;
 };
 
 #ifdef SERVER
@@ -257,7 +260,7 @@ void Sector::removeOpool<opool::Projectile>(opool::ProjectileHandle handle)
 
 template <>
 opool::ItemHandle Sector::spawnOpool<opool::Item>(ecs::PtrHandle* ptrHandle,
-                                          const opool::Item& item)
+                                                  const opool::Item& item)
 {
     auto handle = itemPool.spawnObject(item);
     auto* i = itemPool.getObject(handle);
@@ -269,15 +272,16 @@ opool::ItemHandle Sector::spawnOpool<opool::Item>(ecs::PtrHandle* ptrHandle,
 }
 
 template <>
-opool::ProjectileHandle Sector::spawnOpool<opool::Projectile>(ecs::PtrHandle* ptrHandle,
-                                          const opool::Projectile& proj)
+opool::ProjectileHandle
+Sector::spawnOpool<opool::Projectile>(ecs::PtrHandle* ptrHandle,
+                                      const opool::Projectile& proj)
 {
     return projectilePool.spawnObject(proj);
 }
 
 template <>
 opool::BeamHandle Sector::spawnOpool<opool::Beam>(ecs::PtrHandle* ptrHandle,
-                                          const opool::Beam& beam)
+                                                  const opool::Beam& beam)
 {
     return beamPool.spawnObject(beam);
 }

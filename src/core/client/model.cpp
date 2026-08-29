@@ -33,7 +33,8 @@
         handleSendOpool(cmddes,                                                \
                         dataEndPos,                                            \
                         junkSize,                                              \
-                        [this](bitsery::Deserializer<InputAdapter>& cmddes)    \
+                        [this](world::Sector* sector,                          \
+                               bitsery::Deserializer<InputAdapter>& cmddes)    \
                         { block });                                            \
         break;
 
@@ -536,44 +537,76 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             }
             break;
         }
-            OPOOL_RECV(PROJ, projectiles, 6 + 16, {
-                GenericHandle32 handle;
-                ecs::Transform tr;
-                GenericHandle proj;
-                cmddes.object(handle);
-                cmddes.object(tr);
-                cmddes.object(proj);
-                projectiles.updateObject(
-                    handle, opool::ProjClient::Params{.tr = tr, .proj = proj});
-            })
-            OPOOL_RECV(ITEM, items, 6 + 20, {
-                GenericHandle32 handle;
-                ecs::Transform transform;
-                GenericHandle item;
-                uint32_t quantity;
-                cmddes.object(handle);
-                cmddes.object(transform);
-                cmddes.object(item);
-                cmddes.value4b(quantity);
-                items.updateObject(
-                    handle,
-                    opool::ItemClient::Params{.transform = transform,
-                                              .item = item,
-                                              .quantity = quantity});
-            })
-            OPOOL_RECV(BEAM, beams, 6 + 20, {
-                GenericHandle32 handle;
-                vec2 p1;
-                vec2 p2;
-                GenericHandle beam;
-                cmddes.object(handle);
-                cmddes.object(p1);
-                cmddes.object(p2);
-                cmddes.object(beam);
-                beams.updateObject(handle,
-                                   opool::BeamClient::Params{
-                                       .p1 = p1, .p2 = p2, .beam = beam});
-            })
+        case prot::cmd::SEND_BEGIN_ITEM:
+        {
+            uint32_t sectorId;
+            cmddes.value4b(sectorId);
+            auto sector = world.getSector(sectorId);
+            if (sector)
+            {
+                sector->items.markInactive();
+            }
+            break;
+        }
+        case prot::cmd::SEND_END_ITEM:
+        {
+            uint32_t sectorId;
+            cmddes.value4b(sectorId);
+            auto sector = world.getSector(sectorId);
+            if (sector)
+            {
+                sector->items.deleteInactive();
+                break;
+            }
+        }
+        case prot::cmd::SEND_DATA_ITEM:
+        {
+            handleSendOpool(cmddes,
+                            dataEndPos,
+                            20,
+                            [this](world::Sector* sector,
+                                   bitsery::Deserializer<InputAdapter>& cmddes)
+                            {
+                                GenericHandle32 handle;
+                                ecs::Transform transform;
+                                GenericHandle item;
+                                uint32_t quantity;
+                                cmddes.object(handle);
+                                cmddes.object(transform);
+                                cmddes.object(item);
+                                cmddes.value4b(quantity);
+                                sector->items.updateObject(handle,
+                                                   opool::ItemClient::Params{
+                                                       .transform = transform,
+                                                       .item = item,
+                                                       .quantity = quantity});
+                            });
+            break;
+        }
+            // OPOOL_RECV(PROJ, projectiles, 6 + 16, {
+            //     GenericHandle32 handle;
+            //     ecs::Transform tr;
+            //     GenericHandle proj;
+            //     cmddes.object(handle);
+            //     cmddes.object(tr);
+            //     cmddes.object(proj);
+            //     sector->projectiles.updateObject(
+            //         handle, opool::ProjClient::Params{.tr = tr, .proj = proj});
+            // })
+            // OPOOL_RECV(ITEM, items, 6 + 20, {})
+            // OPOOL_RECV(BEAM, beams, 6 + 20, {
+            //     GenericHandle32 handle;
+            //     vec2 p1;
+            //     vec2 p2;
+            //     GenericHandle beam;
+            //     cmddes.object(handle);
+            //     cmddes.object(p1);
+            //     cmddes.object(p2);
+            //     cmddes.object(beam);
+            //     beams.updateObject(handle,
+            //                        opool::BeamClient::Params{
+            //                            .p1 = p1, .p2 = p2, .beam = beam});
+            // })
         default:
             break;
     }
@@ -870,7 +903,12 @@ void Model::drawProjectiles(gfx::RenderEngine& renderer,
                             float zoom,
                             uint32_t activeSectorId)
 {
-    projectiles.foreach (
+    auto sector = world.getSector(activeSectorId);
+    if (!sector)
+    {
+        return;
+    }
+    sector->projectiles.foreach (
         [&renderer, &viewRect, this](opool::ProjClient& proj)
         {
             if (smath::pointInsideRect(proj.posNext.pos, viewRect))
@@ -894,7 +932,12 @@ void Model::drawBeams(gfx::RenderEngine& renderer,
                       float zoom,
                       uint32_t activeSectorId)
 {
-    beams.foreach (
+    auto sector = world.getSector(activeSectorId);
+    if (!sector)
+    {
+        return;
+    }
+    sector->beams.foreach (
         [&renderer, &viewRect, this](opool::BeamClient& beam)
         {
             if (smath::pointInsideRect(beam.lNext.pos1, viewRect))
@@ -952,8 +995,12 @@ void Model::drawItems(gfx::RenderEngine& renderer,
                       float zoom,
                       uint32_t activeSectorId)
 {
-    // int i = 0;
-    items.foreach (
+    auto sector = world.getSector(activeSectorId);
+    if (!sector)
+    {
+        return;
+    }
+    sector->items.foreach (
         [&renderer, &viewRect, this](opool::ItemClient& item)
         {
             if (smath::pointInsideRect(item.transform.pos, viewRect))
@@ -1655,17 +1702,24 @@ void Model::handleDestroyEntity(bitsery::Deserializer<InputAdapter>& cmddes,
     clientRegistry.destroyServerEntity(entityId);
 }
 
-// todo: template this
 void Model::handleSendOpool(
     bitsery::Deserializer<InputAdapter>& cmddes,
     size_t dataEndPos,
     size_t junkSize,
-    std::function<void(bitsery::Deserializer<InputAdapter>& cmddes)> clb)
+    std::function<void(world::Sector* sector,
+                       bitsery::Deserializer<InputAdapter>& cmddes)> clb)
 {
-    while ((int)cmddes.adapter().currentReadPos()
-           <= (int)(dataEndPos) - (int)junkSize)
+    uint32_t sectorId;
+    cmddes.value4b(sectorId);
+    auto sector = world.getSector(sectorId);
+    if (!sector)
     {
-        clb(cmddes);
+        return;
+    }
+    while ((int)cmddes.adapter().currentReadPos()
+           <= (int)(dataEndPos) - (int)junkSize + 4)
+    {
+        clb(sector, cmddes);
     }
 }
 

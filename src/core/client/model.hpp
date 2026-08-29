@@ -174,7 +174,8 @@ class Model
         bitsery::Deserializer<InputAdapter>& cmddes,
         size_t dataEndPos,
         size_t juckSize,
-        std::function<void(bitsery::Deserializer<InputAdapter>& cmddes)> clb);
+        std::function<void(world::Sector* sector,
+                           bitsery::Deserializer<InputAdapter>& cmddes)> clb);
     void notifyReady();
     void handleGetAabbTreeResp(bitsery::Deserializer<InputAdapter>& cmddes,
                                size_t dataEndPos);
@@ -254,9 +255,6 @@ class Model
     tim::Timepoint lastTSync;
     def::ClientInfo clientInfo;
     ecs::ClientRegistry clientRegistry;
-    opool::OpoolClient<opool::ProjClient> projectiles;
-    opool::OpoolClient<opool::BeamClient> beams;
-    opool::OpoolClient<opool::ItemClient> items;
 
     std::function<void(void)> afterLoadWorldClb;
     std::vector<ecs::EntityId> selectedEntities;
