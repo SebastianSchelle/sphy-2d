@@ -170,6 +170,8 @@ class Model
                                     size_t dataEndPos);
     void handleDestroyEntity(bitsery::Deserializer<InputAdapter>& cmddes,
                              size_t dataEndPos);
+    void handleEcsRealtime(bitsery::Deserializer<InputAdapter>& cmddes,
+                             size_t dataEndPos);
     void handleSendOpool(
         bitsery::Deserializer<InputAdapter>& cmddes,
         size_t dataEndPos,

@@ -561,26 +561,27 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         }
         case prot::cmd::SEND_DATA_ITEM:
         {
-            handleSendOpool(cmddes,
-                            dataEndPos,
-                            20,
-                            [this](world::Sector* sector,
-                                   bitsery::Deserializer<InputAdapter>& cmddes)
-                            {
-                                GenericHandle32 handle;
-                                ecs::Transform transform;
-                                GenericHandle item;
-                                uint32_t quantity;
-                                cmddes.object(handle);
-                                cmddes.object(transform);
-                                cmddes.object(item);
-                                cmddes.value4b(quantity);
-                                sector->items.updateObject(handle,
-                                                   opool::ItemClient::Params{
-                                                       .transform = transform,
-                                                       .item = item,
-                                                       .quantity = quantity});
-                            });
+            handleSendOpool(
+                cmddes,
+                dataEndPos,
+                20,
+                [this](world::Sector* sector,
+                       bitsery::Deserializer<InputAdapter>& cmddes)
+                {
+                    GenericHandle32 handle;
+                    ecs::Transform transform;
+                    GenericHandle item;
+                    uint32_t quantity;
+                    cmddes.object(handle);
+                    cmddes.object(transform);
+                    cmddes.object(item);
+                    cmddes.value4b(quantity);
+                    sector->items.updateObject(
+                        handle,
+                        opool::ItemClient::Params{.transform = transform,
+                                                  .item = item,
+                                                  .quantity = quantity});
+                });
             break;
         }
             // OPOOL_RECV(PROJ, projectiles, 6 + 16, {
@@ -591,7 +592,8 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             //     cmddes.object(tr);
             //     cmddes.object(proj);
             //     sector->projectiles.updateObject(
-            //         handle, opool::ProjClient::Params{.tr = tr, .proj = proj});
+            //         handle, opool::ProjClient::Params{.tr = tr, .proj =
+            //         proj});
             // })
             // OPOOL_RECV(ITEM, items, 6 + 20, {})
             // OPOOL_RECV(BEAM, beams, 6 + 20, {
@@ -607,6 +609,9 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             //                        opool::BeamClient::Params{
             //                            .p1 = p1, .p2 = p2, .beam = beam});
             // })
+        case prot::cmd::UPD_ECS_REALTIME:
+            handleEcsRealtime(cmddes, dataEndPos);
+            break;
         default:
             break;
     }
@@ -1710,7 +1715,9 @@ void Model::handleSendOpool(
                        bitsery::Deserializer<InputAdapter>& cmddes)> clb)
 {
     uint32_t sectorId;
+    long frametime;
     cmddes.value4b(sectorId);
+    cmddes.value8b(frametime);
     auto sector = world.getSector(sectorId);
     if (!sector)
     {
@@ -1720,6 +1727,47 @@ void Model::handleSendOpool(
            <= (int)(dataEndPos) - (int)junkSize + 4)
     {
         clb(sector, cmddes);
+    }
+}
+
+void Model::handleEcsRealtime(bitsery::Deserializer<InputAdapter>& cmddes,
+                              size_t dataEndPos)
+{
+    uint32_t sectorId;
+    long frametime;
+    cmddes.value4b(sectorId);
+    cmddes.value8b(frametime);
+    // auto sector = world.getSector(sectorId);
+    // if (!sector)
+    // {
+    //     return;
+    // }
+    auto &reg = clientRegistry.getRegistry();
+    while ((int)cmddes.adapter().currentReadPos() < (int)(dataEndPos)-8)
+    {
+        namespace Rtf = prot::cmd::Rtf;
+        ecs::EntityId entityId;
+        Rtf::Flags flags;
+        cmddes.object(entityId);
+        cmddes.value2b(flags);
+        game_entity entity = clientRegistry.enttFromServerId(entityId, false);
+        if(flags & Rtf::HasTransform)
+        {
+            ecs::Transform tr;
+            cmddes.object(tr);
+            // Replace with timestamped sync system
+            reg.emplace_or_replace<ecs::Transform>(entity, tr);
+        }
+        if(flags & Rtf::HasThrust)
+        {
+            vec2 thrust;
+            cmddes.object(thrust);
+        }
+        if(flags & Rtf::HasTurret)
+        {
+            float rot;
+            cmddes.value4b(rot);
+        }
     }
 }
 

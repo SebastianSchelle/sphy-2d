@@ -78,6 +78,7 @@ bool writeCommand(bitsery::Serializer<OutputAdapter>& cmdser,
 class MsgComposer
 {
   public:
+    static constexpr size_t HeaderSize = 7;
     MsgComposer(net::SendType type,
                 const udp::endpoint& endpoint,
                 bool useToken = true);
@@ -115,19 +116,14 @@ struct MoveToFlags
     uint8_t queue : 1 = 0;
 };
 
-enum class UpdRealtimeFlags : uint16_t
+namespace Rtf
 {
-    None = 0,
-    HasTransform,
-    HasTurret,
-    HasThrust,
-};
-ENUM_BIN_OPS(UpdRealtimeFlags)
-
-#define SER_URTF S2b(*(uint8_t*)&o);
-EXT_SER(UpdRealtimeFlags, SER_GMV)
-EXT_DES(UpdRealtimeFlags, SER_GMV)
-
+typedef uint16_t Flags;
+constexpr Flags None = 0;
+constexpr Flags HasTransform = 1;
+constexpr Flags HasTurret = 2;
+constexpr Flags HasThrust = 4;
+}  // namespace Rtf
 
 #define OPOOL_IDS(name, addr)                                                  \
     const uint16_t SEND_BEGIN_##name = (addr);                                 \

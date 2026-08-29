@@ -1135,7 +1135,7 @@ void Engine::clientUpd(long frameTime)
         });
 }
 
-void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frameTime)
+void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
 {
     const auto& tl = clientInfo->clientViewRect.tl;
     const auto& br = clientInfo->clientViewRect.br;
@@ -1164,16 +1164,16 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frameTime)
                 mcItem.resetData();
                 mcItem.startCommand(prot::cmd::SEND_DATA_ITEM, 0);
                 mcItem.ser->value4b(sector->getId());
-                mcItem.ser->value8b(frameTime);
+                mcItem.ser->value8b(frametime);
                 // send ecs begin
                 mcEcs.startCommand(prot::cmd::UPD_ECS_REALTIME, 0);
                 mcEcs.ser->value4b(sector->getId());
-                mcEcs.ser->value8b(frameTime);
+                mcEcs.ser->value8b(frametime);
                 auto reg = sector->getRegistry()->getRegistry();
 
                 sector->queryBroadphase(
                     aabb,
-                    [this, &mcItem, &mcEcs, sector, reg, frameTime](
+                    [this, &mcItem, &mcEcs, sector, reg, frametime](
                         const world::BpUserData& data)
                     {
                         if (data.type == world::BpUserType::Item)
@@ -1197,7 +1197,7 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frameTime)
                                 mcItem.startCommand(prot::cmd::SEND_DATA_ITEM,
                                                     0);
                                 mcItem.ser->value4b(sector->getId());
-                                mcItem.ser->value8b(frameTime);
+                                mcItem.ser->value8b(frametime);
                             }
                         }
                         if (data.type == world::BpUserType::Ecs)
@@ -1205,7 +1205,7 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frameTime)
                             // time + required components e.g. transform, thrust
                             auto entity = data.data.ent;
                             auto entityId = reg->get<ecs::EntityId>(entity);
-                            bool attachment = true;
+                            bool attachment = false;
 
                             ecs::Transform* transform = nullptr;
                             if (!attachment)
@@ -1214,24 +1214,19 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frameTime)
                             }
                             auto turret = reg->try_get<ecs::Turret>(entity);
                             auto thrust = reg->try_get<ecs::PhyThrust>(entity);
-                            using Flags = prot::cmd::UpdRealtimeFlags;
-                            const Flags flags =
-                                (transform == nullptr ? Flags::HasTransform
-                                                      : Flags::None)
-                                | (thrust == nullptr ? Flags::HasThrust
-                                                     : Flags::None)
-                                | (turret == nullptr ? Flags::HasTurret
-                                                     : Flags::None);
+                            namespace Rtf = prot::cmd::Rtf;
+                            const Rtf::Flags flags =
+                                (transform ? Rtf::HasTransform : Rtf::None)
+                                | (thrust ? Rtf::HasThrust : Rtf::None)
+                                | (turret ? Rtf::HasTurret : Rtf::None);
                             const size_t entDataLen =
-                                sizeof(ecs::EntityId) + sizeof(Flags)
+                                sizeof(ecs::EntityId) + sizeof(Rtf::Flags)
                                 + (transform == nullptr ? sizeof(ecs::Transform)
                                                         : 0)
                                 + (thrust == nullptr ? sizeof(ecs::PhyThrust)
                                                      : 0)
                                 + (turret == nullptr ? sizeof(ecs::Turret) : 0);
-
-                            const auto& ser = mcEcs.ser;
-                            if (ser->adapter().currentWritePos()
+                            if (mcEcs.ser->adapter().currentWritePos()
                                 >= prot::kMaxSerializedChunkBytes - entDataLen)
                             {
                                 mcEcs.execute(sendQueue);
@@ -1239,32 +1234,34 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frameTime)
                                 mcEcs.startCommand(prot::cmd::UPD_ECS_REALTIME,
                                                    0);
                                 mcEcs.ser->value4b(sector->getId());
-                                mcEcs.ser->value8b(frameTime);
+                                mcEcs.ser->value8b(frametime);
                             }
 
                             mcEcs.ser->object(entityId);
-                            ser->object(flags);
+                            mcEcs.ser->value2b(flags);
                             if (transform)
                             {
-                                ser->object(*transform);
+                                mcEcs.ser->object(*transform);
                             }
                             if (thrust)
                             {
-                                ser->object(thrust->thrustLocal);
+                                mcEcs.ser->object(thrust->thrustLocal);
                             }
                             if (turret)
                             {
-                                ser->value4b(turret->currentAngle);
+                                mcEcs.ser->value4b(turret->currentAngle);
                             }
                         }
                     });
 
                 // Flush unfinished packets
-                if (mcItem.ser->adapter().currentWritePos() > 0)
+                if (mcItem.ser->adapter().currentWritePos()
+                    > prot::MsgComposer::HeaderSize + 12)
                 {
                     mcItem.execute(sendQueue);
                 }
-                if (mcEcs.ser->adapter().currentWritePos() > 0)
+                if (mcEcs.ser->adapter().currentWritePos()
+                    > prot::MsgComposer::HeaderSize + 12)
                 {
                     mcEcs.execute(sendQueue);
                 }
