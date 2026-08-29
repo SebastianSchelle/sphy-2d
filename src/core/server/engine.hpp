@@ -194,6 +194,7 @@ class Engine
     vector<CompActiveSectorUpdate> activeSectorUpdates;
     float filteredFps = 0.0f;
     float maxFps;
+    long intAutosave;
 
     ecs::CollisionLayerMat collisionLayerMat;
 

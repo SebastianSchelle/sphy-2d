@@ -83,6 +83,8 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
         CFG_FLOAT(config, 1.0f, "engine", "modules", "volume-multiplier");
     int updThreads = CFG_UINT(config, 2.0f, "engine", "proc", "threads");
     maxFps = CFG_FLOAT(config, 600.0f, "engine", "proc", "max-fps");
+    intAutosave = (long)(CFG_FLOAT(config, 10.0f, "engine", "autosave") * 60.0f
+                         * 1000000.0f);
 
     updThreads = std::clamp(updThreads, 1, 16);
     workDistributor.init(updThreads);
@@ -219,10 +221,10 @@ void Engine::engineLoop()
             {
                 update(dt);
                 runConnectedClientWorkSequencers();
-                // runActiveSectorDump(nowU);
+                runActiveSectorDump(nowU);
                 runSlowClientDump(nowU);
-                clientUpd3rd(nowU);
-                DO_PERIODIC_U_EXTNOW(lastSaveTime, TIM_5M, nowU, saveGame)
+                // clientUpd3rd(nowU);
+                DO_PERIODIC_U_EXTNOW(lastSaveTime, intAutosave, nowU, saveGame)
             }
             break;
             case EngineState::Paused:
@@ -416,8 +418,7 @@ bool Engine::loadMods()
 
 void Engine::saveGame()
 {
-    // todo: reactivate saving
-    // world.saveWorld(saveFolder);
+    world.saveWorld(saveFolder);
 }
 
 def::ClientInfoHandle Engine::registerClient(const def::ClientInfo& clientInfo)
@@ -1158,24 +1159,23 @@ void Engine::clientUpdFast3rd(def::ClientInfo* clientInfo, long frameTime)
                 prot::MsgComposer mcItem(net::SendType::UDP, udpEnd);
                 prot::MsgComposer mcEcs(net::SendType::UDP, udpEnd);
                 // send item begin
-                sector->queryBroadphase(aabb,
-                                        [](const world::BpUserData& data)
-                                        {
-                                            if (data.type
-                                                == world::BpUserType::Item)
-                                            {
-                                                // time + items
-                                            }
-                                            if (data.type
-                                                == world::BpUserType::Ecs)
-                                            {
-                                                // time + required components e.g. transform, thrust
-                                            }
-                                        });
+                sector->queryBroadphase(
+                    aabb,
+                    [](const world::BpUserData& data)
+                    {
+                        if (data.type == world::BpUserType::Item)
+                        {
+                            // time + items
+                        }
+                        if (data.type == world::BpUserType::Ecs)
+                        {
+                            // time + required components e.g. transform, thrust
+                        }
+                    });
                 // send item end
+                LG_D("Sector ({}, {}):", secX, secY);
+                LG_D("Bounds {}, {}", lower, upper);
             }
-            LG_D("Sector ({}, {}):", secX, secY);
-            LG_D("Bounds {}, {}", lower, upper);
         }
     }
 }
