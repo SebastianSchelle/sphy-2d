@@ -72,9 +72,9 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
         CFG_FLOAT(config, 1.0f, "engine", "physics", "min-face-target-dist");
     slowDumpUs =
         1000 * CFG_UINT(config, 1000.0f, "engine", "net", "dump-int", "slow");
-    intFast3rd =
+    intRealtime =
         1000
-        * CFG_UINT(config, 100.0f, "engine", "net", "dump-int", "fast-3rd");
+        * CFG_UINT(config, 100.0f, "engine", "net", "dump-int", "realtime");
     ptrHandle->miningRate =
         CFG_FLOAT(config, 0.01f, "engine", "mining", "mining-rate");
     ptrHandle->itemLifetime =
@@ -223,7 +223,7 @@ void Engine::engineLoop()
                 runConnectedClientWorkSequencers();
                 // runActiveSectorDump(nowU);
                 runSlowClientDump(nowU);
-                clientUpd3rd(nowU);
+                clientUpd(nowU);
                 DO_PERIODIC_U_EXTNOW(lastSaveTime, intAutosave, nowU, saveGame)
             }
             break;
@@ -1068,7 +1068,7 @@ void Engine::runActiveSectorDump(long frameTime)
         def::ClientInfo* clientInfo = clientLib.getItem(handle);
         DO_PERIODIC_U_EXTNOW(
             clientInfo->lastClientUpdFast3rd,
-            intFast3rd,
+            intRealtime,
             frameTime,
             [&]()
             {
@@ -1122,20 +1122,20 @@ void Engine::runActiveSectorDump(long frameTime)
     }
 }
 
-void Engine::clientUpd3rd(long frameTime)
+void Engine::clientUpd(long frameTime)
 {
     forActiveClients(
         [this, frameTime](def::ClientInfo* clientInfo)
         {
             DO_PERIODIC_U_EXTNOW(clientInfo->lastClientUpdFast3rd,
-                                 intFast3rd,
+                                 intRealtime,
                                  frameTime,
                                  [&]()
-                                 { clientUpdFast3rd(clientInfo, frameTime); });
+                                 { clientUpdRealtime(clientInfo, frameTime); });
         });
 }
 
-void Engine::clientUpdFast3rd(def::ClientInfo* clientInfo, long frameTime)
+void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frameTime)
 {
     const auto& tl = clientInfo->clientViewRect.tl;
     const auto& br = clientInfo->clientViewRect.br;
@@ -1161,14 +1161,20 @@ void Engine::clientUpdFast3rd(def::ClientInfo* clientInfo, long frameTime)
                 mcItem.startCommand(prot::cmd::SEND_BEGIN_ITEM, 0);
                 mcItem.ser->value4b(sector->getId());
                 mcItem.execute(sendQueue);
-
                 mcItem.resetData();
                 mcItem.startCommand(prot::cmd::SEND_DATA_ITEM, 0);
                 mcItem.ser->value4b(sector->getId());
+                mcItem.ser->value8b(frameTime);
+                // send ecs begin
+                mcEcs.startCommand(prot::cmd::UPD_ECS_REALTIME, 0);
+                mcEcs.ser->value4b(sector->getId());
+                mcEcs.ser->value8b(frameTime);
+                auto reg = sector->getRegistry()->getRegistry();
 
                 sector->queryBroadphase(
                     aabb,
-                    [this, &mcItem, sector](const world::BpUserData& data)
+                    [this, &mcItem, &mcEcs, sector, reg, frameTime](
+                        const world::BpUserData& data)
                     {
                         if (data.type == world::BpUserType::Item)
                         {
@@ -1191,11 +1197,65 @@ void Engine::clientUpdFast3rd(def::ClientInfo* clientInfo, long frameTime)
                                 mcItem.startCommand(prot::cmd::SEND_DATA_ITEM,
                                                     0);
                                 mcItem.ser->value4b(sector->getId());
+                                mcItem.ser->value8b(frameTime);
                             }
                         }
                         if (data.type == world::BpUserType::Ecs)
                         {
                             // time + required components e.g. transform, thrust
+                            auto entity = data.data.ent;
+                            auto entityId = reg->get<ecs::EntityId>(entity);
+                            bool attachment = true;
+
+                            ecs::Transform* transform = nullptr;
+                            if (!attachment)
+                            {
+                                transform = &reg->get<ecs::Transform>(entity);
+                            }
+                            auto turret = reg->try_get<ecs::Turret>(entity);
+                            auto thrust = reg->try_get<ecs::PhyThrust>(entity);
+                            using Flags = prot::cmd::UpdRealtimeFlags;
+                            const Flags flags =
+                                (transform == nullptr ? Flags::HasTransform
+                                                      : Flags::None)
+                                | (thrust == nullptr ? Flags::HasThrust
+                                                     : Flags::None)
+                                | (turret == nullptr ? Flags::HasTurret
+                                                     : Flags::None);
+                            const size_t entDataLen =
+                                sizeof(ecs::EntityId) + sizeof(Flags)
+                                + (transform == nullptr ? sizeof(ecs::Transform)
+                                                        : 0)
+                                + (thrust == nullptr ? sizeof(ecs::PhyThrust)
+                                                     : 0)
+                                + (turret == nullptr ? sizeof(ecs::Turret) : 0);
+
+                            const auto& ser = mcEcs.ser;
+                            if (ser->adapter().currentWritePos()
+                                >= prot::kMaxSerializedChunkBytes - entDataLen)
+                            {
+                                mcEcs.execute(sendQueue);
+                                mcEcs.resetData();
+                                mcEcs.startCommand(prot::cmd::UPD_ECS_REALTIME,
+                                                   0);
+                                mcEcs.ser->value4b(sector->getId());
+                                mcEcs.ser->value8b(frameTime);
+                            }
+
+                            mcEcs.ser->object(entityId);
+                            ser->object(flags);
+                            if (transform)
+                            {
+                                ser->object(*transform);
+                            }
+                            if (thrust)
+                            {
+                                ser->object(thrust->thrustLocal);
+                            }
+                            if (turret)
+                            {
+                                ser->value4b(turret->currentAngle);
+                            }
                         }
                     });
 
@@ -1203,6 +1263,10 @@ void Engine::clientUpdFast3rd(def::ClientInfo* clientInfo, long frameTime)
                 if (mcItem.ser->adapter().currentWritePos() > 0)
                 {
                     mcItem.execute(sendQueue);
+                }
+                if (mcEcs.ser->adapter().currentWritePos() > 0)
+                {
+                    mcEcs.execute(sendQueue);
                 }
 
                 // send item end

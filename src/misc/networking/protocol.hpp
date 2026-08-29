@@ -115,6 +115,20 @@ struct MoveToFlags
     uint8_t queue : 1 = 0;
 };
 
+enum class UpdRealtimeFlags : uint16_t
+{
+    None = 0,
+    HasTransform,
+    HasTurret,
+    HasThrust,
+};
+ENUM_BIN_OPS(UpdRealtimeFlags)
+
+#define SER_URTF S2b(*(uint8_t*)&o);
+EXT_SER(UpdRealtimeFlags, SER_GMV)
+EXT_DES(UpdRealtimeFlags, SER_GMV)
+
+
 #define OPOOL_IDS(name, addr)                                                  \
     const uint16_t SEND_BEGIN_##name = (addr);                                 \
     const uint16_t SEND_DATA_##name = (addr) + 1;                              \
@@ -140,6 +154,7 @@ const uint16_t TOTAL_NUM_ENTITIES = 0x0011;
 const uint16_t DESTROY_ENTITY = 0x0012;
 const uint16_t ACK_WORKSEQUENCER = 0x0013;
 const uint16_t CLIENT_VIEW_RECT = 0x0014;
+const uint16_t UPD_ECS_REALTIME = 0x0015;
 
 OPOOL_IDS(PROJ, 0x1000)
 OPOOL_IDS(ITEM, 0x1003)

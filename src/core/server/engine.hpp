@@ -163,8 +163,8 @@ class Engine
     void
     forActiveClients(std::function<void(def::ClientInfo* clientInfo)> callback);
 
-    void clientUpd3rd(long frameTime);
-    void clientUpdFast3rd(def::ClientInfo* clientInfo, long frameTime);
+    void clientUpd(long frameTime);
+    void clientUpdRealtime(def::ClientInfo* clientInfo, long frameTime);
 
     const sphy::CmdLinOptionsServer& options;
     std::atomic<bool> stopRequested{false};
@@ -189,7 +189,7 @@ class Engine
     cmd::CommandManager commandManager;
 
     uint32_t slowDumpUs;
-    uint32_t intFast3rd;
+    uint32_t intRealtime;
     vector<CompClientDump> slowDumpComponents;
     vector<CompActiveSectorUpdate> activeSectorUpdates;
     float filteredFps = 0.0f;
