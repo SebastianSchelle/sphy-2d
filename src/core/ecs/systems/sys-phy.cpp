@@ -59,7 +59,7 @@ void sysMoveCtrlImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                 auto calcLocalSpaceVectors = [&](def::SectorCoords trgt)
                 {
                     vec2 relTargetPos =
-                        (trgt.pos.toVec2() - sectorId.toVec2())
+                        (trgt.pos.toVec2() - sectorId.coord.toVec2())
                             * ptrHandle->world->getWorldShape().sectorSize
                         + trgt.sectorPos;
                     d_w = relTargetPos - transform.pos;

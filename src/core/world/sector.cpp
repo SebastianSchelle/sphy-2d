@@ -5,6 +5,7 @@
 #include "free-vector.hpp"
 #include "logging.hpp"
 #include "std-inc.hpp"
+#include "world-def.hpp"
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
 #include <ptr-handle.hpp>
@@ -23,18 +24,15 @@ Sector::Sector() {}
 
 Sector::~Sector() {}
 
-void Sector::init(int x,
-                  int y,
+void Sector::init(def::SectorPos coord,
                   float sectorSize,
                   uint32_t id,
                   Sector* neighbors[8],
                   ecs::RegistryMapping* regMapping)
 {
-    coordX = x;
-    coordY = y;
+    this->coord = coord;
     this->sectorSize = sectorSize;
-    worldPosX = coordX * sectorSize;
-    worldPosY = coordY * sectorSize;
+    worldPos = sectorSize * coord.toVec2();
     this->id = id;
     for (int i = 0; i < 8; i++)
     {
@@ -57,8 +55,8 @@ void Sector::init(int x,
 vec2 Sector::getWorldPosSectorOffset(int32_t sectorOffsetX,
                                      int32_t sectorOffsetY) const
 {
-    return vec2((float)(coordX - sectorOffsetX) * sectorSize,
-                (float)(coordY - sectorOffsetY) * sectorSize);
+    return vec2((float)(coord.x - sectorOffsetX) * sectorSize,
+                (float)(coord.y - sectorOffsetY) * sectorSize);
 }
 
 #ifdef SERVER
@@ -150,7 +148,7 @@ ecs::EntityId Sector::spawnObject(ecs::PtrHandle* ptrHandle,
         {
             clbParams.reg.emplace_or_replace<ecs::SectorId>(
                 clbParams.entity,
-                ecs::SectorId{id, (uint32_t)coordX, (uint32_t)coordY});
+                ecs::SectorId{id, coord});
             if (!spwnClb || !spwnClb(clbParams))
             {
                 return false;

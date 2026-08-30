@@ -25,12 +25,13 @@
 #include <memory>
 #include <mod-manager.hpp>
 #include <net-shared.hpp>
+#include <protocol.hpp>
 #include <ptr-handle.hpp>
+#include <rand-gen.hpp>
 #include <string>
 #include <task-system.hpp>
 #include <work-distributor.hpp>
 #include <world.hpp>
-#include <rand-gen.hpp>
 
 namespace ecs
 {
@@ -164,6 +165,13 @@ class Engine
     forActiveClients(std::function<void(def::ClientInfo* clientInfo)> callback);
 
     void clientUpd(long frameTime);
+    void clientUpdRealtimeAddObjectdata(prot::MsgComposer& mc,
+                                        entt::registry* reg,
+                                        world::Sector* sector,
+                                        long frametime,
+                                        entt::entity entity,
+                                        ecs::EntityId entityId,
+                                        bool isAttachment = false);
     void clientUpdRealtime(def::ClientInfo* clientInfo, long frameTime);
 
     const sphy::CmdLinOptionsServer& options;
@@ -205,7 +213,6 @@ class Engine
 
     misc::RandGen randWorldGen;
     misc::RandGen randTest;
-
 };
 
 }  // namespace sphys

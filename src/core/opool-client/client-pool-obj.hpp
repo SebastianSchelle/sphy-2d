@@ -11,13 +11,13 @@ namespace opool
 
 struct TimedPos
 {
-    tim::Timepoint t;
+    long t;
     vec2 pos;
 };
 
 struct TimedLine
 {
-    tim::Timepoint t;
+    long t;
     vec2 pos1;
     vec2 pos2;
 };

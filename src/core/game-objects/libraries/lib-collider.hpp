@@ -1,10 +1,10 @@
 #ifndef LIB_COLLIDER_HPP
 #define LIB_COLLIDER_HPP
 
-#include <std-inc.hpp>
 #include <item-lib.hpp>
 #include <lib-textures.hpp>
 #include <magic_enum/magic_enum.hpp>
+#include <std-inc.hpp>
 
 namespace gobj
 {
@@ -16,6 +16,21 @@ struct Collider
 
     static Collider fromYaml(const YAML::Node& node,
                              mod::ResourceMap& resourceMap);
+
+    float getSimpleMaxDist()
+    {
+        float max = 0.0f;
+        for (auto& vertex : vertices)
+        {
+            float ax = abs(vertex.x);
+            float ay = abs(vertex.y);
+            if (ax > max)
+                max = ax;
+            if (ay > max)
+                max = ay;
+        }
+        return max;
+    }
 };
 
 using ColliderHandle = typename con::ItemLib<Collider>::Handle;

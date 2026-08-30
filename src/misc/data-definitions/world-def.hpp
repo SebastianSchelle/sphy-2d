@@ -38,6 +38,12 @@ struct SectorPos
     }
 };
 
+#define SER_SECTOR_POS                                                         \
+    S4b(o.x);                                                                  \
+    S4b(o.y);
+EXT_SER(SectorPos, SER_SECTOR_POS)
+EXT_DES(SectorPos, SER_SECTOR_POS)
+
 struct SectorCoords
 {
     SectorPos pos;

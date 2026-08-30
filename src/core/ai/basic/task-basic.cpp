@@ -1,7 +1,7 @@
 #include "task-basic.hpp"
-#include <world.hpp>
-#include <sector.hpp>
 #include <comp-phy.hpp>
+#include <sector.hpp>
+#include <world.hpp>
 
 namespace ai
 {
@@ -96,8 +96,7 @@ TaskFunResult SectorPatrol::function(TaskFunArgs* args)
     }
     if (applyMoveToTarget(
             moveCtrl,
-            {.spPos = {.pos = {sectorId->x, sectorId->y},
-                       .sectorPos = state.randomPos},
+            {.spPos = {.pos = sectorId->coord, .sectorPos = state.randomPos},
              .allowedPosError = config.allowedPosError,
              .allowedRotError = config.allowedRotError}))
     {

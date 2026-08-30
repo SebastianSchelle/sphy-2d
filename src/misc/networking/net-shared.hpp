@@ -70,8 +70,8 @@ struct TimeSync
     bool waiting = false;
     long latency[10];
     long offset[10];
-    float serverOffset = 0.0f;
-    float serverLatency = 0.0f;
+    long serverOffset = 0;
+    long serverLatency = 0;
 };
 
 enum class RcvCmdState

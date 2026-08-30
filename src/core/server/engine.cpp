@@ -1135,6 +1135,56 @@ void Engine::clientUpd(long frameTime)
         });
 }
 
+void Engine::clientUpdRealtimeAddObjectdata(prot::MsgComposer& mc,
+                                            entt::registry* reg,
+                                            world::Sector* sector,
+                                            long frametime,
+                                            entt::entity entity,
+                                            ecs::EntityId entityId,
+                                            bool isAttachment)
+{
+    ecs::Transform* transform = nullptr;
+    if (!isAttachment)
+    {
+        transform = &reg->get<ecs::Transform>(entity);
+    }
+    auto turret = reg->try_get<ecs::Turret>(entity);
+    auto thrust = reg->try_get<ecs::PhyThrust>(entity);
+    namespace Rtf = prot::cmd::Rtf;
+    const Rtf::Flags flags = (transform ? Rtf::HasTransform : Rtf::None)
+                             | (thrust ? Rtf::HasThrust : Rtf::None)
+                             | (turret ? Rtf::HasTurret : Rtf::None);
+    const size_t entDataLen =
+        sizeof(ecs::EntityId) + sizeof(Rtf::Flags)
+        + (transform == nullptr ? sizeof(ecs::Transform) : 0)
+        + (thrust == nullptr ? sizeof(ecs::PhyThrust) : 0)
+        + (turret == nullptr ? sizeof(ecs::Turret) : 0);
+    if (mc.ser->adapter().currentWritePos()
+        >= prot::kMaxSerializedChunkBytes - entDataLen)
+    {
+        mc.execute(sendQueue);
+        mc.resetData();
+        mc.startCommand(prot::cmd::UPD_ECS_REALTIME, 0);
+        mc.ser->value4b(sector->getId());
+        mc.ser->value8b(frametime);
+    }
+
+    mc.ser->object(entityId);
+    mc.ser->value2b(flags);
+    if (transform)
+    {
+        mc.ser->object(*transform);
+    }
+    if (thrust)
+    {
+        mc.ser->object(thrust->thrustLocal);
+    }
+    if (turret)
+    {
+        mc.ser->value4b(turret->currentAngle);
+    }
+}
+
 void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
 {
     const auto& tl = clientInfo->clientViewRect.tl;
@@ -1205,51 +1255,33 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
                             // time + required components e.g. transform, thrust
                             auto entity = data.data.ent;
                             auto entityId = reg->get<ecs::EntityId>(entity);
-                            bool attachment = false;
-
-                            ecs::Transform* transform = nullptr;
-                            if (!attachment)
+                            clientUpdRealtimeAddObjectdata(mcEcs,
+                                                           reg,
+                                                           sector,
+                                                           frametime,
+                                                           entity,
+                                                           entityId);
+                            // Get sub entities like turrets or station parts
+                            auto hull = reg->try_get<ecs::Hull>(entity);
+                            if (hull)
                             {
-                                transform = &reg->get<ecs::Transform>(entity);
-                            }
-                            auto turret = reg->try_get<ecs::Turret>(entity);
-                            auto thrust = reg->try_get<ecs::PhyThrust>(entity);
-                            namespace Rtf = prot::cmd::Rtf;
-                            const Rtf::Flags flags =
-                                (transform ? Rtf::HasTransform : Rtf::None)
-                                | (thrust ? Rtf::HasThrust : Rtf::None)
-                                | (turret ? Rtf::HasTurret : Rtf::None);
-                            const size_t entDataLen =
-                                sizeof(ecs::EntityId) + sizeof(Rtf::Flags)
-                                + (transform == nullptr ? sizeof(ecs::Transform)
-                                                        : 0)
-                                + (thrust == nullptr ? sizeof(ecs::PhyThrust)
-                                                     : 0)
-                                + (turret == nullptr ? sizeof(ecs::Turret) : 0);
-                            if (mcEcs.ser->adapter().currentWritePos()
-                                >= prot::kMaxSerializedChunkBytes - entDataLen)
-                            {
-                                mcEcs.execute(sendQueue);
-                                mcEcs.resetData();
-                                mcEcs.startCommand(prot::cmd::UPD_ECS_REALTIME,
-                                                   0);
-                                mcEcs.ser->value4b(sector->getId());
-                                mcEcs.ser->value8b(frametime);
-                            }
-
-                            mcEcs.ser->object(entityId);
-                            mcEcs.ser->value2b(flags);
-                            if (transform)
-                            {
-                                mcEcs.ser->object(*transform);
-                            }
-                            if (thrust)
-                            {
-                                mcEcs.ser->object(thrust->thrustLocal);
-                            }
-                            if (turret)
-                            {
-                                mcEcs.ser->value4b(turret->currentAngle);
+                                for (auto& mod : hull->modules)
+                                {
+                                    auto entId = mod.entityId;
+                                    auto slot =
+                                        registryMapping.getEntity(entId);
+                                    if (slot
+                                        && slot->sectorId == sector->getId())
+                                    {
+                                        clientUpdRealtimeAddObjectdata(
+                                            mcEcs,
+                                            reg,
+                                            sector,
+                                            frametime,
+                                            slot->entity,
+                                            entId);
+                                    }
+                                }
                             }
                         }
                     });

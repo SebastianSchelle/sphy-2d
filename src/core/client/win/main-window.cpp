@@ -279,7 +279,7 @@ void MainWindow::winLoop()
         determineUiEnvironment();
         processUiTasks();
 
-        model.modelLoop(dt);
+        model.modelLoop(dt, nowU);
 
         mouseState.mz = 0;
         glfwPollEvents();
@@ -424,7 +424,7 @@ void MainWindow::renderGame()
             break;
         case gfx::GameViewMode::ThirdPerson:
             processMouseThirdPerson(zoom);
-            model.drawThirdPerson(renderEngine, viewportRect, zoom);
+            model.drawRealtime(renderEngine);
             renderEngine.panWorld(panX, panY);
             break;
         default:
@@ -948,9 +948,9 @@ void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
     debugData.gameData.viewMode =
         magic_enum::enum_name(renderEngine.getViewMode());
     debugData.connectionData.serverLatency =
-        model.getTimeSyncData().serverLatency;
+        model.getTimeSyncData().serverLatency / 1.0e6f;
     debugData.connectionData.serverTimeOffset =
-        model.getTimeSyncData().serverOffset;
+        model.getTimeSyncData().serverOffset / 1.0e6f;
     const bool modelAabbOverlayEnabled = model.isAabbTreeOverlayEnabled();
     if (debugData.overlayData.enableAabbTree != modelAabbOverlayEnabled)
     {

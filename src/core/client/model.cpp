@@ -1,3 +1,4 @@
+#include "aabb-tree.hpp"
 #include "client-pool-obj.hpp"
 #include "comp-phy.hpp"
 #include "config-manager.hpp"
@@ -6,6 +7,7 @@
 #include "lib-textures.hpp"
 #include "logging.hpp"
 #include "render-engine.hpp"
+#include "sector.hpp"
 #include "std-inc.hpp"
 #include <comp-gfx.hpp>
 #include <comp-ident.hpp>
@@ -88,7 +90,7 @@ void Model::prepareForConnect()
     thirdPersonControl = def::ThirdPersonControl{};
 }
 
-void Model::modelLoop(float dt)
+void Model::modelLoop(float dt, long frametime)
 {
     net::CmdQueueData recQueueData;
     while (receiveQueue.try_dequeue(recQueueData))
@@ -131,7 +133,7 @@ void Model::modelLoop(float dt)
         case ClientGameState::NotifyServerReady:
             break;
         case ClientGameState::GameLoop:
-            modelLoopGame(dt);
+            modelLoopGame(dt, frametime);
             break;
         case ClientGameState::ModdingTools:
         case ClientGameState::AtlasDebug:
@@ -183,7 +185,7 @@ void Model::timeSync()
 
 void Model::modelLoopMenu(float dt) {}
 
-void Model::modelLoopGame(float dt)
+void Model::modelLoopGame(float dt, long frametime)
 {
     tim::Timepoint now = tim::getCurrentTimeU();
     static tim::Timepoint testTime = tim::getCurrentTimeU();
@@ -375,8 +377,8 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                                 offsMin = timeSyncData.offset[i];
                             }
                         }
-                        timeSyncData.serverOffset = offsMin / 1.0e6f;
-                        timeSyncData.serverLatency = latMin / 1.0e6f;
+                        timeSyncData.serverOffset = offsMin;
+                        timeSyncData.serverLatency = latMin;
                         timeSyncData.cnt = 0;
                     }
                     timeSyncData.waiting = false;
@@ -652,7 +654,7 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
 {
     world.drawTacticalMap(renderer, viewRect, zoom);
     uint32_t activeSectorId = getActiveSectorId();
-    drawObjects(renderer, viewRect, zoom, activeSectorId);
+    drawRealtime(renderer);
     auto& reg = clientRegistry.getRegistry();
     for (const auto& entityId : selectedEntities)
     {
@@ -677,52 +679,6 @@ void Model::drawTacticalMap(gfx::RenderEngine& renderer,
             }
         }
     }
-
-    // reg.view<ecs::Transform, ecs::SectorId, ecs::Colllider,
-    // ecs::Broadphase>()
-    //     .each(
-    //         [this, &renderer, &viewRect, zoom](ecs::Transform& transform,
-    //                                            ecs::SectorId& sectorId,
-    //                                            ecs::Colllider& collider,
-    //                                            ecs::Broadphase&
-    //                                            broadphase)
-    //         {
-    //             glm::vec2 worldPos =
-    //                 world.getWorldPosSectorOffset(sectorId.id,
-    //                                               renderer.getSectorOffsetX(),
-    //                                               renderer.getSectorOffsetY())
-    //                 + transform.pos;
-    //             if (smath::pointInsideRect(worldPos, viewRect))
-    //             {
-    //                 uint8_t size = 1.0;
-    //                 for (const auto& vertex : collider.vertices)
-    //                 {
-    //                     float c = cos(transform.rot);
-    //                     float s = sin(transform.rot);
-    //                     glm::vec2 rotatedVertex =
-    //                         glm::vec2(c * vertex.x - s * vertex.y,
-    //                                   s * vertex.x + c * vertex.y);
-    //                     glm::vec2 vertexWorldPos = worldPos +
-    //                     rotatedVertex; renderer.drawEllipse(
-    //                         vertexWorldPos,
-    //                         glm::vec2(size / zoom, size / zoom),
-    //                         0xffffffff,
-    //                         2.0f / zoom,
-    //                         0.0f,
-    //                         0);
-    //                     size += 1.0;
-    //                 }
-    //                 auto fatAABB = broadphase.fatAABB;
-    //                 renderer.drawShapeRectangle(
-    //                     worldPos,
-    //                     vec2(fatAABB.upper.x - fatAABB.lower.x,
-    //                          fatAABB.upper.y - fatAABB.lower.y),
-    //                     0xffffffff,
-    //                     1.0f / zoom,
-    //                     0.0f,
-    //                     0);
-    //             }
-    //         });
     if (overlayAabbTreeEnabled)
     {
         drawOverlayAABBs(renderer, zoom);
@@ -812,220 +768,288 @@ void Model::drawStrategicMap(gfx::RenderEngine& renderer,
     }
 }
 
-void Model::drawThirdPerson(gfx::RenderEngine& renderer,
-                            const glm::vec4& viewRect,
-                            float zoom)
+void Model::drawRealtime(gfx::RenderEngine& renderer)
 {
-    world.drawThirdPerson(renderer, viewRect, zoom);
-    drawObjects(renderer, viewRect, zoom);
+    // world.drawThirdPerson(renderer, viewRect, zoom);
+    long frametime = tim::nowU();
+    std::vector<RealtimeDrawBounds> bounds;
+    createRealtimeDrawBounds(bounds);
+    drawRealtimeShips(renderer, bounds, frametime);
+    drawRealtimeProjectiles(renderer, bounds, frametime);
+    drawRealtimeBeams(renderer, bounds, frametime);
+    drawRealtimeItems(renderer, bounds, frametime);
 }
 
-void Model::drawObjects(gfx::RenderEngine& renderer,
-                        const glm::vec4& viewRect,
-                        float zoom,
-                        uint32_t activeSectorId)
+void Model::createRealtimeDrawBounds(vector<RealtimeDrawBounds>& bounds)
 {
-    drawItems(renderer, viewRect, zoom, activeSectorId);
-    drawProjectiles(renderer, viewRect, zoom, activeSectorId);
-    drawBeams(renderer, viewRect, zoom, activeSectorId);
-    drawStations(renderer, viewRect, zoom, activeSectorId);
-    drawShips(renderer, viewRect, zoom, activeSectorId);
-    drawAsteroids(renderer, viewRect, zoom, activeSectorId);
-}
-
-void Model::drawShips(gfx::RenderEngine& renderer,
-                      const glm::vec4& viewRect,
-                      float zoom,
-                      uint32_t activeSectorId)
-{
-    auto& reg = clientRegistry.getRegistry();
-    reg.view<ecs::Transform, ecs::SectorId, ecs::Textures, ecs::Hull>().each(
-        [this, &renderer, &viewRect, &reg, activeSectorId](
-            game_entity entity,
-            ecs::Transform& transform,
-            ecs::SectorId& sectorId,
-            ecs::Textures& textures,
-            ecs::Hull& hull)
-        {
-            bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
-                                || sectorId.id == activeSectorId;
-            if (sectorFilter)
-            {
-                glm::vec2 worldPos =
-                    world.getWorldPosSectorOffset(sectorId.id,
-                                                  renderer.getSectorOffsetX(),
-                                                  renderer.getSectorOffsetY())
-                    + transform.pos;
-                if (smath::pointInsideRect(worldPos, viewRect))
-                {
-                    drawModuleTextures(renderer,
-                                       transform,
-                                       gfx::RenderEngine::zIdxShipHull,
-                                       hull,
-                                       worldPos);
-                    drawTextures(renderer,
-                                 textures,
-                                 transform.rot,
-                                 gfx::RenderEngine::zIdxShipHull,
-                                 worldPos);
-                }
-            }
-        });
-}
-
-void Model::drawStations(gfx::RenderEngine& renderer,
-                         const glm::vec4& viewRect,
-                         float zoom,
-                         uint32_t activeSectorId)
-{
-    auto& reg = clientRegistry.getRegistry();
-    reg.view<ecs::Transform, ecs::SectorId, ecs::Station>().each(
-        [this, &renderer, &viewRect, &reg, activeSectorId](
-            ecs::Transform& transform,
-            ecs::SectorId& sectorId,
-            ecs::Station& station)
-        {
-            bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
-                                || sectorId.id == activeSectorId;
-            if (sectorFilter)
-            {
-                glm::vec2 sectorOffset =
-                    world.getWorldPosSectorOffset(sectorId.id,
-                                                  renderer.getSectorOffsetX(),
-                                                  renderer.getSectorOffsetY());
-                if (smath::pointInsideRect(sectorOffset + transform.pos,
-                                           viewRect))
-                {
-                    drawStationTextures(
-                        renderer, transform, station, sectorOffset);
-                }
-            }
-        });
-}
-
-void Model::drawProjectiles(gfx::RenderEngine& renderer,
-                            const glm::vec4& viewRect,
-                            float zoom,
-                            uint32_t activeSectorId)
-{
-    auto sector = world.getSector(activeSectorId);
-    if (!sector)
+    const auto& viewRect = clientInfo.clientViewRect;
+    const auto& tl = viewRect.tl;
+    const auto& br = viewRect.br;
+    const float halfSize = world.getWorldShape().sectorSize / 2.0f;
+    for (uint32_t secX = tl.pos.x; secX <= br.pos.x; ++secX)
     {
-        return;
-    }
-    sector->projectiles.foreach (
-        [&renderer, &viewRect, this](opool::ProjClient& proj)
+        for (uint32_t secY = tl.pos.y; secY <= br.pos.y; ++secY)
         {
-            if (smath::pointInsideRect(proj.posNext.pos, viewRect))
+            auto sector = world.getSectorByCoords(secX, secY);
+            if (sector)
             {
-                auto projectile =
-                    modManager->getProjectileLib().getItem(proj.proj);
-                if (projectile)
-                {
-                    drawTextures(renderer,
-                                 projectile->textures,
-                                 proj.rot,
-                                 gfx::RenderEngine::zIdxProjectile,
-                                 proj.posNext.pos);
-                }
+                const vec2 lower(
+                    (secX == tl.pos.x) ? tl.sectorPos.x : -halfSize,
+                    (secY == tl.pos.y) ? tl.sectorPos.y : -halfSize);
+                const vec2 upper((secX == br.pos.x) ? br.sectorPos.x : halfSize,
+                                 (secY == br.pos.y) ? br.sectorPos.y
+                                                    : halfSize);
+                bounds.push_back({.sectorId = sector->getId(),
+                                  .aabb = {.lower = lower, .upper = upper}});
             }
-        });
+        }
+    }
 }
 
-void Model::drawBeams(gfx::RenderEngine& renderer,
-                      const glm::vec4& viewRect,
-                      float zoom,
-                      uint32_t activeSectorId)
-{
-    auto sector = world.getSector(activeSectorId);
-    if (!sector)
-    {
-        return;
-    }
-    sector->beams.foreach (
-        [&renderer, &viewRect, this](opool::BeamClient& beam)
-        {
-            if (smath::pointInsideRect(beam.lNext.pos1, viewRect))
-            {
-                auto beamD = modManager->getBeamLib().getItem(beam.beam);
-                if (beamD)
-                {
-                    renderer.drawLine(beam.lNext.pos1,
-                                      beam.lNext.pos2,
-                                      beamD->color,
-                                      beamD->width,
-                                      gfx::RenderEngine::zIdxProjectile);
-                }
-            }
-        });
-}
-
-void Model::drawAsteroids(gfx::RenderEngine& renderer,
-                          const glm::vec4& viewRect,
-                          float zoom,
-                          uint32_t activeSectorId)
+void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
+                              const vector<RealtimeDrawBounds>& drawBounds,
+                              long frametime)
 {
     auto& reg = clientRegistry.getRegistry();
-    reg.view<ecs::Transform, ecs::SectorId, ecs::Asteroid, ecs::Textures>()
+    reg.view<TransformHist,
+             ecs::SectorId,
+             ecs::Textures,
+             ecs::Hull,
+             ecs::Collider>()
         .each(
-            [this, &renderer, &viewRect, &reg, activeSectorId](
-                ecs::Transform& transform,
+            [this, &renderer, &reg, &drawBounds, frametime](
+                game_entity entity,
+                TransformHist& tr,
                 ecs::SectorId& sectorId,
-                ecs::Asteroid& asteroid,
-                ecs::Textures& textures)
+                ecs::Textures& textures,
+                ecs::Hull& hull,
+                ecs::Collider& coll)
             {
-                bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
-                                    || sectorId.id == activeSectorId;
-                if (sectorFilter)
+                // Check if in any visible sector
+                for (auto& bounds : drawBounds)
                 {
-                    glm::vec2 worldPos = world.getWorldPosSectorOffset(
-                                             sectorId.id,
-                                             renderer.getSectorOffsetX(),
-                                             renderer.getSectorOffsetY())
-                                         + transform.pos;
-                    if (smath::pointInsideRect(worldPos, viewRect))
+                    if (bounds.sectorId == sectorId.id)
                     {
-                        drawTextures(renderer,
-                                     textures,
-                                     transform.rot,
-                                     gfx::RenderEngine::zIdxAsteroid,
-                                     worldPos);
+                        // Check if collider intersects view rect
+                        auto collider = modManager->getColliderLib().getItem(
+                            coll.colliderHandle);
+                        if (!collider)
+                        {
+                            break;
+                        }
+                        const float centerDist = collider->getSimpleMaxDist();
+                        const vec2 centerDistVec = vec2(centerDist, centerDist);
+                        // LG_D("something {}", tr.latest().tr);
+                        const con::AABB aabb{
+                            .lower = tr.latest().tr.pos - centerDistVec,
+                            .upper = tr.latest().tr.pos + centerDistVec};
+                        if (bounds.aabb.overlaps(aabb))
+                        {
+                            long renderTime =
+                                frametime - timeSyncData.serverLatency - 100000;
+                            const auto interpol = tr.interpolate(renderTime);
+                            // draw Ship
+                            glm::vec2 worldPos =
+                                world.getWorldPosSectorOffset(
+                                    sectorId.id,
+                                    renderer.getSectorOffsetX(),
+                                    renderer.getSectorOffsetY())
+                                + interpol.tr.pos;
+                            drawModuleTextures(renderer,
+                                interpol.tr,
+                                               gfx::RenderEngine::zIdxShipHull,
+                                               hull,
+                                               worldPos);
+                            drawTextures(renderer,
+                                         textures,
+                                         interpol.tr.rot,
+                                         gfx::RenderEngine::zIdxShipHull,
+                                         worldPos);
+                        }
+                        break;
                     }
                 }
             });
 }
 
-void Model::drawItems(gfx::RenderEngine& renderer,
-                      const glm::vec4& viewRect,
-                      float zoom,
-                      uint32_t activeSectorId)
+// void Model::drawRealtimeStations(gfx::RenderEngine& renderer,
+//                                  const vector<RealtimeDrawBounds>&
+//                                  drawBounds)
+// {
+//     auto& reg = clientRegistry.getRegistry();
+//     reg.view<ecs::Transform, ecs::SectorId, ecs::Station>().each(
+//         [this, &renderer, &viewRect, &reg, activeSectorId](
+//             ecs::Transform& transform,
+//             ecs::SectorId& sectorId,
+//             ecs::Station& station)
+//         {
+//             bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
+//                                 || sectorId.id == activeSectorId;
+//             if (sectorFilter)
+//             {
+//                 glm::vec2 sectorOffset =
+//                     world.getWorldPosSectorOffset(sectorId.id,
+//                                                   renderer.getSectorOffsetX(),
+//                                                   renderer.getSectorOffsetY());
+//                 if (smath::pointInsideRect(sectorOffset + transform.pos,
+//                                            viewRect))
+//                 {
+//                     drawStationTextures(
+//                         renderer, transform, station, sectorOffset);
+//                 }
+//             }
+//         });
+// }
+
+// void Model::drawRealtimeAsteroids(gfx::RenderEngine& renderer,
+//                                   const glm::vec4& viewRect,
+//                                   float zoom,
+//                                   uint32_t activeSectorId)
+// {
+//     auto& reg = clientRegistry.getRegistry();
+//     reg.view<ecs::Transform, ecs::SectorId, ecs::Asteroid, ecs::Textures>()
+//         .each(
+//             [this, &renderer, &viewRect, &reg, activeSectorId](
+//                 ecs::Transform& transform,
+//                 ecs::SectorId& sectorId,
+//                 ecs::Asteroid& asteroid,
+//                 ecs::Textures& textures)
+//             {
+//                 bool sectorFilter = activeSectorId ==
+//                 world::INVALID_SECTOR_ID
+//                                     || sectorId.id == activeSectorId;
+//                 if (sectorFilter)
+//                 {
+//                     glm::vec2 worldPos = world.getWorldPosSectorOffset(
+//                                              sectorId.id,
+//                                              renderer.getSectorOffsetX(),
+//                                              renderer.getSectorOffsetY())
+//                                          + transform.pos;
+//                     if (smath::pointInsideRect(worldPos, viewRect))
+//                     {
+//                         drawTextures(renderer,
+//                                      textures,
+//                                      transform.rot,
+//                                      gfx::RenderEngine::zIdxAsteroid,
+//                                      worldPos);
+//                     }
+//                 }
+//             });
+// }
+
+void Model::drawRealtimeItems(gfx::RenderEngine& renderer,
+                              const vector<RealtimeDrawBounds>& drawBounds,
+                              long frametime)
 {
-    auto sector = world.getSector(activeSectorId);
-    if (!sector)
+    for (auto& bound : drawBounds)
     {
-        return;
-    }
-    sector->items.foreach (
-        [&renderer, &viewRect, this](opool::ItemClient& item)
+        auto sector = world.getSector(bound.sectorId);
+        if (!sector)
         {
-            if (smath::pointInsideRect(item.transform.pos, viewRect))
+            continue;
+        }
+        const con::AABB visibleBounds = {
+            .lower = bound.aabb.lower - vec2(100.0f, 100.0f),
+            .upper = bound.aabb.upper + vec2(100.0f, 100.0f),
+        };
+        sector->items.foreach (
+            [&renderer, &visibleBounds, this](opool::ItemClient& item)
             {
-                auto itemData = modManager->getItemLib().getItem(item.item);
-                if (itemData)
+                if (visibleBounds.containsPoint(item.transform.pos))
                 {
-                    drawTexture(renderer,
-                                itemData->worldTexture,
-                                item.transform.rot,
-                                vec2{0.0f, 0.0f},
-                                gfx::RenderEngine::zIdxItem,
-                                item.transform.pos,
-                                true);
-                    // ++i;
+                    auto itemData = modManager->getItemLib().getItem(item.item);
+                    if (itemData)
+                    {
+                        drawTexture(renderer,
+                                    itemData->worldTexture,
+                                    item.transform.rot,
+                                    vec2{0.0f, 0.0f},
+                                    gfx::RenderEngine::zIdxItem,
+                                    item.transform.pos,
+                                    true);
+                    }
                 }
-            }
-        });
-    // LG_D("{}", i);
+            });
+    }
 }
+
+void Model::drawRealtimeProjectiles(
+    gfx::RenderEngine& renderer,
+    const vector<RealtimeDrawBounds>& drawBounds,
+    long frametime)
+{
+    for (auto& bound : drawBounds)
+    {
+        auto sector = world.getSector(bound.sectorId);
+        if (!sector)
+        {
+            continue;
+        }
+        const con::AABB visibleBounds = {
+            .lower = bound.aabb.lower - vec2(100.0f, 100.0f),
+            .upper = bound.aabb.upper + vec2(100.0f, 100.0f),
+        };
+        sector->projectiles.foreach (
+            [&renderer, &visibleBounds, this](opool::ProjClient& proj)
+            {
+                if (visibleBounds.containsPoint(proj.posNext.pos))
+                {
+                    auto projectile =
+                        modManager->getProjectileLib().getItem(proj.proj);
+                    if (projectile)
+                    {
+                        drawTextures(renderer,
+                                     projectile->textures,
+                                     proj.rot,
+                                     gfx::RenderEngine::zIdxProjectile,
+                                     proj.posNext.pos);
+                    }
+                }
+            });
+    }
+}
+
+void Model::drawRealtimeBeams(gfx::RenderEngine& renderer,
+                              const vector<RealtimeDrawBounds>& drawBounds,
+                              long frametime)
+{
+    for (auto& bound : drawBounds)
+    {
+        auto sector = world.getSector(bound.sectorId);
+        if (!sector)
+        {
+            continue;
+        }
+        const con::AABB visibleBounds = {
+            .lower = bound.aabb.lower - vec2(100.0f, 100.0f),
+            .upper = bound.aabb.upper + vec2(100.0f, 100.0f),
+        };
+        sector->beams.foreach (
+            [&renderer, &visibleBounds, this](opool::BeamClient& beam)
+            {
+                const vec2 pos1 = beam.lNext.pos1;
+                const vec2 pos2 = beam.lNext.pos2;
+                const vec2 aa =
+                    vec2(std::min(pos1.x, pos2.x), std::min(pos1.y, pos2.y));
+                const vec2 bb =
+                    vec2(std::max(pos1.x, pos2.x), std::max(pos1.y, pos2.y));
+                const con::AABB beamAabb = {.lower = aa, .upper = bb};
+                if (visibleBounds.overlaps(beamAabb))
+                {
+                    auto beamD = modManager->getBeamLib().getItem(beam.beam);
+                    if (beamD)
+                    {
+                        renderer.drawLine(beam.lNext.pos1,
+                                          beam.lNext.pos2,
+                                          beamD->color,
+                                          beamD->width,
+                                          gfx::RenderEngine::zIdxProjectile);
+                    }
+                }
+            });
+    }
+}
+
 
 void Model::drawStationTextures(gfx::RenderEngine& renderer,
                                 const ecs::Transform& parentTransform,
@@ -1452,7 +1476,7 @@ Model::selectEntityAtWorldPos(const def::SectorCoords& sectorCoords)
         auto& tr = reg.get<ecs::Transform>(entity);
         auto& eid = reg.get<ecs::EntityId>(entity);
         auto& collider = reg.get<ecs::Collider>(entity);
-        if (sid.x == sectorCoords.pos.x && sid.y == sectorCoords.pos.y)
+        if (sid.coord == sectorCoords.pos)
         {
             if (collider.isPointInsideWorld(sectorCoords.sectorPos,
                                             tr,
@@ -1484,7 +1508,7 @@ Model::selectEntityAtWorldPosFast(const def::SectorCoords& sectorCoords,
         auto& sid = reg.get<ecs::SectorId>(entity);
         auto& tr = reg.get<ecs::Transform>(entity);
         auto& eid = reg.get<ecs::EntityId>(entity);
-        if (sid.x == sectorCoords.pos.x && sid.y == sectorCoords.pos.y)
+        if (sid.coord == sectorCoords.pos)
         {
             if (glm::length2(tr.pos - sectorCoords.sectorPos) <= dist2)
             {
@@ -1514,18 +1538,18 @@ void Model::selectEntitiesInsideRect(const def::SectorCoords& start,
             [this, &xMin, &xMax, &yMin, &yMax](
                 ecs::SectorId& sid, ecs::Transform& tr, ecs::EntityId& eid)
             {
-                bool xMinBool =
-                    sid.x > xMin.pos.x
-                    || (sid.x == xMin.pos.x && tr.pos.x > xMin.sectorPos.x);
-                bool xMaxBool =
-                    sid.x < xMax.pos.x
-                    || (sid.x == xMax.pos.x && tr.pos.x < xMax.sectorPos.x);
-                bool yMinBool =
-                    sid.y > yMin.pos.y
-                    || (sid.y == yMin.pos.y && tr.pos.y > yMin.sectorPos.y);
-                bool yMaxBool =
-                    sid.y < yMax.pos.y
-                    || (sid.y == yMax.pos.y && tr.pos.y < yMax.sectorPos.y);
+                bool xMinBool = sid.coord.x > xMin.pos.x
+                                || (sid.coord.x == xMin.pos.x
+                                    && tr.pos.x > xMin.sectorPos.x);
+                bool xMaxBool = sid.coord.x < xMax.pos.x
+                                || (sid.coord.x == xMax.pos.x
+                                    && tr.pos.x < xMax.sectorPos.x);
+                bool yMinBool = sid.coord.y > yMin.pos.y
+                                || (sid.coord.y == yMin.pos.y
+                                    && tr.pos.y > yMin.sectorPos.y);
+                bool yMaxBool = sid.coord.y < yMax.pos.y
+                                || (sid.coord.y == yMax.pos.y
+                                    && tr.pos.y < yMax.sectorPos.y);
                 if (xMinBool && xMaxBool && yMinBool && yMaxBool)
                 {
                     selectedEntities.push_back(eid);
@@ -1742,7 +1766,7 @@ void Model::handleEcsRealtime(bitsery::Deserializer<InputAdapter>& cmddes,
     // {
     //     return;
     // }
-    auto &reg = clientRegistry.getRegistry();
+    auto& reg = clientRegistry.getRegistry();
     while ((int)cmddes.adapter().currentReadPos() < (int)(dataEndPos)-8)
     {
         namespace Rtf = prot::cmd::Rtf;
@@ -1751,22 +1775,38 @@ void Model::handleEcsRealtime(bitsery::Deserializer<InputAdapter>& cmddes,
         cmddes.object(entityId);
         cmddes.value2b(flags);
         game_entity entity = clientRegistry.enttFromServerId(entityId, false);
-        if(flags & Rtf::HasTransform)
+        auto sector = reg.try_get<ecs::SectorId>(entity);
+        if (sector && sector->id != sectorId)
+        {
+            sector->id = sectorId;
+            sector->coord = world.idToSectorCoords(sectorId);
+        }
+        if (flags & Rtf::HasTransform)
         {
             ecs::Transform tr;
             cmddes.object(tr);
-            // Replace with timestamped sync system
-            reg.emplace_or_replace<ecs::Transform>(entity, tr);
+            auto& clitr = reg.get_or_emplace<TransformHist>(entity);
+            clitr.addSample({.tr = tr, .sectorId = sectorId}, frametime);
         }
-        if(flags & Rtf::HasThrust)
+        if (flags & Rtf::HasThrust)
         {
             vec2 thrust;
             cmddes.object(thrust);
+            auto phythrust = reg.try_get<ecs::PhyThrust>(entity);
+            if (phythrust)
+            {
+                phythrust->thrustLocal = thrust;
+            }
         }
-        if(flags & Rtf::HasTurret)
+        if (flags & Rtf::HasTurret)
         {
             float rot;
             cmddes.value4b(rot);
+            auto turr = reg.try_get<ecs::Turret>(entity);
+            if (turr)
+            {
+                turr->currentAngle = rot;
+            }
         }
     }
 }

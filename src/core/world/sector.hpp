@@ -3,6 +3,7 @@
 
 #include "entt/entity/fwd.hpp"
 #include "free-vector.hpp"
+#include "world-def.hpp"
 #include <comp-phy.hpp>
 #include <cstdint>
 #include <ptr-handle.hpp>
@@ -62,8 +63,7 @@ class Sector
 
     Sector();
     ~Sector();
-    void init(int x,
-              int y,
+    void init(def::SectorPos coord,
               float sectorSize,
               uint32_t id,
               Sector* neighbors[8],
@@ -126,29 +126,33 @@ class Sector
         broadphaseQueryEntities.push_back(entity);
     }
 #endif
-    const float getWorldPosX() const
+    float getWorldPosX() const
     {
-        return worldPosX;
+        return worldPos.x;
     }
-    const float getWorldPosY() const
+    float getWorldPosY() const
     {
-        return worldPosY;
+        return worldPos.y;
     }
-    const glm::vec2 getWorldPos() const
+    glm::vec2 getWorldPos() const
     {
-        return glm::vec2(worldPosX, worldPosY);
+        return worldPos;
     }
-    const uint32_t getId() const
+    uint32_t getId() const
     {
         return id;
     }
-    const uint32_t getCoordX()
+    uint32_t getCoordX()
     {
-        return coordX;
+        return coord.x;
     }
-    const uint32_t getCoordY()
+    uint32_t getCoordY()
     {
-        return coordY;
+        return coord.y;
+    }
+    def::SectorPos getCoords()
+    {
+        return coord;
     }
     bool isActive()
     {
@@ -177,12 +181,10 @@ class Sector
 #endif
 
   private:
-    int32_t coordX;        // Sector coord X
-    int32_t coordY;        // Sector coord Y
+    def::SectorPos coord;
     float sectorSize;      // Sector size
     uint32_t id;           // Sector Id
-    float worldPosX;       // Sector center X in world coords
-    float worldPosY;       // Sector center Y in world coords
+    vec2 worldPos;
     Sector* neighbors[8];  // Neighboring Sectors (8 neighbors)
     bool dirty;            // Sector dirty flag
 #ifdef SERVER

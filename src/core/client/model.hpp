@@ -1,6 +1,8 @@
 #ifndef MODEL_HPP
 #define MODEL_HPP
 
+#include "glm/common.hpp"
+#include "logging.hpp"
 #include "sector.hpp"
 #include <RmlUi/Core/DataModelHandle.h>
 #include <asset-factory.hpp>
@@ -13,6 +15,8 @@
 #include <obj-pool-client.hpp>
 #include <std-inc.hpp>
 #include <world.hpp>
+
+#define INTERPOL_DEPTH 5
 
 namespace ecs
 {
@@ -52,6 +56,80 @@ struct ConnectingData
     string info;
 };
 
+struct RealtimeDrawBounds
+{
+    uint32_t sectorId;
+    con::AABB aabb;
+};
+
+template <class T> class InterpolData
+{
+  public:
+    void addSample(const T& sample, long ts)
+    {
+        newest = next(newest);
+        history[newest] = sample;
+        timestamps[newest] = ts;
+    }
+    T interpolate(long time) const
+    {
+        if (time > timestamps[newest])
+        {
+            LG_W("interpolation failed: time > newest timestamp");
+            return history[newest];
+        }
+        uint8_t p = newest;
+        uint8_t n = newest;
+        uint8_t i = 0;
+        while (time < timestamps[p])
+        {
+            if (i++ == INTERPOL_DEPTH - 1)
+            {
+                LG_W("Nothing found");
+                return latest();
+            }
+            n = p;
+            p = previous(p);
+        }
+        float alpha = (float)(timestamps[n] - timestamps[p])
+                      / (float)(time - timestamps[p]);
+        return history[p].mix(history[n], alpha);
+    }
+    T latest() const
+    {
+        return history[newest];
+    }
+
+  private:
+    uint8_t next(uint8_t i) const
+    {
+        return (i + 1) % INTERPOL_DEPTH;
+    }
+
+    uint8_t previous(uint8_t i) const
+    {
+        return (i + INTERPOL_DEPTH - 1) % INTERPOL_DEPTH;
+    }
+    long timestamps[INTERPOL_DEPTH] = {0};
+    T history[INTERPOL_DEPTH];
+    uint8_t newest = 0;
+};
+
+struct ClientTransform
+{
+    ecs::Transform tr;
+    uint32_t sectorId;
+
+    ClientTransform mix(const ClientTransform& other, float alpha) const
+    {
+        return {.tr = {.pos = glm::mix(tr.pos, other.tr.pos, alpha),
+                       .rot = other.tr.rot},
+                .sectorId = other.sectorId};
+    }
+};
+
+typedef InterpolData<ClientTransform> TransformHist;
+
 class Model
 {
   public:
@@ -61,7 +139,7 @@ class Model
           gfx::RenderEngine* renderer,
           std::function<void(void)> afterLoadWorldClb);
     ~Model();
-    void modelLoop(float dt);
+    void modelLoop(float dt, long frametime);
 
     void startLoadingMods();
     void startModel();
@@ -72,9 +150,7 @@ class Model
     void drawStrategicMap(gfx::RenderEngine& renderer,
                           const glm::vec4& viewRect,
                           float zoom);
-    void drawThirdPerson(gfx::RenderEngine& renderer,
-                         const glm::vec4& viewRect,
-                         float zoom);
+    void drawRealtime(gfx::RenderEngine& renderer);
     void setOverlayEnabled(const std::string& overlay, bool enabled);
     bool isAabbTreeOverlayEnabled() const;
     void sendCmdToServer(const std::string& command);
@@ -158,7 +234,7 @@ class Model
                       uint8_t flags,
                       size_t dataEndPos);
     void modelLoopMenu(float dt);
-    void modelLoopGame(float dt);
+    void modelLoopGame(float dt, long frametime);
     void timeSync();
     void authenticate();
     void handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
@@ -171,7 +247,7 @@ class Model
     void handleDestroyEntity(bitsery::Deserializer<InputAdapter>& cmddes,
                              size_t dataEndPos);
     void handleEcsRealtime(bitsery::Deserializer<InputAdapter>& cmddes,
-                             size_t dataEndPos);
+                           size_t dataEndPos);
     void handleSendOpool(
         bitsery::Deserializer<InputAdapter>& cmddes,
         size_t dataEndPos,
@@ -184,18 +260,24 @@ class Model
     void handleActiveEntitySwitched(bitsery::Deserializer<InputAdapter>& cmddes,
                                     size_t dataEndPos);
     void drawOverlayAABBs(gfx::RenderEngine& renderer, float zoom);
-    void drawObjects(gfx::RenderEngine& renderer,
-                     const glm::vec4& viewRect,
-                     float zoom,
-                     uint32_t activeSectorId = world::INVALID_SECTOR_ID);
-    void drawShips(gfx::RenderEngine& renderer,
-                   const glm::vec4& viewRect,
-                   float zoom,
-                   uint32_t activeSectorId = world::INVALID_SECTOR_ID);
-    void drawStations(gfx::RenderEngine& renderer,
-                      const glm::vec4& viewRect,
-                      float zoom,
-                      uint32_t activeSectorId = world::INVALID_SECTOR_ID);
+
+    // Realtime drawing
+    void createRealtimeDrawBounds(vector<RealtimeDrawBounds>& bounds);
+    void drawRealtimeShips(gfx::RenderEngine& renderer,
+                           const vector<RealtimeDrawBounds>& drawBounds,
+                           long frametime);
+    // void drawRealtimeStations(gfx::RenderEngine& renderer);
+    void drawRealtimeItems(gfx::RenderEngine& renderer,
+                           const vector<RealtimeDrawBounds>& drawBounds,
+                           long frametime);
+    void drawRealtimeProjectiles(gfx::RenderEngine& renderer,
+                                 const vector<RealtimeDrawBounds>& drawBounds,
+                                 long frametime);
+    void drawRealtimeBeams(gfx::RenderEngine& renderer,
+                           const vector<RealtimeDrawBounds>& drawBounds,
+                           long frametime);
+    // void drawRealtimeAsteroids(gfx::RenderEngine& renderer);
+
     void drawTexture(gfx::RenderEngine& renderer,
                      const GenericHandle texture,
                      float rot,
@@ -222,22 +304,6 @@ class Model
                              const ecs::Transform& parentTransform,
                              ecs::Station& station,
                              const glm::vec2& sectorOffset);
-    void drawProjectiles(gfx::RenderEngine& renderer,
-                         const glm::vec4& viewRect,
-                         float zoom,
-                         uint32_t activeSectorId = world::INVALID_SECTOR_ID);
-    void drawBeams(gfx::RenderEngine& renderer,
-                   const glm::vec4& viewRect,
-                   float zoom,
-                   uint32_t activeSectorId = world::INVALID_SECTOR_ID);
-    void drawAsteroids(gfx::RenderEngine& renderer,
-                       const glm::vec4& viewRect,
-                       float zoom,
-                       uint32_t activeSectorId = world::INVALID_SECTOR_ID);
-    void drawItems(gfx::RenderEngine& renderer,
-                   const glm::vec4& viewRect,
-                   float zoom,
-                   uint32_t activeSectorId = world::INVALID_SECTOR_ID);
     void registerConnectSequence();
     uint32_t getActiveSectorId();
     game_entity getActiveEntity();

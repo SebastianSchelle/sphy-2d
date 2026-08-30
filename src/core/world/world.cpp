@@ -36,9 +36,9 @@ bool World::initSectors(bool fromSave, ecs::PtrHandle* ptrHandle)
     }
     else
     {
-        for (int i = 0; i < worldShape.numSectorX; i++)
+        for (uint32_t i = 0; i < worldShape.numSectorX; i++)
         {
-            for (int j = 0; j < worldShape.numSectorY; j++)
+            for (uint32_t j = 0; j < worldShape.numSectorY; j++)
             {
                 uint32_t sectorId = sectors.coordToIdx(i, j);
                 Sector* neighbors[8];
@@ -47,8 +47,7 @@ bool World::initSectors(bool fromSave, ecs::PtrHandle* ptrHandle)
                     neighbors[k] = getNeighboringSector(
                         i, j, static_cast<def::Direction>(k));
                 }
-                sectors.at(i, j)->init(i,
-                                       j,
+                sectors.at(i, j)->init({i, j},
                                        worldShape.sectorSize,
                                        sectorId,
                                        neighbors,
@@ -611,7 +610,7 @@ void World::handleSectorMoveRequests(ecs::PtrHandle* ptrHandle)
                 {
                     return;
                 }
-                if(!newSector->migrateObject(ptrHandle, request.entityId))
+                if (!newSector->migrateObject(ptrHandle, request.entityId))
                 {
                     LG_E("Sector migration failed");
                 }

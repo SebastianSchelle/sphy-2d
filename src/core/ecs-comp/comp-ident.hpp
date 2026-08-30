@@ -1,6 +1,7 @@
 #ifndef COMP_IDENT_HPP
 #define COMP_IDENT_HPP
 
+#include "world-def.hpp"
 #include <entt/entt.hpp>
 #include <std-inc.hpp>
 #include <yaml-cpp/yaml.h>
@@ -128,8 +129,7 @@ struct SectorId
     static constexpr string NAME = "sector-id";
 
     uint32_t id;
-    uint32_t x;
-    uint32_t y;
+    def::SectorPos coord;
 
     static void fromYaml(entt::registry& registry,
                          entt::entity entity,
@@ -138,21 +138,15 @@ struct SectorId
     {
         SectorId sectorId;
         TRY_YAML_DICT(sectorId.id, node["id"], 0u);
-        TRY_YAML_DICT(sectorId.x, node["x"], 0u);
-        TRY_YAML_DICT(sectorId.y, node["y"], 0u);
+        TRY_YAML_DICT(sectorId.coord.x, node["x"], 0u);
+        TRY_YAML_DICT(sectorId.coord.y, node["y"], 0u);
         registry.emplace<SectorId>(entity, sectorId);
-    }
-
-    vec2 toVec2() const
-    {
-        return vec2(x, y);
     }
 };
 
 #define SER_SECTOR_ID                                                          \
     S4b(o.id);                                                                 \
-    S4b(o.x);                                                                  \
-    S4b(o.y);
+    SOBJ(o.coord);
 EXT_SER(SectorId, SER_SECTOR_ID)
 EXT_DES(SectorId, SER_SECTOR_ID)
 
@@ -160,6 +154,6 @@ EXT_DES(SectorId, SER_SECTOR_ID)
 
 EXT_FMT(ecs::EntityId, "{}:{}", o.index, o.generation);
 EXT_FMT(ecs::AssetId, "{}", o.name);
-EXT_FMT(ecs::SectorId, "s:{}, x:{}, y:{}", o.id, o.x, o.y);
+EXT_FMT(ecs::SectorId, "s:{}, x:{}, y:{}", o.id, o.coord.x, o.coord.y);
 
 #endif

@@ -4,7 +4,6 @@
 #include "comp-ident.hpp"
 #include <aabb-tree.hpp>
 #include <algorithm>
-#include <climits>
 #include <cmath>
 #include <entt/entt.hpp>
 #include <lib-collider.hpp>
