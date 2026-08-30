@@ -91,8 +91,7 @@ template <class T> class InterpolData
             n = p;
             p = previous(p);
         }
-        float alpha = (float)(timestamps[n] - timestamps[p])
-                      / (float)(time - timestamps[p]);
+        float alpha = (float)(time - timestamps[p]) / (float)(timestamps[n] - timestamps[p]);
         return history[p].mix(history[n], alpha);
     }
     T latest() const

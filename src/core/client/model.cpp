@@ -200,21 +200,21 @@ void Model::modelLoopGame(float dt, long frametime)
         auto& reg = clientRegistry.getRegistry();
         if (reg.valid(activeEntity))
         {
-            auto* transform = reg.try_get<ecs::Transform>(activeEntity);
-            auto* sectorId = reg.try_get<ecs::SectorId>(activeEntity);
-            if (transform && sectorId)
+            auto* trHist = reg.try_get<TransformHist>(activeEntity);
+            if (trHist)
             {
+                auto interpolate = trHist->interpolate(frametime);
+                auto sectorCoords =
+                        world.idToSectorCoords(interpolate.sectorId);
                 if (renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
                 {
-                    renderer->setActiveSector(
-                        world.idToSectorCoords(sectorId->id).x,
-                        world.idToSectorCoords(sectorId->id).y);
+                    renderer->setActiveSector(sectorCoords.x, sectorCoords.y);
                 }
                 else
                 {
                     renderer->panWorldTo(def::SectorCoords{
-                        .pos = world.idToSectorCoords(sectorId->id),
-                        .sectorPos = transform->pos,
+                        .pos = sectorCoords,
+                        .sectorPos = interpolate.tr.pos,
                     });
                 }
             }
@@ -856,7 +856,7 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
                                     renderer.getSectorOffsetY())
                                 + interpol.tr.pos;
                             drawModuleTextures(renderer,
-                                interpol.tr,
+                                               interpol.tr,
                                                gfx::RenderEngine::zIdxShipHull,
                                                hull,
                                                worldPos);
