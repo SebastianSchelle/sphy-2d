@@ -91,8 +91,13 @@ template <class T> class InterpolData
             n = p;
             p = previous(p);
         }
-        float alpha = (float)(time - timestamps[p]) / (float)(timestamps[n] - timestamps[p]);
+        float alpha = (float)(time - timestamps[p])
+                      / (float)(timestamps[n] - timestamps[p]);
         return history[p].mix(history[n], alpha);
+    }
+    bool hasRecentData(long time, long maxTime)
+    {
+        return time - timestamps[newest] < maxTime;
     }
     T latest() const
     {
@@ -121,8 +126,11 @@ struct ClientTransform
 
     ClientTransform mix(const ClientTransform& other, float alpha) const
     {
-        return {.tr = {.pos = glm::mix(tr.pos, other.tr.pos, alpha),
-                       .rot = other.tr.rot},
+        // todo: fix mix when sector != other.sector
+        const vec2 mixPos = glm::mix(tr.pos, other.tr.pos, alpha);
+        const float mixRot =
+            tr.rot + smath::angleError(other.tr.rot, tr.rot) * alpha;
+        return {.tr = {.pos = mixPos, .rot = mixRot},
                 .sectorId = other.sectorId};
     }
 };
@@ -264,17 +272,17 @@ class Model
     void createRealtimeDrawBounds(vector<RealtimeDrawBounds>& bounds);
     void drawRealtimeShips(gfx::RenderEngine& renderer,
                            const vector<RealtimeDrawBounds>& drawBounds,
-                           long frametime);
+                           long rendertime);
     // void drawRealtimeStations(gfx::RenderEngine& renderer);
     void drawRealtimeItems(gfx::RenderEngine& renderer,
                            const vector<RealtimeDrawBounds>& drawBounds,
-                           long frametime);
+                           long rendertime);
     void drawRealtimeProjectiles(gfx::RenderEngine& renderer,
                                  const vector<RealtimeDrawBounds>& drawBounds,
-                                 long frametime);
+                                 long rendertime);
     void drawRealtimeBeams(gfx::RenderEngine& renderer,
                            const vector<RealtimeDrawBounds>& drawBounds,
-                           long frametime);
+                           long rendertime);
     // void drawRealtimeAsteroids(gfx::RenderEngine& renderer);
 
     void drawTexture(gfx::RenderEngine& renderer,

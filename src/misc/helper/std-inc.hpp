@@ -705,6 +705,16 @@ inline void translateVertices(const vector<vec2>& vertices,
     }
 }
 
+inline void translateVertices(const vector<vec2>& vertices,
+                              vector<vec2>& translated,
+                              const vec2& pos,
+                              float rot)
+{
+    const float c = cosf(rot);
+    const float s = sinf(rot);
+    translateVertices(vertices, translated, pos, c, s);
+}
+
 inline bool intervalsOverlapOnAxis(const std::vector<vec2>& a,
                                    const std::vector<vec2>& b,
                                    const vec2& axis,

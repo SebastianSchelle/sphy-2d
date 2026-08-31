@@ -335,33 +335,26 @@ EXT_DES(Broadphase, SER_BROADPHASE)
 
 inline con::AABB calculateAABB(const Transform& transform,
                                const TransformCache& transformCache,
-                               const Collider& collider,
                                const gobj::Collider* colliderDef);
 inline con::AABB
 calculateAABB(const Transform& transform,
               const TransformCache& transformCache,
-              const Collider& collider,
+              const ecs::Collider& collider,
               con::ItemLib<gobj::Collider>* colliderLib = nullptr)
 {
     return calculateAABB(transform,
                          transformCache,
-                         collider,
                          collider.getColliderDef(colliderLib));
 }
 
 inline con::AABB calculateAABB(const Transform& transform,
                                const TransformCache& transformCache,
-                               const Collider& collider,
                                const gobj::Collider* colliderDef)
 {
     con::AABB aabb =
         con::AABB{vec2{1.0e10f, 1.0e10f}, vec2{-1.0e10f, -1.0e10f}};
-    const auto* verts = collider.getVertices(colliderDef);
-    if (!verts)
-    {
-        return aabb;
-    }
-    for (const auto& vert : *verts)
+    const auto& verts = colliderDef->vertices;
+    for (const auto& vert : verts)
     {
         float x = transformCache.c * vert.x - transformCache.s * vert.y
                   + transform.pos.x;

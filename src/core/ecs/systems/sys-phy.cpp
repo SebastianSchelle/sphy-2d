@@ -368,7 +368,7 @@ void sysPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                     const gobj::Collider* colliderDef =
                         collider->getColliderDef(ptrHandle->colliderLib);
                     con::AABB newAabb = calculateAABB(
-                        transform, transformCache, *collider, colliderDef);
+                        transform, transformCache, colliderDef);
                     if (broadphase.proxyId > Broadphase::INVALID_PROXY_ID)
                     {
                         sector->moveAabbProxy(broadphase.proxyId, newAabb);

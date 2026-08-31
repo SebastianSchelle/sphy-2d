@@ -203,9 +203,11 @@ void Model::modelLoopGame(float dt, long frametime)
             auto* trHist = reg.try_get<TransformHist>(activeEntity);
             if (trHist)
             {
-                auto interpolate = trHist->interpolate(frametime);
+                long rendertime =
+                    frametime - timeSyncData.serverLatency - 100000;
+                auto interpolate = trHist->interpolate(rendertime);
                 auto sectorCoords =
-                        world.idToSectorCoords(interpolate.sectorId);
+                    world.idToSectorCoords(interpolate.sectorId);
                 if (renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
                 {
                     renderer->setActiveSector(sectorCoords.x, sectorCoords.y);
@@ -772,12 +774,13 @@ void Model::drawRealtime(gfx::RenderEngine& renderer)
 {
     // world.drawThirdPerson(renderer, viewRect, zoom);
     long frametime = tim::nowU();
+    long renderTime = frametime - timeSyncData.serverLatency - 100000;
     std::vector<RealtimeDrawBounds> bounds;
     createRealtimeDrawBounds(bounds);
-    drawRealtimeShips(renderer, bounds, frametime);
-    drawRealtimeProjectiles(renderer, bounds, frametime);
-    drawRealtimeBeams(renderer, bounds, frametime);
-    drawRealtimeItems(renderer, bounds, frametime);
+    drawRealtimeShips(renderer, bounds, renderTime);
+    drawRealtimeProjectiles(renderer, bounds, renderTime);
+    drawRealtimeBeams(renderer, bounds, renderTime);
+    drawRealtimeItems(renderer, bounds, renderTime);
 }
 
 void Model::createRealtimeDrawBounds(vector<RealtimeDrawBounds>& bounds)
@@ -808,7 +811,7 @@ void Model::createRealtimeDrawBounds(vector<RealtimeDrawBounds>& bounds)
 
 void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
                               const vector<RealtimeDrawBounds>& drawBounds,
-                              long frametime)
+                              long rendertime)
 {
     auto& reg = clientRegistry.getRegistry();
     reg.view<TransformHist,
@@ -817,7 +820,7 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
              ecs::Hull,
              ecs::Collider>()
         .each(
-            [this, &renderer, &reg, &drawBounds, frametime](
+            [this, &renderer, &reg, &drawBounds, rendertime](
                 game_entity entity,
                 TransformHist& tr,
                 ecs::SectorId& sectorId,
@@ -828,46 +831,62 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
                 // Check if in any visible sector
                 for (auto& bounds : drawBounds)
                 {
-                    if (bounds.sectorId == sectorId.id)
+                    if (bounds.sectorId != sectorId.id)
                     {
-                        // Check if collider intersects view rect
-                        auto collider = modManager->getColliderLib().getItem(
-                            coll.colliderHandle);
-                        if (!collider)
-                        {
-                            break;
-                        }
-                        const float centerDist = collider->getSimpleMaxDist();
-                        const vec2 centerDistVec = vec2(centerDist, centerDist);
-                        // LG_D("something {}", tr.latest().tr);
-                        const con::AABB aabb{
-                            .lower = tr.latest().tr.pos - centerDistVec,
-                            .upper = tr.latest().tr.pos + centerDistVec};
-                        if (bounds.aabb.overlaps(aabb))
-                        {
-                            long renderTime =
-                                frametime - timeSyncData.serverLatency - 100000;
-                            const auto interpol = tr.interpolate(renderTime);
-                            // draw Ship
-                            glm::vec2 worldPos =
-                                world.getWorldPosSectorOffset(
-                                    sectorId.id,
-                                    renderer.getSectorOffsetX(),
-                                    renderer.getSectorOffsetY())
-                                + interpol.tr.pos;
-                            drawModuleTextures(renderer,
-                                               interpol.tr,
-                                               gfx::RenderEngine::zIdxShipHull,
-                                               hull,
-                                               worldPos);
-                            drawTextures(renderer,
-                                         textures,
-                                         interpol.tr.rot,
-                                         gfx::RenderEngine::zIdxShipHull,
-                                         worldPos);
-                        }
+                        continue;
+                    }
+                    // Check if collider intersects view rect
+                    auto collider = modManager->getColliderLib().getItem(
+                        coll.colliderHandle);
+                    if (!collider)
+                    {
                         break;
                     }
+                    const float centerDist = collider->getSimpleMaxDist();
+                    const vec2 centerDistVec = vec2(centerDist, centerDist);
+                    // LG_D("something {}", tr.latest().tr);
+                    if(!tr.hasRecentData(rendertime, 100000))
+                    {
+                        break;
+                    }
+                    const auto& latestTr = tr.latest().tr;
+                    const con::AABB aabb{.lower = latestTr.pos - centerDistVec,
+                                         .upper = latestTr.pos + centerDistVec};
+                    if (!bounds.aabb.overlaps(aabb))
+                    {
+                        break;
+                    }
+                    // Do additional fine grained check
+                    std::vector<vec2> w1;
+                    sat2d::translateVertices(
+                        collider->vertices, w1, latestTr.pos, latestTr.rot);
+                    con::AABB fineAabb = ecs::calculateAABB(
+                        latestTr,
+                        ecs::TransformCache{.c = cosf(latestTr.rot),
+                                            .s = sinf(latestTr.rot)},
+                        collider);
+                    if (!bounds.aabb.overlaps(fineAabb))
+                    {
+                        break;
+                    }
+                    const auto interpol = tr.interpolate(rendertime);
+                    // draw Ship
+                    glm::vec2 worldPos = world.getWorldPosSectorOffset(
+                                             sectorId.id,
+                                             renderer.getSectorOffsetX(),
+                                             renderer.getSectorOffsetY())
+                                         + interpol.tr.pos;
+                    drawModuleTextures(renderer,
+                                       interpol.tr,
+                                       gfx::RenderEngine::zIdxShipHull,
+                                       hull,
+                                       worldPos);
+                    drawTextures(renderer,
+                                 textures,
+                                 interpol.tr.rot,
+                                 gfx::RenderEngine::zIdxShipHull,
+                                 worldPos);
+                    break;
                 }
             });
 }

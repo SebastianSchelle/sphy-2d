@@ -45,7 +45,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
                cfg::ConfigManager& config)
     : options(options), config(config), state(EngineState::Init), saveConfig(),
       saveFolder(options.savedir), commandManager(), randWorldGen(7),
-      randTest(7)
+      randTest(12)
 {
     ptrHandle = new ecs::PtrHandle();
     ptrHandle->engine = this;
@@ -1198,10 +1198,10 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
             if (sector)
             {
                 const vec2 lower(
-                    (secX == tl.pos.x) ? tl.sectorPos.x : -halfSize,
-                    (secY == tl.pos.y) ? tl.sectorPos.y : -halfSize);
-                const vec2 upper((secX == br.pos.x) ? br.sectorPos.x : halfSize,
-                                 (secY == br.pos.y) ? br.sectorPos.y
+                    (secX == tl.pos.x) ? tl.sectorPos.x - 100.0f : -halfSize,
+                    (secY == tl.pos.y) ? tl.sectorPos.y - 100.0f : -halfSize);
+                const vec2 upper((secX == br.pos.x) ? br.sectorPos.x + 100.0f : halfSize,
+                                 (secY == br.pos.y) ? br.sectorPos.y + 100.0f
                                                     : halfSize);
                 const con::AABB aabb{.lower = lower, .upper = upper};
                 const auto& udpEnd = clientInfo->clientInfo.udpEndpoint;
