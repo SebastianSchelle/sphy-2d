@@ -205,19 +205,24 @@ void Model::modelLoopGame(float dt, long frametime)
             {
                 long rendertime =
                     frametime - timeSyncData.serverLatency - 100000;
-                auto interpolate = trHist->interpolate(rendertime);
-                auto sectorCoords =
-                    world.idToSectorCoords(interpolate.sectorId);
-                if (renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
+                sphyc::ClientTransform tr;
+                if (trHist->interpolate(rendertime, tr))
                 {
-                    renderer->setActiveSector(sectorCoords.x, sectorCoords.y);
-                }
-                else
-                {
-                    renderer->panWorldTo(def::SectorCoords{
-                        .pos = sectorCoords,
-                        .sectorPos = interpolate.tr.pos,
-                    });
+                    auto sectorCoords =
+                        world.idToSectorCoords(tr.sectorId);
+                    if (renderer->getViewMode()
+                        == gfx::GameViewMode::TacticalMap)
+                    {
+                        renderer->setActiveSector(sectorCoords.x,
+                                                  sectorCoords.y);
+                    }
+                    else
+                    {
+                        renderer->panWorldTo(def::SectorCoords{
+                            .pos = sectorCoords,
+                            .sectorPos = tr.tr.pos,
+                        });
+                    }
                 }
             }
         }
@@ -541,28 +546,6 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             }
             break;
         }
-        case prot::cmd::SEND_BEGIN_ITEM:
-        {
-            uint32_t sectorId;
-            cmddes.value4b(sectorId);
-            auto sector = world.getSector(sectorId);
-            if (sector)
-            {
-                sector->items.markInactive();
-            }
-            break;
-        }
-        case prot::cmd::SEND_END_ITEM:
-        {
-            uint32_t sectorId;
-            cmddes.value4b(sectorId);
-            auto sector = world.getSector(sectorId);
-            if (sector)
-            {
-                sector->items.deleteInactive();
-            }
-            break;
-        }
         case prot::cmd::SEND_DATA_ITEM:
         {
             handleSendOpool(
@@ -590,28 +573,6 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 });
             break;
         }
-        case prot::cmd::SEND_BEGIN_PROJ:
-        {
-            uint32_t sectorId;
-            cmddes.value4b(sectorId);
-            auto sector = world.getSector(sectorId);
-            if (sector)
-            {
-                sector->projectiles.markInactive();
-            }
-            break;
-        }
-        case prot::cmd::SEND_END_PROJ:
-        {
-            uint32_t sectorId;
-            cmddes.value4b(sectorId);
-            auto sector = world.getSector(sectorId);
-            if (sector)
-            {
-                sector->projectiles.deleteInactive();
-            }
-            break;
-        }
         case prot::cmd::SEND_DATA_PROJ:
         {
             handleSendOpool(
@@ -634,28 +595,6 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                                                   .time = frametime,
                                                   .proj = projectile});
                 });
-            break;
-        }
-        case prot::cmd::SEND_BEGIN_BEAM:
-        {
-            uint32_t sectorId;
-            cmddes.value4b(sectorId);
-            auto sector = world.getSector(sectorId);
-            if (sector)
-            {
-                sector->beams.markInactive();
-            }
-            break;
-        }
-        case prot::cmd::SEND_END_BEAM:
-        {
-            uint32_t sectorId;
-            cmddes.value4b(sectorId);
-            auto sector = world.getSector(sectorId);
-            if (sector)
-            {
-                sector->beams.deleteInactive();
-            }
             break;
         }
         case prot::cmd::SEND_DATA_BEAM:
@@ -874,6 +813,7 @@ void Model::drawRealtime(gfx::RenderEngine& renderer)
     std::vector<RealtimeDrawBounds> bounds;
     createRealtimeDrawBounds(bounds);
     drawRealtimeShips(renderer, bounds, renderTime);
+    drawRealtimeAsteroids(renderer, bounds, renderTime);
     drawRealtimeProjectiles(renderer, bounds, renderTime);
     drawRealtimeBeams(renderer, bounds, renderTime);
     drawRealtimeItems(renderer, bounds, renderTime);
@@ -940,49 +880,48 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
                     }
                     const float centerDist = collider->getSimpleMaxDist();
                     const vec2 centerDistVec = vec2(centerDist, centerDist);
-                    // LG_D("something {}", tr.latest().tr);
-                    if (!tr.hasRecentData(rendertime, 100000))
+                    sphyc::ClientTransform clitr;
+                    if (tr.interpolate(rendertime, clitr))
                     {
+                        const auto& trInt = clitr.tr;
+                        const con::AABB aabb{.lower = trInt.pos - centerDistVec,
+                                             .upper =
+                                                 trInt.pos + centerDistVec};
+                        if (!bounds.aabb.overlaps(aabb))
+                        {
+                            break;
+                        }
+                        // Do additional fine grained check
+                        std::vector<vec2> w1;
+                        sat2d::translateVertices(
+                            collider->vertices, w1, trInt.pos, trInt.rot);
+                        con::AABB fineAabb = ecs::calculateAABB(
+                            trInt,
+                            ecs::TransformCache{.c = cosf(trInt.rot),
+                                                .s = sinf(trInt.rot)},
+                            collider);
+                        if (!bounds.aabb.overlaps(fineAabb))
+                        {
+                            break;
+                        }
+                        // draw Ship
+                        glm::vec2 worldPos = world.getWorldPosSectorOffset(
+                                                 sectorId.id,
+                                                 renderer.getSectorOffsetX(),
+                                                 renderer.getSectorOffsetY())
+                                             + trInt.pos;
+                        drawModuleTextures(renderer,
+                                           trInt,
+                                           gfx::RenderEngine::zIdxShipHull,
+                                           hull,
+                                           worldPos);
+                        drawTextures(renderer,
+                                     textures,
+                                     trInt.rot,
+                                     gfx::RenderEngine::zIdxShipHull,
+                                     worldPos);
                         break;
                     }
-                    const auto& latestTr = tr.latest().tr;
-                    const con::AABB aabb{.lower = latestTr.pos - centerDistVec,
-                                         .upper = latestTr.pos + centerDistVec};
-                    if (!bounds.aabb.overlaps(aabb))
-                    {
-                        break;
-                    }
-                    // Do additional fine grained check
-                    std::vector<vec2> w1;
-                    sat2d::translateVertices(
-                        collider->vertices, w1, latestTr.pos, latestTr.rot);
-                    con::AABB fineAabb = ecs::calculateAABB(
-                        latestTr,
-                        ecs::TransformCache{.c = cosf(latestTr.rot),
-                                            .s = sinf(latestTr.rot)},
-                        collider);
-                    if (!bounds.aabb.overlaps(fineAabb))
-                    {
-                        break;
-                    }
-                    const auto interpol = tr.interpolate(rendertime);
-                    // draw Ship
-                    glm::vec2 worldPos = world.getWorldPosSectorOffset(
-                                             sectorId.id,
-                                             renderer.getSectorOffsetX(),
-                                             renderer.getSectorOffsetY())
-                                         + interpol.tr.pos;
-                    drawModuleTextures(renderer,
-                                       interpol.tr,
-                                       gfx::RenderEngine::zIdxShipHull,
-                                       hull,
-                                       worldPos);
-                    drawTextures(renderer,
-                                 textures,
-                                 interpol.tr.rot,
-                                 gfx::RenderEngine::zIdxShipHull,
-                                 worldPos);
-                    break;
                 }
             });
 }
@@ -1016,41 +955,78 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
 //         });
 // }
 
-// void Model::drawRealtimeAsteroids(gfx::RenderEngine& renderer,
-//                                   const glm::vec4& viewRect,
-//                                   float zoom,
-//                                   uint32_t activeSectorId)
-// {
-//     auto& reg = clientRegistry.getRegistry();
-//     reg.view<ecs::Transform, ecs::SectorId, ecs::Asteroid, ecs::Textures>()
-//         .each(
-//             [this, &renderer, &viewRect, &reg, activeSectorId](
-//                 ecs::Transform& transform,
-//                 ecs::SectorId& sectorId,
-//                 ecs::Asteroid& asteroid,
-//                 ecs::Textures& textures)
-//             {
-//                 bool sectorFilter = activeSectorId ==
-//                 world::INVALID_SECTOR_ID
-//                                     || sectorId.id == activeSectorId;
-//                 if (sectorFilter)
-//                 {
-//                     glm::vec2 worldPos = world.getWorldPosSectorOffset(
-//                                              sectorId.id,
-//                                              renderer.getSectorOffsetX(),
-//                                              renderer.getSectorOffsetY())
-//                                          + transform.pos;
-//                     if (smath::pointInsideRect(worldPos, viewRect))
-//                     {
-//                         drawTextures(renderer,
-//                                      textures,
-//                                      transform.rot,
-//                                      gfx::RenderEngine::zIdxAsteroid,
-//                                      worldPos);
-//                     }
-//                 }
-//             });
-// }
+void Model::drawRealtimeAsteroids(gfx::RenderEngine& renderer,
+                                  const vector<RealtimeDrawBounds>& drawBounds,
+                                  long rendertime)
+{
+    auto& reg = clientRegistry.getRegistry();
+    reg.view<TransformHist,
+             ecs::SectorId,
+             ecs::Asteroid,
+             ecs::Textures,
+             ecs::Collider>()
+        .each(
+            [this, &renderer, &reg, &drawBounds, rendertime](
+                TransformHist& tr,
+                ecs::SectorId& sectorId,
+                ecs::Asteroid& asteroid,
+                ecs::Textures& textures,
+                ecs::Collider& coll)
+            {
+                // Check if in any visible sector
+                for (auto& bounds : drawBounds)
+                {
+                    if (bounds.sectorId != sectorId.id)
+                    {
+                        continue;
+                    }
+                    // Check if collider intersects view rect
+                    auto collider = modManager->getColliderLib().getItem(
+                        coll.colliderHandle);
+                    if (!collider)
+                    {
+                        break;
+                    }
+                    const float centerDist = collider->getSimpleMaxDist();
+                    const vec2 centerDistVec = vec2(centerDist, centerDist);
+                    sphyc::ClientTransform clitr;
+                    if (tr.interpolate(rendertime, clitr))
+                    {
+                        const auto& trInt = clitr.tr;
+                        const con::AABB aabb{.lower = trInt.pos - centerDistVec,
+                                             .upper =
+                                                 trInt.pos + centerDistVec};
+                        if (!bounds.aabb.overlaps(aabb))
+                        {
+                            break;
+                        }
+                        // Do additional fine grained check
+                        std::vector<vec2> w1;
+                        sat2d::translateVertices(
+                            collider->vertices, w1, trInt.pos, trInt.rot);
+                        con::AABB fineAabb = ecs::calculateAABB(
+                            trInt,
+                            ecs::TransformCache{.c = cosf(trInt.rot),
+                                                .s = sinf(trInt.rot)},
+                            collider);
+                        if (!bounds.aabb.overlaps(fineAabb))
+                        {
+                            break;
+                        }
+                        glm::vec2 worldPos = world.getWorldPosSectorOffset(
+                                                 sectorId.id,
+                                                 renderer.getSectorOffsetX(),
+                                                 renderer.getSectorOffsetY())
+                                             + trInt.pos;
+                        drawTextures(renderer,
+                                     textures,
+                                     trInt.rot,
+                                     gfx::RenderEngine::zIdxAsteroid,
+                                     worldPos);
+                    }
+                }
+            });
+}
 
 void Model::drawRealtimeItems(gfx::RenderEngine& renderer,
                               const vector<RealtimeDrawBounds>& drawBounds,
@@ -1071,24 +1047,26 @@ void Model::drawRealtimeItems(gfx::RenderEngine& renderer,
             [&renderer, &visibleBounds, this, rendertime](
                 opool::ItemClient& item)
             {
-                if (item.pos.hasRecentData(rendertime, 100000))
+                opool::vec2Mixer posMix;
+                if (item.pos.interpolate(rendertime, posMix)
+                    && visibleBounds.containsPoint(posMix.pos))
                 {
-                    vec2 latestPos = item.pos.latest().pos;
-                    if (visibleBounds.containsPoint(latestPos))
+                    auto itemData = modManager->getItemLib().getItem(item.item);
+                    if (itemData)
                     {
-                        auto itemData =
-                            modManager->getItemLib().getItem(item.item);
-                        if (itemData)
-                        {
-                            drawTexture(renderer,
-                                        itemData->worldTexture,
-                                        item.rot,
-                                        vec2{0.0f, 0.0f},
-                                        gfx::RenderEngine::zIdxItem,
-                                        item.pos.interpolate(rendertime).pos,
-                                        true);
-                        }
+                        drawTexture(renderer,
+                                    itemData->worldTexture,
+                                    item.rot,
+                                    vec2{0.0f, 0.0f},
+                                    gfx::RenderEngine::zIdxItem,
+                                    posMix.pos,
+                                    true);
                     }
+                    return true;
+                }
+                else
+                {
+                    return false;
                 }
             });
     }
@@ -1114,8 +1092,9 @@ void Model::drawRealtimeProjectiles(
             [&renderer, &visibleBounds, this, rendertime](
                 opool::ProjClient& proj)
             {
-                if (proj.pos.hasRecentData(rendertime, 100000)
-                    && visibleBounds.containsPoint(proj.pos.latest().pos))
+                opool::vec2Mixer posMix;
+                if (proj.pos.interpolate(rendertime, posMix)
+                    && visibleBounds.containsPoint(posMix.pos))
                 {
                     auto projectile =
                         modManager->getProjectileLib().getItem(proj.proj);
@@ -1125,8 +1104,13 @@ void Model::drawRealtimeProjectiles(
                                      projectile->textures,
                                      proj.rot,
                                      gfx::RenderEngine::zIdxProjectile,
-                                     proj.pos.interpolate(rendertime).pos);
+                                     posMix.pos);
                     }
+                    return true;
+                }
+                else
+                {
+                    return false;
                 }
             });
     }
@@ -1151,11 +1135,11 @@ void Model::drawRealtimeBeams(gfx::RenderEngine& renderer,
             [&renderer, &visibleBounds, this, rendertime](
                 opool::BeamClient& beam)
             {
-                if (beam.line.hasRecentData(rendertime, 100000))
+                opool::LineMixer lineMix;
+                if (beam.line.interpolate(rendertime, lineMix))
                 {
-                    const opool::LineMixer& latestLine = beam.line.latest();
-                    const vec2 pos1 = latestLine.pos1;
-                    const vec2 pos2 = latestLine.pos2;
+                    const vec2 pos1 = lineMix.pos1;
+                    const vec2 pos2 = lineMix.pos2;
                     const vec2 aa = vec2(std::min(pos1.x, pos2.x),
                                          std::min(pos1.y, pos2.y));
                     const vec2 bb = vec2(std::max(pos1.x, pos2.x),
@@ -1167,17 +1151,17 @@ void Model::drawRealtimeBeams(gfx::RenderEngine& renderer,
                             modManager->getBeamLib().getItem(beam.beam);
                         if (beamD)
                         {
-                            const opool::LineMixer mixed =
-                                beam.line.interpolate(rendertime);
                             renderer.drawLine(
-                                mixed.pos1,
-                                mixed.pos2,
+                                lineMix.pos1,
+                                lineMix.pos2,
                                 beamD->color,
                                 beamD->width,
                                 gfx::RenderEngine::zIdxProjectile);
                         }
+                        return true;
                     }
                 }
+                return false;
             });
     }
 }

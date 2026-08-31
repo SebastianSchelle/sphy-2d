@@ -152,9 +152,9 @@ const uint16_t ACK_WORKSEQUENCER = 0x0013;
 const uint16_t CLIENT_VIEW_RECT = 0x0014;
 const uint16_t UPD_ECS_REALTIME = 0x0015;
 
-OPOOL_IDS(PROJ, 0x1000)
-OPOOL_IDS(ITEM, 0x1003)
-OPOOL_IDS(BEAM, 0x1006)
+const uint16_t SEND_DATA_PROJ = 0x1000;
+const uint16_t SEND_DATA_ITEM = 0x1001;
+const uint16_t SEND_DATA_BEAM = 0x1002;
 
 }  // namespace cmd
 

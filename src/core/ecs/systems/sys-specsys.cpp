@@ -78,7 +78,7 @@ static inline void beamColliderAction(PtrHandle* ptrHandle,
 
 void sysProjPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 {
-    sector->foreachOpool<opool::Projectile>(
+    sector->projectilePool.foreach (
         [ptrHandle, dt, sector](opool::Projectile& projectile,
                                 opool::ProjectileHandle handle)
         {
@@ -166,7 +166,7 @@ struct BeamHit
 
 void sysBeamPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 {
-    sector->foreachOpool<opool::Beam>(
+    sector->beamPool.foreach (
         [ptrHandle, dt, sector](opool::Beam& beam, opool::BeamHandle handle)
         {
             auto reg = sector->getRegistry()->getRegistry();
@@ -176,7 +176,7 @@ void sysBeamPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
             {
                 return con::FreeVecForeachRet::DESTROY;
             }
-            if(beamData->damageType == def::DamageType::Collector)
+            if (beamData->damageType == def::DamageType::Collector)
             {
                 return con::FreeVecForeachRet::OK;
             }
@@ -269,7 +269,7 @@ void sysBeamPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 
 void sysItemPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
 {
-    sector->foreachOpool<opool::Item>(
+    sector->itemPool.foreach (
         [ptrHandle, dt, sector](opool::Item& item, opool::ItemHandle handle)
         {
             con::FreeVecForeachRet ret = con::FreeVecForeachRet::OK;

@@ -20,7 +20,7 @@ template <class T> class OpoolClient
     void markInactive();
     void deleteInactive();
     void updateObject(const GenericHandle32& handle, const T::Params& p);
-    void foreach (std::function<void(T& proj)> clb);
+    void foreach (std::function<bool(T& proj)> clb);
 
   private:
     unordered_map<uint32_t, OpoolWrapper> objects;
@@ -56,13 +56,16 @@ void OpoolClient<T>::updateObject(const GenericHandle32& handle,
 }
 
 template <class T>
-void OpoolClient<T>::foreach (std::function<void(T& proj)> clb)
+void OpoolClient<T>::foreach (std::function<bool(T& proj)> clb)
 {
     for (auto& item : objects)
     {
         if (item.second.active)
         {
-            clb(item.second.item);
+            if(!clb(item.second.item))
+            {
+                item.second.active = false;
+            }
         }
     }
 }

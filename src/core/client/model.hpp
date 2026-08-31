@@ -225,7 +225,9 @@ class Model
     void drawRealtimeBeams(gfx::RenderEngine& renderer,
                            const vector<RealtimeDrawBounds>& drawBounds,
                            long rendertime);
-    // void drawRealtimeAsteroids(gfx::RenderEngine& renderer);
+    void drawRealtimeAsteroids(gfx::RenderEngine& renderer,
+                               const vector<RealtimeDrawBounds>& drawBounds,
+                               long rendertime);
 
     void drawTexture(gfx::RenderEngine& renderer,
                      const GenericHandle texture,

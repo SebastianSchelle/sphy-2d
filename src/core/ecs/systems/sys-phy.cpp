@@ -1,4 +1,3 @@
-#include "comp-tag.hpp"
 #include "objb-recipes.hpp"
 #include "pool-objects.hpp"
 #include "ptr-handle.hpp"
@@ -591,7 +590,7 @@ static inline void collideWithItem(ecs::PtrHandle* ptrHandle,
     auto tr = reg->get<Transform>(entity);
     if (coll.colliderType == CollisionLayer::Ship)
     {
-        auto item = sector->getOpool<opool::Item>(itemHandle);
+        auto item = sector->itemPool.getObject(itemHandle);
         if (item)
         {
             auto collItem = ptrHandle->modManager->getColliderLib().getItem(
@@ -622,7 +621,7 @@ static inline void collideWithItem(ecs::PtrHandle* ptrHandle,
                     item->quantity -= amountAdded;
                     if (item->quantity <= 0)
                     {
-                        sector->removeOpool<opool::Item>(itemHandle);
+                        sector->itemPool.destroyObject(itemHandle);
                     }
                 }
             }

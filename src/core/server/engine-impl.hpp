@@ -214,21 +214,16 @@ void Engine::sendOpoolData(
     def::ClientInfo* client,
     world::Sector* sector,
     long frametime,
-    uint16_t startId,
+    uint16_t cmdId,
     size_t junkSize,
     std::function<void(bitsery::Serializer<OutputAdapter>& ser,
                        T&,
                        typename con::FreeVec<T>::Handle handle)> serClb)
 {
     prot::MsgComposer mcomp(net::SendType::UDP, client->clientInfo.udpEndpoint);
-    mcomp.startCommand(startId, 0);
-    mcomp.ser->value4b(sector->getId());
-    mcomp.execute(sendQueue);
-
     if (sector)
     {
-        mcomp.resetData();
-        mcomp.startCommand(startId + 1, 0);
+        mcomp.startCommand(cmdId, 0);
         mcomp.ser->value4b(sector->getId());
         mcomp.ser->value8b(frametime);
         sector->foreachOpool<T>(
@@ -236,7 +231,7 @@ void Engine::sendOpoolData(
              sector,
              &mcomp,
              this,
-             startId,
+             cmdId,
              serClb,
              junkSize,
              frametime](T& item, con::FreeVec<T>::Handle handle)
@@ -247,22 +242,17 @@ void Engine::sendOpoolData(
                 {
                     mcomp.execute(sendQueue);
                     mcomp.resetData();
-                    mcomp.startCommand(startId + 1, 0);
+                    mcomp.startCommand(cmdId, 0);
                     mcomp.ser->value4b(sector->getId());
                     mcomp.ser->value8b(frametime);
                 }
                 return con::FreeVecForeachRet::OK;
             });
-        if (mcomp.ser->adapter().currentWritePos() > 0)
+        if (mcomp.ser->adapter().currentWritePos() > 12)
         {
             mcomp.execute(sendQueue);
         }
     }
-
-    mcomp.resetData();
-    mcomp.startCommand(startId + 2, 0);
-    mcomp.ser->value4b(sector->getId());
-    mcomp.execute(sendQueue);
 }
 
 }  // namespace sphys

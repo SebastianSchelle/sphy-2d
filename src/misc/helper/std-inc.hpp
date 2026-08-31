@@ -1061,12 +1061,11 @@ template <class T> class InterpolData
         history[newest] = sample;
         timestamps[newest] = ts;
     }
-    T interpolate(long time) const
+    bool interpolate(long time, T& t) const
     {
         if (time > timestamps[newest])
         {
-            LG_W("interpolation failed: time > newest timestamp");
-            return history[newest];
+            return false;
         }
         uint8_t p = newest;
         uint8_t n = newest;
@@ -1075,23 +1074,38 @@ template <class T> class InterpolData
         {
             if (i++ == INTERPOL_DEPTH - 1)
             {
-                LG_W("Nothing found");
-                return latest();
+                return false;
             }
             n = p;
             p = previous(p);
         }
-        float alpha = (float)(time - timestamps[p])
-                      / (float)(timestamps[n] - timestamps[p]);
-        return history[p].mix(history[n], alpha);
+        float alpha;
+        if (timestamps[p] == 0)
+        {
+            return false;
+        }
+        else
+        {
+            alpha = (float)(time - timestamps[p])
+                    / (float)(timestamps[n] - timestamps[p]);
+        }
+        t = history[p].mix(history[n], alpha);
+        return true;
     }
-    bool hasRecentData(long time, long maxTime)
+    bool hasRecentData(long time)
     {
-        return time - timestamps[newest] < maxTime;
+        return timestamps[newest] > time;
     }
     T latest() const
     {
         return history[newest];
+    }
+    void clear()
+    {
+        for (int i = 0; i < INTERPOL_DEPTH; ++i)
+        {
+            timestamps[i] = 0;
+        }
     }
 
   private:

@@ -22,9 +22,12 @@ template <class T> class ObjectPool
     {
         pool.setDestroyFunction(clb);
     }
+    void
+    foreachNew(std::function<void(T&, typename con::FreeVec<T>::Handle)> clb);
 
   private:
     con::FreeVec<T> pool;
+    vector<typename con::FreeVec<T>::Handle> newObjects;
 };
 
 template <class T>
@@ -33,6 +36,22 @@ void ObjectPool<T>::foreach (
         clb)
 {
     pool.foreach (clb);
+}
+
+template <class T>
+void ObjectPool<T>::foreachNew (
+    std::function<void(T&, typename con::FreeVec<T>::Handle)>
+        clb)
+{
+    while(!newObjects.empty())
+    {
+        auto *obj = pool.getItem(newObjects.back());
+        if(obj)
+        {
+            clb(*obj, newObjects.back());
+        }
+        newObjects.pop_back();
+    }
 }
 
 template <class T>
@@ -45,6 +64,7 @@ template <class T>
 con::FreeVec<T>::Handle ObjectPool<T>::spawnObject(const T& object)
 {
     auto handle = pool.addItem(object);
+    newObjects.push_back(handle);
     return handle;
 }
 

@@ -9,9 +9,9 @@
 #include <ptr-handle.hpp>
 #include <std-inc.hpp>
 #ifdef CLIENT
-#include <render-engine.hpp>
-#include <obj-pool-client.hpp>
 #include <client-pool-obj.hpp>
+#include <obj-pool-client.hpp>
+#include <render-engine.hpp>
 #endif
 #include <aabb-tree.hpp>
 #ifdef SERVER
@@ -100,7 +100,7 @@ class Sector
                           T&,
                           typename con::FreeVec<T>::Handle handle)> clb);
 
-    template <class T> T* getOpool(typename con::FreeVec<T>::Handle handle);
+    // template <class T> T* getOpool(typename con::FreeVec<T>::Handle handle);
     void objectInitBroadphase(ecs::PtrHandle* ptrHandle, entt::entity entity);
     void itemInitBroadphase(ecs::PtrHandle* ptrHandle,
                             opool::ItemHandle handle,
@@ -119,8 +119,8 @@ class Sector
     template <class T>
     typename con::FreeVec<T>::Handle spawnOpool(ecs::PtrHandle* ptrHandle,
                                                 const T& item);
-    template <class T>
-    void removeOpool(typename con::FreeVec<T>::Handle handle);
+    // template <class T>
+    // void removeOpool(typename con::FreeVec<T>::Handle handle);
     inline void addBroadphaseQueryEntity(entt::entity entity)
     {
         broadphaseQueryEntities.push_back(entity);
@@ -179,11 +179,16 @@ class Sector
     opool::OpoolClient<opool::BeamClient> beams;
     opool::OpoolClient<opool::ItemClient> items;
 #endif
+#ifdef SERVER
+    opool::ObjectPool<opool::Projectile> projectilePool;
+    opool::ObjectPool<opool::Item> itemPool;
+    opool::ObjectPool<opool::Beam> beamPool;
+#endif
 
   private:
     def::SectorPos coord;
-    float sectorSize;      // Sector size
-    uint32_t id;           // Sector Id
+    float sectorSize;  // Sector size
+    uint32_t id;       // Sector Id
     vec2 worldPos;
     Sector* neighbors[8];  // Neighboring Sectors (8 neighbors)
     bool dirty;            // Sector dirty flag
@@ -193,9 +198,6 @@ class Sector
     vector<SingleThreadedTaskFunction> singleThreadedTasks;
     vector<SectorMoveRequest> sectorMoveRequests;
     con::DynamicAABBTree<BpUserData> aabbTree;
-    opool::ObjectPool<opool::Projectile> projectilePool;
-    opool::ObjectPool<opool::Item> itemPool;
-    opool::ObjectPool<opool::Beam> beamPool;
     ai::TaskSystem taskSystem;
 #endif
     bool active = false;
@@ -227,38 +229,38 @@ void Sector::foreachOpool<opool::Beam>(
     beamPool.foreach (clb);
 }
 
-template <> opool::Item* Sector::getOpool<opool::Item>(opool::ItemHandle handle)
-{
-    return itemPool.getObject(handle);
-}
+// template <> opool::Item* Sector::getOpool<opool::Item>(opool::ItemHandle handle)
+// {
+//     return itemPool.getObject(handle);
+// }
 
-template <>
-opool::Projectile*
-Sector::getOpool<opool::Projectile>(opool::ProjectileHandle handle)
-{
-    return projectilePool.getObject(handle);
-}
+// template <>
+// opool::Projectile*
+// Sector::getOpool<opool::Projectile>(opool::ProjectileHandle handle)
+// {
+//     return projectilePool.getObject(handle);
+// }
 
-template <> opool::Beam* Sector::getOpool<opool::Beam>(opool::BeamHandle handle)
-{
-    return beamPool.getObject(handle);
-}
+// template <> opool::Beam* Sector::getOpool<opool::Beam>(opool::BeamHandle handle)
+// {
+//     return beamPool.getObject(handle);
+// }
 
-template <> void Sector::removeOpool<opool::Beam>(opool::BeamHandle handle)
-{
-    beamPool.destroyObject(handle);
-}
+// template <> void Sector::removeOpool<opool::Beam>(opool::BeamHandle handle)
+// {
+//     beamPool.destroyObject(handle);
+// }
 
-template <> void Sector::removeOpool<opool::Item>(opool::ItemHandle handle)
-{
-    itemPool.destroyObject(handle);
-}
+// template <> void Sector::removeOpool<opool::Item>(opool::ItemHandle handle)
+// {
+//     itemPool.destroyObject(handle);
+// }
 
-template <>
-void Sector::removeOpool<opool::Projectile>(opool::ProjectileHandle handle)
-{
-    projectilePool.destroyObject(handle);
-}
+// template <>
+// void Sector::removeOpool<opool::Projectile>(opool::ProjectileHandle handle)
+// {
+//     projectilePool.destroyObject(handle);
+// }
 
 template <>
 opool::ItemHandle Sector::spawnOpool<opool::Item>(ecs::PtrHandle* ptrHandle,

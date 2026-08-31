@@ -264,8 +264,8 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                                 && fire)
                             {
                                 laserState.timer -= dt;
-                                auto* beam = sector->getOpool<opool::Beam>(
-                                    laserState.beam);
+                                auto* beam =
+                                    sector->beamPool.getObject(laserState.beam);
                                 if (beam)
                                 {
                                     vec2 exit;
@@ -281,8 +281,7 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                             }
                             else
                             {
-                                sector->removeOpool<opool::Beam>(
-                                    laserState.beam);
+                                sector->beamPool.destroyObject(laserState.beam);
                                 laserState.timer = laserData.offTime;
                                 laserState.state = LState::Off;
                             }
@@ -316,7 +315,7 @@ void sysCollectorImpl(world::Sector* sector,
             if (collector.currTarget != GenericHandle32::Invalid())
             {
                 auto* item =
-                    sector->getOpool<opool::Item>(collector.currTarget);
+                    sector->itemPool.getObject(collector.currTarget);
                 if (item)
                 {
                     gobj::ModuleHandle moduleHandle = module.moduleHandle;
@@ -329,7 +328,7 @@ void sysCollectorImpl(world::Sector* sector,
                         gobj::mdata::Collector collectorData =
                             std::get<gobj::mdata::Collector>(moduleItem->data);
                         auto beam =
-                            sector->getOpool<opool::Beam>(collector.beamHandle);
+                            sector->beamPool.getObject(collector.beamHandle);
                         if (beam)
                         {
                             beam->origin.pos = transform.pos;
@@ -342,13 +341,13 @@ void sysCollectorImpl(world::Sector* sector,
                 }
                 else
                 {
-                    sector->removeOpool<opool::Beam>(collector.beamHandle);
+                    sector->beamPool.destroyObject(collector.beamHandle);
                     collector.currTarget = GenericHandle32::Invalid();
                 }
             }
             else
             {
-                if(collector.counter--)
+                if (collector.counter--)
                 {
                     return;
                 }
@@ -399,7 +398,7 @@ void sysCollectorImpl(world::Sector* sector,
                             if (data.type == world::BpUserType::Item)
                             {
                                 opool::ItemHandle ih = data.data.itemHandle;
-                                auto item = sector->getOpool<opool::Item>(ih);
+                                auto item = sector->itemPool.getObject(ih);
                                 if (item && !item->reserved)
                                 {
                                     float dist2loc = glm::length2(

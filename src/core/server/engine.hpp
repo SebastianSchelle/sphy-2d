@@ -167,7 +167,8 @@ class Engine
     forActiveClients(std::function<void(def::ClientInfo* clientInfo)> callback);
 
     void clientUpd(long frameTime);
-    // void clientUpdRealtimeOpool(def::ClientInfo* clientInfo, long frametime);
+    void clientUpdRealtimeNewOpoolObjs(def::ClientInfo* clientInfo,
+                                       long frametime);
     void clientUpdRealtimeAddObjectdata(prot::MsgComposer& mc,
                                         entt::registry* reg,
                                         world::Sector* sector,

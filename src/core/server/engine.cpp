@@ -1122,16 +1122,17 @@ void Engine::runActiveSectorDump(long frameTime)
     }
 }
 
-void Engine::clientUpd(long frameTime)
+void Engine::clientUpd(long frametime)
 {
     forActiveClients(
-        [this, frameTime](def::ClientInfo* clientInfo)
+        [this, frametime](def::ClientInfo* clientInfo)
         {
+            clientUpdRealtimeNewOpoolObjs(clientInfo, frametime);
             DO_PERIODIC_U_EXTNOW(clientInfo->lastClientUpdFast3rd,
                                  intRealtime,
-                                 frameTime,
+                                 frametime,
                                  [&]()
-                                 { clientUpdRealtime(clientInfo, frameTime); });
+                                 { clientUpdRealtime(clientInfo, frametime); });
         });
 }
 
@@ -1152,6 +1153,61 @@ void Engine::clientUpd(long frameTime)
 //             ser.object(item.proj.toGenericHandle());
 //         });
 // }
+
+void Engine::clientUpdRealtimeNewOpoolObjs(def::ClientInfo* clientInfo,
+                                           long frametime)
+{
+    const auto& tl = clientInfo->clientViewRect.tl;
+    const auto& br = clientInfo->clientViewRect.br;
+    const float halfSize = world.getWorldShape().sectorSize / 2.0f;
+    for (uint32_t secX = tl.pos.x; secX <= br.pos.x; ++secX)
+    {
+        for (uint32_t secY = tl.pos.y; secY <= br.pos.y; ++secY)
+        {
+            auto sector = world.getSectorByCoords(secX, secY);
+            if (sector)
+            {
+                const vec2 lower(
+                    (secX == tl.pos.x) ? tl.sectorPos.x - 100.0f : -halfSize,
+                    (secY == tl.pos.y) ? tl.sectorPos.y - 100.0f : -halfSize);
+                const vec2 upper(
+                    (secX == br.pos.x) ? br.sectorPos.x + 100.0f : halfSize,
+                    (secY == br.pos.y) ? br.sectorPos.y + 100.0f : halfSize);
+                const con::AABB aabb{.lower = lower, .upper = upper};
+                const auto& udpEnd = clientInfo->clientInfo.udpEndpoint;
+
+                prot::MsgComposer mc(net::SendType::UDP, udpEnd);
+                mc.startCommand(prot::cmd::SEND_DATA_PROJ, 0);
+                mc.ser->value4b(sector->getId());
+                mc.ser->value8b(frametime);
+                sector->projectilePool.foreachNew(
+                    [aabb, &mc, sector, frametime, this](
+                        opool::Projectile& proj, opool::ProjectileHandle handle)
+                    {
+                        if (aabb.containsPoint(proj.transform.pos))
+                        {
+                            mc.ser->object(handle.toGenericHandle());
+                            mc.ser->object(proj.transform);
+                            mc.ser->object(proj.proj.toGenericHandle());
+                            if (mc.ser->adapter().currentWritePos() + 20 + 6
+                                > prot::kMaxSerializedChunkBytes)
+                            {
+                                mc.execute(sendQueue);
+                                mc.resetData();
+                                mc.startCommand(prot::cmd::SEND_DATA_PROJ, 0);
+                                mc.ser->value4b(sector->getId());
+                                mc.ser->value8b(frametime);
+                            }
+                        }
+                    });
+                if (mc.ser->adapter().currentWritePos() > 12)
+                {
+                    mc.execute(sendQueue);
+                }
+            }
+        }
+    }
+}
 
 void Engine::clientUpdRealtimeAddObjectdata(prot::MsgComposer& mc,
                                             entt::registry* reg,
@@ -1208,6 +1264,7 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
     const auto& tl = clientInfo->clientViewRect.tl;
     const auto& br = clientInfo->clientViewRect.br;
     const float halfSize = world.getWorldShape().sectorSize / 2.0f;
+
     for (uint32_t secX = tl.pos.x; secX <= br.pos.x; ++secX)
     {
         for (uint32_t secY = tl.pos.y; secY <= br.pos.y; ++secY)
@@ -1228,7 +1285,7 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
                     clientInfo,
                     sector,
                     frametime,
-                    prot::cmd::SEND_BEGIN_PROJ,
+                    prot::cmd::SEND_DATA_PROJ,
                     6 + 16,
                     [aabb](bitsery::Serializer<OutputAdapter>& ser,
                            opool::Projectile& item,
@@ -1246,7 +1303,7 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
                     clientInfo,
                     sector,
                     frametime,
-                    prot::cmd::SEND_BEGIN_BEAM,
+                    prot::cmd::SEND_DATA_BEAM,
                     6 + 20,
                     [aabb](bitsery::Serializer<OutputAdapter>& ser,
                            opool::Beam& beam,
@@ -1270,11 +1327,6 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
 
                 prot::MsgComposer mcItem(net::SendType::UDP, udpEnd);
                 prot::MsgComposer mcEcs(net::SendType::UDP, udpEnd);
-                // send item begin
-                mcItem.startCommand(prot::cmd::SEND_BEGIN_ITEM, 0);
-                mcItem.ser->value4b(sector->getId());
-                mcItem.execute(sendQueue);
-                mcItem.resetData();
                 mcItem.startCommand(prot::cmd::SEND_DATA_ITEM, 0);
                 mcItem.ser->value4b(sector->getId());
                 mcItem.ser->value8b(frametime);
@@ -1286,13 +1338,13 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
 
                 sector->queryBroadphase(
                     aabb,
-                    [this, &mcItem, &mcEcs, sector, reg, frametime](
+                    [this, &mcItem, &mcEcs, sector, reg, frametime, clientInfo](
                         const world::BpUserData& data)
                     {
                         if (data.type == world::BpUserType::Item)
                         {
                             auto handle = data.data.itemHandle;
-                            auto* item = sector->getOpool<opool::Item>(handle);
+                            auto* item = sector->itemPool.getObject(handle);
                             if (!item)
                             {
                                 return;
@@ -1315,7 +1367,8 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
                         }
                         if (data.type == world::BpUserType::Ecs)
                         {
-                            // time + required components e.g. transform, thrust
+                            // time + required components e.g. transform,
+                            // thrust
                             auto entity = data.data.ent;
                             auto entityId = reg->get<ecs::EntityId>(entity);
                             clientUpdRealtimeAddObjectdata(mcEcs,
@@ -1324,7 +1377,8 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
                                                            frametime,
                                                            entity,
                                                            entityId);
-                            // Get sub entities like turrets or station parts
+                            // Get sub entities like turrets or station
+                            // parts
                             auto hull = reg->try_get<ecs::Hull>(entity);
                             if (hull)
                             {
@@ -1360,12 +1414,6 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
                 {
                     mcEcs.execute(sendQueue);
                 }
-
-                // send item end
-                mcItem.resetData();
-                mcItem.startCommand(prot::cmd::SEND_END_ITEM, 0);
-                mcItem.ser->value4b(sector->getId());
-                mcItem.execute(sendQueue);
             }
         }
     }
