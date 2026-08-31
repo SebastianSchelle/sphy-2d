@@ -14,3 +14,4 @@ s < 2*sa: t = 2*sqrt(2*s/a)
 - add sector newly spawned entites vector so these can be initially put into broadphase test (otherwise they wont collide if not moved)
 - server opool newly spawned objects are removed at first visit. remove at end of frame only, so they can be used for several clients
 - limit slow update to view rect to save even more bandwidth (for drawing, interpolate?? maybe draw one second in past, shouldn't matter in the non realtime view mode)
+- wont see projectiles in client if lifetime is sufficiently short, never a valid interpolation data set

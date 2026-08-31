@@ -58,6 +58,7 @@ Model::Model(ui::UserInterface* userInterface,
 
     intFastCliServ =
         CFG_UINT(config, 100.0f, "net", "dump-int", "fast-cli-serv");
+    realtimeDelay = 1000U * CFG_UINT(config, 100.0f, "net", "realtime-delay");
 
     registerConnectSequence();
 }
@@ -204,12 +205,11 @@ void Model::modelLoopGame(float dt, long frametime)
             if (trHist)
             {
                 long rendertime =
-                    frametime - timeSyncData.serverLatency - 100000;
+                    frametime - timeSyncData.serverLatency - realtimeDelay;
                 sphyc::ClientTransform tr;
                 if (trHist->interpolate(rendertime, tr))
                 {
-                    auto sectorCoords =
-                        world.idToSectorCoords(tr.sectorId);
+                    auto sectorCoords = world.idToSectorCoords(tr.sectorId);
                     if (renderer->getViewMode()
                         == gfx::GameViewMode::TacticalMap)
                     {
@@ -809,7 +809,7 @@ void Model::drawRealtime(gfx::RenderEngine& renderer)
 {
     // world.drawThirdPerson(renderer, viewRect, zoom);
     long frametime = tim::nowU();
-    long renderTime = frametime - timeSyncData.serverLatency - 100000;
+    long renderTime = frametime - timeSyncData.serverLatency - realtimeDelay;
     std::vector<RealtimeDrawBounds> bounds;
     createRealtimeDrawBounds(bounds);
     drawRealtimeShips(renderer, bounds, renderTime);

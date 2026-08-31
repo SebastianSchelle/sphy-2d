@@ -285,6 +285,7 @@ class Model
     long lastGetAabbTree;
     def::ThirdPersonControl thirdPersonControl;
     uint16_t intFastCliServ;
+    long realtimeDelay;
 };
 
 }  // namespace sphyc
