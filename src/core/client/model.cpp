@@ -560,17 +560,18 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             if (sector)
             {
                 sector->items.deleteInactive();
-                break;
             }
+            break;
         }
         case prot::cmd::SEND_DATA_ITEM:
         {
             handleSendOpool(
                 cmddes,
                 dataEndPos,
-                20,
+                20 + 6,
                 [this](world::Sector* sector,
-                       bitsery::Deserializer<InputAdapter>& cmddes)
+                       bitsery::Deserializer<InputAdapter>& cmddes,
+                       long frametime)
                 {
                     GenericHandle32 handle;
                     ecs::Transform transform;
@@ -584,8 +585,103 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                         handle,
                         opool::ItemClient::Params{.transform = transform,
                                                   .item = item,
-                                                  .quantity = quantity});
+                                                  .quantity = quantity,
+                                                  .time = frametime});
                 });
+            break;
+        }
+        case prot::cmd::SEND_BEGIN_PROJ:
+        {
+            uint32_t sectorId;
+            cmddes.value4b(sectorId);
+            auto sector = world.getSector(sectorId);
+            if (sector)
+            {
+                sector->projectiles.markInactive();
+            }
+            break;
+        }
+        case prot::cmd::SEND_END_PROJ:
+        {
+            uint32_t sectorId;
+            cmddes.value4b(sectorId);
+            auto sector = world.getSector(sectorId);
+            if (sector)
+            {
+                sector->projectiles.deleteInactive();
+            }
+            break;
+        }
+        case prot::cmd::SEND_DATA_PROJ:
+        {
+            handleSendOpool(
+                cmddes,
+                dataEndPos,
+                16 + 6,
+                [this](world::Sector* sector,
+                       bitsery::Deserializer<InputAdapter>& cmddes,
+                       long frametime)
+                {
+                    GenericHandle32 handle;
+                    ecs::Transform transform;
+                    GenericHandle projectile;
+                    cmddes.object(handle);
+                    cmddes.object(transform);
+                    cmddes.object(projectile);
+                    sector->projectiles.updateObject(
+                        handle,
+                        opool::ProjClient::Params{.tr = transform,
+                                                  .time = frametime,
+                                                  .proj = projectile});
+                });
+            break;
+        }
+        case prot::cmd::SEND_BEGIN_BEAM:
+        {
+            uint32_t sectorId;
+            cmddes.value4b(sectorId);
+            auto sector = world.getSector(sectorId);
+            if (sector)
+            {
+                sector->beams.markInactive();
+            }
+            break;
+        }
+        case prot::cmd::SEND_END_BEAM:
+        {
+            uint32_t sectorId;
+            cmddes.value4b(sectorId);
+            auto sector = world.getSector(sectorId);
+            if (sector)
+            {
+                sector->beams.deleteInactive();
+            }
+            break;
+        }
+        case prot::cmd::SEND_DATA_BEAM:
+        {
+            handleSendOpool(cmddes,
+                            dataEndPos,
+                            20 + 6,
+                            [this](world::Sector* sector,
+                                   bitsery::Deserializer<InputAdapter>& cmddes,
+                                   long frametime)
+                            {
+                                GenericHandle32 handle;
+                                vec2 p1;
+                                vec2 p2;
+                                GenericHandle beam;
+                                cmddes.object(handle);
+                                cmddes.object(p1);
+                                cmddes.object(p2);
+                                cmddes.object(beam);
+                                sector->beams.updateObject(
+                                    handle,
+                                    opool::BeamClient::Params{.p1 = p1,
+                                                              .p2 = p2,
+                                                              .time = frametime,
+                                                              .beam = beam});
+                            });
             break;
         }
             // OPOOL_RECV(PROJ, projectiles, 6 + 16, {
@@ -845,7 +941,7 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
                     const float centerDist = collider->getSimpleMaxDist();
                     const vec2 centerDistVec = vec2(centerDist, centerDist);
                     // LG_D("something {}", tr.latest().tr);
-                    if(!tr.hasRecentData(rendertime, 100000))
+                    if (!tr.hasRecentData(rendertime, 100000))
                     {
                         break;
                     }
@@ -958,7 +1054,7 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
 
 void Model::drawRealtimeItems(gfx::RenderEngine& renderer,
                               const vector<RealtimeDrawBounds>& drawBounds,
-                              long frametime)
+                              long rendertime)
 {
     for (auto& bound : drawBounds)
     {
@@ -972,20 +1068,26 @@ void Model::drawRealtimeItems(gfx::RenderEngine& renderer,
             .upper = bound.aabb.upper + vec2(100.0f, 100.0f),
         };
         sector->items.foreach (
-            [&renderer, &visibleBounds, this](opool::ItemClient& item)
+            [&renderer, &visibleBounds, this, rendertime](
+                opool::ItemClient& item)
             {
-                if (visibleBounds.containsPoint(item.transform.pos))
+                if (item.pos.hasRecentData(rendertime, 100000))
                 {
-                    auto itemData = modManager->getItemLib().getItem(item.item);
-                    if (itemData)
+                    vec2 latestPos = item.pos.latest().pos;
+                    if (visibleBounds.containsPoint(latestPos))
                     {
-                        drawTexture(renderer,
-                                    itemData->worldTexture,
-                                    item.transform.rot,
-                                    vec2{0.0f, 0.0f},
-                                    gfx::RenderEngine::zIdxItem,
-                                    item.transform.pos,
-                                    true);
+                        auto itemData =
+                            modManager->getItemLib().getItem(item.item);
+                        if (itemData)
+                        {
+                            drawTexture(renderer,
+                                        itemData->worldTexture,
+                                        item.rot,
+                                        vec2{0.0f, 0.0f},
+                                        gfx::RenderEngine::zIdxItem,
+                                        item.pos.interpolate(rendertime).pos,
+                                        true);
+                        }
                     }
                 }
             });
@@ -995,7 +1097,7 @@ void Model::drawRealtimeItems(gfx::RenderEngine& renderer,
 void Model::drawRealtimeProjectiles(
     gfx::RenderEngine& renderer,
     const vector<RealtimeDrawBounds>& drawBounds,
-    long frametime)
+    long rendertime)
 {
     for (auto& bound : drawBounds)
     {
@@ -1009,9 +1111,11 @@ void Model::drawRealtimeProjectiles(
             .upper = bound.aabb.upper + vec2(100.0f, 100.0f),
         };
         sector->projectiles.foreach (
-            [&renderer, &visibleBounds, this](opool::ProjClient& proj)
+            [&renderer, &visibleBounds, this, rendertime](
+                opool::ProjClient& proj)
             {
-                if (visibleBounds.containsPoint(proj.posNext.pos))
+                if (proj.pos.hasRecentData(rendertime, 100000)
+                    && visibleBounds.containsPoint(proj.pos.latest().pos))
                 {
                     auto projectile =
                         modManager->getProjectileLib().getItem(proj.proj);
@@ -1021,7 +1125,7 @@ void Model::drawRealtimeProjectiles(
                                      projectile->textures,
                                      proj.rot,
                                      gfx::RenderEngine::zIdxProjectile,
-                                     proj.posNext.pos);
+                                     proj.pos.interpolate(rendertime).pos);
                     }
                 }
             });
@@ -1030,7 +1134,7 @@ void Model::drawRealtimeProjectiles(
 
 void Model::drawRealtimeBeams(gfx::RenderEngine& renderer,
                               const vector<RealtimeDrawBounds>& drawBounds,
-                              long frametime)
+                              long rendertime)
 {
     for (auto& bound : drawBounds)
     {
@@ -1044,25 +1148,34 @@ void Model::drawRealtimeBeams(gfx::RenderEngine& renderer,
             .upper = bound.aabb.upper + vec2(100.0f, 100.0f),
         };
         sector->beams.foreach (
-            [&renderer, &visibleBounds, this](opool::BeamClient& beam)
+            [&renderer, &visibleBounds, this, rendertime](
+                opool::BeamClient& beam)
             {
-                const vec2 pos1 = beam.lNext.pos1;
-                const vec2 pos2 = beam.lNext.pos2;
-                const vec2 aa =
-                    vec2(std::min(pos1.x, pos2.x), std::min(pos1.y, pos2.y));
-                const vec2 bb =
-                    vec2(std::max(pos1.x, pos2.x), std::max(pos1.y, pos2.y));
-                const con::AABB beamAabb = {.lower = aa, .upper = bb};
-                if (visibleBounds.overlaps(beamAabb))
+                if (beam.line.hasRecentData(rendertime, 100000))
                 {
-                    auto beamD = modManager->getBeamLib().getItem(beam.beam);
-                    if (beamD)
+                    const opool::LineMixer& latestLine = beam.line.latest();
+                    const vec2 pos1 = latestLine.pos1;
+                    const vec2 pos2 = latestLine.pos2;
+                    const vec2 aa = vec2(std::min(pos1.x, pos2.x),
+                                         std::min(pos1.y, pos2.y));
+                    const vec2 bb = vec2(std::max(pos1.x, pos2.x),
+                                         std::max(pos1.y, pos2.y));
+                    const con::AABB beamAabb = {.lower = aa, .upper = bb};
+                    if (visibleBounds.overlaps(beamAabb))
                     {
-                        renderer.drawLine(beam.lNext.pos1,
-                                          beam.lNext.pos2,
-                                          beamD->color,
-                                          beamD->width,
-                                          gfx::RenderEngine::zIdxProjectile);
+                        auto beamD =
+                            modManager->getBeamLib().getItem(beam.beam);
+                        if (beamD)
+                        {
+                            const opool::LineMixer mixed =
+                                beam.line.interpolate(rendertime);
+                            renderer.drawLine(
+                                mixed.pos1,
+                                mixed.pos2,
+                                beamD->color,
+                                beamD->width,
+                                gfx::RenderEngine::zIdxProjectile);
+                        }
                     }
                 }
             });
@@ -1755,7 +1868,8 @@ void Model::handleSendOpool(
     size_t dataEndPos,
     size_t junkSize,
     std::function<void(world::Sector* sector,
-                       bitsery::Deserializer<InputAdapter>& cmddes)> clb)
+                       bitsery::Deserializer<InputAdapter>& cmddes,
+                       long time)> clb)
 {
     uint32_t sectorId;
     long frametime;
@@ -1767,9 +1881,9 @@ void Model::handleSendOpool(
         return;
     }
     while ((int)cmddes.adapter().currentReadPos()
-           <= (int)(dataEndPos) - (int)junkSize + 4)
+           <= (int)(dataEndPos) - (int)junkSize)
     {
-        clb(sector, cmddes);
+        clb(sector, cmddes, frametime);
     }
 }
 

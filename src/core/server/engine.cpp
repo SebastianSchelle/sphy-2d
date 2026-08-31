@@ -45,7 +45,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
                cfg::ConfigManager& config)
     : options(options), config(config), state(EngineState::Init), saveConfig(),
       saveFolder(options.savedir), commandManager(), randWorldGen(7),
-      randTest(12)
+      randTest(19)
 {
     ptrHandle = new ecs::PtrHandle();
     ptrHandle->engine = this;
@@ -1080,44 +1080,44 @@ void Engine::runActiveSectorDump(long frameTime)
                             &clientInfo->clientInfo, sectorId, ptrHandle);
                     }
                 }
-                sendOpoolData<opool::Projectile>(
-                    clientInfo,
-                    prot::cmd::SEND_BEGIN_PROJ,
-                    6 + 16,
-                    [](bitsery::Serializer<OutputAdapter>& ser,
-                       opool::Projectile& item,
-                       opool::ProjectileHandle handle)
-                    {
-                        ser.object(handle.toGenericHandle());
-                        ser.object(item.transform);
-                        ser.object(item.proj.toGenericHandle());
-                    });
-                sendOpoolData<opool::Item>(
-                    clientInfo,
-                    prot::cmd::SEND_BEGIN_ITEM,
-                    6 + 20,
-                    [](bitsery::Serializer<OutputAdapter>& ser,
-                       opool::Item& item,
-                       opool::ItemHandle handle)
-                    {
-                        ser.object(handle.toGenericHandle());
-                        ser.object(item.transform);
-                        ser.object(item.item.toGenericHandle());
-                        ser.value4b(item.quantity);
-                    });
-                sendOpoolData<opool::Beam>(
-                    clientInfo,
-                    prot::cmd::SEND_BEGIN_BEAM,
-                    6 + 20,
-                    [](bitsery::Serializer<OutputAdapter>& ser,
-                       opool::Beam& item,
-                       opool::BeamHandle handle)
-                    {
-                        ser.object(handle.toGenericHandle());
-                        ser.object(item.origin.pos);
-                        ser.object(item.point2);
-                        ser.object(item.beam.toGenericHandle());
-                    });
+                // sendOpoolData<opool::Projectile>(
+                //     clientInfo,
+                //     prot::cmd::SEND_BEGIN_PROJ,
+                //     6 + 16,
+                //     [](bitsery::Serializer<OutputAdapter>& ser,
+                //        opool::Projectile& item,
+                //        opool::ProjectileHandle handle)
+                //     {
+                //         ser.object(handle.toGenericHandle());
+                //         ser.object(item.transform);
+                //         ser.object(item.proj.toGenericHandle());
+                //     });
+                // sendOpoolData<opool::Item>(
+                //     clientInfo,
+                //     prot::cmd::SEND_BEGIN_ITEM,
+                //     6 + 20,
+                //     [](bitsery::Serializer<OutputAdapter>& ser,
+                //        opool::Item& item,
+                //        opool::ItemHandle handle)
+                //     {
+                //         ser.object(handle.toGenericHandle());
+                //         ser.object(item.transform);
+                //         ser.object(item.item.toGenericHandle());
+                //         ser.value4b(item.quantity);
+                //     });
+                // sendOpoolData<opool::Beam>(
+                //     clientInfo,
+                //     prot::cmd::SEND_BEGIN_BEAM,
+                //     6 + 20,
+                //     [](bitsery::Serializer<OutputAdapter>& ser,
+                //        opool::Beam& item,
+                //        opool::BeamHandle handle)
+                //     {
+                //         ser.object(handle.toGenericHandle());
+                //         ser.object(item.origin.pos);
+                //         ser.object(item.point2);
+                //         ser.object(item.beam.toGenericHandle());
+                //     });
             });
     }
 }
@@ -1134,6 +1134,24 @@ void Engine::clientUpd(long frameTime)
                                  { clientUpdRealtime(clientInfo, frameTime); });
         });
 }
+
+// void Engine::clientUpdRealtimeOpool(def::ClientInfo* clientInfo, long
+// frametime)
+// {
+
+//     sendOpoolData<opool::Projectile>(
+//         clientInfo,
+//         prot::cmd::SEND_BEGIN_PROJ,
+//         6 + 16,
+//         [](bitsery::Serializer<OutputAdapter>& ser,
+//            opool::Projectile& item,
+//            opool::ProjectileHandle handle)
+//         {
+//             ser.object(handle.toGenericHandle());
+//             ser.object(item.transform);
+//             ser.object(item.proj.toGenericHandle());
+//         });
+// }
 
 void Engine::clientUpdRealtimeAddObjectdata(prot::MsgComposer& mc,
                                             entt::registry* reg,
@@ -1200,11 +1218,56 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
                 const vec2 lower(
                     (secX == tl.pos.x) ? tl.sectorPos.x - 100.0f : -halfSize,
                     (secY == tl.pos.y) ? tl.sectorPos.y - 100.0f : -halfSize);
-                const vec2 upper((secX == br.pos.x) ? br.sectorPos.x + 100.0f : halfSize,
-                                 (secY == br.pos.y) ? br.sectorPos.y + 100.0f
-                                                    : halfSize);
+                const vec2 upper(
+                    (secX == br.pos.x) ? br.sectorPos.x + 100.0f : halfSize,
+                    (secY == br.pos.y) ? br.sectorPos.y + 100.0f : halfSize);
                 const con::AABB aabb{.lower = lower, .upper = upper};
                 const auto& udpEnd = clientInfo->clientInfo.udpEndpoint;
+
+                sendOpoolData<opool::Projectile>(
+                    clientInfo,
+                    sector,
+                    frametime,
+                    prot::cmd::SEND_BEGIN_PROJ,
+                    6 + 16,
+                    [aabb](bitsery::Serializer<OutputAdapter>& ser,
+                           opool::Projectile& item,
+                           opool::ProjectileHandle handle)
+                    {
+                        if (aabb.containsPoint(item.transform.pos))
+                        {
+                            ser.object(handle.toGenericHandle());
+                            ser.object(item.transform);
+                            ser.object(item.proj.toGenericHandle());
+                        }
+                    });
+
+                sendOpoolData<opool::Beam>(
+                    clientInfo,
+                    sector,
+                    frametime,
+                    prot::cmd::SEND_BEGIN_BEAM,
+                    6 + 20,
+                    [aabb](bitsery::Serializer<OutputAdapter>& ser,
+                           opool::Beam& beam,
+                           opool::BeamHandle handle)
+                    {
+                        const vec2 pos = beam.origin.pos;
+                        const vec2 pos2 = beam.point2;
+                        const vec2 aa = vec2(std::min(pos.x, pos2.x),
+                                             std::min(pos.y, pos2.y));
+                        const vec2 bb = vec2(std::max(pos.x, pos2.x),
+                                             std::max(pos.y, pos2.y));
+                        const con::AABB aabbBeam = {.lower = aa, .upper = bb};
+                        if (aabb.overlaps(aabbBeam))
+                        {
+                            ser.object(handle.toGenericHandle());
+                            ser.object(beam.origin.pos);
+                            ser.object(beam.point2);
+                            ser.object(beam.beam.toGenericHandle());
+                        }
+                    });
+
                 prot::MsgComposer mcItem(net::SendType::UDP, udpEnd);
                 prot::MsgComposer mcEcs(net::SendType::UDP, udpEnd);
                 // send item begin

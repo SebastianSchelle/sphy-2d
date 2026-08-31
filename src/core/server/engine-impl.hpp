@@ -5,6 +5,7 @@
 #include "engine.hpp"
 #include "free-vector.hpp"
 #include "protocol.hpp"
+#include "sector.hpp"
 
 namespace sphys
 {
@@ -211,6 +212,8 @@ void Engine::registerActiveSectorDumpComponent(DumpFilter filter)
 template <class T>
 void Engine::sendOpoolData(
     def::ClientInfo* client,
+    world::Sector* sector,
+    long frametime,
     uint16_t startId,
     size_t junkSize,
     std::function<void(bitsery::Serializer<OutputAdapter>& ser,
@@ -219,16 +222,24 @@ void Engine::sendOpoolData(
 {
     prot::MsgComposer mcomp(net::SendType::UDP, client->clientInfo.udpEndpoint);
     mcomp.startCommand(startId, 0);
+    mcomp.ser->value4b(sector->getId());
     mcomp.execute(sendQueue);
 
-    auto sector = world.getSector(client->currentSector);
     if (sector)
     {
         mcomp.resetData();
         mcomp.startCommand(startId + 1, 0);
+        mcomp.ser->value4b(sector->getId());
+        mcomp.ser->value8b(frametime);
         sector->foreachOpool<T>(
-            [client, &mcomp, this, startId, serClb, junkSize](
-                T& item, con::FreeVec<T>::Handle handle)
+            [client,
+             sector,
+             &mcomp,
+             this,
+             startId,
+             serClb,
+             junkSize,
+             frametime](T& item, con::FreeVec<T>::Handle handle)
             {
                 serClb(*mcomp.ser, item, handle);
                 if (mcomp.ser->adapter().currentWritePos() + junkSize
@@ -237,6 +248,8 @@ void Engine::sendOpoolData(
                     mcomp.execute(sendQueue);
                     mcomp.resetData();
                     mcomp.startCommand(startId + 1, 0);
+                    mcomp.ser->value4b(sector->getId());
+                    mcomp.ser->value8b(frametime);
                 }
                 return con::FreeVecForeachRet::OK;
             });
@@ -248,6 +261,7 @@ void Engine::sendOpoolData(
 
     mcomp.resetData();
     mcomp.startCommand(startId + 2, 0);
+    mcomp.ser->value4b(sector->getId());
     mcomp.execute(sendQueue);
 }
 

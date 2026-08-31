@@ -16,8 +16,6 @@
 #include <std-inc.hpp>
 #include <world.hpp>
 
-#define INTERPOL_DEPTH 5
-
 namespace ecs
 {
 struct Textures;
@@ -60,63 +58,6 @@ struct RealtimeDrawBounds
 {
     uint32_t sectorId;
     con::AABB aabb;
-};
-
-template <class T> class InterpolData
-{
-  public:
-    void addSample(const T& sample, long ts)
-    {
-        newest = next(newest);
-        history[newest] = sample;
-        timestamps[newest] = ts;
-    }
-    T interpolate(long time) const
-    {
-        if (time > timestamps[newest])
-        {
-            LG_W("interpolation failed: time > newest timestamp");
-            return history[newest];
-        }
-        uint8_t p = newest;
-        uint8_t n = newest;
-        uint8_t i = 0;
-        while (time < timestamps[p])
-        {
-            if (i++ == INTERPOL_DEPTH - 1)
-            {
-                LG_W("Nothing found");
-                return latest();
-            }
-            n = p;
-            p = previous(p);
-        }
-        float alpha = (float)(time - timestamps[p])
-                      / (float)(timestamps[n] - timestamps[p]);
-        return history[p].mix(history[n], alpha);
-    }
-    bool hasRecentData(long time, long maxTime)
-    {
-        return time - timestamps[newest] < maxTime;
-    }
-    T latest() const
-    {
-        return history[newest];
-    }
-
-  private:
-    uint8_t next(uint8_t i) const
-    {
-        return (i + 1) % INTERPOL_DEPTH;
-    }
-
-    uint8_t previous(uint8_t i) const
-    {
-        return (i + INTERPOL_DEPTH - 1) % INTERPOL_DEPTH;
-    }
-    long timestamps[INTERPOL_DEPTH] = {0};
-    T history[INTERPOL_DEPTH];
-    uint8_t newest = 0;
 };
 
 struct ClientTransform
@@ -260,7 +201,8 @@ class Model
         size_t dataEndPos,
         size_t juckSize,
         std::function<void(world::Sector* sector,
-                           bitsery::Deserializer<InputAdapter>& cmddes)> clb);
+                           bitsery::Deserializer<InputAdapter>& cmddes,
+                           long frametime)> clb);
     void notifyReady();
     void handleGetAabbTreeResp(bitsery::Deserializer<InputAdapter>& cmddes,
                                size_t dataEndPos);

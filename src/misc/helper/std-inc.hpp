@@ -1049,6 +1049,66 @@ EXT_DES(GameViewMode, SER_GMV)
 
 }  // namespace gfx
 
+
+#define INTERPOL_DEPTH 5
+
+template <class T> class InterpolData
+{
+  public:
+    void addSample(const T& sample, long ts)
+    {
+        newest = next(newest);
+        history[newest] = sample;
+        timestamps[newest] = ts;
+    }
+    T interpolate(long time) const
+    {
+        if (time > timestamps[newest])
+        {
+            LG_W("interpolation failed: time > newest timestamp");
+            return history[newest];
+        }
+        uint8_t p = newest;
+        uint8_t n = newest;
+        uint8_t i = 0;
+        while (time < timestamps[p])
+        {
+            if (i++ == INTERPOL_DEPTH - 1)
+            {
+                LG_W("Nothing found");
+                return latest();
+            }
+            n = p;
+            p = previous(p);
+        }
+        float alpha = (float)(time - timestamps[p])
+                      / (float)(timestamps[n] - timestamps[p]);
+        return history[p].mix(history[n], alpha);
+    }
+    bool hasRecentData(long time, long maxTime)
+    {
+        return time - timestamps[newest] < maxTime;
+    }
+    T latest() const
+    {
+        return history[newest];
+    }
+
+  private:
+    uint8_t next(uint8_t i) const
+    {
+        return (i + 1) % INTERPOL_DEPTH;
+    }
+
+    uint8_t previous(uint8_t i) const
+    {
+        return (i + INTERPOL_DEPTH - 1) % INTERPOL_DEPTH;
+    }
+    long timestamps[INTERPOL_DEPTH] = {0};
+    T history[INTERPOL_DEPTH];
+    uint8_t newest = 0;
+};
+
 // Do not `using smath::Rect` at file scope: macOS SDK (MacTypes.h) defines a
 // global `struct Rect`; a using-declaration would collide with Carbon's type.
 

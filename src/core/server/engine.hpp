@@ -139,6 +139,8 @@ class Engine
     template <class T>
     void sendOpoolData(
         def::ClientInfo* client,
+        world::Sector* sector,
+        long frametime,
         uint16_t startId,
         size_t junkSize,
         std::function<void(bitsery::Serializer<OutputAdapter>& ser,
@@ -165,6 +167,7 @@ class Engine
     forActiveClients(std::function<void(def::ClientInfo* clientInfo)> callback);
 
     void clientUpd(long frameTime);
+    // void clientUpdRealtimeOpool(def::ClientInfo* clientInfo, long frametime);
     void clientUpdRealtimeAddObjectdata(prot::MsgComposer& mc,
                                         entt::registry* reg,
                                         world::Sector* sector,
