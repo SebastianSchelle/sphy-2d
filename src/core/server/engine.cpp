@@ -1253,7 +1253,6 @@ void Engine::clientUpdRealtimeDestroyedOpoolObjs(def::ClientInfo* clientInfo,
                     {
                         if (aabb.containsPoint(proj.transform.pos))
                         {
-                            LG_D("send destroyed");
                             mc.ser->object(handle.toGenericHandle());
                             mc.ser->object(proj.transform);
                             mc.ser->object(proj.proj.toGenericHandle());

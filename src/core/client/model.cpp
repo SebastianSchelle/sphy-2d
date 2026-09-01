@@ -1043,7 +1043,7 @@ void Model::drawRealtimeItems(gfx::RenderEngine& renderer,
             .upper = bound.aabb.upper + vec2(100.0f, 100.0f),
         };
         sector->items.foreach (
-            [&renderer, &visibleBounds, this, rendertime](
+            [&renderer, &visibleBounds, this, rendertime, &bound](
                 opool::ItemClient& item)
             {
                 opool::vec2Mixer posMix;
@@ -1053,12 +1053,17 @@ void Model::drawRealtimeItems(gfx::RenderEngine& renderer,
                     auto itemData = modManager->getItemLib().getItem(item.item);
                     if (itemData)
                     {
+                        glm::vec2 worldPos = world.getWorldPosSectorOffset(
+                                                 bound.sectorId,
+                                                 renderer.getSectorOffsetX(),
+                                                 renderer.getSectorOffsetY())
+                                             + posMix.pos;
                         drawTexture(renderer,
                                     itemData->worldTexture,
                                     item.rot,
                                     vec2{0.0f, 0.0f},
                                     gfx::RenderEngine::zIdxItem,
-                                    posMix.pos,
+                                    worldPos,
                                     true);
                     }
                     return true;
@@ -1088,7 +1093,7 @@ void Model::drawRealtimeProjectiles(
             .upper = bound.aabb.upper + vec2(100.0f, 100.0f),
         };
         sector->projectiles.foreach (
-            [&renderer, &visibleBounds, this, rendertime](
+            [&renderer, &visibleBounds, this, rendertime, &bound](
                 opool::ProjClient& proj)
             {
                 opool::vec2Mixer posMix;
@@ -1099,12 +1104,16 @@ void Model::drawRealtimeProjectiles(
                         modManager->getProjectileLib().getItem(proj.proj);
                     if (projectile)
                     {
-                        LG_D("p");
+                        glm::vec2 worldPos = world.getWorldPosSectorOffset(
+                                                 bound.sectorId,
+                                                 renderer.getSectorOffsetX(),
+                                                 renderer.getSectorOffsetY())
+                                             + posMix.pos;
                         drawTextures(renderer,
                                      projectile->textures,
                                      proj.rot,
                                      gfx::RenderEngine::zIdxProjectile,
-                                     posMix.pos);
+                                     worldPos);
                     }
                     return true;
                 }
@@ -1132,7 +1141,7 @@ void Model::drawRealtimeBeams(gfx::RenderEngine& renderer,
             .upper = bound.aabb.upper + vec2(100.0f, 100.0f),
         };
         sector->beams.foreach (
-            [&renderer, &visibleBounds, this, rendertime](
+            [&renderer, &visibleBounds, this, rendertime, &bound](
                 opool::BeamClient& beam)
             {
                 opool::LineMixer lineMix;
@@ -1151,9 +1160,14 @@ void Model::drawRealtimeBeams(gfx::RenderEngine& renderer,
                             modManager->getBeamLib().getItem(beam.beam);
                         if (beamD)
                         {
+                            glm::vec2 worldPosOffset =
+                                world.getWorldPosSectorOffset(
+                                    bound.sectorId,
+                                    renderer.getSectorOffsetX(),
+                                    renderer.getSectorOffsetY());
                             renderer.drawLine(
-                                lineMix.pos1,
-                                lineMix.pos2,
+                                worldPosOffset + lineMix.pos1,
+                                worldPosOffset + lineMix.pos2,
                                 beamD->color,
                                 beamD->width,
                                 gfx::RenderEngine::zIdxProjectile);
