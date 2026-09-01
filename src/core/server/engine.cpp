@@ -1040,24 +1040,28 @@ void Engine::registerConsoleCommands()
          {"-kr", "Turn velocity P gain (>=0)", false}});
 }
 
-void Engine::runSlowClientDump(long frameTime)
+void Engine::runSlowClientDump(long frametime)
 {
-    for (int i = 0; i < activeClientHandles.size(); i++)
-    {
-        def::ClientInfoHandle handle = activeClientHandles[i];
-        def::ClientInfo* clientInfo = clientLib.getItem(handle);
-        DO_PERIODIC_U_EXTNOW(clientInfo->lastSlowDump,
-                             slowDumpUs,
-                             frameTime,
-                             [&]()
-                             {
-                                 for (auto& component : slowDumpComponents)
-                                 {
-                                     component.function(&clientInfo->clientInfo,
-                                                        ptrHandle);
-                                 }
-                             });
-    }
+    forActiveClients(
+        [this, frametime](def::ClientInfo* clientInfo)
+        {
+            // if (clientInfo->clientViewRect.viewMode
+            //     == gfx::GameViewMode::StrategicMap)
+            // {
+                DO_PERIODIC_U_EXTNOW(
+                    clientInfo->lastSlowDump,
+                    slowDumpUs,
+                    frametime,
+                    [&]()
+                    {
+                        for (auto& component : slowDumpComponents)
+                        {
+                            component.function(&clientInfo->clientInfo,
+                                               ptrHandle);
+                        }
+                    });
+            // }
+        });
 }
 
 void Engine::runActiveSectorDump(long frameTime)
@@ -1127,12 +1131,19 @@ void Engine::clientUpd(long frametime)
     forActiveClients(
         [this, frametime](def::ClientInfo* clientInfo)
         {
-            clientUpdRealtimeNewOpoolObjs(clientInfo, frametime);
-            DO_PERIODIC_U_EXTNOW(clientInfo->lastClientUpdFast3rd,
-                                 intRealtime,
-                                 frametime,
-                                 [&]()
-                                 { clientUpdRealtime(clientInfo, frametime); });
+            // if (clientInfo->clientViewRect.viewMode
+            //         == gfx::GameViewMode::ThirdPerson
+            //     || clientInfo->clientViewRect.viewMode
+            //            == gfx::GameViewMode::TacticalMap)
+            // {
+                clientUpdRealtimeNewOpoolObjs(clientInfo, frametime);
+                clientUpdRealtimeDestroyedOpoolObjs(clientInfo, frametime);
+                DO_PERIODIC_U_EXTNOW(
+                    clientInfo->lastClientUpdFast3rd,
+                    intRealtime,
+                    frametime,
+                    [&]() { clientUpdRealtime(clientInfo, frametime); });
+            // }
         });
 }
 
@@ -1186,6 +1197,63 @@ void Engine::clientUpdRealtimeNewOpoolObjs(def::ClientInfo* clientInfo,
                     {
                         if (aabb.containsPoint(proj.transform.pos))
                         {
+                            mc.ser->object(handle.toGenericHandle());
+                            mc.ser->object(proj.transform);
+                            mc.ser->object(proj.proj.toGenericHandle());
+                            if (mc.ser->adapter().currentWritePos() + 20 + 6
+                                > prot::kMaxSerializedChunkBytes)
+                            {
+                                mc.execute(sendQueue);
+                                mc.resetData();
+                                mc.startCommand(prot::cmd::SEND_DATA_PROJ, 0);
+                                mc.ser->value4b(sector->getId());
+                                mc.ser->value8b(frametime);
+                            }
+                        }
+                    });
+                if (mc.ser->adapter().currentWritePos() > 12)
+                {
+                    mc.execute(sendQueue);
+                }
+            }
+        }
+    }
+}
+
+
+void Engine::clientUpdRealtimeDestroyedOpoolObjs(def::ClientInfo* clientInfo,
+                                           long frametime)
+{
+    const auto& tl = clientInfo->clientViewRect.tl;
+    const auto& br = clientInfo->clientViewRect.br;
+    const float halfSize = world.getWorldShape().sectorSize / 2.0f;
+    for (uint32_t secX = tl.pos.x; secX <= br.pos.x; ++secX)
+    {
+        for (uint32_t secY = tl.pos.y; secY <= br.pos.y; ++secY)
+        {
+            auto sector = world.getSectorByCoords(secX, secY);
+            if (sector)
+            {
+                const vec2 lower(
+                    (secX == tl.pos.x) ? tl.sectorPos.x - 100.0f : -halfSize,
+                    (secY == tl.pos.y) ? tl.sectorPos.y - 100.0f : -halfSize);
+                const vec2 upper(
+                    (secX == br.pos.x) ? br.sectorPos.x + 100.0f : halfSize,
+                    (secY == br.pos.y) ? br.sectorPos.y + 100.0f : halfSize);
+                const con::AABB aabb{.lower = lower, .upper = upper};
+                const auto& udpEnd = clientInfo->clientInfo.udpEndpoint;
+
+                prot::MsgComposer mc(net::SendType::UDP, udpEnd);
+                mc.startCommand(prot::cmd::SEND_DATA_PROJ, 0);
+                mc.ser->value4b(sector->getId());
+                mc.ser->value8b(frametime);
+                sector->projectilePool.foreachDestroyed(
+                    [aabb, &mc, sector, frametime, this](
+                        opool::Projectile& proj, opool::ProjectileHandle handle)
+                    {
+                        if (aabb.containsPoint(proj.transform.pos))
+                        {
+                            LG_D("send destroyed");
                             mc.ser->object(handle.toGenericHandle());
                             mc.ser->object(proj.transform);
                             mc.ser->object(proj.proj.toGenericHandle());

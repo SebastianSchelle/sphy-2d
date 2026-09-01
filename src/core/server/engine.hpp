@@ -169,6 +169,8 @@ class Engine
     void clientUpd(long frameTime);
     void clientUpdRealtimeNewOpoolObjs(def::ClientInfo* clientInfo,
                                        long frametime);
+    void clientUpdRealtimeDestroyedOpoolObjs(def::ClientInfo* clientInfo,
+                                             long frametime);
     void clientUpdRealtimeAddObjectdata(prot::MsgComposer& mc,
                                         entt::registry* reg,
                                         world::Sector* sector,

@@ -207,22 +207,21 @@ void Model::modelLoopGame(float dt, long frametime)
                 long rendertime =
                     frametime - timeSyncData.serverLatency - realtimeDelay;
                 sphyc::ClientTransform tr;
-                if (trHist->interpolate(rendertime, tr))
+                if (!trHist->interpolate(rendertime, tr))
                 {
-                    auto sectorCoords = world.idToSectorCoords(tr.sectorId);
-                    if (renderer->getViewMode()
-                        == gfx::GameViewMode::TacticalMap)
-                    {
-                        renderer->setActiveSector(sectorCoords.x,
-                                                  sectorCoords.y);
-                    }
-                    else
-                    {
-                        renderer->panWorldTo(def::SectorCoords{
-                            .pos = sectorCoords,
-                            .sectorPos = tr.tr.pos,
-                        });
-                    }
+                    tr = trHist->latest();
+                }
+                auto sectorCoords = world.idToSectorCoords(tr.sectorId);
+                if (renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
+                {
+                    renderer->setActiveSector(sectorCoords.x, sectorCoords.y);
+                }
+                else
+                {
+                    renderer->panWorldTo(def::SectorCoords{
+                        .pos = sectorCoords,
+                        .sectorPos = tr.tr.pos,
+                    });
                 }
             }
         }
@@ -1100,6 +1099,7 @@ void Model::drawRealtimeProjectiles(
                         modManager->getProjectileLib().getItem(proj.proj);
                     if (projectile)
                     {
+                        LG_D("p");
                         drawTextures(renderer,
                                      projectile->textures,
                                      proj.rot,

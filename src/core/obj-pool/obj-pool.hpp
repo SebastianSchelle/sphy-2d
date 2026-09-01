@@ -2,6 +2,7 @@
 #define OBJ_POOL_HPP
 
 #include <free-vector.hpp>
+#include <functional>
 
 namespace opool
 {
@@ -9,7 +10,12 @@ namespace opool
 template <class T> class ObjectPool
 {
   public:
-    ObjectPool() {}
+    ObjectPool()
+    {
+        pool.setDestroyFunction([this](T &item, typename con::FreeVec<T>::Handle handle){
+            onDestroy(item, handle);
+        });
+    }
     ~ObjectPool() {}
     con::FreeVec<T>::Handle spawnObject(const T& object);
     void destroyObject(con::FreeVec<T>::Handle);
@@ -20,15 +26,38 @@ template <class T> class ObjectPool
     void setDestroyFunction(
         std::function<void(T&, typename con::FreeVec<T>::Handle)> clb)
     {
-        pool.setDestroyFunction(clb);
+        onDestroyClb = clb;
     }
     void
     foreachNew(std::function<void(T&, typename con::FreeVec<T>::Handle)> clb);
+    void foreachDestroyed(
+        std::function<void(T&, typename con::FreeVec<T>::Handle)> clb);
+    void clearNew()
+    {
+        newObjects.clear();
+    }
+    void clearDestroyed()
+    {
+        destroyedObjects.clear();
+    }
 
   private:
+    void onDestroy(T& item, typename con::FreeVec<T>::Handle handle);
     con::FreeVec<T> pool;
     vector<typename con::FreeVec<T>::Handle> newObjects;
+    vector<std::pair<typename con::FreeVec<T>::Handle, T>> destroyedObjects;
+    std::function<void(T&, typename con::FreeVec<T>::Handle)> onDestroyClb;
 };
+
+template <class T>
+void ObjectPool<T>::onDestroy(T& item, typename con::FreeVec<T>::Handle handle)
+{
+    if (onDestroyClb)
+    {
+        onDestroyClb(item, handle);
+    }
+    destroyedObjects.push_back({handle, item});
+}
 
 template <class T>
 void ObjectPool<T>::foreach (
@@ -39,18 +68,26 @@ void ObjectPool<T>::foreach (
 }
 
 template <class T>
-void ObjectPool<T>::foreachNew (
-    std::function<void(T&, typename con::FreeVec<T>::Handle)>
-        clb)
+void ObjectPool<T>::foreachNew(
+    std::function<void(T&, typename con::FreeVec<T>::Handle)> clb)
 {
-    while(!newObjects.empty())
+    for (auto handle : newObjects)
     {
-        auto *obj = pool.getItem(newObjects.back());
-        if(obj)
+        auto* obj = pool.getItem(handle);
+        if (obj)
         {
-            clb(*obj, newObjects.back());
+            clb(*obj, handle);
         }
-        newObjects.pop_back();
+    }
+}
+
+template <class T>
+void ObjectPool<T>::foreachDestroyed(
+    std::function<void(T&, typename con::FreeVec<T>::Handle)> clb)
+{
+    for (auto obj : destroyedObjects)
+    {
+        clb(obj.second, obj.first);
     }
 }
 

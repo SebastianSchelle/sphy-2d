@@ -135,6 +135,8 @@ bool Sector::saveSector(const std::string& savedir)
 
 void Sector::update(float dt, ecs::PtrHandle* ptrHandle)
 {
+    projectilePool.clearDestroyed();
+    projectilePool.clearNew();
     broadphaseQueryEntities.clear();
     ptrHandle->systems->runSystems(this, dt, ptrHandle);
     destroyMarkedEntities(ptrHandle);
