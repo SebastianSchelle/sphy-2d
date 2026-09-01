@@ -1048,18 +1048,17 @@ void Engine::runSlowClientDump(long frametime)
             // if (clientInfo->clientViewRect.viewMode
             //     == gfx::GameViewMode::StrategicMap)
             // {
-                DO_PERIODIC_U_EXTNOW(
-                    clientInfo->lastSlowDump,
-                    slowDumpUs,
-                    frametime,
-                    [&]()
+            DO_PERIODIC_U_EXTNOW(
+                clientInfo->lastSlowDump,
+                slowDumpUs,
+                frametime,
+                [&]()
+                {
+                    for (auto& component : slowDumpComponents)
                     {
-                        for (auto& component : slowDumpComponents)
-                        {
-                            component.function(&clientInfo->clientInfo,
-                                               ptrHandle);
-                        }
-                    });
+                        component.function(&clientInfo->clientInfo, ptrHandle);
+                    }
+                });
             // }
         });
 }
@@ -1136,13 +1135,13 @@ void Engine::clientUpd(long frametime)
             //     || clientInfo->clientViewRect.viewMode
             //            == gfx::GameViewMode::TacticalMap)
             // {
-                clientUpdRealtimeNewOpoolObjs(clientInfo, frametime);
-                clientUpdRealtimeDestroyedOpoolObjs(clientInfo, frametime);
-                DO_PERIODIC_U_EXTNOW(
-                    clientInfo->lastClientUpdFast3rd,
-                    intRealtime,
-                    frametime,
-                    [&]() { clientUpdRealtime(clientInfo, frametime); });
+            clientUpdRealtimeNewOpoolObjs(clientInfo, frametime);
+            clientUpdRealtimeDestroyedOpoolObjs(clientInfo, frametime);
+            DO_PERIODIC_U_EXTNOW(clientInfo->lastClientUpdFast3rd,
+                                 intRealtime,
+                                 frametime,
+                                 [&]()
+                                 { clientUpdRealtime(clientInfo, frametime); });
             // }
         });
 }
@@ -1222,7 +1221,7 @@ void Engine::clientUpdRealtimeNewOpoolObjs(def::ClientInfo* clientInfo,
 
 
 void Engine::clientUpdRealtimeDestroyedOpoolObjs(def::ClientInfo* clientInfo,
-                                           long frametime)
+                                                 long frametime)
 {
     const auto& tl = clientInfo->clientViewRect.tl;
     const auto& br = clientInfo->clientViewRect.br;
@@ -1332,6 +1331,8 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
     const auto& br = clientInfo->clientViewRect.br;
     const float halfSize = world.getWorldShape().sectorSize / 2.0f;
 
+    bool activeEntitySent = false;
+
     for (uint32_t secX = tl.pos.x; secX <= br.pos.x; ++secX)
     {
         for (uint32_t secY = tl.pos.y; secY <= br.pos.y; ++secY)
@@ -1403,6 +1404,25 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
                 mcEcs.ser->value8b(frametime);
                 auto reg = sector->getRegistry()->getRegistry();
 
+                // check if active entity will be sent
+                if (!activeEntitySent)
+                {
+                    auto slot =
+                        registryMapping.getEntity(clientInfo->activeEntity);
+                    if (slot && slot->sectorId == sector->getId())
+                    {
+                        auto broadphase =
+                            reg->try_get<ecs::Broadphase>(slot->entity);
+                        if (broadphase)
+                        {
+                            if (aabb.overlaps(broadphase->fatAABB))
+                            {
+                                activeEntitySent = true;
+                            }
+                        }
+                    }
+                }
+
                 sector->queryBroadphase(
                     aabb,
                     [this, &mcItem, &mcEcs, sector, reg, frametime, clientInfo](
@@ -1469,6 +1489,30 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
                             }
                         }
                     });
+
+                if (!activeEntitySent && secX == br.pos.x && secY == br.pos.y)
+                {
+                    auto slot =
+                        registryMapping.getEntity(clientInfo->activeEntity);
+                    if (slot)
+                    {
+                        auto actSector = world.getSector(slot->sectorId);
+                        if (actSector)
+                        {
+                            mcEcs.finishCommand();
+                            mcEcs.startCommand(prot::cmd::UPD_ECS_REALTIME, 0);
+                            mcEcs.ser->value4b(actSector->getId());
+                            mcEcs.ser->value8b(frametime);
+                            clientUpdRealtimeAddObjectdata(
+                                mcEcs,
+                                reg,
+                                actSector,
+                                frametime,
+                                slot->entity,
+                                clientInfo->activeEntity);
+                        }
+                    }
+                }
 
                 // Flush unfinished packets
                 if (mcItem.ser->adapter().currentWritePos()
