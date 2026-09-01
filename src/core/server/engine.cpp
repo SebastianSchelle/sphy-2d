@@ -70,8 +70,8 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
         CFG_FLOAT(config, 0.1f, "engine", "physics", "lin-drag");
     ptrHandle->minFaceTargetDist =
         CFG_FLOAT(config, 1.0f, "engine", "physics", "min-face-target-dist");
-    slowDumpUs =
-        1000 * CFG_UINT(config, 1000.0f, "engine", "net", "dump-int", "slow");
+    intMap =
+        1000 * CFG_UINT(config, 1000.0f, "engine", "net", "dump-int", "map");
     intRealtime =
         1000
         * CFG_UINT(config, 100.0f, "engine", "net", "dump-int", "realtime");
@@ -221,8 +221,6 @@ void Engine::engineLoop()
             {
                 update(dt);
                 runConnectedClientWorkSequencers();
-                // runActiveSectorDump(nowU);
-                runSlowClientDump(nowU);
                 clientUpd(nowU);
                 DO_PERIODIC_U_EXTNOW(lastSaveTime, intAutosave, nowU, saveGame)
             }
@@ -1040,109 +1038,55 @@ void Engine::registerConsoleCommands()
          {"-kr", "Turn velocity P gain (>=0)", false}});
 }
 
-void Engine::runSlowClientDump(long frametime)
-{
-    forActiveClients(
-        [this, frametime](def::ClientInfo* clientInfo)
-        {
-            // if (clientInfo->clientViewRect.viewMode
-            //     == gfx::GameViewMode::StrategicMap)
-            // {
-            DO_PERIODIC_U_EXTNOW(
-                clientInfo->lastSlowDump,
-                slowDumpUs,
-                frametime,
-                [&]()
-                {
-                    for (auto& component : slowDumpComponents)
-                    {
-                        component.function(&clientInfo->clientInfo, ptrHandle);
-                    }
-                });
-            // }
-        });
-}
-
-void Engine::runActiveSectorDump(long frameTime)
-{
-    for (int i = 0; i < activeClientHandles.size(); i++)
-    {
-        def::ClientInfoHandle handle = activeClientHandles[i];
-        def::ClientInfo* clientInfo = clientLib.getItem(handle);
-        DO_PERIODIC_U_EXTNOW(
-            clientInfo->lastClientUpdFast3rd,
-            intRealtime,
-            frameTime,
-            [&]()
-            {
-                for (auto& sectorId : clientInfo->getActiveSectors())
-                {
-                    for (auto& component : activeSectorUpdates)
-                    {
-                        component.function(
-                            &clientInfo->clientInfo, sectorId, ptrHandle);
-                    }
-                }
-                // sendOpoolData<opool::Projectile>(
-                //     clientInfo,
-                //     prot::cmd::SEND_BEGIN_PROJ,
-                //     6 + 16,
-                //     [](bitsery::Serializer<OutputAdapter>& ser,
-                //        opool::Projectile& item,
-                //        opool::ProjectileHandle handle)
-                //     {
-                //         ser.object(handle.toGenericHandle());
-                //         ser.object(item.transform);
-                //         ser.object(item.proj.toGenericHandle());
-                //     });
-                // sendOpoolData<opool::Item>(
-                //     clientInfo,
-                //     prot::cmd::SEND_BEGIN_ITEM,
-                //     6 + 20,
-                //     [](bitsery::Serializer<OutputAdapter>& ser,
-                //        opool::Item& item,
-                //        opool::ItemHandle handle)
-                //     {
-                //         ser.object(handle.toGenericHandle());
-                //         ser.object(item.transform);
-                //         ser.object(item.item.toGenericHandle());
-                //         ser.value4b(item.quantity);
-                //     });
-                // sendOpoolData<opool::Beam>(
-                //     clientInfo,
-                //     prot::cmd::SEND_BEGIN_BEAM,
-                //     6 + 20,
-                //     [](bitsery::Serializer<OutputAdapter>& ser,
-                //        opool::Beam& item,
-                //        opool::BeamHandle handle)
-                //     {
-                //         ser.object(handle.toGenericHandle());
-                //         ser.object(item.origin.pos);
-                //         ser.object(item.point2);
-                //         ser.object(item.beam.toGenericHandle());
-                //     });
-            });
-    }
-}
-
 void Engine::clientUpd(long frametime)
 {
     forActiveClients(
         [this, frametime](def::ClientInfo* clientInfo)
         {
-            // if (clientInfo->clientViewRect.viewMode
-            //         == gfx::GameViewMode::ThirdPerson
-            //     || clientInfo->clientViewRect.viewMode
-            //            == gfx::GameViewMode::TacticalMap)
-            // {
-            clientUpdRealtimeNewOpoolObjs(clientInfo, frametime);
-            clientUpdRealtimeDestroyedOpoolObjs(clientInfo, frametime);
-            DO_PERIODIC_U_EXTNOW(clientInfo->lastClientUpdFast3rd,
-                                 intRealtime,
-                                 frametime,
-                                 [&]()
-                                 { clientUpdRealtime(clientInfo, frametime); });
-            // }
+            bool isRealtime = clientInfo->clientViewRect.viewMode
+                              == gfx::GameViewMode::ThirdPerson;
+            if (isRealtime)
+            {
+                // Realtime update ============================================
+                if (lastClientViewRect != clientInfo->clientViewRect)
+                {
+                    lastClientViewRect = clientInfo->clientViewRect;
+                }
+                clientUpdRealtimeNewOpoolObjs(clientInfo, frametime);
+                clientUpdRealtimeDestroyedOpoolObjs(clientInfo, frametime);
+                DO_PERIODIC_U_EXTNOW(
+                    clientInfo->lastClientUpdFast3rd,
+                    intRealtime,
+                    frametime,
+                    [&]() { clientUpdRealtime(clientInfo, frametime); });
+            }
+            else
+            {
+                // Map update =================================================
+                if (lastClientViewRect != clientInfo->clientViewRect)
+                {
+                    // todo: calculate area newRect without oldRect and only
+                    // send entities in this unknown area to reduce bandwidth
+                    DO_PERIODIC_U_EXTNOW(
+                        clientInfo->lastClientUpdMap,
+                        intRealtime,
+                        frametime,
+                        [&]()
+                        {
+                            LG_D("Instant map update");
+                            clientUpdMap(clientInfo, frametime);
+                            lastClientViewRect = clientInfo->clientViewRect;
+                        });
+                }
+                else
+                {
+                    DO_PERIODIC_U_EXTNOW(
+                        clientInfo->lastClientUpdMap,
+                        intMap,
+                        frametime,
+                        [&]() { clientUpdMap(clientInfo, frametime); });
+                }
+            }
         });
 }
 
@@ -1452,7 +1396,7 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
                                 mcItem.ser->value8b(frametime);
                             }
                         }
-                        if (data.type == world::BpUserType::Ecs)
+                        else if (data.type == world::BpUserType::Ecs)
                         {
                             // time + required components e.g. transform,
                             // thrust
@@ -1520,6 +1464,87 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
                 {
                     mcItem.execute(sendQueue);
                 }
+                if (mcEcs.ser->adapter().currentWritePos()
+                    > prot::MsgComposer::HeaderSize + 12)
+                {
+                    mcEcs.execute(sendQueue);
+                }
+            }
+        }
+    }
+}
+
+void Engine::clientUpdMapAddObjectdata(prot::MsgComposer& mc,
+                                       entt::registry* reg,
+                                       world::Sector* sector,
+                                       long frametime,
+                                       entt::entity entity,
+                                       ecs::EntityId entityId)
+{
+    auto& transform = reg->get<ecs::Transform>(entity);
+    const size_t entDataLen = sizeof(ecs::EntityId) + sizeof(ecs::Transform);
+    if (mc.ser->adapter().currentWritePos()
+        >= prot::kMaxSerializedChunkBytes - entDataLen)
+    {
+        mc.execute(sendQueue);
+        mc.resetData();
+        mc.startCommand(prot::cmd::UPD_ECS_MAP, 0);
+        mc.ser->value4b(sector->getId());
+        mc.ser->value8b(frametime);
+    }
+    mc.ser->object(entityId);
+    mc.ser->object(transform);
+}
+
+void Engine::clientUpdMap(def::ClientInfo* clientInfo, long frametime)
+{
+    const auto& tl = clientInfo->clientViewRect.tl;
+    const auto& br = clientInfo->clientViewRect.br;
+    const float halfSize = world.getWorldShape().sectorSize / 2.0f;
+
+    for (uint32_t secX = tl.pos.x; secX <= br.pos.x; ++secX)
+    {
+        for (uint32_t secY = tl.pos.y; secY <= br.pos.y; ++secY)
+        {
+            auto sector = world.getSectorByCoords(secX, secY);
+            if (sector)
+            {
+                const vec2 lower(
+                    (secX == tl.pos.x) ? tl.sectorPos.x - 100.0f : -halfSize,
+                    (secY == tl.pos.y) ? tl.sectorPos.y - 100.0f : -halfSize);
+                const vec2 upper(
+                    (secX == br.pos.x) ? br.sectorPos.x + 100.0f : halfSize,
+                    (secY == br.pos.y) ? br.sectorPos.y + 100.0f : halfSize);
+                const con::AABB aabb{.lower = lower, .upper = upper};
+                const auto& udpEnd = clientInfo->clientInfo.udpEndpoint;
+
+                prot::MsgComposer mcEcs(net::SendType::UDP, udpEnd);
+                mcEcs.startCommand(prot::cmd::UPD_ECS_MAP, 0);
+                mcEcs.ser->value4b(sector->getId());
+                mcEcs.ser->value8b(frametime);
+                auto reg = sector->getRegistry()->getRegistry();
+
+                sector->queryBroadphase(
+                    aabb,
+                    [this, &mcEcs, sector, reg, frametime, clientInfo](
+                        const world::BpUserData& data)
+                    {
+                        if (data.type == world::BpUserType::Ecs)
+                        {
+                            // time + required components e.g. transform,
+                            // thrust
+                            auto entity = data.data.ent;
+                            auto entityId = reg->get<ecs::EntityId>(entity);
+                            clientUpdMapAddObjectdata(mcEcs,
+                                                      reg,
+                                                      sector,
+                                                      frametime,
+                                                      entity,
+                                                      entityId);
+                        }
+                    });
+
+                // Flush unfinished packets
                 if (mcEcs.ser->adapter().currentWritePos()
                     > prot::MsgComposer::HeaderSize + 12)
                 {

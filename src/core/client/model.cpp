@@ -59,6 +59,7 @@ Model::Model(ui::UserInterface* userInterface,
     intFastCliServ =
         CFG_UINT(config, 100.0f, "net", "dump-int", "fast-cli-serv");
     realtimeDelay = 1000U * CFG_UINT(config, 100.0f, "net", "realtime-delay");
+    mapDelay = 1000U * CFG_UINT(config, 2000.0f, "net", "map-delay");
 
     registerConnectSequence();
 }
@@ -622,33 +623,11 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                             });
             break;
         }
-            // OPOOL_RECV(PROJ, projectiles, 6 + 16, {
-            //     GenericHandle32 handle;
-            //     ecs::Transform tr;
-            //     GenericHandle proj;
-            //     cmddes.object(handle);
-            //     cmddes.object(tr);
-            //     cmddes.object(proj);
-            //     sector->projectiles.updateObject(
-            //         handle, opool::ProjClient::Params{.tr = tr, .proj =
-            //         proj});
-            // })
-            // OPOOL_RECV(ITEM, items, 6 + 20, {})
-            // OPOOL_RECV(BEAM, beams, 6 + 20, {
-            //     GenericHandle32 handle;
-            //     vec2 p1;
-            //     vec2 p2;
-            //     GenericHandle beam;
-            //     cmddes.object(handle);
-            //     cmddes.object(p1);
-            //     cmddes.object(p2);
-            //     cmddes.object(beam);
-            //     beams.updateObject(handle,
-            //                        opool::BeamClient::Params{
-            //                            .p1 = p1, .p2 = p2, .beam = beam});
-            // })
         case prot::cmd::UPD_ECS_REALTIME:
             handleEcsRealtime(cmddes, dataEndPos);
+            break;
+        case prot::cmd::UPD_ECS_MAP:
+            handleEcsMap(cmddes, dataEndPos);
             break;
         default:
             break;
@@ -665,143 +644,216 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
 
 void Model::drawDebug(gfx::RenderEngine& renderer, float zoom)
 {
-    world.drawDebug(renderer, zoom);
-    auto& reg = clientRegistry.getRegistry();
-    reg.view<ecs::Transform, ecs::SectorId>().each(
-        [this, &renderer](ecs::Transform& transform, ecs::SectorId& sectorId)
-        {
-            glm::vec2 worldPos =
-                world.getWorldPosSectorOffset(sectorId.id,
-                                              renderer.getSectorOffsetX(),
-                                              renderer.getSectorOffsetY())
-                + transform.pos;
-            renderer.drawEllipse(worldPos,
-                                 glm::vec2(10.0f, 5.0f),
-                                 0xffffffff,
-                                 2.0f,
-                                 transform.rot,
-                                 0);
-        });
+    // world.drawDebug(renderer, zoom);
+    // auto& reg = clientRegistry.getRegistry();
+    // reg.view<ecs::Transform, ecs::SectorId>().each(
+    //     [this, &renderer](ecs::Transform& transform, ecs::SectorId& sectorId)
+    //     {
+    //         glm::vec2 worldPos =
+    //             world.getWorldPosSectorOffset(sectorId.id,
+    //                                           renderer.getSectorOffsetX(),
+    //                                           renderer.getSectorOffsetY())
+    //             + transform.pos;
+    //         renderer.drawEllipse(worldPos,
+    //                              glm::vec2(10.0f, 5.0f),
+    //                              0xffffffff,
+    //                              2.0f,
+    //                              transform.rot,
+    //                              0);
+    //     });
 }
 
 void Model::drawTacticalMap(gfx::RenderEngine& renderer,
                             const glm::vec4& viewRect,
                             float zoom)
 {
-    world.drawTacticalMap(renderer, viewRect, zoom);
-    uint32_t activeSectorId = getActiveSectorId();
-    drawRealtime(renderer);
-    auto& reg = clientRegistry.getRegistry();
-    for (const auto& entityId : selectedEntities)
-    {
-        game_entity entity = clientRegistry.getEntity(entityId);
-        if (reg.valid(entity))
-        {
-            auto* trans = reg.try_get<ecs::Transform>(entity);
-            auto* sectorId = reg.try_get<ecs::SectorId>(entity);
-            if (trans && sectorId && sectorId->id == activeSectorId)
-            {
-                glm::vec2 worldPos =
-                    world.getWorldPosSectorOffset(sectorId->id,
-                                                  renderer.getSectorOffsetX(),
-                                                  renderer.getSectorOffsetY())
-                    + trans->pos;
-                renderer.drawShapeRectangle(worldPos,
-                                            glm::vec2(40.0f, 40.0f),
-                                            0xff004000,
-                                            1.0f / zoom,
-                                            0.0f,
-                                            0);
-            }
-        }
-    }
-    if (overlayAabbTreeEnabled)
-    {
-        drawOverlayAABBs(renderer, zoom);
-    }
+    // world.drawTacticalMap(renderer, viewRect, zoom);
+    // uint32_t activeSectorId = getActiveSectorId();
+    // drawRealtime(renderer);
+    // auto& reg = clientRegistry.getRegistry();
+    // for (const auto& entityId : selectedEntities)
+    // {
+    //     game_entity entity = clientRegistry.getEntity(entityId);
+    //     if (reg.valid(entity))
+    //     {
+    //         auto* trans = reg.try_get<ecs::Transform>(entity);
+    //         auto* sectorId = reg.try_get<ecs::SectorId>(entity);
+    //         if (trans && sectorId && sectorId->id == activeSectorId)
+    //         {
+    //             glm::vec2 worldPos =
+    //                 world.getWorldPosSectorOffset(sectorId->id,
+    //                                               renderer.getSectorOffsetX(),
+    //                                               renderer.getSectorOffsetY())
+    //                 + trans->pos;
+    //             renderer.drawShapeRectangle(worldPos,
+    //                                         glm::vec2(40.0f, 40.0f),
+    //                                         0xff004000,
+    //                                         1.0f / zoom,
+    //                                         0.0f,
+    //                                         0);
+    //         }
+    //     }
+    // }
+    // if (overlayAabbTreeEnabled)
+    // {
+    //     drawOverlayAABBs(renderer, zoom);
+    // }
 }
 
-void Model::drawStrategicMap(gfx::RenderEngine& renderer,
-                             const glm::vec4& viewRect,
-                             float zoom)
+void Model::drawMap(gfx::RenderEngine& renderer)
 {
-    world.drawStrategicMap(renderer, viewRect, zoom);
+    long frametime = tim::nowU();
+    long rendertime = frametime - timeSyncData.serverLatency - mapDelay;
+    std::vector<RealtimeDrawBounds> bounds;
+    createDrawBounds(bounds);
+    drawMapIcons(renderer, bounds, rendertime);
+
+    // world.drawStrategicMap(renderer, viewRect, zoom);
+
+
     // todo: Group entities by Pos and only show lists or fleets or groups
+    // auto& reg = clientRegistry.getRegistry();
+    // reg.view<ecs::Transform, ecs::SectorId, ecs::MapIcon>().each(
+    //     [this, &renderer, &viewRect, zoom](ecs::Transform& transform,
+    //                                        ecs::SectorId& sectorId,
+    //                                        ecs::MapIcon& mapIcon)
+    //     {
+    //         glm::vec2 worldPos =
+    //             world.getWorldPosSectorOffset(sectorId.id,
+    //                                           renderer.getSectorOffsetX(),
+    //                                           renderer.getSectorOffsetY())
+    //             + transform.pos;
+    //         if (smath::pointInsideRect(worldPos, viewRect))
+    //         {
+    //             auto* mapIconItem = modManager->getMapIconLib().getItem(
+    //                 gobj::MapIconHandle(mapIcon.mapIconHandle));
+    //             if (mapIconItem)
+    //             {
+    //                 mod::MappedTextureHandle mTexHandle =
+    //                     *(mod::MappedTextureHandle*)&mapIconItem->texHandle;
+    //                 const mod::MappedTexture* mappedTexture =
+    //                     modManager->getResourceMap().getMappedTexture(
+    //                         mTexHandle);
+    //                 gfx::TextureHandle texHandle =
+    //                     gfx::TextureHandle::Invalid();
+    //                 if (mappedTexture)
+    //                 {
+    //                     texHandle = mappedTexture->texHandle;
+    //                 }
+    //                 renderer.queueTexRect(worldPos,
+    //                                       glm::vec2(mapIconItem->size.x /
+    //                                       zoom,
+    //                                                 mapIconItem->size.y /
+    //                                                 zoom),
+    //                                       texHandle,
+    //                                       transform.rot,
+    //                                       gfx::RenderEngine::zIdxMapIconHull,
+    //                                       0xff0010ff);
+    //             }
+    //         }
+    //     });
+
+    // for (const auto& entityId : selectedEntities)
+    // {
+    //     game_entity entity = clientRegistry.getEntity(entityId);
+    //     if (reg.valid(entity))
+    //     {
+    //         auto* trans = reg.try_get<ecs::Transform>(entity);
+    //         auto* sectorId = reg.try_get<ecs::SectorId>(entity);
+    //         auto* mapIcon = reg.try_get<ecs::MapIcon>(entity);
+    //         if (trans && sectorId && mapIcon)
+    //         {
+    //             auto* mapIconItem = modManager->getMapIconLib().getItem(
+    //                 gobj::MapIconHandle(mapIcon->mapIconHandle));
+    //             if (mapIconItem)
+    //             {
+    //                 glm::vec2 worldPos = world.getWorldPosSectorOffset(
+    //                                          sectorId->id,
+    //                                          renderer.getSectorOffsetX(),
+    //                                          renderer.getSectorOffsetY())
+    //                                      + trans->pos;
+    //                 renderer.drawShapeRectangle(
+    //                     worldPos,
+    //                     glm::vec2(mapIconItem->size.x * 1.5f / zoom,
+    //                               mapIconItem->size.y * 1.5f / zoom),
+    //                     0xff004000,
+    //                     1.0f / zoom,
+    //                     0.0f,
+    //                     0);
+    //             }
+    //         }
+    //     }
+    // }
+
+    // if (overlayAabbTreeEnabled)
+    // {
+    //     drawOverlayAABBs(renderer, zoom);
+    // }
+}
+
+
+void Model::drawMapIcons(gfx::RenderEngine& renderer,
+                         const vector<RealtimeDrawBounds>& drawBounds,
+                         long rendertime)
+{
+    float zoom = renderer.getWorldZoom();
     auto& reg = clientRegistry.getRegistry();
-    reg.view<ecs::Transform, ecs::SectorId, ecs::MapIcon>().each(
-        [this, &renderer, &viewRect, zoom](ecs::Transform& transform,
-                                           ecs::SectorId& sectorId,
-                                           ecs::MapIcon& mapIcon)
+    reg.view<TransformHist, ecs::SectorId, ecs::MapIcon>().each(
+        [this, &renderer, &reg, &drawBounds, rendertime, zoom](
+            game_entity entity,
+            TransformHist& tr,
+            ecs::SectorId& sectorId,
+            ecs::MapIcon& mapIcon)
         {
-            glm::vec2 worldPos =
-                world.getWorldPosSectorOffset(sectorId.id,
-                                              renderer.getSectorOffsetX(),
-                                              renderer.getSectorOffsetY())
-                + transform.pos;
-            if (smath::pointInsideRect(worldPos, viewRect))
+            // Check if in any visible sector
+            for (auto& bounds : drawBounds)
             {
-                auto* mapIconItem = modManager->getMapIconLib().getItem(
-                    gobj::MapIconHandle(mapIcon.mapIconHandle));
-                if (mapIconItem)
+                if (bounds.sectorId != sectorId.id)
                 {
-                    mod::MappedTextureHandle mTexHandle =
-                        *(mod::MappedTextureHandle*)&mapIconItem->texHandle;
-                    const mod::MappedTexture* mappedTexture =
-                        modManager->getResourceMap().getMappedTexture(
-                            mTexHandle);
-                    gfx::TextureHandle texHandle =
-                        gfx::TextureHandle::Invalid();
-                    if (mappedTexture)
+                    continue;
+                }
+                sphyc::ClientTransform clitr;
+                if (tr.interpolate(rendertime, clitr)
+                    || tr.interpolate(
+                        rendertime, clitr, true))
+                {
+                    if (bounds.aabb.containsPoint(clitr.tr.pos))
                     {
-                        texHandle = mappedTexture->texHandle;
+                        auto* mapIconItem = modManager->getMapIconLib().getItem(
+                            gobj::MapIconHandle(mapIcon.mapIconHandle));
+                        if (mapIconItem)
+                        {
+                            glm::vec2 worldPos =
+                                world.getWorldPosSectorOffset(
+                                    sectorId.id,
+                                    renderer.getSectorOffsetX(),
+                                    renderer.getSectorOffsetY())
+                                + clitr.tr.pos;
+                            mod::MappedTextureHandle mTexHandle =
+                                *(mod::MappedTextureHandle*)&mapIconItem
+                                     ->texHandle;
+                            const mod::MappedTexture* mappedTexture =
+                                modManager->getResourceMap().getMappedTexture(
+                                    mTexHandle);
+                            gfx::TextureHandle texHandle =
+                                gfx::TextureHandle::Invalid();
+                            if (mappedTexture)
+                            {
+                                texHandle = mappedTexture->texHandle;
+                            }
+                            renderer.queueTexRect(
+                                worldPos,
+                                glm::vec2(mapIconItem->size.x / zoom,
+                                          mapIconItem->size.y / zoom),
+                                texHandle,
+                                clitr.tr.rot,
+                                gfx::RenderEngine::zIdxMapIconHull,
+                                0xff0010ff);
+                        }
                     }
-                    renderer.queueTexRect(worldPos,
-                                          glm::vec2(mapIconItem->size.x / zoom,
-                                                    mapIconItem->size.y / zoom),
-                                          texHandle,
-                                          transform.rot,
-                                          gfx::RenderEngine::zIdxMapIconHull,
-                                          0xff0010ff);
                 }
             }
         });
-
-    for (const auto& entityId : selectedEntities)
-    {
-        game_entity entity = clientRegistry.getEntity(entityId);
-        if (reg.valid(entity))
-        {
-            auto* trans = reg.try_get<ecs::Transform>(entity);
-            auto* sectorId = reg.try_get<ecs::SectorId>(entity);
-            auto* mapIcon = reg.try_get<ecs::MapIcon>(entity);
-            if (trans && sectorId && mapIcon)
-            {
-                auto* mapIconItem = modManager->getMapIconLib().getItem(
-                    gobj::MapIconHandle(mapIcon->mapIconHandle));
-                if (mapIconItem)
-                {
-                    glm::vec2 worldPos = world.getWorldPosSectorOffset(
-                                             sectorId->id,
-                                             renderer.getSectorOffsetX(),
-                                             renderer.getSectorOffsetY())
-                                         + trans->pos;
-                    renderer.drawShapeRectangle(
-                        worldPos,
-                        glm::vec2(mapIconItem->size.x * 1.5f / zoom,
-                                  mapIconItem->size.y * 1.5f / zoom),
-                        0xff004000,
-                        1.0f / zoom,
-                        0.0f,
-                        0);
-                }
-            }
-        }
-    }
-
-    if (overlayAabbTreeEnabled)
-    {
-        drawOverlayAABBs(renderer, zoom);
-    }
 }
 
 void Model::drawRealtime(gfx::RenderEngine& renderer)
@@ -810,7 +862,7 @@ void Model::drawRealtime(gfx::RenderEngine& renderer)
     long frametime = tim::nowU();
     long renderTime = frametime - timeSyncData.serverLatency - realtimeDelay;
     std::vector<RealtimeDrawBounds> bounds;
-    createRealtimeDrawBounds(bounds);
+    createDrawBounds(bounds);
     drawRealtimeShips(renderer, bounds, renderTime);
     drawRealtimeAsteroids(renderer, bounds, renderTime);
     drawRealtimeProjectiles(renderer, bounds, renderTime);
@@ -818,7 +870,7 @@ void Model::drawRealtime(gfx::RenderEngine& renderer)
     drawRealtimeItems(renderer, bounds, renderTime);
 }
 
-void Model::createRealtimeDrawBounds(vector<RealtimeDrawBounds>& bounds)
+void Model::createDrawBounds(vector<RealtimeDrawBounds>& bounds)
 {
     const auto& viewRect = clientInfo.clientViewRect;
     const auto& tl = viewRect.tl;
@@ -1892,11 +1944,6 @@ void Model::handleEcsRealtime(bitsery::Deserializer<InputAdapter>& cmddes,
     long frametime;
     cmddes.value4b(sectorId);
     cmddes.value8b(frametime);
-    // auto sector = world.getSector(sectorId);
-    // if (!sector)
-    // {
-    //     return;
-    // }
     auto& reg = clientRegistry.getRegistry();
     while ((int)cmddes.adapter().currentReadPos() < (int)(dataEndPos)-8)
     {
@@ -1939,6 +1986,34 @@ void Model::handleEcsRealtime(bitsery::Deserializer<InputAdapter>& cmddes,
                 turr->currentAngle = rot;
             }
         }
+    }
+}
+
+
+void Model::handleEcsMap(bitsery::Deserializer<InputAdapter>& cmddes,
+                         size_t dataEndPos)
+{
+    uint32_t sectorId;
+    long frametime;
+    cmddes.value4b(sectorId);
+    cmddes.value8b(frametime);
+    auto& reg = clientRegistry.getRegistry();
+    while ((int)cmddes.adapter().currentReadPos() < (int)(dataEndPos)-6)
+    {
+        ecs::EntityId entityId;
+        cmddes.object(entityId);
+        game_entity entity = clientRegistry.enttFromServerId(entityId, false);
+        auto sector = reg.try_get<ecs::SectorId>(entity);
+        if (sector && sector->id != sectorId)
+        {
+            sector->id = sectorId;
+            sector->coord = world.idToSectorCoords(sectorId);
+        }
+        ecs::Transform tr;
+        cmddes.object(tr);
+        auto& clitr = reg.get_or_emplace<TransformHist>(entity);
+        clitr.addSample(
+            {.tr = tr, .sectorId = sectorId}, frametime, mapDelay / 2);
     }
 }
 

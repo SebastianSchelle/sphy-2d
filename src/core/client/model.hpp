@@ -95,9 +95,7 @@ class Model
     void drawTacticalMap(gfx::RenderEngine& renderer,
                          const glm::vec4& viewRect,
                          float zoom);
-    void drawStrategicMap(gfx::RenderEngine& renderer,
-                          const glm::vec4& viewRect,
-                          float zoom);
+    void drawMap(gfx::RenderEngine& renderer);
     void drawRealtime(gfx::RenderEngine& renderer);
     void setOverlayEnabled(const std::string& overlay, bool enabled);
     bool isAabbTreeOverlayEnabled() const;
@@ -196,6 +194,8 @@ class Model
                              size_t dataEndPos);
     void handleEcsRealtime(bitsery::Deserializer<InputAdapter>& cmddes,
                            size_t dataEndPos);
+    void handleEcsMap(bitsery::Deserializer<InputAdapter>& cmddes,
+                      size_t dataEndPos);
     void handleSendOpool(
         bitsery::Deserializer<InputAdapter>& cmddes,
         size_t dataEndPos,
@@ -210,8 +210,13 @@ class Model
                                     size_t dataEndPos);
     void drawOverlayAABBs(gfx::RenderEngine& renderer, float zoom);
 
+    // Map drawing
+    void drawMapIcons(gfx::RenderEngine& renderer,
+                      const vector<RealtimeDrawBounds>& drawBounds,
+                      long rendertime);
+
     // Realtime drawing
-    void createRealtimeDrawBounds(vector<RealtimeDrawBounds>& bounds);
+    void createDrawBounds(vector<RealtimeDrawBounds>& bounds);
     void drawRealtimeShips(gfx::RenderEngine& renderer,
                            const vector<RealtimeDrawBounds>& drawBounds,
                            long rendertime);
@@ -286,6 +291,7 @@ class Model
     def::ThirdPersonControl thirdPersonControl;
     uint16_t intFastCliServ;
     long realtimeDelay;
+    long mapDelay;
 };
 
 }  // namespace sphyc

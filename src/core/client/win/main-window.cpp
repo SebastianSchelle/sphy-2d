@@ -414,7 +414,7 @@ void MainWindow::renderGame()
     {
         case gfx::GameViewMode::StrategicMap:
             processMouseTactical(zoom);
-            model.drawStrategicMap(renderEngine, viewportRect, zoom);
+            model.drawMap(renderEngine);
             renderEngine.panWorld(panX, panY);
             break;
         case gfx::GameViewMode::TacticalMap:

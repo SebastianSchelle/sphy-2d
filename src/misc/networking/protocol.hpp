@@ -152,6 +152,7 @@ const uint16_t ACK_WORKSEQUENCER = 0x0013;
 const uint16_t CLIENT_VIEW_RECT = 0x0014;
 const uint16_t UPD_ECS_REALTIME = 0x0015;
 const uint16_t REALTIME_DATA_ACT_ENT = 0x0016;
+const uint16_t UPD_ECS_MAP = 0x0017;
 
 const uint16_t SEND_DATA_PROJ = 0x1000;
 const uint16_t SEND_DATA_ITEM = 0x1001;

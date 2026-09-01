@@ -20,6 +20,15 @@ struct ClientViewRect
     gfx::GameViewMode viewMode;
     SectorCoords tl;
     SectorCoords br;
+
+    bool operator==(const ClientViewRect& other) const
+    {
+        return viewMode == other.viewMode && tl == other.tl && br == other.br;
+    }
+    bool operator!=(const ClientViewRect& other) const
+    {
+        return !(*this == other);
+    }
 };
 
 #define SER_CLIENT_VIEW_RECT                                                   \
@@ -40,10 +49,10 @@ class ClientInfo
     {
         this->name = name;
         this->clientInfo = clientInfo;
-        this->lastSlowDump = tim::nowU();
-        this->lastClientUpdFast3rd = tim::nowU();
         this->flags = flags;
-        this->thirdPersonControl.flags = 0;
+        thirdPersonControl.flags = 0;
+        lastClientUpdMap = tim::nowU();
+        lastClientUpdFast3rd = tim::nowU();
     }
 #endif
 #ifdef CLIENT
@@ -60,8 +69,8 @@ class ClientInfo
     ~ClientInfo() {}
 #ifdef SERVER
     net::ClientInfo clientInfo;
-    long lastSlowDump;
     long lastClientUpdFast3rd;
+    long lastClientUpdMap;
     ThirdPersonControl thirdPersonControl;
 
     void addWorkFunction(work::WorkFunction workFunction)

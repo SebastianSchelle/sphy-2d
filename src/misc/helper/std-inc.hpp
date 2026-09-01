@@ -1055,13 +1055,17 @@ EXT_DES(GameViewMode, SER_GMV)
 template <class T> class InterpolData
 {
   public:
-    void addSample(const T& sample, long ts)
+    void addSample(const T& sample, long ts, int minDt=0)
     {
+        if(minDt > 0 && timestamps[newest] > ts - minDt)
+        {
+            return;
+        }
         newest = next(newest);
         history[newest] = sample;
         timestamps[newest] = ts;
     }
-    bool interpolate(long time, T& t) const
+    bool interpolate(long time, T& t, bool relaxed = false) const
     {
         if (time > timestamps[newest])
         {
@@ -1082,15 +1086,23 @@ template <class T> class InterpolData
         float alpha;
         if (timestamps[p] == 0)
         {
-            return false;
+            if (relaxed)
+            {
+                t = history[n];
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
         else
         {
             alpha = (float)(time - timestamps[p])
                     / (float)(timestamps[n] - timestamps[p]);
+            t = history[p].mix(history[n], alpha);
+            return true;
         }
-        t = history[p].mix(history[n], alpha);
-        return true;
     }
     bool hasRecentData(long time)
     {

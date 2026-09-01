@@ -133,8 +133,6 @@ class Engine
     void update(float dt);
     void postWorldSetup();
     void registerConsoleCommands();
-    void runSlowClientDump(long frameTime);
-    void runActiveSectorDump(long frameTime);
     void sendProjectileInfo(def::ClientInfo* client);
     template <class T>
     void sendOpoolData(
@@ -179,6 +177,13 @@ class Engine
                                         ecs::EntityId entityId,
                                         bool isAttachment = false);
     void clientUpdRealtime(def::ClientInfo* clientInfo, long frameTime);
+    void clientUpdMapAddObjectdata(prot::MsgComposer& mc,
+                                   entt::registry* reg,
+                                   world::Sector* sector,
+                                   long frametime,
+                                   entt::entity entity,
+                                   ecs::EntityId entityId);
+    void clientUpdMap(def::ClientInfo* clientInfo, long frameTime);
 
     const sphy::CmdLinOptionsServer& options;
     std::atomic<bool> stopRequested{false};
@@ -202,7 +207,7 @@ class Engine
     ecs::PtrHandle* ptrHandle;
     cmd::CommandManager commandManager;
 
-    uint32_t slowDumpUs;
+    uint32_t intMap;
     uint32_t intRealtime;
     vector<CompClientDump> slowDumpComponents;
     vector<CompActiveSectorUpdate> activeSectorUpdates;
@@ -214,6 +219,7 @@ class Engine
 
     float itemLifetime;
     ai::TaskSystem taskSystem;
+    def::ClientViewRect lastClientViewRect;
 
     def::ClientInfoHandle testclient;
 
