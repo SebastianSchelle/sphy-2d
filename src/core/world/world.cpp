@@ -1,4 +1,5 @@
 #include "comp-phy.hpp"
+#include "world-def.hpp"
 #include <asset-factory.hpp>
 #include <comp-ai.hpp>
 #include <comp-ident.hpp>
@@ -187,6 +188,35 @@ void World::update(float dt, ecs::PtrHandle* ptrHandle)
     handleSectorMoveRequests(ptrHandle);
 }
 #endif
+
+vec2 World::translateCoords(vec2 pos, uint32_t secFrom, uint32_t secTo)
+{
+    auto posFrom = idToSectorCoords(secFrom);
+    auto posTo = idToSectorCoords(secTo);
+    return pos + (posFrom.toVec2() - posTo.toVec2()) * worldShape.sectorSize;
+}
+
+def::SectorCoords World::translateOOBCoords(def::SectorCoords coords)
+{
+    def::SectorCoords ret;
+    const int xOffset =
+        (int)floorf(coords.sectorPos.x / worldShape.sectorSize + 0.5f);
+    const int yOffset =
+        (int)floorf(coords.sectorPos.y / worldShape.sectorSize + 0.5f);
+    ret.pos.x = std::clamp(
+        (int)coords.pos.x + xOffset, 0, (int)worldShape.numSectorX - 1);
+    ret.pos.y = std::clamp(
+        (int)coords.pos.y + yOffset, 0, (int)worldShape.numSectorY - 1);
+    const float cx =
+        (float(ret.pos.x) - float(coords.pos.x)) * worldShape.sectorSize;
+    const float cy =
+        (float(ret.pos.y) - float(coords.pos.y)) * worldShape.sectorSize;
+    ret.sectorPos.x =
+        std::clamp(coords.sectorPos.x - cx, -halfSectorSize, halfSectorSize);
+    ret.sectorPos.y =
+        std::clamp(coords.sectorPos.y - cy, -halfSectorSize, halfSectorSize);
+    return ret;
+}
 
 bool World::getNeighboringSectorPos(uint32_t sectorId,
                                     def::Direction dir,
@@ -662,6 +692,11 @@ def::SectorPos World::idToSectorCoords(uint32_t sectorId) const
 uint32_t World::sectorCoordsToId(uint32_t sectorX, uint32_t sectorY) const
 {
     return sectorX + sectorY * worldShape.numSectorX;
+}
+
+uint32_t World::sectorCoordsToId(def::SectorPos coords) const
+{
+    return coords.x + coords.y * worldShape.numSectorX;
 }
 
 vec2 World::getWorldPosSectorOffset(uint32_t sectorX,

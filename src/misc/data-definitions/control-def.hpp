@@ -20,7 +20,6 @@ struct ThirdPersonControl
 
     void acc()
     {
-        LG_D("Acc");
         thrust.y = 1.0f;
         flags |= FLG_DRIVE_MANUAL;
     }

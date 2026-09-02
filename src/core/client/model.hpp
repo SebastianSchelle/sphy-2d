@@ -3,6 +3,7 @@
 
 #include "glm/common.hpp"
 #include "sector.hpp"
+#include "world-def.hpp"
 #include <RmlUi/Core/DataModelHandle.h>
 #include <asset-factory.hpp>
 #include <client-def.hpp>
@@ -68,42 +69,39 @@ struct ClientTransform
     {
         world::World* world;
     };
-    ClientTransform mix(const ClientTransform& other, float alpha, const ExtraParam& extra) const
+    ClientTransform mix(const ClientTransform& other,
+                        float alpha,
+                        const ExtraParam& extra) const
     {
-        vec2 oldPos = tr.pos;
-        // uint32_t newSector = other.sectorId;
-        if(sectorId != other.sectorId && extra.world)
-        {
-            // make it more sofisticated: set correct sectorId to not extend sector bounds, maybe this fucks with drawing and world pos
-
-            const float wsize = extra.world->getWorldShape().sectorSize;
-            const auto posOld = extra.world->idToSectorCoords(sectorId);
-            const auto posNew = extra.world->idToSectorCoords(other.sectorId);
-            // new sector right of old
-            if(posNew.x == posOld.x + 1)
-            {
-                oldPos.x = -wsize + oldPos.x;
-                //newSector = oldPos.x < -wsize/2 ? sectorId : other.sectorId;
-            }
-            else if(posNew.x == posOld.x - 1)
-            {
-                oldPos.x = wsize + oldPos.x;
-                //newSector = oldPos.x > wsize/2 ? sectorId : other.sectorId;
-            }
-            if(posNew.y == posOld.y + 1)
-            {
-                oldPos.y = -wsize + oldPos.y;
-            }
-            else if(posNew.y == posOld.y - 1)
-            {
-                oldPos.y = wsize + oldPos.y;
-            }
-        }
-        const vec2 mixPos = glm::mix(oldPos, other.tr.pos, alpha);
         const float mixRot =
             tr.rot + smath::angleError(other.tr.rot, tr.rot) * alpha;
-        return {.tr = {.pos = mixPos, .rot = mixRot},
-                .sectorId = other.sectorId};
+        // uint32_t newSector = other.sectorId;
+        if (sectorId != other.sectorId && extra.world)
+        {
+            // make it more sofisticated: set correct sectorId to not extend
+            // sector bounds, maybe this fucks with drawing and world pos
+            const vec2 prevPosTr =
+                extra.world->translateCoords(tr.pos, sectorId, other.sectorId);
+            const vec2 moveVec = other.tr.pos - prevPosTr;
+            const vec2 interPos = tr.pos + alpha * moveVec;
+            const def::SectorPos prevSectorXY =
+                extra.world->idToSectorCoords(sectorId);
+            const def::SectorCoords coordsTr = extra.world->translateOOBCoords(
+                {.pos = prevSectorXY, .sectorPos = interPos});
+            LG_D("Path {} - {} - {} -> Trans: {}",
+                 tr.pos,
+                 interPos,
+                 other.tr.pos,
+                 coordsTr);
+            return {.tr = {.pos = coordsTr.sectorPos, .rot = mixRot},
+                    .sectorId = extra.world->sectorCoordsToId(coordsTr.pos)};
+        }
+        else
+        {
+            const vec2 mixPos = glm::mix(tr.pos, other.tr.pos, alpha);
+            return {.tr = {.pos = mixPos, .rot = mixRot},
+                    .sectorId = other.sectorId};
+        }
     }
 };
 

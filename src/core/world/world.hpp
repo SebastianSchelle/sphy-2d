@@ -49,6 +49,8 @@ class World
     bool createFromServer(const def::WorldShape& worldShape,
                           ecs::PtrHandle* ptrHandle);
 #endif
+    vec2 translateCoords(vec2 pos, uint32_t secFrom, uint32_t secTo);
+    def::SectorCoords translateOOBCoords(def::SectorCoords coords);
     void iterateSectors(IterateSectorClb clb);
     Sector* getSector(uint32_t sectorId);
     Sector* getSectorByCoords(uint32_t x, uint32_t y);
@@ -58,6 +60,7 @@ class World
     }
     def::SectorPos idToSectorCoords(uint32_t sectorId) const;
     uint32_t sectorCoordsToId(uint32_t sectorX, uint32_t sectorY) const;
+    uint32_t sectorCoordsToId(def::SectorPos coords) const;
     vec2 getWorldPosSectorOffset(uint32_t sectorId,
                                  int32_t sectorOffsetX,
                                  int32_t sectorOffsetY) const;

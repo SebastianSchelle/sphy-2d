@@ -733,15 +733,16 @@ void RenderEngine::startFrame()
 
     bool showStats = false;
     bgfx::setDebug(showStats ? BGFX_DEBUG_STATS | BGFX_DEBUG_TEXT : 0);
-    bgfx::touch(kWorldView);
-    bgfx::touch(kUiView);
-
     bgfx::setViewClear(
         kWorldView, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
+
     bgfx::setViewRect(kWorldView, 0, 0, bgfx::BackbufferRatio::Equal);
     bgfx::setViewRect(kUiView, 0, 0, bgfx::BackbufferRatio::Equal);
     updateWorldView();
     bgfx::setViewTransform(kWorldView, worldView, ortho);
+
+    bgfx::touch(kWorldView);
+    bgfx::touch(kUiView);
 
     tim::Timepoint now = tim::getCurrentTimeU();
     frameTime = (float)tim::durationU(startTime, now) / 1000000.0f;
@@ -1086,7 +1087,6 @@ void RenderEngine::submitTexRects()
     bgfx::setVertexBuffer(0, vbhRectangle);
     bgfx::setIndexBuffer(ibhRectangle);
     bgfx::setInstanceDataBuffer(&idbTex, 0, (uint32_t)currentTexRectCount);
-
     bgfx::submit(currentViewId,
                  compiledShaderLib.getItem(shaderHandleTexRect)->getHandle());
 
