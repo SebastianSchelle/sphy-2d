@@ -26,9 +26,9 @@ void Systems::runSystems(world::Sector* sector, float dt, PtrHandle* ptrHandle)
     bool sectorActive = sector->isActive();
     for (auto& system : systems)
     {
-        const auto flags = system.system.sysFlags;
-        if ((sectorActive && (int)(flags & SystemFlags::ActiveSector))
-           || (!sectorActive && (int)(flags & SystemFlags::InactiveSector)))
+        // const auto flags = system.system.sysFlags;
+        // if ((sectorActive && (int)(flags & SystemFlags::ActiveSector))
+        //    || (!sectorActive && (int)(flags & SystemFlags::InactiveSector)))
         {
             system.system.function(sector, dt, ptrHandle);
         }

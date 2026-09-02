@@ -14,7 +14,10 @@ struct vec2Mixer
 {
     vec2 pos;
 
-    vec2Mixer mix(const vec2Mixer& other, float alpha) const
+    struct ExtraParam
+    {
+    };
+    vec2Mixer mix(const vec2Mixer& other, float alpha, const ExtraParam& extra) const
     {
         const vec2 mixPos = glm::mix(pos, other.pos, alpha);
         return {.pos = mixPos};
@@ -26,7 +29,10 @@ struct LineMixer
     vec2 pos1;
     vec2 pos2;
 
-    LineMixer mix(const LineMixer& other, float alpha) const
+    struct ExtraParam
+    {
+    };
+    LineMixer mix(const LineMixer& other, float alpha, const ExtraParam& extra) const
     {
         const vec2 mixPos1 = glm::mix(pos1, other.pos1, alpha);
         const vec2 mixPos2 = glm::mix(pos2, other.pos2, alpha);

@@ -2,7 +2,6 @@
 #define STD_INC_HPP
 
 #include <algorithm>
-#include <array>
 #include <bitsery/adapter/buffer.h>
 #include <bitsery/adapter/stream.h>
 #include <bitsery/bitsery.h>
@@ -37,7 +36,6 @@
 #include <memory.h>
 #include <optional>
 #include <string>
-#include <variant>
 #include <yaml-cpp/yaml.h>
 
 using moodycamel::ConcurrentQueue;
@@ -1065,7 +1063,7 @@ template <class T> class InterpolData
         history[newest] = sample;
         timestamps[newest] = ts;
     }
-    bool interpolate(long time, T& t, bool relaxed = false) const
+    bool interpolate(long time, T& t, const T::ExtraParam& extraParam, bool relaxed = false) const
     {
         if (time > timestamps[newest])
         {
@@ -1100,7 +1098,7 @@ template <class T> class InterpolData
         {
             alpha = (float)(time - timestamps[p])
                     / (float)(timestamps[n] - timestamps[p]);
-            t = history[p].mix(history[n], alpha);
+            t = history[p].mix(history[n], alpha, extraParam);
             return true;
         }
     }

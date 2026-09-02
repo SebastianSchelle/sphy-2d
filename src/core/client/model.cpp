@@ -208,7 +208,7 @@ void Model::modelLoopGame(float dt, long frametime)
                 long rendertime =
                     frametime - timeSyncData.serverLatency - realtimeDelay;
                 sphyc::ClientTransform tr;
-                if (!trHist->interpolate(rendertime, tr))
+                if (!trHist->interpolate(rendertime, tr, {.world = &world}))
                 {
                     tr = trHist->latest();
                 }
@@ -708,7 +708,7 @@ void Model::drawMap(gfx::RenderEngine& renderer)
     createDrawBounds(bounds);
     drawMapIcons(renderer, bounds, rendertime);
 
-    // world.drawStrategicMap(renderer, viewRect, zoom);
+    //world.drawStrategicMap(renderer, viewRect, zoom);
 
 
     // todo: Group entities by Pos and only show lists or fleets or groups
@@ -812,10 +812,10 @@ void Model::drawMapIcons(gfx::RenderEngine& renderer,
                 {
                     continue;
                 }
-                sphyc::ClientTransform clitr;
-                if (tr.interpolate(rendertime, clitr)
+                ClientTransform clitr;
+                if (tr.interpolate(rendertime, clitr, {.world = &world})
                     || tr.interpolate(
-                        rendertime, clitr, true))
+                        rendertime, clitr, {.world = &world}, true))
                 {
                     if (bounds.aabb.containsPoint(clitr.tr.pos))
                     {
@@ -932,7 +932,7 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
                     const float centerDist = collider->getSimpleMaxDist();
                     const vec2 centerDistVec = vec2(centerDist, centerDist);
                     sphyc::ClientTransform clitr;
-                    if (tr.interpolate(rendertime, clitr))
+                    if (tr.interpolate(rendertime, clitr, {.world = &world}))
                     {
                         const auto& trInt = clitr.tr;
                         const con::AABB aabb{.lower = trInt.pos - centerDistVec,
@@ -1041,7 +1041,7 @@ void Model::drawRealtimeAsteroids(gfx::RenderEngine& renderer,
                     const float centerDist = collider->getSimpleMaxDist();
                     const vec2 centerDistVec = vec2(centerDist, centerDist);
                     sphyc::ClientTransform clitr;
-                    if (tr.interpolate(rendertime, clitr))
+                    if (tr.interpolate(rendertime, clitr, {.world = &world}))
                     {
                         const auto& trInt = clitr.tr;
                         const con::AABB aabb{.lower = trInt.pos - centerDistVec,
@@ -1099,7 +1099,7 @@ void Model::drawRealtimeItems(gfx::RenderEngine& renderer,
                 opool::ItemClient& item)
             {
                 opool::vec2Mixer posMix;
-                if (item.pos.interpolate(rendertime, posMix)
+                if (item.pos.interpolate(rendertime, posMix, {})
                     && visibleBounds.containsPoint(posMix.pos))
                 {
                     auto itemData = modManager->getItemLib().getItem(item.item);
@@ -1149,7 +1149,7 @@ void Model::drawRealtimeProjectiles(
                 opool::ProjClient& proj)
             {
                 opool::vec2Mixer posMix;
-                if (proj.pos.interpolate(rendertime, posMix)
+                if (proj.pos.interpolate(rendertime, posMix, {})
                     && visibleBounds.containsPoint(posMix.pos))
                 {
                     auto projectile =
@@ -1197,7 +1197,7 @@ void Model::drawRealtimeBeams(gfx::RenderEngine& renderer,
                 opool::BeamClient& beam)
             {
                 opool::LineMixer lineMix;
-                if (beam.line.interpolate(rendertime, lineMix))
+                if (beam.line.interpolate(rendertime, lineMix, {}))
                 {
                     const vec2 pos1 = lineMix.pos1;
                     const vec2 pos2 = lineMix.pos2;

@@ -1449,7 +1449,7 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
                             mcEcs.ser->value8b(frametime);
                             clientUpdRealtimeAddObjectdata(
                                 mcEcs,
-                                reg,
+                                actSector->getRegistry()->getRegistry(),
                                 actSector,
                                 frametime,
                                 slot->entity,
@@ -1812,7 +1812,7 @@ void Engine::testSpawn()
 
     bool first = true;
 
-    for (int i = 0; i < 10000; ++i)
+    for (int i = 0; i < 200; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1911,7 +1911,7 @@ void Engine::testSpawn()
         //                    0);
     }
     */
-    for (int i = 0; i < 10000; ++i)
+    for (int i = 0; i < 200; ++i)
     {
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};
