@@ -44,8 +44,8 @@ namespace sphys
 Engine::Engine(const sphy::CmdLinOptionsServer& options,
                cfg::ConfigManager& config)
     : options(options), config(config), state(EngineState::Init), saveConfig(),
-      saveFolder(options.savedir), commandManager(), randWorldGen(7),
-      randTest(19)
+      saveFolder(options.savedir), commandManager(), randWorldGen(0),
+      randTest(0)
 {
     ptrHandle = new ecs::PtrHandle();
     ptrHandle->engine = this;
@@ -246,7 +246,7 @@ void Engine::engineLoop()
     if (state == EngineState::Running || state == EngineState::Paused)
     {
         LG_I("Shutdown requested, saving game...");
-        saveGame();
+        //saveGame();
     }
 }
 
@@ -375,6 +375,11 @@ bool Engine::createFromConfig()
     {
         saveConfig.clear();
         saveConfig.addDefs(configPath);
+
+        uint32_t seedWorldGen = CFG_UINT(saveConfig, 0.0f, "seed", "world-gen");
+        LG_E("Seed: {}", seedWorldGen);
+        randWorldGen = misc::RandGen(seedWorldGen);
+
         if (!world.createFromConfig(saveConfig, ptrHandle))
         {
             LG_E("Failed to create world from config");
@@ -1812,7 +1817,7 @@ void Engine::testSpawn()
 
     bool first = true;
 
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 10; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1820,7 +1825,7 @@ void Engine::testSpawn()
         auto sector = world.getSector(sectorId);
 
         auto ent = objb::ShipRecipe::spawn(
-            modManager.getShipRecipeLib().randomHandle(randTest),
+            modManager.getShipRecipeLib().randomHandle(randWorldGen),
             {.ptrHandle = ptrHandle, .sector = sector, .pos = pos, .rot = rot});
 
         if (first)
@@ -1911,7 +1916,7 @@ void Engine::testSpawn()
         //                    0);
     }
     */
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < 20; ++i)
     {
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};

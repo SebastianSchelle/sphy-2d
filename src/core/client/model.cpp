@@ -858,7 +858,6 @@ void Model::drawMapIcons(gfx::RenderEngine& renderer,
 
 void Model::drawRealtime(gfx::RenderEngine& renderer)
 {
-    // world.drawThirdPerson(renderer, viewRect, zoom);
     long frametime = tim::nowU();
     long renderTime = frametime - timeSyncData.serverLatency - realtimeDelay;
     std::vector<RealtimeDrawBounds> bounds;

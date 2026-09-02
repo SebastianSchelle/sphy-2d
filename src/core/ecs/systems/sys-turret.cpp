@@ -67,7 +67,7 @@ inline static void calcExitNDir(const ecs::Transform& parentTr,
     vel = fireDir * exitSpeed;
 }
 
-inline vec2 getParentVel(ecs::PtrHandle* ptrHandle,
+inline vec2 getEntityVel(ecs::PtrHandle* ptrHandle,
                          entt::registry* reg,
                          ecs::EntityId parent)
 {
@@ -140,9 +140,40 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                                 ->try_get<ecs::Transform>(slot->entity);
                         if (trTgt)
                         {
-                            const vec2 tgtPos = trTgt->pos;
-                            const float tgtAngle =
-                                aimToTarget(transform, tgtPos);
+                            float tgtAngle;
+                            if (libTurretData.type
+                                == def::TurretType::Projectile)
+                            {
+                                gobj::mdata::Turret::ProjectileData&
+                                    projectileData = std::get<
+                                        gobj::mdata::Turret::ProjectileData>(
+                                        libTurretData.data);
+                                const vec2 tgtPos = trTgt->pos;
+                                const vec2 exitPos = transform.pos;
+                                const vec2 parVel =
+                                    getEntityVel(ptrHandle, reg, module.parent);
+
+                                auto* phyTgt = sector->getRegistry()
+                                                   ->getRegistry()
+                                                   ->try_get<ecs::PhysicsBody>(
+                                                       slot->entity);
+                                const vec2 tgtVel =
+                                    phyTgt ? phyTgt->vel : vec2(0.0f, 0.0f);
+                                const vec2 dir =
+                                    smath::calculateInterceptDirection(
+                                        exitPos,
+                                        tgtPos,
+                                        parVel,
+                                        projectileData.exitSpeed,
+                                        tgtVel);
+                                tgtAngle =
+                                    atan2f(-dir.x, dir.y) - transform.rot;
+                            }
+                            else
+                            {
+                                const vec2 tgtPos = trTgt->pos;
+                                tgtAngle = aimToTarget(transform, tgtPos);
+                            }
                             turret.currentAngle = gotoAngle(libTurretData,
                                                             turret.currentAngle,
                                                             tgtAngle,
@@ -203,7 +234,7 @@ void sysTurretImpl(world::Sector* sector, const float dt, PtrHandle* ptrHandle)
                                          rot,
                                          vel);
                             vec2 parVel =
-                                getParentVel(ptrHandle, reg, module.parent);
+                                getEntityVel(ptrHandle, reg, module.parent);
                             sector->spawnOpool<opool::Projectile>(
                                 ptrHandle,
                                 opool::Projectile{
@@ -314,8 +345,7 @@ void sysCollectorImpl(world::Sector* sector,
             }
             if (collector.currTarget != GenericHandle32::Invalid())
             {
-                auto* item =
-                    sector->itemPool.getObject(collector.currTarget);
+                auto* item = sector->itemPool.getObject(collector.currTarget);
                 if (item)
                 {
                     gobj::ModuleHandle moduleHandle = module.moduleHandle;

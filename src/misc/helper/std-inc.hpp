@@ -434,6 +434,61 @@ inline float approximateInertia(float mass, float width, float length)
     return m * approximateInertiaMassFactor(width, length);
 }
 
+inline glm::vec2 calculateInterceptDirection(glm::vec2 projectilePos,
+                                             glm::vec2 targetPos,
+                                             glm::vec2 originVelocity,
+                                             float projectileExitSpeed,
+                                             glm::vec2 targetVelocity)
+{
+    const glm::vec2 r = targetPos - projectilePos;
+    const glm::vec2 v = targetVelocity - originVelocity;
+
+    const float A = glm::dot(v, v) - projectileExitSpeed * projectileExitSpeed;
+    const float B = glm::dot(r, v);
+    const float C = glm::dot(r, r);
+
+    constexpr float epsilon = 1e-6f;
+
+    float t = -1.0f;
+
+    if (std::abs(A) < epsilon)
+    {
+        if (std::abs(B) < epsilon)
+            return vec2(0.0f, 1.0f);
+
+        t = -C / (2.0f * B);
+    }
+    else
+    {
+        const float discriminant = B * B - A * C;
+
+        if (discriminant < 0.0f)
+            return vec2(0.0f, 1.0f);
+
+        const float sqrtDiscriminant = std::sqrt(discriminant);
+
+        const float t0 = (-B - sqrtDiscriminant) / A;
+        const float t1 = (-B + sqrtDiscriminant) / A;
+
+        if (t0 > epsilon && t1 > epsilon)
+            t = std::min(t0, t1);
+        else if (t0 > epsilon)
+            t = t0;
+        else if (t1 > epsilon)
+            t = t1;
+        else
+            return vec2(0.0f, 1.0f);
+    }
+
+    const glm::vec2 relativeIntercept = r + v * t;
+    const float lenSq = glm::dot(relativeIntercept, relativeIntercept);
+
+    if (lenSq < epsilon * epsilon)
+        return vec2(0.0f, 1.0f);
+
+    return relativeIntercept / std::sqrt(lenSq);
+}
+
 }  // namespace smath
 
 namespace ctrl
@@ -1053,9 +1108,9 @@ EXT_DES(GameViewMode, SER_GMV)
 template <class T> class InterpolData
 {
   public:
-    void addSample(const T& sample, long ts, int minDt=0)
+    void addSample(const T& sample, long ts, int minDt = 0)
     {
-        if(minDt > 0 && timestamps[newest] > ts - minDt)
+        if (minDt > 0 && timestamps[newest] > ts - minDt)
         {
             return;
         }
@@ -1063,7 +1118,10 @@ template <class T> class InterpolData
         history[newest] = sample;
         timestamps[newest] = ts;
     }
-    bool interpolate(long time, T& t, const T::ExtraParam& extraParam, bool relaxed = false) const
+    bool interpolate(long time,
+                     T& t,
+                     const T::ExtraParam& extraParam,
+                     bool relaxed = false) const
     {
         if (time > timestamps[newest])
         {
