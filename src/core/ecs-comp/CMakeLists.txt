@@ -5,6 +5,7 @@ target_sources(sphy_core_ecs_components INTERFACE
     comp-storage.cpp
     comp-struct.cpp
     comp-turret.cpp
+    comp-collavoid.cpp
     client-registry.cpp
     asset-factory.cpp
 )

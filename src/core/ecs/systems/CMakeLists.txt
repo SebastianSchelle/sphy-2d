@@ -6,6 +6,7 @@ target_sources(sphy_core_ecs_systems INTERFACE
     sys-turret.cpp
     sys-lifetime.cpp
     sys-specsys.cpp
+    sys-collavoid.cpp
 )
 
 target_include_directories(sphy_core_ecs_systems

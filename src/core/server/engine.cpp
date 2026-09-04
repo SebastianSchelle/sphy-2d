@@ -2,6 +2,7 @@
 #include "bitsery/serializer.h"
 #include "client-def.hpp"
 #include "comp-ai.hpp"
+#include "comp-collavoid.hpp"
 #include "entt/entity/fwd.hpp"
 #include "free-vector.hpp"
 #include "lib-projectile.hpp"
@@ -30,6 +31,7 @@
 #include <random>
 #include <server.hpp>
 #include <sys-ai.hpp>
+#include <sys-collavoid.hpp>
 #include <sys-lifetime.hpp>
 #include <sys-phy.hpp>
 #include <sys-turret.hpp>
@@ -86,6 +88,8 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     intAutosave = (long)(CFG_FLOAT(config, 10.0f, "engine", "autosave") * 60.0f
                          * 1000000.0f);
 
+    ecs::initCollAvoid(config);
+
     updThreads = std::clamp(updThreads, 1, 16);
     workDistributor.init(updThreads);
 }
@@ -107,6 +111,7 @@ void Engine::start()
 
     int i = 0;
     systems.registerSystem(ecs::sysLifetime, i += 10);
+    systems.registerSystem(ecs::sysCollAvoid, i += 10);
     systems.registerSystem(ecs::sysMoveCtrl, i += 10);
     systems.registerSystem(ecs::sysPhyThrust, i += 10);
     systems.registerSystem(ecs::sysPhysics, i += 10);
@@ -246,7 +251,7 @@ void Engine::engineLoop()
     if (state == EngineState::Running || state == EngineState::Paused)
     {
         LG_I("Shutdown requested, saving game...");
-        //saveGame();
+        // saveGame();
     }
 }
 
@@ -1830,8 +1835,15 @@ void Engine::testSpawn()
 
         if (first)
         {
+            first = false;
             auto clientInfo = clientLib.getItem(testclient);
             clientInfo->activeEntity = ent;
+            auto slot = registryMapping.getEntity(ent);
+            world.getSector(slot->sectorId)
+                ->getRegistry()
+                ->getRegistry()
+                ->emplace<ecs::CollAvoid>(slot->entity,
+                                          ecs::CollAvoid{.active = true});
         }
     }
     /*
@@ -2126,7 +2138,7 @@ void Engine::handleThirdPersonControl(def::ClientInfo* clientInfo,
 void Engine::loadCollisionMatrix()
 {
     config.iterateThroughChildren(
-        {"engine", "collision-layer-mat"},
+        {"engine", "physics", "collision-layer-mat"},
         [this](const cfg::ConfigNode& node)
         {
             const string& pair = node.getName();

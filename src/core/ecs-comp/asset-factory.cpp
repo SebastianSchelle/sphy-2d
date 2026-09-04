@@ -1,3 +1,4 @@
+#include "comp-collavoid.hpp"
 #include "sector.hpp"
 #include <asset-factory.hpp>
 #include <comp-ai.hpp>
@@ -107,6 +108,7 @@ void ComponentFactory::registerAllComponents()
     registerComponent<ecs::SimpleTexture>();
     registerComponent<ecs::Collector>();
     registerComponent<ecs::Flags>();
+    registerComponent<ecs::CollAvoid>();
 }
 
 AssetFactory::AssetFactory() {}

@@ -79,6 +79,20 @@ nodeVal_t ConfigBranch::get(std::vector<string>& path,
     return def;
 }
 
+const ConfigNode* ConfigBranch::getBranch(std::vector<string>& path) const
+{
+    if (!path.empty())
+    {
+        const auto& child = children.find(path.back());
+        if (child != children.end())
+        {
+            path.pop_back();
+            return child->second;
+        }
+    }
+    return nullptr;
+}
+
 void ConfigBranch::set(std::vector<string>& path, nodeVal_t value)
 {
     if (!path.empty())
@@ -141,8 +155,7 @@ void ConfigBranch::addDefs(YAML::Node& node, const string& file)
                     continue;
                 }
             }
-            children[branchName] =
-                new ConfigLeaf(file, branchName, it->second);
+            children[branchName] = new ConfigLeaf(file, branchName, it->second);
         }
         else
         {
@@ -174,7 +187,9 @@ ConfigLeaf::ConfigLeaf(const string& file,
         {
             value = (float)node.as<uint>();
             valueDefault = value;
-            LG_D("Create config leaf {} ({})", name.c_str(), std::get<float>(value));
+            LG_D("Create config leaf {} ({})",
+                 name.c_str(),
+                 std::get<float>(value));
         }
         catch (YAML::BadConversion& e)
         {
@@ -199,6 +214,11 @@ ConfigLeaf::~ConfigLeaf() {}
 nodeVal_t ConfigLeaf::get(std::vector<string>& path, const nodeVal_t& def) const
 {
     return value;
+}
+
+const ConfigNode* ConfigLeaf::getBranch(std::vector<string>& path) const
+{
+    return nullptr;
 }
 
 void ConfigLeaf::set(std::vector<string>& path, nodeVal_t value)

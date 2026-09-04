@@ -28,6 +28,7 @@ class ConfigManager
     void clear();
     nodeVal_t get(std::vector<string> path,
                   const nodeVal_t& def = nodeVal_t(0.0f)) const;
+    const ConfigNode* getSubCfg(std::vector<string> path) const;
     void set(std::vector<string> path, nodeVal_t value);
     void iterateThroughChildren(
         std::vector<string> path,

@@ -1,4 +1,5 @@
 #include "config-manager.hpp"
+#include "config-node.hpp"
 
 namespace cfg
 {
@@ -39,7 +40,8 @@ void ConfigManager::addDefs(const string& file)
     }
 }
 
-nodeVal_t ConfigManager::get(std::vector<string> path, const nodeVal_t& def) const
+nodeVal_t ConfigManager::get(std::vector<string> path,
+                             const nodeVal_t& def) const
 {
     std::reverse(path.begin(), path.end());
     if (!root)
@@ -48,6 +50,17 @@ nodeVal_t ConfigManager::get(std::vector<string> path, const nodeVal_t& def) con
         return def;
     }
     return root->get(path, def);
+}
+
+const ConfigNode* ConfigManager::getSubCfg(std::vector<string> path) const
+{
+    std::reverse(path.begin(), path.end());
+    if (!root)
+    {
+        LG_E("Config manager root is not initialized");
+        return nullptr;
+    }
+    return root->getBranch(path);
 }
 
 void ConfigManager::set(std::vector<string> path, nodeVal_t value)
@@ -67,7 +80,7 @@ void ConfigManager::iterateThroughChildren(
     std::function<void(const ConfigNode& node)> callback) const
 {
     std::reverse(path.begin(), path.end());
-    if(!root)
+    if (!root)
     {
         LG_E("Config manager root is not initialized");
         return;
