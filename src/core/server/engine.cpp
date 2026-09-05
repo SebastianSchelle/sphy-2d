@@ -1822,7 +1822,7 @@ void Engine::testSpawn()
 
     bool first = true;
 
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < 1000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);

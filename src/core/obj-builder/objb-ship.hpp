@@ -87,7 +87,7 @@ struct ShipHull
                                       .maxRotVel = 5.0f,
                                       .thrustMainMax = 10000.0f,
                                       .thrustManeuverMax = 1000.0f,
-                                      .maxSpd = 10000.0f}, // todo: implement max speed and max rotVel from hull or thrusters
+                                      .maxSpd = 1000.0f}, // todo: implement max speed and max rotVel from hull or thrusters
                        ecs::MoveCtrl{.moveMode = ecs::MoveCtrl::MoveMode::None,
                                      .spPos = {},
                                      .allowedPosError = 100.0f,
