@@ -108,7 +108,8 @@ class Engine
     void broadcastEntityToClients(ecs::EntityId entityId);
     void broadcastEntityDestructionToClients(ecs::EntityId entityId);
 
-    void debugSendCollAvoidInfo(ecs::EntityId entId, const vector<vec3>& bpQuads);
+    void debugSendCollAvoidInfo(ecs::EntityId entId,
+                                const vector<vec3>& bpQuads);
 
   private:
     void engineLoop();
@@ -145,7 +146,8 @@ class Engine
         size_t junkSize,
         std::function<void(bitsery::Serializer<OutputAdapter>& ser,
                            T&,
-                           typename con::FreeVec<T>::Handle handle)> serClb);
+                           typename con::FreeVec<T>::Handle handle)> serClb,
+        uint16_t clearCmd = 0);
     void runConnectedClientWorkSequencers();
     void handleTcpDisconnect(net::TcpConnection* conn,
                              def::ClientInfoHandle disconnectedHandle);

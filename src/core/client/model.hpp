@@ -262,7 +262,9 @@ class Model
     void drawRealtimeAsteroids(gfx::RenderEngine& renderer,
                                const vector<RealtimeDrawBounds>& drawBounds,
                                long rendertime);
-
+    void drawRealtimeCollavoids(gfx::RenderEngine& renderer,
+                                const vector<RealtimeDrawBounds>& drawBounds,
+                                long rendertime);
     void drawTexture(gfx::RenderEngine& renderer,
                      const GenericHandle texture,
                      float rot,

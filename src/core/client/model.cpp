@@ -623,13 +623,50 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                             });
             break;
         }
+        case prot::cmd::CLEAR_DBGCOLLAVOID:
+        {
+            uint32_t sectorId;
+            cmddes.value4b(sectorId);
+            auto sector = world.getSector(sectorId);
+            if (!sector)
+            {
+                return;
+            }
+            sector->collAvoids.clear();
+            break;
+        }
+        case prot::cmd::SEND_DATA_DBGCOLLAVOID:
+        {
+            handleSendOpool(
+                cmddes,
+                dataEndPos,
+                20 + 6,
+                [this](world::Sector* sector,
+                       bitsery::Deserializer<InputAdapter>& cmddes,
+                       long frametime)
+                {
+                    GenericHandle32 handle;
+                    ecs::EntityId id1;
+                    ecs::EntityId id2;
+                    vec2 intersect;
+                    cmddes.object(handle);
+                    cmddes.object(id1);
+                    cmddes.object(id2);
+                    cmddes.object(intersect);
+                    sector->collAvoids.updateObject(
+                        handle,
+                        opool::DbgCollAvoidClient::Params{
+                            .id1 = id1, .id2 = id2, .intersect = intersect});
+                });
+            break;
+        }
         case prot::cmd::UPD_ECS_REALTIME:
             handleEcsRealtime(cmddes, dataEndPos);
             break;
         case prot::cmd::UPD_ECS_MAP:
             handleEcsMap(cmddes, dataEndPos);
             break;
-        case prot::cmd::DBG_COLLAVOID_INFO:
+        case prot::cmd::DBG_COLLAVOID_INFO_OLD:
             dbgCollAvoidBp.clear();
             while ((int)cmddes.adapter().currentReadPos()
                    <= (int)(dataEndPos)-12)
@@ -639,6 +676,7 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 dbgCollAvoidBp.push_back(quad);
             }
             break;
+
         default:
             break;
     }
@@ -877,6 +915,7 @@ void Model::drawRealtime(gfx::RenderEngine& renderer)
     drawRealtimeProjectiles(renderer, bounds, renderTime);
     drawRealtimeBeams(renderer, bounds, renderTime);
     drawRealtimeItems(renderer, bounds, renderTime);
+    drawRealtimeCollavoids(renderer, bounds, renderTime);
 
     // debug
     auto sectorId = getActiveSectorId();
@@ -1259,6 +1298,68 @@ void Model::drawRealtimeBeams(gfx::RenderEngine& renderer,
     }
 }
 
+void Model::drawRealtimeCollavoids(gfx::RenderEngine& renderer,
+                                   const vector<RealtimeDrawBounds>& drawBounds,
+                                   long rendertime)
+{
+    for (auto& bound : drawBounds)
+    {
+        auto sector = world.getSector(bound.sectorId);
+        if (!sector)
+        {
+            continue;
+        }
+        const con::AABB visibleBounds = {
+            .lower = bound.aabb.lower - vec2(100.0f, 100.0f),
+            .upper = bound.aabb.upper + vec2(100.0f, 100.0f),
+        };
+        sector->collAvoids.foreach (
+            [&renderer, &visibleBounds, this, rendertime, &bound](
+                opool::DbgCollAvoidClient& collAvoid)
+            {
+                if (visibleBounds.containsPoint(collAvoid.intersect))
+                {
+                    auto entt1 = clientRegistry.enttFromServerId(collAvoid.id1);
+                    auto entt2 = clientRegistry.enttFromServerId(collAvoid.id2);
+                    auto tr1 =
+                        clientRegistry.getRegistry().try_get<TransformHist>(
+                            entt1);
+                    auto tr2 =
+                        clientRegistry.getRegistry().try_get<TransformHist>(
+                            entt2);
+                    sphyc::ClientTransform ctr1, ctr2;
+                    if (tr1 && tr2
+                        && tr1->interpolate(rendertime, ctr1, {.world = &world})
+                        && tr2->interpolate(
+                            rendertime, ctr2, {.world = &world}))
+                    {
+                        const vec2 offs = world.getWorldPosSectorOffset(
+                            bound.sectorId,
+                            renderer.getSectorOffsetX(),
+                            renderer.getSectorOffsetY());
+                        renderer.drawLine(offs + ctr1.tr.pos,
+                                          offs + collAvoid.intersect,
+                                          0x502222ff,
+                                          1.0 / renderer.getWorldZoom());
+                        renderer.drawLine(offs + ctr2.tr.pos,
+                                          offs + collAvoid.intersect,
+                                          0x502222ff,
+                                          1.0 / renderer.getWorldZoom());
+                        renderer.drawShapeRectangle(
+                            offs + collAvoid.intersect,
+                            vec2(50.0f, 50.0f),
+                            0x502222ff,
+                            2.0 / renderer.getWorldZoom());
+                    }
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            });
+    }
+}
 
 void Model::drawStationTextures(gfx::RenderEngine& renderer,
                                 const ecs::Transform& parentTransform,
@@ -1908,7 +2009,6 @@ void Model::fastClientToServerUpdate()
     }
     mcomp.startCommand(prot::cmd::CLIENT_VIEW_RECT, 0);
     mcomp.ser->object(clientInfo.clientViewRect);
-
     mcomp.execute(sendQueue);
 }
 

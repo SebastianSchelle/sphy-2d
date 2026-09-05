@@ -12,8 +12,15 @@
 namespace def
 {
 
-#define CLIENT_FLAG_EN_CONSOLE 1 << 0
 static constexpr size_t CLIENT_INFO_NAME_MAX = 256;
+
+namespace Dbg
+{
+typedef uint16_t Flags;
+constexpr Flags None = 0;
+constexpr Flags enCollAvoidInfo = 0x0001;
+constexpr Flags enConsole = 0x0002;
+}  // namespace Dbg
 
 struct ClientViewRect
 {
@@ -44,12 +51,12 @@ class ClientInfo
 #ifdef SERVER
     ClientInfo(const std::string& name,
                const net::ClientInfo& clientInfo,
-               uint8_t flags)
+               Dbg::Flags flags)
         : workSequencer(10000)
     {
         this->name = name;
         this->clientInfo = clientInfo;
-        this->flags = flags;
+        this->dbgFlags = flags;
         thirdPersonControl.flags = 0;
         lastClientUpdMap = tim::nowU();
         lastClientUpdFast3rd = tim::nowU();
@@ -59,11 +66,11 @@ class ClientInfo
     ClientInfo() {}
     ClientInfo(const std::string& name,
                const net::ModelClientInfo& modelClientInfo,
-               uint8_t flags)
+               Dbg::Flags flags)
     {
         this->name = name;
         this->modelClientInfo = modelClientInfo;
-        this->flags = flags;
+        this->dbgFlags = flags;
     }
 #endif
     ~ClientInfo() {}
@@ -108,7 +115,7 @@ class ClientInfo
 
     ecs::EntityId activeEntity;
     uint32_t currentSector = 0;
-    uint8_t flags;
+    Dbg::Flags dbgFlags;
     std::string name;
     ClientViewRect clientViewRect;
 
@@ -123,7 +130,7 @@ using ClientInfoHandle = typename con::ItemLib<ClientInfo>::Handle;
 
 #define SER_CLIENT_INFO                                                        \
     SOBJ(o.activeEntity);                                                      \
-    S1b(o.flags);                                                              \
+    S2b(o.dbgFlags);                                                           \
     STXT(o.name, CLIENT_INFO_NAME_MAX);
 EXT_SER(ClientInfo, SER_CLIENT_INFO)
 EXT_DES(ClientInfo, SER_CLIENT_INFO)

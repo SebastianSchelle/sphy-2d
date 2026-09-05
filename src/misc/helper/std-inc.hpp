@@ -1103,6 +1103,56 @@ EXT_DES(GameViewMode, SER_GMV)
 }  // namespace gfx
 
 
+namespace bitn
+{
+inline uint bit_set(uint number, uint n)
+{
+    return number | ((uint)1 << n);
+}
+inline uint bit_clear(uint number, uint n)
+{
+    return number & ~((uint)1 << n);
+}
+inline uint toggle(uint number, uint n)
+{
+    return number ^ ((uint)1 << n);
+}
+inline uint set_to(uint number, uint n, bool x)
+{
+    return (number & ~((uint)1 << n)) | ((uint)x << n);
+}
+inline bool check(uint number, uint n)
+{
+    return (number >> n) & (uint)1;
+}
+}  // namespace bitn
+namespace bitm
+{
+
+inline uint set(uint number, uint mask)
+{
+    return number | mask;
+}
+
+inline uint clear(uint number, uint mask)
+{
+    return number & ~mask;
+}
+inline uint toggle(uint number, uint mask)
+{
+    return number ^ mask;
+}
+inline uint set_to(uint number, uint mask, bool x)
+{
+    return x ? (number | mask) : (number & ~mask);
+}
+inline bool check(uint number, uint mask)
+{
+    return (number & mask) != 0;
+}
+}  // namespace bitm
+
+
 #define INTERPOL_DEPTH 5
 
 template <class T> class InterpolData

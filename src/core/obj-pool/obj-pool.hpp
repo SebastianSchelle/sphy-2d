@@ -40,6 +40,10 @@ template <class T> class ObjectPool
     {
         destroyedObjects.clear();
     }
+    void clear()
+    {
+        pool.clear();
+    }
 
   private:
     void onDestroy(T& item, typename con::FreeVec<T>::Handle handle);

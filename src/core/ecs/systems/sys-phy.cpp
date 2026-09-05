@@ -366,8 +366,8 @@ void sysPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                 {
                     const gobj::Collider* colliderDef =
                         collider->getColliderDef(ptrHandle->colliderLib);
-                    con::AABB newAabb = calculateAABB(
-                        transform, transformCache, colliderDef);
+                    con::AABB newAabb =
+                        calculateAABB(transform, transformCache, colliderDef);
                     if (broadphase.proxyId > Broadphase::INVALID_PROXY_ID)
                     {
                         sector->moveAabbProxy(broadphase.proxyId, newAabb);
@@ -688,6 +688,7 @@ void sysCollisionDetectionImpl(world::Sector* sector,
                 }
             });
     }
+    // Deduplicate
     std::sort(sector->broadphaseCollisions.begin(),
               sector->broadphaseCollisions.end());
     sector->broadphaseCollisions.erase(

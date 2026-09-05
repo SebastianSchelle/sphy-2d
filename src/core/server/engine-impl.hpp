@@ -218,23 +218,24 @@ void Engine::sendOpoolData(
     size_t junkSize,
     std::function<void(bitsery::Serializer<OutputAdapter>& ser,
                        T&,
-                       typename con::FreeVec<T>::Handle handle)> serClb)
+                       typename con::FreeVec<T>::Handle handle)> serClb,
+    uint16_t clearCmd)
 {
     prot::MsgComposer mcomp(net::SendType::UDP, client->clientInfo.udpEndpoint);
     if (sector)
     {
+        if (clearCmd)
+        {
+            mcomp.startCommand(clearCmd, 0);
+            mcomp.ser->value4b(sector->getId());
+            mcomp.finishCommand();
+        }
         mcomp.startCommand(cmdId, 0);
         mcomp.ser->value4b(sector->getId());
         mcomp.ser->value8b(frametime);
         sector->foreachOpool<T>(
-            [client,
-             sector,
-             &mcomp,
-             this,
-             cmdId,
-             serClb,
-             junkSize,
-             frametime](T& item, con::FreeVec<T>::Handle handle)
+            [client, sector, &mcomp, this, cmdId, serClb, junkSize, frametime](
+                T& item, con::FreeVec<T>::Handle handle)
             {
                 serClb(*mcomp.ser, item, handle);
                 if (mcomp.ser->adapter().currentWritePos() + junkSize

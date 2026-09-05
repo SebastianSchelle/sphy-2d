@@ -77,7 +77,21 @@ struct AABB
             return false;
         if (upper.y < point.y || lower.y > point.y)
             return false;
-        return true;    
+        return true;
+    }
+
+    static AABB move(const AABB& aabb, vec2 trans)
+    {
+        return AABB{.lower = aabb.lower + trans, .upper = aabb.upper + trans};
+    }
+
+    AABB move(vec2 trans) const
+    {
+        return AABB{.lower = lower + trans, .upper = upper + trans};
+    }
+    vec2 center() const
+    {
+        return vec2((lower.x + upper.x) / 2.0f, (lower.y + upper.y) / 2.0f);
     }
 };
 

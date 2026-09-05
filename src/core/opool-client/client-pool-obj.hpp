@@ -1,9 +1,11 @@
 #ifndef CLIENT_POOL_OBJ_HPP
 #define CLIENT_POOL_OBJ_HPP
 
+#include "comp-ident.hpp"
 #include "comp-phy.hpp"
 #include "comp-struct.hpp"
 #include "free-vector.hpp"
+#include "pool-objects.hpp"
 #include "std-inc.hpp"
 #include <lib-projectile.hpp>
 
@@ -17,7 +19,8 @@ struct vec2Mixer
     struct ExtraParam
     {
     };
-    vec2Mixer mix(const vec2Mixer& other, float alpha, const ExtraParam& extra) const
+    vec2Mixer
+    mix(const vec2Mixer& other, float alpha, const ExtraParam& extra) const
     {
         const vec2 mixPos = glm::mix(pos, other.pos, alpha);
         return {.pos = mixPos};
@@ -32,7 +35,8 @@ struct LineMixer
     struct ExtraParam
     {
     };
-    LineMixer mix(const LineMixer& other, float alpha, const ExtraParam& extra) const
+    LineMixer
+    mix(const LineMixer& other, float alpha, const ExtraParam& extra) const
     {
         const vec2 mixPos1 = glm::mix(pos1, other.pos1, alpha);
         const vec2 mixPos2 = glm::mix(pos2, other.pos2, alpha);
@@ -115,6 +119,33 @@ struct ItemClient
     }
 };
 using ItemHandleClient = typename con::FreeVec<ItemClient>::Handle;
+
+
+struct DbgCollAvoidClient
+{
+    struct Params
+    {
+        ecs::EntityId id1;
+        ecs::EntityId id2;
+        vec2 intersect;
+    };
+    ecs::EntityId id1;
+    ecs::EntityId id2;
+    vec2 intersect;
+
+    DbgCollAvoidClient() {}
+    DbgCollAvoidClient(const Params& p)
+        : id1(p.id1), id2(p.id2), intersect(p.intersect)
+    {
+    }
+    void update(const Params& p)
+    {
+        intersect = p.intersect;
+    }
+};
+using DbgCollAvoidHandleClient =
+    typename con::FreeVec<DbgCollAvoidClient>::Handle;
+
 
 }  // namespace opool
 

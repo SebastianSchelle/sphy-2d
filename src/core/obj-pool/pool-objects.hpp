@@ -49,6 +49,14 @@ struct Beam
 };
 using BeamHandle = typename con::FreeVec<Beam>::Handle;
 
+struct DbgCollAvoid
+{
+    ecs::EntityId id1;
+    ecs::EntityId id2;
+    vec2 intersect;
+};
+using DbgCollAvoidHandle = typename con::FreeVec<DbgCollAvoid>::Handle;
+
 }  // namespace opool
 
 #endif

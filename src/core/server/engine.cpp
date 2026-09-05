@@ -138,7 +138,7 @@ void Engine::start()
                             .portUdp = 0,
                             .address = asio::ip::make_address("0.0.0.0"),
                         },
-                        CLIENT_FLAG_EN_CONSOLE));
+                        def::Dbg::enConsole | def::Dbg::enCollAvoidInfo));
 
     // engineThread = std::thread([this]() { engineLoop(); });
     engineLoop();
@@ -722,7 +722,7 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                               dataEndPos - cmddes.adapter().currentReadPos());
                 if (clientInfo)
                 {
-                    if (clientInfo->flags & CLIENT_FLAG_EN_CONSOLE)
+                    if (clientInfo->dbgFlags & def::Dbg::enConsole)
                     {
                         try
                         {
@@ -868,6 +868,15 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         {
             cmddes.object(clientInfo->clientViewRect);
             auto& t = clientInfo->clientViewRect;
+            break;
+        }
+        case prot::cmd::DBG_EN_COLLAVOID_INFO:
+        {
+            bool en;
+            cmddes.value1b(en);
+            clientInfo->dbgFlags = bitm::set_to(
+                clientInfo->dbgFlags, def::Dbg::enCollAvoidInfo, en);
+            break;
         }
         default:
             break;
@@ -1347,6 +1356,25 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
                         }
                     });
 
+                sendOpoolData<opool::DbgCollAvoid>(
+                    clientInfo,
+                    sector,
+                    frametime,
+                    prot::cmd::SEND_DATA_DBGCOLLAVOID,
+                    6 + 20,
+                    [aabb](bitsery::Serializer<OutputAdapter>& ser,
+                           opool::DbgCollAvoid& collAvoid,
+                           opool::DbgCollAvoidHandle handle)
+                    {
+                        if (aabb.containsPoint(collAvoid.intersect))
+                        {
+                            ser.object(handle.toGenericHandle());
+                            ser.object(collAvoid.id1);
+                            ser.object(collAvoid.id2);
+                            ser.object(collAvoid.intersect);
+                        }
+                    }, prot::cmd::CLEAR_DBGCOLLAVOID);
+
                 prot::MsgComposer mcItem(net::SendType::UDP, udpEnd);
                 prot::MsgComposer mcEcs(net::SendType::UDP, udpEnd);
                 mcItem.startCommand(prot::cmd::SEND_DATA_ITEM, 0);
@@ -1822,7 +1850,7 @@ void Engine::testSpawn()
 
     bool first = true;
 
-    for (int i = 0; i < 1000; ++i)
+    for (int i = 0; i < 10000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1838,12 +1866,6 @@ void Engine::testSpawn()
             first = false;
             auto clientInfo = clientLib.getItem(testclient);
             clientInfo->activeEntity = ent;
-            auto slot = registryMapping.getEntity(ent);
-            world.getSector(slot->sectorId)
-                ->getRegistry()
-                ->getRegistry()
-                ->emplace<ecs::CollAvoid>(slot->entity,
-                                          ecs::CollAvoid{.active = true});
         }
     }
     /*
@@ -1928,7 +1950,7 @@ void Engine::testSpawn()
         //                    0);
     }
     */
-    for (int i = 0; i < 20; ++i)
+    for (int i = 0; i < 1000; ++i)
     {
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};
@@ -1979,9 +2001,10 @@ void Engine::debugSendCollAvoidInfo(ecs::EntityId entId,
         {
             if (clientInfo->activeEntity == entId)
             {
-                prot::MsgComposer mcomp(net::SendType::TCP, clientInfo->clientInfo.connection);
-                mcomp.startCommand(prot::cmd::DBG_COLLAVOID_INFO, CMD_FLAG_RESP);
-                for(auto quad : bpQuads)
+                prot::MsgComposer mcomp(net::SendType::TCP,
+                                        clientInfo->clientInfo.connection);
+                mcomp.startCommand(prot::cmd::DBG_COLLAVOID_INFO_OLD, 0);
+                for (auto quad : bpQuads)
                 {
                     mcomp.ser->object(quad);
                 }

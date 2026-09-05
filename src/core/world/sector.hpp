@@ -172,17 +172,20 @@ class Sector
 #endif
 
     std::vector<std::pair<entt::entity, entt::entity>> broadphaseCollisions;
+    std::vector<std::pair<entt::entity, entt::entity>> collAvoidanceBroadphase;
     std::vector<entt::entity> broadphaseQueryEntities;
     vector<ecs::ContactInfo> contactInfos;
 #ifdef CLIENT
     opool::OpoolClient<opool::ProjClient> projectiles;
     opool::OpoolClient<opool::BeamClient> beams;
     opool::OpoolClient<opool::ItemClient> items;
+    opool::OpoolClient<opool::DbgCollAvoidClient> collAvoids;
 #endif
 #ifdef SERVER
     opool::ObjectPool<opool::Projectile> projectilePool;
     opool::ObjectPool<opool::Item> itemPool;
     opool::ObjectPool<opool::Beam> beamPool;
+    opool::ObjectPool<opool::DbgCollAvoid> collAvoidPool;
 #endif
 
   private:
@@ -227,6 +230,14 @@ void Sector::foreachOpool<opool::Beam>(
                                          opool::BeamHandle handle)> clb)
 {
     beamPool.foreach (clb);
+}
+
+template <>
+void Sector::foreachOpool<opool::DbgCollAvoid>(
+    std::function<con::FreeVecForeachRet(opool::DbgCollAvoid&,
+                                         opool::DbgCollAvoidHandle handle)> clb)
+{
+    collAvoidPool.foreach (clb);
 }
 
 // template <> opool::Item* Sector::getOpool<opool::Item>(opool::ItemHandle handle)

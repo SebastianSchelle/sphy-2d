@@ -91,6 +91,7 @@ template <class T> class FreeVec
 
     Handle addItem(const T& item);
     void removeItem(int idx);
+    void clear();
     void removeItem(Handle handle);
     void foreach (std::function<FreeVecForeachRet(T&, Handle)> clb);
 
@@ -264,6 +265,12 @@ template <class T> void FreeVec<T>::removeItem(int idx)
         item.alive = false;
         freeSlots.push_back(idx);
     }
+}
+
+template <class T> void FreeVec<T>::clear()
+{
+    freeSlots.clear();
+    items.clear();
 }
 
 template <class T> void FreeVec<T>::removeItem(Handle handle)

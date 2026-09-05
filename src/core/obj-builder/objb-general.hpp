@@ -2,6 +2,7 @@
 #define OBJB_GENERAL_HPP
 
 #include "comp-ai.hpp"
+#include "comp-collavoid.hpp"
 #include "comp-gfx.hpp"
 #include "comp-ident.hpp"
 #include "comp-lifetime.hpp"
@@ -239,6 +240,16 @@ struct ThrusterMoveCtrl
     {
         params.reg.emplace_or_replace<ecs::PhyThrust>(params.entity, phyThrust);
         params.reg.emplace_or_replace<ecs::MoveCtrl>(params.entity, moveCtrl);
+        return true;
+    }
+};
+
+struct CollAvoid
+{
+    static bool build(ecs::PtrHandle* ptrHandle,
+                      ecs::SpawnCallbackParams& params)
+    {
+        params.reg.emplace_or_replace<ecs::CollAvoid>(params.entity, ecs::CollAvoid{.active=true});
         return true;
     }
 };

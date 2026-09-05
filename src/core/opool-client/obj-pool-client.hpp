@@ -21,6 +21,10 @@ template <class T> class OpoolClient
     void deleteInactive();
     void updateObject(const GenericHandle32& handle, const T::Params& p);
     void foreach (std::function<bool(T& proj)> clb);
+    void clear()
+    {
+        objects.clear();
+    }
 
   private:
     unordered_map<uint32_t, OpoolWrapper> objects;

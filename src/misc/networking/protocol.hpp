@@ -157,8 +157,12 @@ const uint16_t UPD_ECS_MAP = 0x0017;
 const uint16_t SEND_DATA_PROJ = 0x1000;
 const uint16_t SEND_DATA_ITEM = 0x1001;
 const uint16_t SEND_DATA_BEAM = 0x1002;
+const uint16_t SEND_DATA_DBGCOLLAVOID = 0x1003;
+const uint16_t CLEAR_DBGCOLLAVOID = 0x1004;
 
-const uint16_t DBG_COLLAVOID_INFO = 0x4000;
+const uint16_t DBG_EN_COLLAVOID_INFO = 0x4000;
+const uint16_t DBG_COLLAVOID_INFO = 0x4001;
+const uint16_t DBG_COLLAVOID_INFO_OLD = 0x4002;
 
 }  // namespace cmd
 
