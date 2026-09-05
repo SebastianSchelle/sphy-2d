@@ -1128,12 +1128,10 @@ inline bool check(uint number, uint n)
 }  // namespace bitn
 namespace bitm
 {
-
 inline uint set(uint number, uint mask)
 {
     return number | mask;
 }
-
 inline uint clear(uint number, uint mask)
 {
     return number & ~mask;
