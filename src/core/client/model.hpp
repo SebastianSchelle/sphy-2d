@@ -88,11 +88,6 @@ struct ClientTransform
                 extra.world->idToSectorCoords(sectorId);
             const def::SectorCoords coordsTr = extra.world->translateOOBCoords(
                 {.pos = prevSectorXY, .sectorPos = interPos});
-            LG_D("Path {} - {} - {} -> Trans: {}",
-                 tr.pos,
-                 interPos,
-                 other.tr.pos,
-                 coordsTr);
             return {.tr = {.pos = coordsTr.sectorPos, .rot = mixRot},
                     .sectorId = extra.world->sectorCoordsToId(coordsTr.pos)};
         }
