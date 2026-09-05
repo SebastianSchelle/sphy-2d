@@ -158,6 +158,8 @@ const uint16_t SEND_DATA_PROJ = 0x1000;
 const uint16_t SEND_DATA_ITEM = 0x1001;
 const uint16_t SEND_DATA_BEAM = 0x1002;
 
+const uint16_t DBG_COLLAVOID_INFO = 0x4000;
+
 }  // namespace cmd
 
 }  // namespace prot

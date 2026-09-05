@@ -1971,6 +1971,25 @@ void Engine::handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn)
     mcomp.execute(sendQueue);
 }
 
+void Engine::debugSendCollAvoidInfo(ecs::EntityId entId,
+                                    const vector<vec3>& bpQuads)
+{
+    forActiveClients(
+        [entId, bpQuads, this](def::ClientInfo* clientInfo)
+        {
+            if (clientInfo->activeEntity == entId)
+            {
+                prot::MsgComposer mcomp(net::SendType::TCP, clientInfo->clientInfo.connection);
+                mcomp.startCommand(prot::cmd::DBG_COLLAVOID_INFO, CMD_FLAG_RESP);
+                for(auto quad : bpQuads)
+                {
+                    mcomp.ser->object(quad);
+                }
+                mcomp.execute(sendQueue);
+            }
+        });
+}
+
 void Engine::markPlayerSectors()
 {
     std::set<uint32_t> playerSectors;

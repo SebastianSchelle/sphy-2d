@@ -321,6 +321,8 @@ class Model
     uint16_t intFastCliServ;
     long realtimeDelay;
     long mapDelay;
+
+    vector<vec3> dbgCollAvoidBp;
 };
 
 }  // namespace sphyc

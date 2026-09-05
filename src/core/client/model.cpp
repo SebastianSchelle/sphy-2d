@@ -629,6 +629,16 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         case prot::cmd::UPD_ECS_MAP:
             handleEcsMap(cmddes, dataEndPos);
             break;
+        case prot::cmd::DBG_COLLAVOID_INFO:
+            dbgCollAvoidBp.clear();
+            while ((int)cmddes.adapter().currentReadPos()
+                   <= (int)(dataEndPos)-12)
+            {
+                vec3 quad;
+                cmddes.object(quad);
+                dbgCollAvoidBp.push_back(quad);
+            }
+            break;
         default:
             break;
     }
@@ -708,7 +718,7 @@ void Model::drawMap(gfx::RenderEngine& renderer)
     createDrawBounds(bounds);
     drawMapIcons(renderer, bounds, rendertime);
 
-    //world.drawStrategicMap(renderer, viewRect, zoom);
+    // world.drawStrategicMap(renderer, viewRect, zoom);
 
 
     // todo: Group entities by Pos and only show lists or fleets or groups
@@ -867,6 +877,24 @@ void Model::drawRealtime(gfx::RenderEngine& renderer)
     drawRealtimeProjectiles(renderer, bounds, renderTime);
     drawRealtimeBeams(renderer, bounds, renderTime);
     drawRealtimeItems(renderer, bounds, renderTime);
+
+    // debug
+    auto sectorId = getActiveSectorId();
+
+    for (auto quad : dbgCollAvoidBp)
+    {
+        glm::vec2 worldPos =
+            world.getWorldPosSectorOffset(sectorId,
+                                          renderer.getSectorOffsetX(),
+                                          renderer.getSectorOffsetY())
+            + vec2{quad.x, quad.y};
+        renderer.drawShapeRectangle(worldPos,
+                                    {quad.z, quad.z},
+                                    0x10ffffff,
+                                    1.0f / renderer.getWorldZoom(),
+                                    0.0f,
+                                    0);
+    }
 }
 
 void Model::createDrawBounds(vector<RealtimeDrawBounds>& bounds)

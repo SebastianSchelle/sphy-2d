@@ -108,6 +108,8 @@ class Engine
     void broadcastEntityToClients(ecs::EntityId entityId);
     void broadcastEntityDestructionToClients(ecs::EntityId entityId);
 
+    void debugSendCollAvoidInfo(ecs::EntityId entId, const vector<vec3>& bpQuads);
+
   private:
     void engineLoop();
     void startFromFolder();

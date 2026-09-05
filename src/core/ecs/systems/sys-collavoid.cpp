@@ -1,8 +1,11 @@
 #include "aabb-tree.hpp"
 #include "comp-collavoid.hpp"
+#include "comp-ident.hpp"
 #include "comp-phy.hpp"
 #include "config-manager.hpp"
 #include "glm/geometric.hpp"
+#include "ptr-handle.hpp"
+#include <engine.hpp>
 #include <sys-collavoid.hpp>
 
 #define CFG_PATH_BP "engine", "physics", "avoidance", "broadphase"
@@ -22,8 +25,8 @@ static float cfg_frameskip;
 
 void initCollAvoid(const cfg::ConfigManager& config)
 {
-    cfg_rb_max = CFG_FLOAT(config, 500.0f, CFG_PATH_BP, "rb_max");
-    cfg_v_max = CFG_FLOAT(config, 200.0f, CFG_PATH_BP, "v_max");
+    cfg_rb_max = CFG_FLOAT(config, 50.0f, CFG_PATH_BP, "rb_max");
+    cfg_v_max = CFG_FLOAT(config, 100.0f, CFG_PATH_BP, "v_max");
     cfg_sweep_d1 = CFG_FLOAT(config, 0.5f, CFG_PATH_BP, "sweep_d1");
     cfg_sweep_time_horizon =
         CFG_FLOAT(config, 5.0f, CFG_PATH_BP, "sweep_time_horizon");
@@ -37,30 +40,36 @@ void initCollAvoid(const cfg::ConfigManager& config)
     }
 }
 
-static void collAvoidBroadphaseSweep(const Transform& tr,
+static void collAvoidBroadphaseSweep(PtrHandle* ptrHandle,
+                                     const EntityId entityId,
+                                     const Transform& tr,
                                      const con::AABB& aabb,
                                      const PhysicsBody& phy)
 {
-    LG_W("Broadphase sweep");
     const float ra =
         std::max(aabb.upper.x - aabb.lower.x, aabb.upper.y - aabb.lower.y);
     const float rc = ra + cfg_rb_max;
     float spd = glm::length(phy.vel);
-    if(spd < 1.0e-6f)
+    if (spd < 1.0e-6f)
     {
         spd = 1.0e-6f;
     }
+    vector<vec3> quads;
     for (uint8_t i = 0; i < MAX_SWEEP_STEPS; ++i)
     {
+        // todo: not good like this, use cone with opening angle depending on speed, use non constant distance
+        // where the sample times are defined by the cone shape so it does always overlap
         const float t = sweep_steps[i] / spd;
-        if(t > cfg_sweep_time_horizon)
+        if (t > cfg_sweep_time_horizon)
         {
             break;
         }
         const vec2 p = tr.pos + phy.vel * t;
-        const float h = rc + cfg_rb_max * t;
-        LG_D("sweep[{}]: p:{} h:{}", i, p, h);
+        const float h = rc + cfg_v_max * t;
+        quads.push_back({p.x, p.y, h});
     }
+
+    ptrHandle->engine->debugSendCollAvoidInfo(entityId, quads);
 }
 
 void sysCollAvoidImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
@@ -81,7 +90,8 @@ void sysCollAvoidImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                     return;
                 }
                 // todo: collision avoidance scan
-                collAvoidBroadphaseSweep(tr, bp.fatAABB, phy);
+                collAvoidBroadphaseSweep(
+                    ptrHandle, entityId, tr, bp.fatAABB, phy);
                 collAvoid.nextRunFrame = ptrHandle->frameCnt + cfg_frameskip;
             }
         });
