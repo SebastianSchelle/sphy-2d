@@ -1859,11 +1859,11 @@ void Engine::testSpawn()
 
     bool first = true;
 
-    for (int i = 0; i < 1; ++i)
+    for (int i = 0; i < 10000; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
-        uint32_t sectorId = 0;//sectorPick(gen);
+        uint32_t sectorId = sectorPick(gen);
         auto sector = world.getSector(sectorId);
 
         auto ent = objb::ShipRecipe::spawn(
@@ -1959,7 +1959,7 @@ void Engine::testSpawn()
         //                    0);
     }
     */
-    for (int i = 0; i < 1; ++i)
+    for (int i = 0; i < 10000; ++i)
     {
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};

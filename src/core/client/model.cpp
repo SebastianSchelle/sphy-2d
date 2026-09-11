@@ -219,7 +219,6 @@ void Model::modelLoopGame(float dt, long frametime)
                 }
                 else
                 {
-                    LG_D("Cam pos: {} -> {}", sectorCoords, tr.tr.pos);
                     renderer->panWorldTo(def::SectorCoords{
                         .pos = sectorCoords,
                         .sectorPos = tr.tr.pos,
@@ -828,58 +827,55 @@ void Model::drawMapIcons(gfx::RenderEngine& renderer,
 {
     float zoom = renderer.getWorldZoom();
     auto& reg = clientRegistry.getRegistry();
-    reg.view<TransformHist, ecs::SectorId, ecs::MapIcon>().each(
+    reg.view<TransformHist, ecs::MapIcon>().each(
         [this, &renderer, &reg, &drawBounds, rendertime, zoom](
             game_entity entity,
             TransformHist& tr,
-            ecs::SectorId& sectorId,
             ecs::MapIcon& mapIcon)
         {
+            ClientTransform clitr;
+            if (!tr.interpolate(rendertime, clitr, {.world = &world})
+                && !tr.interpolate(rendertime, clitr, {.world = &world}, true))
+            {
+                return;
+            }
             // Check if in any visible sector
             for (auto& bounds : drawBounds)
             {
-                if (bounds.sectorId != sectorId.id)
+                if (bounds.sectorId != clitr.sectorId)
                 {
                     continue;
                 }
-                ClientTransform clitr;
-                if (tr.interpolate(rendertime, clitr, {.world = &world})
-                    || tr.interpolate(
-                        rendertime, clitr, {.world = &world}, true))
+                if (bounds.aabb.containsPoint(clitr.tr.pos))
                 {
-                    if (bounds.aabb.containsPoint(clitr.tr.pos))
+                    auto* mapIconItem = modManager->getMapIconLib().getItem(
+                        gobj::MapIconHandle(mapIcon.mapIconHandle));
+                    if (mapIconItem)
                     {
-                        auto* mapIconItem = modManager->getMapIconLib().getItem(
-                            gobj::MapIconHandle(mapIcon.mapIconHandle));
-                        if (mapIconItem)
+                        glm::vec2 worldPos = world.getWorldPosSectorOffset(
+                                                 clitr.sectorId,
+                                                 renderer.getSectorOffsetX(),
+                                                 renderer.getSectorOffsetY())
+                                             + clitr.tr.pos;
+                        mod::MappedTextureHandle mTexHandle =
+                            *(mod::MappedTextureHandle*)&mapIconItem->texHandle;
+                        const mod::MappedTexture* mappedTexture =
+                            modManager->getResourceMap().getMappedTexture(
+                                mTexHandle);
+                        gfx::TextureHandle texHandle =
+                            gfx::TextureHandle::Invalid();
+                        if (mappedTexture)
                         {
-                            glm::vec2 worldPos =
-                                world.getWorldPosSectorOffset(
-                                    sectorId.id,
-                                    renderer.getSectorOffsetX(),
-                                    renderer.getSectorOffsetY())
-                                + clitr.tr.pos;
-                            mod::MappedTextureHandle mTexHandle =
-                                *(mod::MappedTextureHandle*)&mapIconItem
-                                     ->texHandle;
-                            const mod::MappedTexture* mappedTexture =
-                                modManager->getResourceMap().getMappedTexture(
-                                    mTexHandle);
-                            gfx::TextureHandle texHandle =
-                                gfx::TextureHandle::Invalid();
-                            if (mappedTexture)
-                            {
-                                texHandle = mappedTexture->texHandle;
-                            }
-                            renderer.queueTexRect(
-                                worldPos,
-                                glm::vec2(mapIconItem->size.x / zoom,
-                                          mapIconItem->size.y / zoom),
-                                texHandle,
-                                clitr.tr.rot,
-                                gfx::RenderEngine::zIdxMapIconHull,
-                                0xff0010ff);
+                            texHandle = mappedTexture->texHandle;
                         }
+                        renderer.queueTexRect(
+                            worldPos,
+                            glm::vec2(mapIconItem->size.x / zoom,
+                                      mapIconItem->size.y / zoom),
+                            texHandle,
+                            clitr.tr.rot,
+                            gfx::RenderEngine::zIdxMapIconHull,
+                            0xff0010ff);
                     }
                 }
             }
@@ -916,21 +912,21 @@ void Model::drawRealtime(gfx::RenderEngine& renderer,
                                     0);
     }
 
-    for (auto bound : bounds)
-    {
-        glm::vec2 worldPos =
-            world.getWorldPosSectorOffset(bound.sectorId,
-                                          renderer.getSectorOffsetX(),
-                                          renderer.getSectorOffsetY());
-        vec2 pos = (bound.aabb.lower + bound.aabb.upper) / 2.0f;
-        vec2 size = bound.aabb.upper - bound.aabb.lower;
-        renderer.drawShapeRectangle(worldPos + pos,
-                                    size,
-                                    0xf00000ff,
-                                    4.0f / renderer.getWorldZoom(),
-                                    0.0f,
-                                    0);
-    }
+    // for (auto bound : bounds)
+    // {
+    //     glm::vec2 worldPos =
+    //         world.getWorldPosSectorOffset(bound.sectorId,
+    //                                       renderer.getSectorOffsetX(),
+    //                                       renderer.getSectorOffsetY());
+    //     vec2 pos = (bound.aabb.lower + bound.aabb.upper) / 2.0f;
+    //     vec2 size = bound.aabb.upper - bound.aabb.lower;
+    //     renderer.drawShapeRectangle(worldPos + pos,
+    //                                 size,
+    //                                 0xf00000ff,
+    //                                 4.0f / renderer.getWorldZoom(),
+    //                                 0.0f,
+    //                                 0);
+    // }
 }
 
 void Model::createDrawBounds(vector<RealtimeDrawBounds>& bounds)
@@ -939,8 +935,6 @@ void Model::createDrawBounds(vector<RealtimeDrawBounds>& bounds)
     const auto& tl = viewRect.tl;
     const auto& br = viewRect.br;
     const float halfSize = world.getWorldShape().sectorSize / 2.0f;
-    LG_D("tl : {}:{}", tl.pos, tl.sectorPos);
-    LG_D("br : {}:{}", br.pos, br.sectorPos);
     for (uint32_t secX = tl.pos.x; secX <= br.pos.x; ++secX)
     {
         for (uint32_t secY = tl.pos.y; secY <= br.pos.y; ++secY)
@@ -1002,14 +996,6 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
                                      .upper = trInt.pos + centerDistVec};
                 if (!bounds.aabb.overlaps(aabb))
                 {
-                    LG_W("No overlap 1");
-                    LG_D("Obj: {} -> {}", clitr.sectorId, trInt.pos);
-                    LG_D("{}, {}", aabb.lower, aabb.upper);
-                    LG_D("Bounds: {} -> {}, {}",
-                         bounds.sectorId,
-                         bounds.aabb.lower,
-                         bounds.aabb.upper);
-                    while(1);
                     break;
                 }
                 // Do additional fine grained check
@@ -1023,7 +1009,6 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
                     collider);
                 if (!bounds.aabb.overlaps(fineAabb))
                 {
-                    LG_W("No overlap 2");
                     break;
                 }
                 // draw Ship

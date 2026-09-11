@@ -42,6 +42,8 @@ template <class T> class ObjectPool
     }
     void clear()
     {
+        newObjects.clear();
+        destroyedObjects.clear();
         pool.clear();
     }
 

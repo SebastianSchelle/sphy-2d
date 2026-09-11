@@ -1181,8 +1181,16 @@ template <class T> class InterpolData
         {
             if (i++ == INTERPOL_DEPTH - 1)
             {
-                LG_E("time to far in past");
-                return false;
+                if (relaxed)
+                {
+                    n = newest;
+                    p = previous(n);
+                    break;
+                }
+                else
+                {
+                    return false;
+                }
             }
             n = p;
             p = previous(p);
@@ -1193,12 +1201,10 @@ template <class T> class InterpolData
             if (relaxed)
             {
                 t = history[n];
-                LG_W("only one valid timestamp");
                 return true;
             }
             else
             {
-                LG_E("only one valid timestamp");
                 return false;
             }
         }
