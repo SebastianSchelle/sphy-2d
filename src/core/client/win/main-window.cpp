@@ -279,8 +279,6 @@ void MainWindow::winLoop()
         determineUiEnvironment();
         processUiTasks();
 
-        model.modelLoop(dt, nowU);
-
         mouseState.mz = 0;
         glfwPollEvents();
         setupMouseState();
@@ -332,6 +330,8 @@ void MainWindow::winLoop()
             }
         }
 
+        model.modelLoop(dt, nowU);
+        renderEngine.updateWorldView();
         updateClientViewRect();
 
         if (userInterface.isDebugOpen())
@@ -423,7 +423,7 @@ void MainWindow::renderGame()
         case gfx::GameViewMode::ThirdPerson:
             processMouseThirdPerson(zoom);
             model.drawThirdPerson(renderEngine);
-            renderEngine.panWorld(panX, panY);
+            //renderEngine.panWorld(panX, panY);
             break;
         default:
             break;

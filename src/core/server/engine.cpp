@@ -1863,7 +1863,7 @@ void Engine::testSpawn()
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
-        uint32_t sectorId = sectorPick(gen);
+        uint32_t sectorId = 0;//sectorPick(gen);
         auto sector = world.getSector(sectorId);
 
         auto ent = objb::ShipRecipe::spawn(

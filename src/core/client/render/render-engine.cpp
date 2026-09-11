@@ -737,7 +737,6 @@ void RenderEngine::startFrame()
 
     bgfx::setViewRect(kWorldView, 0, 0, bgfx::BackbufferRatio::Equal);
     bgfx::setViewRect(kUiView, 0, 0, bgfx::BackbufferRatio::Equal);
-    updateWorldView();
     bgfx::setViewTransform(kWorldView, worldView, ortho);
 
     bgfx::touch(kWorldView);
@@ -1366,6 +1365,7 @@ void RenderEngine::panWorldTo(const def::SectorCoords& sectorCoords)
     sectorOffsetY = sectorCoords.pos.y;
     worldCameraX = sectorCoords.sectorPos.x;
     worldCameraY = sectorCoords.sectorPos.y;
+    applyCameraSectorRebase();
 }
 
 void RenderEngine::clbToggleMap()
