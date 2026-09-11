@@ -80,10 +80,8 @@ class UserInterface
     void hideMenu();
     void showConnecting();
     void hideConnecting();
-    void showTabListStrategic();
-    void hideTabListStrategic();
-    void showTabListTactical();
-    void hideTabListTactical();
+    void hideTabListMap();
+    void showTabListMap();
     void processEsc(bool keepMenuOpen = false);
     void addSystemMessage(const string& message);
     void addChatMessage(const ChatMessage& message);
@@ -153,7 +151,7 @@ class UserInterface
     bool chatOpen = false;
     bool debugOpen = false;
     bool tabListStrategicOpen = false;
-    bool tabListTacticalOpen = false;
+    bool tabListMap = false;
 
     vector<string> menuStack;
     string currentMenuPage;

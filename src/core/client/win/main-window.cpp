@@ -393,8 +393,11 @@ void MainWindow::updateClientViewRect()
     def::SectorCoords tl, br;
     renderEngine.screenToSectorCoordsRel(vec2(-1.0, 1.0), tl);
     renderEngine.screenToSectorCoordsRel(vec2(1.0, -1.0), br);
-    model.setClientViewRect(def::ClientViewRect{
-        .viewMode = renderEngine.getViewMode(), .tl = tl, .br = br});
+    model.setClientViewRect(
+        def::ClientViewRect{.viewMode = renderEngine.getViewMode(),
+                            .zoom = renderEngine.getWorldZoom(),
+                            .tl = tl,
+                            .br = br});
 }
 
 void MainWindow::renderMenu()
@@ -412,19 +415,14 @@ void MainWindow::renderGame()
         0, renderEngine.getShaderHandle("distantstars"));
     switch (renderEngine.getViewMode())
     {
-        case gfx::GameViewMode::StrategicMap:
-            processMouseTactical(zoom);
+        case gfx::GameViewMode::Map:
+            processMouseMap(zoom);
             model.drawMap(renderEngine);
-            renderEngine.panWorld(panX, panY);
-            break;
-        case gfx::GameViewMode::TacticalMap:
-            processMouseTactical(zoom);
-            model.drawTacticalMap(renderEngine, viewportRect, zoom);
             renderEngine.panWorld(panX, panY);
             break;
         case gfx::GameViewMode::ThirdPerson:
             processMouseThirdPerson(zoom);
-            model.drawRealtime(renderEngine);
+            model.drawThirdPerson(renderEngine);
             renderEngine.panWorld(panX, panY);
             break;
         default:
@@ -484,7 +482,7 @@ void MainWindow::renderModdingTools(bool mouseOverUi)
     renderEngine.flushQueuedTexRects();
 }
 
-void MainWindow::processMouseTactical(float zoom)
+void MainWindow::processMouseMap(float zoom)
 {
     if (mouseState.dragActive[0])
     {
@@ -822,14 +820,9 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         return;
     }
 
-    if (action == GLFW_PRESS && key == GLFW_KEY_T)
-    {
-        model.toggleTacticalView();
-        return;
-    }
     if (action == GLFW_PRESS && key == GLFW_KEY_M)
     {
-        model.toggleStrategicView();
+        model.toggleMap();
         return;
     }
 
@@ -1429,11 +1422,7 @@ void MainWindow::determineUiEnvironment()
             userInterface.setUiEnvironment(
                 ui::InputEvent::Environment::ThirdPerson);
             break;
-        case gfx::GameViewMode::StrategicMap:
-            userInterface.setUiEnvironment(
-                ui::InputEvent::Environment::Strategic);
-            break;
-        case gfx::GameViewMode::TacticalMap:
+        case gfx::GameViewMode::Map:
             userInterface.setUiEnvironment(
                 ui::InputEvent::Environment::Tactical);
             break;

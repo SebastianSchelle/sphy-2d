@@ -71,8 +71,7 @@ ZoomPanCfg loadZoomPanCfg(cfg::ConfigManager& config,
 
 constexpr ViewCamMoveBinding kViewCamMoveBindings[] = {
     {GameViewMode::ThirdPerson, "third-person", {1.1f, 10.0f, 1.0f, 10.0f}},
-    {GameViewMode::TacticalMap, "tactical-map", {1.1f, 7.0f, 0.07f, 10.0f}},
-    {GameViewMode::StrategicMap, "strategic-map", {1.1f, 0.01f, 0.001f, 10.0f}},
+    {GameViewMode::Map, "tactical-map", {1.1f, 7.0f, 0.07f, 10.0f}},
     {GameViewMode::ModdingTools, "modding-tools", {1.1f, 30.0f, 0.01f, 5.0f}},
 };
 
@@ -1222,17 +1221,17 @@ void RenderEngine::applyCameraSectorRebase()
     {
         return;
     }
-    if (viewMode == GameViewMode::TacticalMap)
-    {
-        sectorOffsetX = activeSectorX;
-        sectorOffsetY = activeSectorY;
-        worldCameraX = std::clamp(worldCameraX,
-                                  -worldShape->sectorSize / 2.0f,
-                                  worldShape->sectorSize / 2.0f);
-        worldCameraY = std::clamp(worldCameraY,
-                                  -worldShape->sectorSize / 2.0f,
-                                  worldShape->sectorSize / 2.0f);
-    }
+    // if (viewMode == GameViewMode::Map)
+    // {
+    //     sectorOffsetX = activeSectorX;
+    //     sectorOffsetY = activeSectorY;
+    //     worldCameraX = std::clamp(worldCameraX,
+    //                               -worldShape->sectorSize / 2.0f,
+    //                               worldShape->sectorSize / 2.0f);
+    //     worldCameraY = std::clamp(worldCameraY,
+    //                               -worldShape->sectorSize / 2.0f,
+    //                               worldShape->sectorSize / 2.0f);
+    // }
     else
     {
         int deltaOffsX = std::clamp(
@@ -1369,31 +1368,17 @@ void RenderEngine::panWorldTo(const def::SectorCoords& sectorCoords)
     worldCameraY = sectorCoords.sectorPos.y;
 }
 
-void RenderEngine::clbToggleTacticalView()
+void RenderEngine::clbToggleMap()
 {
-    if (viewMode == GameViewMode::TacticalMap)
+    if (viewMode == GameViewMode::Map)
     {
         viewMode = GameViewMode::ThirdPerson;
         restoreViewCameraState(GameViewMode::ThirdPerson);
     }
     else
     {
-        viewMode = GameViewMode::TacticalMap;
-        restoreViewCameraState(GameViewMode::TacticalMap);
-    }
-}
-
-void RenderEngine::clbToggleStrategicView()
-{
-    if (viewMode == GameViewMode::StrategicMap)
-    {
-        viewMode = GameViewMode::ThirdPerson;
-        restoreViewCameraState(GameViewMode::ThirdPerson);
-    }
-    else
-    {
-        viewMode = GameViewMode::StrategicMap;
-        restoreViewCameraState(GameViewMode::StrategicMap);
+        viewMode = GameViewMode::Map;
+        restoreViewCameraState(GameViewMode::Map);
     }
 }
 

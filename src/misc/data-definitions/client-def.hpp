@@ -25,12 +25,13 @@ constexpr Flags enConsole = 0x0002;
 struct ClientViewRect
 {
     gfx::GameViewMode viewMode;
+    float zoom;
     SectorCoords tl;
     SectorCoords br;
 
     bool operator==(const ClientViewRect& other) const
     {
-        return viewMode == other.viewMode && tl == other.tl && br == other.br;
+        return viewMode == other.viewMode && tl == other.tl && br == other.br && zoom == other.zoom;
     }
     bool operator!=(const ClientViewRect& other) const
     {
@@ -40,6 +41,7 @@ struct ClientViewRect
 
 #define SER_CLIENT_VIEW_RECT                                                   \
     SOBJ(o.viewMode);                                                          \
+    S4b(o.zoom);                                                               \
     SOBJ(o.tl);                                                                \
     SOBJ(o.br);
 EXT_SER(ClientViewRect, SER_CLIENT_VIEW_RECT)

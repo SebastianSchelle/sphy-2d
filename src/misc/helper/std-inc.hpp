@@ -1087,8 +1087,7 @@ constexpr float kTexturePixelToWorld = 0.15f;
 enum class GameViewMode : uint8_t
 {
     ThirdPerson,
-    TacticalMap,
-    StrategicMap,
+    Map,
     Menu,
     AtlasDebug,
     ModdingTools,
@@ -1182,6 +1181,7 @@ template <class T> class InterpolData
         {
             if (i++ == INTERPOL_DEPTH - 1)
             {
+                LG_E("time to far in past");
                 return false;
             }
             n = p;
@@ -1193,10 +1193,12 @@ template <class T> class InterpolData
             if (relaxed)
             {
                 t = history[n];
+                LG_W("only one valid timestamp");
                 return true;
             }
             else
             {
+                LG_E("only one valid timestamp");
                 return false;
             }
         }

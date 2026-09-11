@@ -87,6 +87,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     maxFps = CFG_FLOAT(config, 600.0f, "engine", "proc", "max-fps");
     intAutosave = (long)(CFG_FLOAT(config, 10.0f, "engine", "autosave") * 60.0f
                          * 1000000.0f);
+    realtimeZoomThr = CFG_FLOAT(config, 0.05f, "realtime-zoom-thr");
 
     ecs::initCollAvoid(config);
 
@@ -682,6 +683,7 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 mcomp.startCommand(prot::cmd::WORLD_INFO, CMD_FLAG_RESP);
                 auto worldShape = world.getWorldShape();
                 mcomp.ser->object(worldShape);
+                mcomp.ser->value4b(realtimeZoomThr);
                 mcomp.execute(sendQueue);
             }
             break;
@@ -1062,8 +1064,10 @@ void Engine::clientUpd(long frametime)
     forActiveClients(
         [this, frametime](def::ClientInfo* clientInfo)
         {
-            bool isRealtime = clientInfo->clientViewRect.viewMode
-                              == gfx::GameViewMode::ThirdPerson;
+            const auto& vr = clientInfo->clientViewRect;
+            bool isRealtime = vr.viewMode == gfx::GameViewMode::ThirdPerson
+                              || (vr.viewMode == gfx::GameViewMode::Map
+                                  && vr.zoom > realtimeZoomThr);
             if (isRealtime)
             {
                 // Realtime update ============================================
@@ -1079,7 +1083,7 @@ void Engine::clientUpd(long frametime)
                     frametime,
                     [&]() { clientUpdRealtime(clientInfo, frametime); });
             }
-            else
+            else if (vr.viewMode == gfx::GameViewMode::Map)
             {
                 // Map update =================================================
                 if (lastClientViewRect != clientInfo->clientViewRect)
@@ -1105,6 +1109,10 @@ void Engine::clientUpd(long frametime)
                         frametime,
                         [&]() { clientUpdMap(clientInfo, frametime); });
                 }
+            }
+            else
+            {
+                // Menu and such
             }
         });
 }
@@ -1373,7 +1381,8 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
                             ser.object(collAvoid.id2);
                             ser.object(collAvoid.intersect);
                         }
-                    }, prot::cmd::CLEAR_DBGCOLLAVOID);
+                    },
+                    prot::cmd::CLEAR_DBGCOLLAVOID);
 
                 prot::MsgComposer mcItem(net::SendType::UDP, udpEnd);
                 prot::MsgComposer mcEcs(net::SendType::UDP, udpEnd);
@@ -1850,7 +1859,7 @@ void Engine::testSpawn()
 
     bool first = true;
 
-    for (int i = 0; i < 10000; ++i)
+    for (int i = 0; i < 1; ++i)
     {
         vec2 pos = vec2{posDist(gen), posDist(gen)};
         float rot = rotDist(gen);
@@ -1950,7 +1959,7 @@ void Engine::testSpawn()
         //                    0);
     }
     */
-    for (int i = 0; i < 10000; ++i)
+    for (int i = 0; i < 1; ++i)
     {
         vec2 pos1 = vec2{posDist(gen), posDist(gen)};
         vec2 pos2 = vec2{posDist(gen), posDist(gen)};

@@ -229,6 +229,8 @@ class Engine
 
     misc::RandGen randWorldGen;
     misc::RandGen randTest;
+
+    float realtimeZoomThr;
 };
 
 }  // namespace sphys

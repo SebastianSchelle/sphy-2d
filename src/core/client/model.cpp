@@ -196,7 +196,7 @@ void Model::modelLoopGame(float dt, long frametime)
     static tim::Timepoint lastFastCliServ = tim::getCurrentTimeU();
 
     if (renderer->getViewMode() == gfx::GameViewMode::ThirdPerson
-        || renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
+        || renderer->getViewMode() == gfx::GameViewMode::Map)
     {
         game_entity activeEntity = getActiveEntity();
         auto& reg = clientRegistry.getRegistry();
@@ -213,7 +213,7 @@ void Model::modelLoopGame(float dt, long frametime)
                     tr = trHist->latest();
                 }
                 auto sectorCoords = world.idToSectorCoords(tr.sectorId);
-                if (renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
+                if (renderer->getViewMode() == gfx::GameViewMode::Map)
                 {
                     renderer->setActiveSector(sectorCoords.x, sectorCoords.y);
                 }
@@ -310,8 +310,7 @@ void Model::parseCommandData(const net::CmdQueueData& cmdData)
 
 void Model::centerViewOnPlayer()
 {
-    if (renderer->getViewMode() == gfx::GameViewMode::StrategicMap
-        || renderer->getViewMode() == gfx::GameViewMode::TacticalMap)
+    if (renderer->getViewMode() == gfx::GameViewMode::Map)
     {
         game_entity activeEntity = getActiveEntity();
         auto& reg = clientRegistry.getRegistry();
@@ -452,6 +451,7 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             {
                 def::WorldShape worldShape;
                 cmddes.object(worldShape);
+                cmddes.value4b(realtimeZoomThr);
                 world.createFromServer(worldShape, nullptr);
             }
             break;
@@ -711,50 +711,21 @@ void Model::drawDebug(gfx::RenderEngine& renderer, float zoom)
     //     });
 }
 
-void Model::drawTacticalMap(gfx::RenderEngine& renderer,
-                            const glm::vec4& viewRect,
-                            float zoom)
-{
-    // world.drawTacticalMap(renderer, viewRect, zoom);
-    // uint32_t activeSectorId = getActiveSectorId();
-    // drawRealtime(renderer);
-    // auto& reg = clientRegistry.getRegistry();
-    // for (const auto& entityId : selectedEntities)
-    // {
-    //     game_entity entity = clientRegistry.getEntity(entityId);
-    //     if (reg.valid(entity))
-    //     {
-    //         auto* trans = reg.try_get<ecs::Transform>(entity);
-    //         auto* sectorId = reg.try_get<ecs::SectorId>(entity);
-    //         if (trans && sectorId && sectorId->id == activeSectorId)
-    //         {
-    //             glm::vec2 worldPos =
-    //                 world.getWorldPosSectorOffset(sectorId->id,
-    //                                               renderer.getSectorOffsetX(),
-    //                                               renderer.getSectorOffsetY())
-    //                 + trans->pos;
-    //             renderer.drawShapeRectangle(worldPos,
-    //                                         glm::vec2(40.0f, 40.0f),
-    //                                         0xff004000,
-    //                                         1.0f / zoom,
-    //                                         0.0f,
-    //                                         0);
-    //         }
-    //     }
-    // }
-    // if (overlayAabbTreeEnabled)
-    // {
-    //     drawOverlayAABBs(renderer, zoom);
-    // }
-}
-
 void Model::drawMap(gfx::RenderEngine& renderer)
 {
     long frametime = tim::nowU();
     long rendertime = frametime - timeSyncData.serverLatency - mapDelay;
     std::vector<RealtimeDrawBounds> bounds;
     createDrawBounds(bounds);
-    drawMapIcons(renderer, bounds, rendertime);
+
+    if(renderer.getWorldZoom() < realtimeZoomThr)
+    {
+        drawMapIcons(renderer, bounds, rendertime);
+    }
+    else
+    {
+        drawRealtime(renderer, bounds);
+    }
 
     // world.drawStrategicMap(renderer, viewRect, zoom);
 
@@ -840,6 +811,16 @@ void Model::drawMap(gfx::RenderEngine& renderer)
 }
 
 
+void Model::drawThirdPerson(gfx::RenderEngine& renderer)
+{
+    long frametime = tim::nowU();
+    long renderTime = frametime - timeSyncData.serverLatency - realtimeDelay;
+    std::vector<RealtimeDrawBounds> bounds;
+    createDrawBounds(bounds);
+    drawRealtime(renderer, bounds);
+}
+
+
 void Model::drawMapIcons(gfx::RenderEngine& renderer,
                          const vector<RealtimeDrawBounds>& drawBounds,
                          long rendertime)
@@ -904,12 +885,11 @@ void Model::drawMapIcons(gfx::RenderEngine& renderer,
         });
 }
 
-void Model::drawRealtime(gfx::RenderEngine& renderer)
+void Model::drawRealtime(gfx::RenderEngine& renderer,
+                         const vector<RealtimeDrawBounds>& bounds)
 {
     long frametime = tim::nowU();
     long renderTime = frametime - timeSyncData.serverLatency - realtimeDelay;
-    std::vector<RealtimeDrawBounds> bounds;
-    createDrawBounds(bounds);
     drawRealtimeShips(renderer, bounds, renderTime);
     drawRealtimeAsteroids(renderer, bounds, renderTime);
     drawRealtimeProjectiles(renderer, bounds, renderTime);
@@ -968,7 +948,6 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
 {
     auto& reg = clientRegistry.getRegistry();
     reg.view<TransformHist,
-             ecs::SectorId,
              ecs::Textures,
              ecs::Hull,
              ecs::Collider>()
@@ -976,7 +955,6 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
             [this, &renderer, &reg, &drawBounds, rendertime](
                 game_entity entity,
                 TransformHist& tr,
-                ecs::SectorId& sectorId,
                 ecs::Textures& textures,
                 ecs::Hull& hull,
                 ecs::Collider& coll)
@@ -984,7 +962,7 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
                 // Check if in any visible sector
                 for (auto& bounds : drawBounds)
                 {
-                    if (bounds.sectorId != sectorId.id)
+                    if (bounds.sectorId != tr.latest().sectorId)
                     {
                         continue;
                     }
@@ -1023,7 +1001,7 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
                         }
                         // draw Ship
                         glm::vec2 worldPos = world.getWorldPosSectorOffset(
-                                                 sectorId.id,
+                                                 clitr.sectorId,
                                                  renderer.getSectorOffsetX(),
                                                  renderer.getSectorOffsetY())
                                              + trInt.pos;
@@ -1726,20 +1704,11 @@ void Model::handleReqAllComponentsResp(
     }
 }
 
-void Model::toggleTacticalView()
+void Model::toggleMap()
 {
     if (gameState == ClientGameState::GameLoop)
     {
-        renderer->clbToggleTacticalView();
-        userInterface->setupViewModeUi(renderer->getViewMode());
-    }
-}
-
-void Model::toggleStrategicView()
-{
-    if (gameState == ClientGameState::GameLoop)
-    {
-        renderer->clbToggleStrategicView();
+        renderer->clbToggleMap();
         userInterface->setupViewModeUi(renderer->getViewMode());
     }
 }

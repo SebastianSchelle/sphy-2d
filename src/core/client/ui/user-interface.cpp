@@ -387,7 +387,7 @@ void UserInterface::hideAllDocuments()
     chatOpen = false;
     debugOpen = false;
     tabListStrategicOpen = false;
-    tabListTacticalOpen = false;
+    tabListMap = false;
 }
 
 UiDocHandle UserInterface::getDocumentHandle(const std::string& name)
@@ -431,34 +431,19 @@ void UserInterface::hideMenu()
     menuOpen = false;
 }
 
-void UserInterface::showTabListStrategic()
+void UserInterface::hideTabListMap()
 {
-    if (!tabListStrategicOpen)
+    hideDocument(rmlDocLib.getHandle("tab-list-map"));
+    tabListMap = false;
+}
+
+void UserInterface::showTabListMap()
+{
+    if (!tabListMap)
     {
-        showDocument(rmlDocLib.getHandle("tab-list-strategic"));
-        tabListStrategicOpen = true;
+        showDocument(rmlDocLib.getHandle("tab-list-map"));
+        tabListMap = true;
     }
-}
-
-void UserInterface::hideTabListStrategic()
-{
-    hideDocument(rmlDocLib.getHandle("tab-list-strategic"));
-    tabListStrategicOpen = false;
-}
-
-void UserInterface::showTabListTactical()
-{
-    if (!tabListTacticalOpen)
-    {
-        showDocument(rmlDocLib.getHandle("tab-list-tactical"));
-        tabListTacticalOpen = true;
-    }
-}
-
-void UserInterface::hideTabListTactical()
-{
-    hideDocument(rmlDocLib.getHandle("tab-list-tactical"));
-    tabListTacticalOpen = false;
 }
 
 void UserInterface::setupViewModeUi(gfx::GameViewMode viewMode)
@@ -466,18 +451,7 @@ void UserInterface::setupViewModeUi(gfx::GameViewMode viewMode)
     hideAllDocuments();
     switch (viewMode)
     {
-        case gfx::GameViewMode::StrategicMap:
-        {
-            const string& currentTab =
-                tabPanelTactical.getCurrentTabDocumentId();
-            if (tabPanelStrategic.hasTab(currentTab))
-            {
-                showDocument(currentTab);
-            }
-            showTabListStrategic();
-        }
-        break;
-        case gfx::GameViewMode::TacticalMap:
+        case gfx::GameViewMode::Map:
         {
             const string& currentTab =
                 tabPanelStrategic.getCurrentTabDocumentId();
@@ -485,7 +459,7 @@ void UserInterface::setupViewModeUi(gfx::GameViewMode viewMode)
             {
                 showDocument(currentTab);
             }
-            showTabListTactical();
+            showTabListMap();
         }
         break;
         case gfx::GameViewMode::ThirdPerson:

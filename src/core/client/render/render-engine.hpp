@@ -149,8 +149,7 @@ class RenderEngine
     void panWorld(const glm::vec2& delta);
     void panWorldTo(const def::SectorCoords& sectorCoords);
     void setActiveSector(int32_t sectorX, int32_t sectorY);
-    void clbToggleTacticalView();
-    void clbToggleStrategicView();
+    void clbToggleMap();
     void gotoModdingTools();
     void startGame();
 

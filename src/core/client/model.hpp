@@ -116,11 +116,10 @@ class Model
     void startLoadingMods();
     void startModel();
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
-    void drawTacticalMap(gfx::RenderEngine& renderer,
-                         const glm::vec4& viewRect,
-                         float zoom);
+    void
+    drawMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
     void drawMap(gfx::RenderEngine& renderer);
-    void drawRealtime(gfx::RenderEngine& renderer);
+    void drawThirdPerson(gfx::RenderEngine& renderer);
     void setOverlayEnabled(const std::string& overlay, bool enabled);
     bool isAabbTreeOverlayEnabled() const;
     void sendCmdToServer(const std::string& command);
@@ -145,8 +144,7 @@ class Model
     {
         clientInfo.clientViewRect = cvr;
     }
-    void toggleTacticalView();
-    void toggleStrategicView();
+    void toggleMap();
     void centerViewOnPlayer();
     void setupDataModelConnecting();
 
@@ -240,11 +238,15 @@ class Model
                       long rendertime);
 
     // Realtime drawing
+    void drawRealtime(gfx::RenderEngine& renderer,
+                      const vector<RealtimeDrawBounds>& bounds);
     void createDrawBounds(vector<RealtimeDrawBounds>& bounds);
     void drawRealtimeShips(gfx::RenderEngine& renderer,
                            const vector<RealtimeDrawBounds>& drawBounds,
                            long rendertime);
-    // void drawRealtimeStations(gfx::RenderEngine& renderer);
+    // void drawRealtimeStations(gfx::RenderEngine& renderer,
+    //    const vector<RealtimeDrawBounds>& drawBounds,
+    //    long rendertime);
     void drawRealtimeItems(gfx::RenderEngine& renderer,
                            const vector<RealtimeDrawBounds>& drawBounds,
                            long rendertime);
@@ -317,6 +319,7 @@ class Model
     def::ThirdPersonControl thirdPersonControl;
     uint16_t intFastCliServ;
     long realtimeDelay;
+    float realtimeZoomThr;
     long mapDelay;
 
     vector<vec3> dbgCollAvoidBp;
