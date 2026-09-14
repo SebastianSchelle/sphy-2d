@@ -62,6 +62,7 @@ class ClientInfo
         thirdPersonControl.flags = 0;
         lastClientUpdMap = tim::nowU();
         lastClientUpdFast3rd = tim::nowU();
+        lastClientUpdGeneral = tim::nowU();
     }
 #endif
 #ifdef CLIENT
@@ -80,6 +81,7 @@ class ClientInfo
     net::ClientInfo clientInfo;
     long lastClientUpdFast3rd;
     long lastClientUpdMap;
+    long lastClientUpdGeneral;
     ThirdPersonControl thirdPersonControl;
 
     void addWorkFunction(work::WorkFunction workFunction)

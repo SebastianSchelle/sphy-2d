@@ -77,6 +77,8 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
     intRealtime =
         1000
         * CFG_UINT(config, 100.0f, "engine", "net", "dump-int", "realtime");
+    intGeneral =
+        1000 * CFG_UINT(config, 200.0f, "engine", "net", "dump-int", "general");
     ptrHandle->miningRate =
         CFG_FLOAT(config, 0.01f, "engine", "mining", "mining-rate");
     ptrHandle->itemLifetime =
@@ -1114,6 +1116,15 @@ void Engine::clientUpd(long frametime)
             {
                 // Menu and such
             }
+
+            if (isRealtime || vr.viewMode == gfx::GameViewMode::Map)
+            {
+                DO_PERIODIC_U_EXTNOW(
+                    clientInfo->lastClientUpdGeneral,
+                    intGeneral,
+                    frametime,
+                    [&]() { clientUpdGeneral(clientInfo, frametime); });
+            }
         });
 }
 
@@ -1541,6 +1552,20 @@ void Engine::clientUpdMapAddObjectdata(prot::MsgComposer& mc,
     }
     mc.ser->object(entityId);
     mc.ser->object(transform);
+}
+
+void Engine::clientUpdGeneral(def::ClientInfo* clientInfo, long frametime)
+{
+    prot::MsgComposer mc(net::SendType::UDP,
+                         clientInfo->clientInfo.udpEndpoint);
+    mc.startCommand(prot::cmd::UPD_GEN_INFO, 0);
+    uint16_t actCnt = playerSectors.size();
+    mc.ser->value2b(actCnt);
+    for(auto sec : playerSectors)
+    {
+        mc.ser->value4b(sec);
+    }
+    mc.execute(sendQueue);
 }
 
 void Engine::clientUpdMap(def::ClientInfo* clientInfo, long frametime)
@@ -2024,7 +2049,7 @@ void Engine::debugSendCollAvoidInfo(ecs::EntityId entId,
 
 void Engine::markPlayerSectors()
 {
-    std::set<uint32_t> playerSectors;
+    playerSectors.clear();
     for (auto& clientHandle : activeClientHandles)
     {
         def::ClientInfo* clientInfo = clientLib.getItem(clientHandle);

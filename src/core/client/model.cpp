@@ -676,7 +676,9 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 dbgCollAvoidBp.push_back(quad);
             }
             break;
-
+        case prot::cmd::UPD_GEN_INFO:
+            handleUpdGeneral(cmddes, dataEndPos);
+            break;
         default:
             break;
     }
@@ -716,7 +718,7 @@ void Model::drawMap(gfx::RenderEngine& renderer)
     long frametime = tim::nowU();
     long rendertime = frametime - timeSyncData.serverLatency - mapDelay;
     std::vector<RealtimeDrawBounds> bounds;
-    createDrawBounds(bounds);
+    createDrawBounds(bounds, renderer.getWorldZoom() >= realtimeZoomThr);
 
     if (renderer.getWorldZoom() < realtimeZoomThr)
     {
@@ -816,7 +818,7 @@ void Model::drawThirdPerson(gfx::RenderEngine& renderer)
     long frametime = tim::nowU();
     long renderTime = frametime - timeSyncData.serverLatency - realtimeDelay;
     std::vector<RealtimeDrawBounds> bounds;
-    createDrawBounds(bounds);
+    createDrawBounds(bounds, true);
     drawRealtime(renderer, bounds);
 }
 
@@ -829,9 +831,7 @@ void Model::drawMapIcons(gfx::RenderEngine& renderer,
     auto& reg = clientRegistry.getRegistry();
     reg.view<TransformHist, ecs::MapIcon>().each(
         [this, &renderer, &reg, &drawBounds, rendertime, zoom](
-            game_entity entity,
-            TransformHist& tr,
-            ecs::MapIcon& mapIcon)
+            game_entity entity, TransformHist& tr, ecs::MapIcon& mapIcon)
         {
             ClientTransform clitr;
             if (!tr.interpolate(rendertime, clitr, {.world = &world})
@@ -929,7 +929,7 @@ void Model::drawRealtime(gfx::RenderEngine& renderer,
     // }
 }
 
-void Model::createDrawBounds(vector<RealtimeDrawBounds>& bounds)
+void Model::createDrawBounds(vector<RealtimeDrawBounds>& bounds, bool realtime)
 {
     const auto& viewRect = clientInfo.clientViewRect;
     const auto& tl = viewRect.tl;
@@ -942,6 +942,11 @@ void Model::createDrawBounds(vector<RealtimeDrawBounds>& bounds)
             auto sector = world.getSectorByCoords(secX, secY);
             if (sector)
             {
+                if(realtime && !sectorActive(sector->getId()))
+                {
+                    LG_D("sector not active");
+                    continue;
+                }
                 const vec2 lower(
                     (secX == tl.pos.x) ? tl.sectorPos.x : -halfSize,
                     (secY == tl.pos.y) ? tl.sectorPos.y : -halfSize);
@@ -2041,6 +2046,20 @@ void Model::handleSendOpool(
            <= (int)(dataEndPos) - (int)junkSize)
     {
         clb(sector, cmddes, frametime);
+    }
+}
+
+void Model::handleUpdGeneral(bitsery::Deserializer<InputAdapter>& cmddes,
+                             size_t dataEndPos)
+{
+    uint16_t actCnt;
+    cmddes.value2b(actCnt);
+    activeSectors.clear();
+    for (int i = 0; i < actCnt; ++i)
+    {
+        uint32_t actSec;
+        cmddes.value4b(actSec);
+        activeSectors.push_back(actSec);
     }
 }
 

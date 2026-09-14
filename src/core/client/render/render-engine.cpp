@@ -403,13 +403,41 @@ void RenderEngine::updateOrtho()
                  bgfx::getCaps()->homogeneousDepth);
 }
 
-void RenderEngine::updateWorldView()
+void RenderEngine::updateWorldView(float dt)
 {
+    // Smooth zoom
+    if (worldZoom < worldZoomDes)
+    {
+        float zoomStep = camMoveCfg[static_cast<size_t>(viewMode)].zoomStep;
+        float fact = 1.0f + (zoomStep - 1.0f) * dt * 20.0f;
+        worldZoom = std::min(worldZoomDes, worldZoom * fact);
+    }
+    else if (worldZoom > worldZoomDes)
+    {
+        float zoomStep = camMoveCfg[static_cast<size_t>(viewMode)].zoomStep;
+        float fact = 1.0f + (zoomStep - 1.0f) * dt * 20.0f;
+        worldZoom = std::max(worldZoomDes, worldZoom / fact);
+    }
+
     float scaleMtx[16];
     float transMtx[16];
     float trX = -worldCameraX + (winWidth * 0.5f) / worldZoom;
     float trY = -worldCameraY + (winHeight * 0.5f) / worldZoom;
     bx::mtxScale(scaleMtx, worldZoom, worldZoom, 1.0f);
+    bx::mtxTranslate(transMtx, trX, trY, 0.0f);
+    bx::mtxMul(worldView, transMtx, scaleMtx);
+    bx::mtxMul(worldViewProj, worldView, ortho);
+    bx::mtxInverse(invWvp, worldViewProj);
+}
+
+
+void RenderEngine::updateWorldViewFakeZoom()
+{
+    float scaleMtx[16];
+    float transMtx[16];
+    float trX = -worldCameraX + (winWidth * 0.5f) / worldZoomDes;
+    float trY = -worldCameraY + (winHeight * 0.5f) / worldZoomDes;
+    bx::mtxScale(scaleMtx, worldZoomDes, worldZoomDes, 1.0f);
     bx::mtxTranslate(transMtx, trX, trY, 0.0f);
     bx::mtxMul(worldView, transMtx, scaleMtx);
     bx::mtxMul(worldViewProj, worldView, ortho);
@@ -1170,28 +1198,28 @@ void RenderEngine::zoom(float amount)
     {
         if (amount > 0)
         {
-            worldZoom *= zoomStep;
+            worldZoomDes *= zoomStep;
         }
         else
         {
-            worldZoom /= zoomStep;
+            worldZoomDes /= zoomStep;
         }
     }
     if (amount > 0)
     {
-        if (worldZoom > maxZoom)
+        if (worldZoomDes > maxZoom)
         {
-            worldZoom = maxZoom;
+            worldZoomDes = maxZoom;
         }
     }
     else
     {
-        if (worldZoom < minZoom)
+        if (worldZoomDes < minZoom)
         {
-            worldZoom = minZoom;
+            worldZoomDes = minZoom;
         }
     }
-    persistentCamPos[static_cast<size_t>(viewMode)].zoom = worldZoom;
+    persistentCamPos[static_cast<size_t>(viewMode)].zoom = worldZoomDes;
 }
 
 void RenderEngine::panWorld(PanDirection dirX, PanDirection dirY)

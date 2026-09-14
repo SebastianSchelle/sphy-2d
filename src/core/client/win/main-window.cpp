@@ -321,7 +321,7 @@ void MainWindow::winLoop()
                 if (renderEngine.getViewMode()
                     != gfx::GameViewMode::ThirdPerson)
                 {
-                    renderEngine.updateWorldView();
+                    renderEngine.updateWorldViewFakeZoom();
                     glm::vec2 mousePosWorldAfter =
                         renderEngine.screenToWorldPixel(mouseState.mousePos);
                     renderEngine.panWorld(mousePosWorldBefore
@@ -331,7 +331,7 @@ void MainWindow::winLoop()
         }
 
         model.modelLoop(dt, nowU);
-        renderEngine.updateWorldView();
+        renderEngine.updateWorldView(dt);
         updateClientViewRect();
 
         if (userInterface.isDebugOpen())

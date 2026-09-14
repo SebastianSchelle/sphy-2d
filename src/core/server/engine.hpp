@@ -19,6 +19,7 @@
 #include <command-node.hpp>
 #include <config-manager/config-manager.hpp>
 #include <control-def.hpp>
+#include <cstdint>
 #include <functional>
 #include <item-lib.hpp>
 #include <lib-hull.hpp>
@@ -181,6 +182,7 @@ class Engine
                                         ecs::EntityId entityId,
                                         bool isAttachment = false);
     void clientUpdRealtime(def::ClientInfo* clientInfo, long frameTime);
+    void clientUpdGeneral(def::ClientInfo* clientInfo, long frametime);
     void clientUpdMapAddObjectdata(prot::MsgComposer& mc,
                                    entt::registry* reg,
                                    world::Sector* sector,
@@ -211,13 +213,14 @@ class Engine
     ecs::PtrHandle* ptrHandle;
     cmd::CommandManager commandManager;
 
-    uint32_t intMap;
-    uint32_t intRealtime;
     vector<CompClientDump> slowDumpComponents;
     vector<CompActiveSectorUpdate> activeSectorUpdates;
     float filteredFps = 0.0f;
     float maxFps;
     long intAutosave;
+    long intMap;
+    long intGeneral;
+    long intRealtime;
 
     ecs::CollisionLayerMat collisionLayerMat;
 
@@ -231,6 +234,7 @@ class Engine
     misc::RandGen randTest;
 
     float realtimeZoomThr;
+    std::set<uint32_t> playerSectors;
 };
 
 }  // namespace sphys

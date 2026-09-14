@@ -5,6 +5,7 @@
 #include "sector.hpp"
 #include "world-def.hpp"
 #include <RmlUi/Core/DataModelHandle.h>
+#include <algorithm>
 #include <asset-factory.hpp>
 #include <client-def.hpp>
 #include <client-pool-obj.hpp>
@@ -193,6 +194,11 @@ class Model
     {
         return gameState;
     }
+    bool sectorActive(uint32_t id)
+    {
+        return std::find(activeSectors.begin(), activeSectors.end(), id)
+               != activeSectors.end();
+    }
 
   private:
     void parseCommandData(const net::CmdQueueData& cmdData);
@@ -218,6 +224,8 @@ class Model
                            size_t dataEndPos);
     void handleEcsMap(bitsery::Deserializer<InputAdapter>& cmddes,
                       size_t dataEndPos);
+    void handleUpdGeneral(bitsery::Deserializer<InputAdapter>& cmddes,
+                          size_t dataEndPos);
     void handleSendOpool(
         bitsery::Deserializer<InputAdapter>& cmddes,
         size_t dataEndPos,
@@ -240,7 +248,7 @@ class Model
     // Realtime drawing
     void drawRealtime(gfx::RenderEngine& renderer,
                       const vector<RealtimeDrawBounds>& bounds);
-    void createDrawBounds(vector<RealtimeDrawBounds>& bounds);
+    void createDrawBounds(vector<RealtimeDrawBounds>& bounds, bool realtime);
     void drawRealtimeShips(gfx::RenderEngine& renderer,
                            const vector<RealtimeDrawBounds>& drawBounds,
                            long rendertime);
@@ -323,6 +331,7 @@ class Model
     long mapDelay;
 
     vector<vec3> dbgCollAvoidBp;
+    vector<uint32_t> activeSectors;
 };
 
 }  // namespace sphyc
