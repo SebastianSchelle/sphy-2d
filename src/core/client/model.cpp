@@ -872,7 +872,6 @@ void Model::createDrawBounds(vector<RealtimeDrawBounds>& bounds, bool realtime)
             {
                 if (realtime && !sectorActive(sector->getId()))
                 {
-                    LG_D("sector not active");
                     continue;
                 }
                 const vec2 lower(

@@ -528,12 +528,12 @@ TextureHandle TextureLoader::loadTexture(const std::string& name,
     dimensions.x = static_cast<float>(rgbaImage->m_width);
     dimensions.y = static_cast<float>(rgbaImage->m_height);
 
-    LG_D("Read image file {} successfully", path);
-    LG_D("alpha {}", rgbaImage->m_hasAlpha);
-    LG_D("width {}", rgbaImage->m_width);
-    LG_D("height {}", rgbaImage->m_height);
-    LG_D("format {}", static_cast<int>(rgbaImage->m_format));
-    LG_D("size {}", rgbaImage->m_size);
+    // LG_D("Read image file {} successfully", path);
+    // LG_D("alpha {}", rgbaImage->m_hasAlpha);
+    // LG_D("width {}", rgbaImage->m_width);
+    // LG_D("height {}", rgbaImage->m_height);
+    // LG_D("format {}", static_cast<int>(rgbaImage->m_format));
+    // LG_D("size {}", rgbaImage->m_size);
 
     const TextureHandle handle = generateTexture(name,
                                                  type,

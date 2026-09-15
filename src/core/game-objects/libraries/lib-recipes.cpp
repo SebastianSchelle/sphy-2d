@@ -61,7 +61,6 @@ ShipRecipe ShipRecipe::fromYaml(const YAML::Node& node,
                 i++;
                 continue;
             }
-            LG_D("add slot {}:{}", i, modId);
             auto handle = resolveModuleHandle(modId, moduleLib);
             recipe.modSlot.push_back({.slot = i, .modHandle = handle});
             i++;
