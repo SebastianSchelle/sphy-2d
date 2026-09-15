@@ -120,19 +120,13 @@ void sysProjPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                         }
                         auto reg = sector->getRegistry()->getRegistry();
                         auto coll = reg->get<ecs::Collider>(other);
-                        auto collItem =
-                            ptrHandle->modManager->getColliderLib().getItem(
-                                coll.colliderHandle);
-                        if (!collItem)
-                        {
-                            return;
-                        }
                         auto tr = reg->get<ecs::Transform>(other);
                         auto trc = reg->get<ecs::TransformCache>(other);
-                        thread_local std::vector<vec2> w1;
-                        sat2d::translateVertices(
-                            collItem->vertices, w1, tr.pos, trc.c, trc.s);
-                        if (sat2d::pointInConvex(trans.pos, w1))
+                        if (coll.isPointInsideWorld(
+                                trans.pos,
+                                tr,
+                                trc,
+                                &ptrHandle->modManager->getColliderLib()))
                         {
                             auto projData =
                                 ptrHandle->modManager->getProjectileLib()
@@ -225,6 +219,7 @@ void sysBeamPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                             smath::rotateVec2(vec2(0.0f, 1.0f), s, c);
                         vec2 hitPoint;
                         float hitT;
+                        // todo: maybe cheaper in local space of collider?
                         if (sat2d::rayVsConvex(beam.origin.pos,
                                                dir,
                                                beamData->range,
@@ -324,24 +319,11 @@ void sysItemPhysicsImpl(world::Sector* sector, float dt, PtrHandle* ptrHandle)
                             auto coll = reg->get<ecs::Collider>(other);
                             auto tr = reg->get<ecs::Transform>(other);
                             auto trc = reg->get<ecs::TransformCache>(other);
-                            auto collItem =
-                                ptrHandle->modManager->getColliderLib().getItem(
-                                    coll.colliderHandle);
-                            if (!collItem)
-                            {
-                                return;
-                            }
-                            const auto v1 = &collItem->vertices;
-                            const size_t n1 = v1->size();
-                            thread_local std::vector<vec2> w1;
-                            w1.resize(v1->size());
-                            for (size_t i = 0; i < n1; ++i)
-                            {
-                                const vec2& v = (*v1)[i];
-                                w1[i].x = trc.c * v.x - trc.s * v.y + tr.pos.x;
-                                w1[i].y = trc.s * v.x + trc.c * v.y + tr.pos.y;
-                            }
-                            if (sat2d::pointInConvex(trans.pos, w1))
+                            if (coll.isPointInsideWorld(
+                                    trans.pos,
+                                    tr,
+                                    trc,
+                                    &ptrHandle->modManager->getColliderLib()))
                             {
                                 if (coll.colliderType
                                     == ecs::CollisionLayer::Ship)

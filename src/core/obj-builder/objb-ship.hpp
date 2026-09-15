@@ -99,7 +99,7 @@ struct ShipHull
                                   params,
                                   IconShipHull{.sClass = hull->shipClass}),
                    "ShipHull: Failed to build map icon")
-        OBJB_GUARD(Ai::build(ptrHandle, params, ai::taskdata::UniversePatrol()),
+        OBJB_GUARD(Ai::build(ptrHandle, params, ai::taskdata::SectorPatrol()),
                    "ShipHull: Failed to build Ai")
         return true;
     }

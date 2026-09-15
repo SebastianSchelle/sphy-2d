@@ -3,6 +3,7 @@
 #include "bgfx/defines.h"
 #include "client-def.hpp"
 #include "control-def.hpp"
+#include "logging.hpp"
 #include "std-inc.hpp"
 #include "world-def.hpp"
 #include <bgfx/platform.h>
@@ -45,17 +46,6 @@ void MouseState::processMouseButton(uint8_t i, float zoom, float dragThreshold)
         timePressed[i] = tim::getCurrentTimeU();
         mouseCoordsPressed[i] = mouseCoords;
         buttonPressed[i] = true;
-        long clickDelta = tim::durationU(lastSingleClick[i], timePressed[i]);
-        if (clickDelta < 300000U)
-        {
-            doubleClick[i] = true;
-            // LG_D("double click");
-        }
-        else
-        {
-            singleClick[i] = true;
-            // LG_D("single click");
-        }
     }
     else if (!buttons[i] && lastButtons[i])
     {
@@ -329,8 +319,8 @@ void MainWindow::winLoop()
                 }
             }
         }
-
-        model.modelLoop(dt, nowU);
+        model.setCurrentTime(renderEngine, nowU);
+        model.modelLoop(dt);
         renderEngine.updateWorldView(dt);
         updateClientViewRect();
 
@@ -499,9 +489,7 @@ void MainWindow::processMouseMap(float zoom)
     }
     else if (mouseState.singleClick[0])
     {
-        // model.selectEntityAtWorldPosFast(mouseState.mouseCoords, 10.0f/zoom
-        // * 10.0f/zoom);
-        model.selectEntityAtWorldPos(mouseState.mouseCoords);
+        model.clickEntityAtWorldPos(renderEngine, mouseState.mouseCoords);
     }
     if (mouseState.buttons[1] && model.getSelectedEntities().size() > 0)
     {

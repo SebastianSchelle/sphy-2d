@@ -1,7 +1,9 @@
 #ifndef MODEL_HPP
 #define MODEL_HPP
 
+#include "comp-ident.hpp"
 #include "glm/common.hpp"
+#include "render-engine.hpp"
 #include "sector.hpp"
 #include "world-def.hpp"
 #include <RmlUi/Core/DataModelHandle.h>
@@ -112,11 +114,10 @@ class Model
           gfx::RenderEngine* renderer,
           std::function<void(void)> afterLoadWorldClb);
     ~Model();
-    void modelLoop(float dt, long frametime);
+    void modelLoop(float dt);
 
     void startLoadingMods();
     void startModel();
-    void drawDebug(gfx::RenderEngine& renderer, float zoom);
     void
     drawMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
     void drawMap(gfx::RenderEngine& renderer);
@@ -130,13 +131,12 @@ class Model
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
 
-    ecs::EntityId selectEntityAtWorldPos(const def::SectorCoords& sectorCoords);
-    ecs::EntityId
-    selectEntityAtWorldPosFast(const def::SectorCoords& sectorCoords,
-                               float dist2);
+    ecs::EntityId clickEntityAtWorldPos(gfx::RenderEngine& renderer,
+                                        const def::SectorCoords& sectorCoords);
     void selectEntitiesInsideRect(const def::SectorCoords& start,
                                   const def::SectorCoords& end);
     void clearSelectedEntities();
+    void clearClickedEntity();
     void selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords, bool queue);
     void gotoModdingTools();
     void gotoAtlasDebug();
@@ -148,6 +148,7 @@ class Model
     void toggleMap();
     void centerViewOnPlayer();
     void setupDataModelConnecting();
+    void setCurrentTime(gfx::RenderEngine& renderer, long frametime);
 
     def::ThirdPersonControl& getThirdPersonControl()
     {
@@ -157,6 +158,10 @@ class Model
     const std::vector<ecs::EntityId>& getSelectedEntities() const
     {
         return selectedEntities;
+    }
+    ecs::EntityId getClickedEntity() const
+    {
+        return clickedEntity;
     }
     const def::WorldShape& getWorldShape() const
     {
@@ -199,6 +204,11 @@ class Model
         return std::find(activeSectors.begin(), activeSectors.end(), id)
                != activeSectors.end();
     }
+    bool isSelected(ecs::EntityId id)
+    {
+        return std::find(selectedEntities.begin(), selectedEntities.end(), id)
+               != selectedEntities.end();
+    }
 
   private:
     void parseCommandData(const net::CmdQueueData& cmdData);
@@ -208,7 +218,7 @@ class Model
                       uint8_t flags,
                       size_t dataEndPos);
     void modelLoopMenu(float dt);
-    void modelLoopGame(float dt, long frametime);
+    void modelLoopGame(float dt);
     void timeSync();
     void authenticate();
     void handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
@@ -239,37 +249,33 @@ class Model
     void handleActiveEntitySwitched(bitsery::Deserializer<InputAdapter>& cmddes,
                                     size_t dataEndPos);
     void drawOverlayAABBs(gfx::RenderEngine& renderer, float zoom);
+    bool shouldDrawRealtime(gfx::RenderEngine& renderer);
 
     // Map drawing
     void drawMapIcons(gfx::RenderEngine& renderer,
-                      const vector<RealtimeDrawBounds>& drawBounds,
-                      long rendertime);
+                      const vector<RealtimeDrawBounds>& drawBounds);
+    // void drawSelected(gfx::RenderEngine& renderer,
+    //                   const vector<RealtimeDrawBounds>& drawBounds,
+    //                   bool isRealtime);
 
     // Realtime drawing
     void drawRealtime(gfx::RenderEngine& renderer,
                       const vector<RealtimeDrawBounds>& bounds);
     void createDrawBounds(vector<RealtimeDrawBounds>& bounds, bool realtime);
     void drawRealtimeShips(gfx::RenderEngine& renderer,
-                           const vector<RealtimeDrawBounds>& drawBounds,
-                           long rendertime);
+                           const vector<RealtimeDrawBounds>& drawBounds);
     // void drawRealtimeStations(gfx::RenderEngine& renderer,
-    //    const vector<RealtimeDrawBounds>& drawBounds,
-    //    long rendertime);
+    //    const vector<RealtimeDrawBounds>& drawBounds);
     void drawRealtimeItems(gfx::RenderEngine& renderer,
-                           const vector<RealtimeDrawBounds>& drawBounds,
-                           long rendertime);
+                           const vector<RealtimeDrawBounds>& drawBounds);
     void drawRealtimeProjectiles(gfx::RenderEngine& renderer,
-                                 const vector<RealtimeDrawBounds>& drawBounds,
-                                 long rendertime);
+                                 const vector<RealtimeDrawBounds>& drawBounds);
     void drawRealtimeBeams(gfx::RenderEngine& renderer,
-                           const vector<RealtimeDrawBounds>& drawBounds,
-                           long rendertime);
+                           const vector<RealtimeDrawBounds>& drawBounds);
     void drawRealtimeAsteroids(gfx::RenderEngine& renderer,
-                               const vector<RealtimeDrawBounds>& drawBounds,
-                               long rendertime);
+                               const vector<RealtimeDrawBounds>& drawBounds);
     void drawRealtimeCollavoids(gfx::RenderEngine& renderer,
-                                const vector<RealtimeDrawBounds>& drawBounds,
-                                long rendertime);
+                                const vector<RealtimeDrawBounds>& drawBounds);
     void drawTexture(gfx::RenderEngine& renderer,
                      const GenericHandle texture,
                      float rot,
@@ -312,18 +318,23 @@ class Model
     Rml::DataModelHandle rmlModelConnecting;
     ConnectingData connectingData;
     ecs::AssetFactory assetFactory;
-    tim::Timepoint lastTSync;
     def::ClientInfo clientInfo;
     ecs::ClientRegistry clientRegistry;
 
     std::function<void(void)> afterLoadWorldClb;
-    std::vector<ecs::EntityId> selectedEntities;
+    std::vector<ecs::EntityId>
+        selectedEntities;  // todo: sorted with proper binary search enabled??
+    ecs::EntityId clickedEntity;
 
     uint32_t aabbSector;
     std::vector<con::AABB> aabbs;
     bool overlayAabbTreeEnabled = false;
 
     long lastGetAabbTree;
+    long lastReqAllComponents;
+    long lastFastCliServ;
+    long lastTSync;
+
     def::ThirdPersonControl thirdPersonControl;
     uint16_t intFastCliServ;
     long realtimeDelay;
@@ -332,6 +343,8 @@ class Model
 
     vector<vec3> dbgCollAvoidBp;
     vector<uint32_t> activeSectors;
+    long frametime;
+    long rendertime;
 };
 
 }  // namespace sphyc

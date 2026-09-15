@@ -9,6 +9,7 @@
 #include "render-engine.hpp"
 #include "sector.hpp"
 #include "std-inc.hpp"
+#include <cmath>
 #include <comp-gfx.hpp>
 #include <comp-ident.hpp>
 #include <comp-struct.hpp>
@@ -52,7 +53,6 @@ Model::Model(ui::UserInterface* userInterface,
       renderer(renderer), afterLoadWorldClb(afterLoadWorldClb),
       clientRegistry(sendQueue)
 {
-    lastTSync = tim::getCurrentTimeU();
     assetFactory.componentFactory.registerAllComponents();
     lastGetAabbTree = tim::nowU();
 
@@ -62,6 +62,11 @@ Model::Model(ui::UserInterface* userInterface,
     mapDelay = 1000U * CFG_UINT(config, 2000.0f, "net", "map-delay");
 
     registerConnectSequence();
+
+    lastFastCliServ = tim::nowU();
+    lastGetAabbTree = tim::nowU();
+    lastReqAllComponents = tim::nowU();
+    lastTSync = tim::nowU();
 }
 
 Model::~Model() {}
@@ -92,7 +97,7 @@ void Model::prepareForConnect()
     thirdPersonControl = def::ThirdPersonControl{};
 }
 
-void Model::modelLoop(float dt, long frametime)
+void Model::modelLoop(float dt)
 {
     net::CmdQueueData recQueueData;
     while (receiveQueue.try_dequeue(recQueueData))
@@ -135,7 +140,7 @@ void Model::modelLoop(float dt, long frametime)
         case ClientGameState::NotifyServerReady:
             break;
         case ClientGameState::GameLoop:
-            modelLoopGame(dt, frametime);
+            modelLoopGame(dt);
             break;
         case ClientGameState::ModdingTools:
         case ClientGameState::AtlasDebug:
@@ -187,14 +192,18 @@ void Model::timeSync()
 
 void Model::modelLoopMenu(float dt) {}
 
-void Model::modelLoopGame(float dt, long frametime)
+void Model::setCurrentTime(gfx::RenderEngine& renderer, long frametime)
 {
-    tim::Timepoint now = tim::getCurrentTimeU();
-    static tim::Timepoint testTime = tim::getCurrentTimeU();
-    static tim::Timepoint lastReqAllComponents = tim::getCurrentTimeU();
-    static tim::Timepoint lastGetAabbTree = tim::getCurrentTimeU();
-    static tim::Timepoint lastFastCliServ = tim::getCurrentTimeU();
+    this->frametime = frametime;
+    long delay = renderer.getViewMode() == gfx::GameViewMode::ThirdPerson
+                         || renderer.getWorldZoom() >= realtimeZoomThr
+                     ? realtimeDelay
+                     : mapDelay;
+    rendertime = frametime - timeSyncData.serverLatency - delay;
+}
 
+void Model::modelLoopGame(float dt)
+{
     if (renderer->getViewMode() == gfx::GameViewMode::ThirdPerson
         || renderer->getViewMode() == gfx::GameViewMode::Map)
     {
@@ -205,8 +214,6 @@ void Model::modelLoopGame(float dt, long frametime)
             auto* trHist = reg.try_get<TransformHist>(activeEntity);
             if (trHist)
             {
-                long rendertime =
-                    frametime - timeSyncData.serverLatency - realtimeDelay;
                 sphyc::ClientTransform tr;
                 if (!trHist->interpolate(rendertime, tr, {.world = &world}))
                 {
@@ -228,24 +235,27 @@ void Model::modelLoopGame(float dt, long frametime)
         }
     }
 
-    DO_PERIODIC_EXTNOW(lastFastCliServ,
-                       intFastCliServ,
-                       now,
-                       [this]() { fastClientToServerUpdate(); });
+    DO_PERIODIC_U_EXTNOW(lastFastCliServ,
+                         intFastCliServ,
+                         frametime,
+                         [this]() { fastClientToServerUpdate(); });
 
     if (timeSyncData.cnt == 0)
     {
-        DO_PERIODIC_EXTNOW(lastTSync, 2000000, now, [this]() { timeSync(); });
+        DO_PERIODIC_U_EXTNOW(
+            lastTSync, 2000000, frametime, [this]() { timeSync(); });
     }
     else
     {
-        DO_PERIODIC_EXTNOW(lastTSync, 50000, now, [this]() { timeSync(); });
+        DO_PERIODIC_U_EXTNOW(
+            lastTSync, 50000, frametime, [this]() { timeSync(); });
     }
 
-    DO_PERIODIC_EXTNOW(lastReqAllComponents,
-                       1000000,
-                       now,
-                       [this]() { reqAllComponents(clientInfo.activeEntity); });
+    DO_PERIODIC_U_EXTNOW(lastReqAllComponents,
+                         1000000,
+                         frametime,
+                         [this]()
+                         { reqAllComponents(clientInfo.activeEntity); });
 }
 
 void Model::parseCommandData(const net::CmdQueueData& cmdData)
@@ -692,37 +702,22 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
     }
 }
 
-void Model::drawDebug(gfx::RenderEngine& renderer, float zoom)
+bool Model::shouldDrawRealtime(gfx::RenderEngine& renderer)
 {
-    // world.drawDebug(renderer, zoom);
-    // auto& reg = clientRegistry.getRegistry();
-    // reg.view<ecs::Transform, ecs::SectorId>().each(
-    //     [this, &renderer](ecs::Transform& transform, ecs::SectorId& sectorId)
-    //     {
-    //         glm::vec2 worldPos =
-    //             world.getWorldPosSectorOffset(sectorId.id,
-    //                                           renderer.getSectorOffsetX(),
-    //                                           renderer.getSectorOffsetY())
-    //             + transform.pos;
-    //         renderer.drawEllipse(worldPos,
-    //                              glm::vec2(10.0f, 5.0f),
-    //                              0xffffffff,
-    //                              2.0f,
-    //                              transform.rot,
-    //                              0);
-    //     });
+    return renderer.getViewMode() == gfx::GameViewMode::ThirdPerson
+           || (renderer.getViewMode() == gfx::GameViewMode::Map
+               && renderer.getWorldZoom() >= realtimeZoomThr);
 }
 
 void Model::drawMap(gfx::RenderEngine& renderer)
 {
     long frametime = tim::nowU();
-    long rendertime = frametime - timeSyncData.serverLatency - mapDelay;
     std::vector<RealtimeDrawBounds> bounds;
     createDrawBounds(bounds, renderer.getWorldZoom() >= realtimeZoomThr);
 
     if (renderer.getWorldZoom() < realtimeZoomThr)
     {
-        drawMapIcons(renderer, bounds, rendertime);
+        drawMapIcons(renderer, bounds);
     }
     else
     {
@@ -730,93 +725,15 @@ void Model::drawMap(gfx::RenderEngine& renderer)
     }
 
     // world.drawStrategicMap(renderer, viewRect, zoom);
-
-
-    // todo: Group entities by Pos and only show lists or fleets or groups
-    // auto& reg = clientRegistry.getRegistry();
-    // reg.view<ecs::Transform, ecs::SectorId, ecs::MapIcon>().each(
-    //     [this, &renderer, &viewRect, zoom](ecs::Transform& transform,
-    //                                        ecs::SectorId& sectorId,
-    //                                        ecs::MapIcon& mapIcon)
-    //     {
-    //         glm::vec2 worldPos =
-    //             world.getWorldPosSectorOffset(sectorId.id,
-    //                                           renderer.getSectorOffsetX(),
-    //                                           renderer.getSectorOffsetY())
-    //             + transform.pos;
-    //         if (smath::pointInsideRect(worldPos, viewRect))
-    //         {
-    //             auto* mapIconItem = modManager->getMapIconLib().getItem(
-    //                 gobj::MapIconHandle(mapIcon.mapIconHandle));
-    //             if (mapIconItem)
-    //             {
-    //                 mod::MappedTextureHandle mTexHandle =
-    //                     *(mod::MappedTextureHandle*)&mapIconItem->texHandle;
-    //                 const mod::MappedTexture* mappedTexture =
-    //                     modManager->getResourceMap().getMappedTexture(
-    //                         mTexHandle);
-    //                 gfx::TextureHandle texHandle =
-    //                     gfx::TextureHandle::Invalid();
-    //                 if (mappedTexture)
-    //                 {
-    //                     texHandle = mappedTexture->texHandle;
-    //                 }
-    //                 renderer.queueTexRect(worldPos,
-    //                                       glm::vec2(mapIconItem->size.x /
-    //                                       zoom,
-    //                                                 mapIconItem->size.y /
-    //                                                 zoom),
-    //                                       texHandle,
-    //                                       transform.rot,
-    //                                       gfx::RenderEngine::zIdxMapIconHull,
-    //                                       0xff0010ff);
-    //             }
-    //         }
-    //     });
-
-    // for (const auto& entityId : selectedEntities)
-    // {
-    //     game_entity entity = clientRegistry.getEntity(entityId);
-    //     if (reg.valid(entity))
-    //     {
-    //         auto* trans = reg.try_get<ecs::Transform>(entity);
-    //         auto* sectorId = reg.try_get<ecs::SectorId>(entity);
-    //         auto* mapIcon = reg.try_get<ecs::MapIcon>(entity);
-    //         if (trans && sectorId && mapIcon)
-    //         {
-    //             auto* mapIconItem = modManager->getMapIconLib().getItem(
-    //                 gobj::MapIconHandle(mapIcon->mapIconHandle));
-    //             if (mapIconItem)
-    //             {
-    //                 glm::vec2 worldPos = world.getWorldPosSectorOffset(
-    //                                          sectorId->id,
-    //                                          renderer.getSectorOffsetX(),
-    //                                          renderer.getSectorOffsetY())
-    //                                      + trans->pos;
-    //                 renderer.drawShapeRectangle(
-    //                     worldPos,
-    //                     glm::vec2(mapIconItem->size.x * 1.5f / zoom,
-    //                               mapIconItem->size.y * 1.5f / zoom),
-    //                     0xff004000,
-    //                     1.0f / zoom,
-    //                     0.0f,
-    //                     0);
-    //             }
-    //         }
-    //     }
-    // }
-
     // if (overlayAabbTreeEnabled)
     // {
     //     drawOverlayAABBs(renderer, zoom);
     // }
 }
 
-
 void Model::drawThirdPerson(gfx::RenderEngine& renderer)
 {
     long frametime = tim::nowU();
-    long renderTime = frametime - timeSyncData.serverLatency - realtimeDelay;
     std::vector<RealtimeDrawBounds> bounds;
     createDrawBounds(bounds, true);
     drawRealtime(renderer, bounds);
@@ -824,14 +741,15 @@ void Model::drawThirdPerson(gfx::RenderEngine& renderer)
 
 
 void Model::drawMapIcons(gfx::RenderEngine& renderer,
-                         const vector<RealtimeDrawBounds>& drawBounds,
-                         long rendertime)
+                         const vector<RealtimeDrawBounds>& drawBounds)
 {
     float zoom = renderer.getWorldZoom();
     auto& reg = clientRegistry.getRegistry();
-    reg.view<TransformHist, ecs::MapIcon>().each(
-        [this, &renderer, &reg, &drawBounds, rendertime, zoom](
-            game_entity entity, TransformHist& tr, ecs::MapIcon& mapIcon)
+    reg.view<ecs::EntityId, TransformHist, ecs::MapIcon>().each(
+        [this, &renderer, &reg, &drawBounds, zoom](game_entity entity,
+                                                   ecs::EntityId entityId,
+                                                   TransformHist& tr,
+                                                   ecs::MapIcon& mapIcon)
         {
             ClientTransform clitr;
             if (!tr.interpolate(rendertime, clitr, {.world = &world})
@@ -876,8 +794,18 @@ void Model::drawMapIcons(gfx::RenderEngine& renderer,
                             clitr.tr.rot,
                             gfx::RenderEngine::zIdxMapIconHull,
                             0xff0010ff);
+                        if (isSelected(entityId))
+                        {
+                            renderer.drawShapeRectangle(
+                                worldPos,
+                                glm::vec2((mapIconItem->size.x + 8.0f) / zoom,
+                                          (mapIconItem->size.y + 8.0f) / zoom),
+                                0xff00ff00,
+                                1.0f / zoom);
+                        }
                     }
                 }
+                break;
             }
         });
 }
@@ -887,12 +815,12 @@ void Model::drawRealtime(gfx::RenderEngine& renderer,
 {
     long frametime = tim::nowU();
     long renderTime = frametime - timeSyncData.serverLatency - realtimeDelay;
-    drawRealtimeShips(renderer, bounds, renderTime);
-    drawRealtimeAsteroids(renderer, bounds, renderTime);
-    drawRealtimeProjectiles(renderer, bounds, renderTime);
-    drawRealtimeBeams(renderer, bounds, renderTime);
-    drawRealtimeItems(renderer, bounds, renderTime);
-    drawRealtimeCollavoids(renderer, bounds, renderTime);
+    drawRealtimeShips(renderer, bounds);
+    drawRealtimeAsteroids(renderer, bounds);
+    drawRealtimeProjectiles(renderer, bounds);
+    drawRealtimeBeams(renderer, bounds);
+    drawRealtimeItems(renderer, bounds);
+    drawRealtimeCollavoids(renderer, bounds);
 
     // debug
     auto sectorId = getActiveSectorId();
@@ -942,7 +870,7 @@ void Model::createDrawBounds(vector<RealtimeDrawBounds>& bounds, bool realtime)
             auto sector = world.getSectorByCoords(secX, secY);
             if (sector)
             {
-                if(realtime && !sectorActive(sector->getId()))
+                if (realtime && !sectorActive(sector->getId()))
                 {
                     LG_D("sector not active");
                     continue;
@@ -961,80 +889,93 @@ void Model::createDrawBounds(vector<RealtimeDrawBounds>& bounds, bool realtime)
 }
 
 void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
-                              const vector<RealtimeDrawBounds>& drawBounds,
-                              long rendertime)
+                              const vector<RealtimeDrawBounds>& drawBounds)
 {
     auto& reg = clientRegistry.getRegistry();
-    reg.view<TransformHist, ecs::Textures, ecs::Hull, ecs::Collider>().each(
-        [this, &renderer, &reg, &drawBounds, rendertime](
-            game_entity entity,
-            TransformHist& tr,
-            ecs::Textures& textures,
-            ecs::Hull& hull,
-            ecs::Collider& coll)
-        {
-            sphyc::ClientTransform clitr;
-            if (!tr.interpolate(rendertime, clitr, {.world = &world}))
+    reg.view<ecs::EntityId,
+             TransformHist,
+             ecs::Textures,
+             ecs::Hull,
+             ecs::Collider>()
+        .each(
+            [this, &renderer, &reg, &drawBounds](game_entity entity,
+                                                 ecs::EntityId entityId,
+                                                 TransformHist& tr,
+                                                 ecs::Textures& textures,
+                                                 ecs::Hull& hull,
+                                                 ecs::Collider& coll)
             {
-                return;
-            }
-            const auto& trInt = clitr.tr;
-            // Check if in any visible sector
-            for (auto& bounds : drawBounds)
-            {
-                // todo: we are working with the wrong sectorId here when
-                // migrating
-                if (bounds.sectorId != clitr.sectorId)
+                sphyc::ClientTransform clitr;
+                if (!tr.interpolate(rendertime, clitr, {.world = &world}))
                 {
-                    continue;
+                    return;
                 }
-                // Check if collider intersects view rect
-                auto collider =
-                    modManager->getColliderLib().getItem(coll.colliderHandle);
-                if (!collider)
+                const auto& trInt = clitr.tr;
+                // Check if in any visible sector
+                for (auto& bounds : drawBounds)
                 {
+                    if (bounds.sectorId != clitr.sectorId)
+                    {
+                        continue;
+                    }
+                    // Check if collider intersects view rect
+                    auto collider = modManager->getColliderLib().getItem(
+                        coll.colliderHandle);
+                    if (!collider)
+                    {
+                        break;
+                    }
+                    const float centerDist = collider->getSimpleMaxDist();
+                    const vec2 centerDistVec = vec2(centerDist, centerDist);
+                    const con::AABB aabb{.lower = trInt.pos - centerDistVec,
+                                         .upper = trInt.pos + centerDistVec};
+                    if (!bounds.aabb.overlaps(aabb))
+                    {
+                        break;
+                    }
+                    // Do additional fine grained check
+                    std::vector<vec2> w1;
+                    sat2d::translateVertices(
+                        collider->vertices, w1, trInt.pos, trInt.rot);
+                    con::AABB fineAabb = ecs::calculateAABB(
+                        trInt,
+                        ecs::TransformCache{.c = cosf(trInt.rot),
+                                            .s = sinf(trInt.rot)},
+                        collider);
+                    if (!bounds.aabb.overlaps(fineAabb))
+                    {
+                        break;
+                    }
+                    // draw Ship
+                    glm::vec2 worldPos = world.getWorldPosSectorOffset(
+                                             clitr.sectorId,
+                                             renderer.getSectorOffsetX(),
+                                             renderer.getSectorOffsetY())
+                                         + trInt.pos;
+                    drawModuleTextures(renderer,
+                                       trInt,
+                                       gfx::RenderEngine::zIdxShipHull,
+                                       hull,
+                                       worldPos);
+                    drawTextures(renderer,
+                                 textures,
+                                 trInt.rot,
+                                 gfx::RenderEngine::zIdxShipHull,
+                                 worldPos);
+
+                    if (renderer.getViewMode() == gfx::GameViewMode::Map
+                        && isSelected(entityId))
+                    {
+                        const float size = centerDist * 2.3f;
+                        const float zoom = renderer.getWorldZoom();
+                        renderer.drawShapeRectangle(worldPos,
+                                                    glm::vec2((size), (size)),
+                                                    0xa000ff00,
+                                                    1.0f / zoom);
+                    }
                     break;
                 }
-                const float centerDist = collider->getSimpleMaxDist();
-                const vec2 centerDistVec = vec2(centerDist, centerDist);
-                const con::AABB aabb{.lower = trInt.pos - centerDistVec,
-                                     .upper = trInt.pos + centerDistVec};
-                if (!bounds.aabb.overlaps(aabb))
-                {
-                    break;
-                }
-                // Do additional fine grained check
-                std::vector<vec2> w1;
-                sat2d::translateVertices(
-                    collider->vertices, w1, trInt.pos, trInt.rot);
-                con::AABB fineAabb = ecs::calculateAABB(
-                    trInt,
-                    ecs::TransformCache{.c = cosf(trInt.rot),
-                                        .s = sinf(trInt.rot)},
-                    collider);
-                if (!bounds.aabb.overlaps(fineAabb))
-                {
-                    break;
-                }
-                // draw Ship
-                glm::vec2 worldPos =
-                    world.getWorldPosSectorOffset(clitr.sectorId,
-                                                  renderer.getSectorOffsetX(),
-                                                  renderer.getSectorOffsetY())
-                    + trInt.pos;
-                drawModuleTextures(renderer,
-                                   trInt,
-                                   gfx::RenderEngine::zIdxShipHull,
-                                   hull,
-                                   worldPos);
-                drawTextures(renderer,
-                             textures,
-                             trInt.rot,
-                             gfx::RenderEngine::zIdxShipHull,
-                             worldPos);
-                break;
-            }
-        });
+            });
 }
 
 // void Model::drawRealtimeStations(gfx::RenderEngine& renderer,
@@ -1067,8 +1008,7 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
 // }
 
 void Model::drawRealtimeAsteroids(gfx::RenderEngine& renderer,
-                                  const vector<RealtimeDrawBounds>& drawBounds,
-                                  long rendertime)
+                                  const vector<RealtimeDrawBounds>& drawBounds)
 {
     auto& reg = clientRegistry.getRegistry();
     reg.view<TransformHist,
@@ -1077,12 +1017,11 @@ void Model::drawRealtimeAsteroids(gfx::RenderEngine& renderer,
              ecs::Textures,
              ecs::Collider>()
         .each(
-            [this, &renderer, &reg, &drawBounds, rendertime](
-                TransformHist& tr,
-                ecs::SectorId& sectorId,
-                ecs::Asteroid& asteroid,
-                ecs::Textures& textures,
-                ecs::Collider& coll)
+            [this, &renderer, &reg, &drawBounds](TransformHist& tr,
+                                                 ecs::SectorId& sectorId,
+                                                 ecs::Asteroid& asteroid,
+                                                 ecs::Textures& textures,
+                                                 ecs::Collider& coll)
             {
                 // Check if in any visible sector
                 for (auto& bounds : drawBounds)
@@ -1135,13 +1074,13 @@ void Model::drawRealtimeAsteroids(gfx::RenderEngine& renderer,
                                      gfx::RenderEngine::zIdxAsteroid,
                                      worldPos);
                     }
+                    break;
                 }
             });
 }
 
 void Model::drawRealtimeItems(gfx::RenderEngine& renderer,
-                              const vector<RealtimeDrawBounds>& drawBounds,
-                              long rendertime)
+                              const vector<RealtimeDrawBounds>& drawBounds)
 {
     for (auto& bound : drawBounds)
     {
@@ -1155,8 +1094,7 @@ void Model::drawRealtimeItems(gfx::RenderEngine& renderer,
             .upper = bound.aabb.upper + vec2(100.0f, 100.0f),
         };
         sector->items.foreach (
-            [&renderer, &visibleBounds, this, rendertime, &bound](
-                opool::ItemClient& item)
+            [&renderer, &visibleBounds, this, &bound](opool::ItemClient& item)
             {
                 opool::vec2Mixer posMix;
                 if (item.pos.interpolate(rendertime, posMix, {})
@@ -1190,8 +1128,7 @@ void Model::drawRealtimeItems(gfx::RenderEngine& renderer,
 
 void Model::drawRealtimeProjectiles(
     gfx::RenderEngine& renderer,
-    const vector<RealtimeDrawBounds>& drawBounds,
-    long rendertime)
+    const vector<RealtimeDrawBounds>& drawBounds)
 {
     for (auto& bound : drawBounds)
     {
@@ -1205,8 +1142,7 @@ void Model::drawRealtimeProjectiles(
             .upper = bound.aabb.upper + vec2(100.0f, 100.0f),
         };
         sector->projectiles.foreach (
-            [&renderer, &visibleBounds, this, rendertime, &bound](
-                opool::ProjClient& proj)
+            [&renderer, &visibleBounds, this, &bound](opool::ProjClient& proj)
             {
                 opool::vec2Mixer posMix;
                 if (proj.pos.interpolate(rendertime, posMix, {})
@@ -1238,8 +1174,7 @@ void Model::drawRealtimeProjectiles(
 }
 
 void Model::drawRealtimeBeams(gfx::RenderEngine& renderer,
-                              const vector<RealtimeDrawBounds>& drawBounds,
-                              long rendertime)
+                              const vector<RealtimeDrawBounds>& drawBounds)
 {
     for (auto& bound : drawBounds)
     {
@@ -1253,8 +1188,7 @@ void Model::drawRealtimeBeams(gfx::RenderEngine& renderer,
             .upper = bound.aabb.upper + vec2(100.0f, 100.0f),
         };
         sector->beams.foreach (
-            [&renderer, &visibleBounds, this, rendertime, &bound](
-                opool::BeamClient& beam)
+            [&renderer, &visibleBounds, this, &bound](opool::BeamClient& beam)
             {
                 opool::LineMixer lineMix;
                 if (beam.line.interpolate(rendertime, lineMix, {}))
@@ -1293,8 +1227,7 @@ void Model::drawRealtimeBeams(gfx::RenderEngine& renderer,
 }
 
 void Model::drawRealtimeCollavoids(gfx::RenderEngine& renderer,
-                                   const vector<RealtimeDrawBounds>& drawBounds,
-                                   long rendertime)
+                                   const vector<RealtimeDrawBounds>& drawBounds)
 {
     for (auto& bound : drawBounds)
     {
@@ -1308,7 +1241,7 @@ void Model::drawRealtimeCollavoids(gfx::RenderEngine& renderer,
             .upper = bound.aabb.upper + vec2(100.0f, 100.0f),
         };
         sector->collAvoids.foreach (
-            [&renderer, &visibleBounds, this, rendertime, &bound](
+            [&renderer, &visibleBounds, this, &bound](
                 opool::DbgCollAvoidClient& collAvoid)
             {
                 if (visibleBounds.containsPoint(collAvoid.intersect))
@@ -1757,63 +1690,73 @@ void Model::reqAllComponents(ecs::EntityId entityId)
 }
 
 ecs::EntityId
-Model::selectEntityAtWorldPos(const def::SectorCoords& sectorCoords)
+Model::clickEntityAtWorldPos(gfx::RenderEngine& renderer,
+                             const def::SectorCoords& sectorCoords)
 {
     selectedEntities.clear();
-    ecs::EntityId selectedEntity = ecs::EntityId::Invalid();
     auto& reg = clientRegistry.getRegistry();
-    for (const auto entity : reg.view<ecs::SectorId,
-                                      ecs::Transform,
+    for (const auto entity : reg.view<TransformHist,
                                       ecs::EntityId,
-                                      ecs::Collider>())
-    {
-        auto& sid = reg.get<ecs::SectorId>(entity);
-        auto& tr = reg.get<ecs::Transform>(entity);
-        auto& eid = reg.get<ecs::EntityId>(entity);
-        auto& collider = reg.get<ecs::Collider>(entity);
-        if (sid.coord == sectorCoords.pos)
-        {
-            if (collider.isPointInsideWorld(sectorCoords.sectorPos,
-                                            tr,
-                                            std::cos(tr.rot),
-                                            std::sin(tr.rot),
-                                            &modManager->getColliderLib()))
-            {
-                selectedEntity = eid;
-                selectedEntities.push_back(eid);
-                break;
-            }
-        }
-    }
-    return selectedEntity;
-}
-
-ecs::EntityId
-Model::selectEntityAtWorldPosFast(const def::SectorCoords& sectorCoords,
-                                  float dist2)
-{
-    selectedEntities.clear();
-    ecs::EntityId selectedEntity = ecs::EntityId::Invalid();
-    auto& reg = clientRegistry.getRegistry();
-    for (const auto entity : reg.view<ecs::SectorId,
-                                      ecs::Transform,
-                                      ecs::EntityId,
+                                      ecs::Collider,
                                       ecs::tag::Selectable>())
     {
-        auto& sid = reg.get<ecs::SectorId>(entity);
-        auto& tr = reg.get<ecs::Transform>(entity);
+        auto& trHist = reg.get<TransformHist>(entity);
         auto& eid = reg.get<ecs::EntityId>(entity);
-        if (sid.coord == sectorCoords.pos)
+        auto& coll = reg.get<ecs::Collider>(entity);
+
+        ClientTransform clitr;
+        if (!trHist.interpolate(rendertime, clitr, {.world = &world}))
         {
-            if (glm::length2(tr.pos - sectorCoords.sectorPos) <= dist2)
+            continue;
+        }
+        if (clitr.sectorId != world.sectorCoordsToId(sectorCoords.pos))
+        {
+            continue;
+        }
+        ecs::Transform& tr = clitr.tr;
+        if (shouldDrawRealtime(renderer))
+        {
+            if (coll.isPointInsideWorld(sectorCoords.sectorPos,
+                                        tr,
+                                        std::cos(tr.rot),
+                                        std::sin(tr.rot),
+                                        &modManager->getColliderLib()))
             {
-                selectedEntity = eid;
+                clickedEntity = eid;
                 selectedEntities.push_back(eid);
-                break;
+                return clickedEntity;
+            }
+        }
+        else
+        {
+            auto mapIcon = reg.try_get<ecs::MapIcon>(entity);
+            if (!mapIcon)
+            {
+                continue;
+            }
+            auto* mapIconItem = modManager->getMapIconLib().getItem(
+                gobj::MapIconHandle(mapIcon->mapIconHandle));
+            if (!mapIconItem)
+            {
+                continue;
+            }
+            const float boundSize =
+                std::max(mapIconItem->size.x, mapIconItem->size.y)
+                / renderer.getWorldZoom() * 0.5f;
+            const vec2 bounds{boundSize, boundSize};
+            const con::AABB pointerRect{
+                .lower = sectorCoords.sectorPos - bounds,
+                .upper = sectorCoords.sectorPos + bounds,
+            };
+            if (pointerRect.containsPoint(tr.pos))
+            {
+                clickedEntity = eid;
+                selectedEntities.push_back(eid);
+                return clickedEntity;
             }
         }
     }
-    return selectedEntity;
+    return ecs::EntityId::Invalid();
 }
 
 void Model::selectEntitiesInsideRect(const def::SectorCoords& start,
@@ -1826,13 +1769,19 @@ void Model::selectEntitiesInsideRect(const def::SectorCoords& start,
     auto& yMin = def::SectorCoords::minY(start, end);
     auto& yMax = def::SectorCoords::maxY(start, end);
     reg.view<ecs::SectorId,
-             ecs::Transform,
+             TransformHist,
              ecs::EntityId,
              ecs::tag::Selectable>()
         .each(
             [this, &xMin, &xMax, &yMin, &yMax](
-                ecs::SectorId& sid, ecs::Transform& tr, ecs::EntityId& eid)
+                ecs::SectorId& sid, TransformHist& trH, ecs::EntityId& eid)
             {
+                ClientTransform clitr;
+                if (!trH.interpolate(rendertime, clitr, {.world = &world}))
+                {
+                    return;
+                }
+                ecs::Transform& tr = clitr.tr;
                 bool xMinBool = sid.coord.x > xMin.pos.x
                                 || (sid.coord.x == xMin.pos.x
                                     && tr.pos.x > xMin.sectorPos.x);
@@ -1850,11 +1799,24 @@ void Model::selectEntitiesInsideRect(const def::SectorCoords& start,
                     selectedEntities.push_back(eid);
                 }
             });
+    if (selectedEntities.size() > 0)
+    {
+        clickedEntity = ecs::EntityId::Invalid();
+        if (selectedEntities.size() == 1)
+        {
+            clickedEntity = selectedEntities.back();
+        }
+    }
 }
 
 void Model::clearSelectedEntities()
 {
     selectedEntities.clear();
+}
+
+void Model::clearClickedEntity()
+{
+    clickedEntity = ecs::EntityId::Invalid();
 }
 
 void Model::selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords, bool queue)
@@ -1996,14 +1958,6 @@ void Model::fastClientToServerUpdate()
     mcomp.ser->object(clientInfo.clientViewRect);
     mcomp.execute(sendQueue);
 }
-
-// void Model::sendThirdPersonControl()
-// {
-//     prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
-//     mcomp.startCommand(prot::cmd::THIRD_PERSON_CTRL, 0);
-//     mcomp.ser->object(thirdPersonControl);
-//     mcomp.execute(sendQueue);
-// }
 
 void Model::setupDataModelConnecting()
 {

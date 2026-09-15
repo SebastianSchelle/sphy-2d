@@ -593,23 +593,11 @@ static inline void collideWithItem(ecs::PtrHandle* ptrHandle,
         auto item = sector->itemPool.getObject(itemHandle);
         if (item)
         {
-            auto collItem = ptrHandle->modManager->getColliderLib().getItem(
-                coll.colliderHandle);
-            if (!collItem)
-            {
-                return;
-            }
-            const auto v1 = &collItem->vertices;
-            const size_t n1 = v1->size();
-            thread_local std::vector<vec2> w1;
-            w1.resize(v1->size());
-            for (size_t i = 0; i < n1; ++i)
-            {
-                const vec2& v = (*v1)[i];
-                w1[i].x = trc.c * v.x - trc.s * v.y + tr.pos.x;
-                w1[i].y = trc.s * v.x + trc.c * v.y + tr.pos.y;
-            }
-            if (sat2d::pointInConvex(item->transform.pos, w1))
+            if (coll.isPointInsideWorld(
+                    item->transform.pos,
+                    tr,
+                    trc,
+                    &ptrHandle->modManager->getColliderLib()))
             {
                 auto* storage = reg->try_get<Storage>(entity);
                 auto* itemData =
