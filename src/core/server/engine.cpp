@@ -2,11 +2,11 @@
 #include "bitsery/serializer.h"
 #include "client-def.hpp"
 #include "comp-ai.hpp"
-#include "comp-collavoid.hpp"
 #include "entt/entity/fwd.hpp"
 #include "free-vector.hpp"
 #include "lib-projectile.hpp"
 #include "logging.hpp"
+#include "mod-manager.hpp"
 #include "rand-gen.hpp"
 #include "sector-registry.hpp"
 #include "sector.hpp"
@@ -47,7 +47,7 @@ Engine::Engine(const sphy::CmdLinOptionsServer& options,
                cfg::ConfigManager& config)
     : options(options), config(config), state(EngineState::Init), saveConfig(),
       saveFolder(options.savedir), commandManager(), randWorldGen(0),
-      randTest(0)
+      randTest(0), modManager(config)
 {
     ptrHandle = new ecs::PtrHandle();
     ptrHandle->engine = this;

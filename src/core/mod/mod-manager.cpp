@@ -124,7 +124,7 @@ void ensureDasRuntimeForCurrentThread()
 
 }  // namespace
 
-ModManager::ModManager() {}
+ModManager::ModManager(cfg::ConfigManager& config) : config(config) {}
 
 ModManager::~ModManager() {}
 
@@ -273,6 +273,10 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
         }
 #ifdef CLIENT
         if (!loadFonts(ptrHandles, modInfo))
+        {
+            return false;
+        }
+        if (!loadLocalisationTables(ptrHandles, modInfo))
         {
             return false;
         }

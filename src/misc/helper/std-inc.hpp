@@ -1247,6 +1247,25 @@ template <class T> class InterpolData
     uint8_t newest = 0;
 };
 
+using Predicate = std::function<int(int)>;
+
+static inline void ltrim(std::string& str, Predicate const& pred = isspace)
+{
+    str.erase(str.begin(), std::find_if_not(str.begin(), str.end(), pred));
+}
+
+static inline void rtrim(std::string& str, Predicate const& pred = isspace)
+{
+    str.erase((std::find_if_not(str.rbegin(), str.rend(), pred)).base(),
+              str.end());
+}
+
+static inline void trim(std::string& str, Predicate const& pred = isspace)
+{
+    ltrim(str, pred);
+    rtrim(str, pred);
+}
+
 // Do not `using smath::Rect` at file scope: macOS SDK (MacTypes.h) defines a
 // global `struct Rect`; a using-declaration would collide with Carbon's type.
 

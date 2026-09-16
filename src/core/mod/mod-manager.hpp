@@ -1,6 +1,7 @@
 #ifndef MOD_MANAGER_HPP
 #define MOD_MANAGER_HPP
 
+#include "config-manager.hpp"
 #include "lib-recipes.hpp"
 #ifdef CLIENT
 // Forward declarations only: including RmlUi here forces RTTI in
@@ -63,6 +64,7 @@ struct PtrHandles
 #ifdef CLIENT
     gfx::RenderEngine* renderEngine;
     ui::UserInterface* userInterface;
+    ui::Localisation* locale;
     /// When set (e.g. mod load worker thread), RmlUi calls must run through
     /// this so they execute on the main thread. Blocks caller until the main
     /// loop runs the task.
@@ -152,7 +154,7 @@ class ResourceMap
 class ModManager
 {
   public:
-    ModManager();
+    ModManager(cfg::ConfigManager& config);
     ~ModManager();
     bool parseModList(const std::string& modList,
                       std::vector<std::string>& modListVec);
@@ -231,6 +233,7 @@ class ModManager
                      const ModInfo& modInfo,
                      YAML::Node shaders);
     bool loadFonts(PtrHandles& ptrHandles, const ModInfo& modInfo);
+    bool loadLocalisationTables(PtrHandles& ptrHandles, const ModInfo& modInfo);
     gfx::TextureHandle loadTextureClient(PtrHandles& ptrHandles,
                                          const string& texName,
                                          const string& texType,
@@ -256,6 +259,8 @@ class ModManager
     bool loadScripts(PtrHandles& ptrHandles,
                      const ModInfo& modInfo,
                      YAML::Node scripts);
+
+    cfg::ConfigManager& config;
     std::vector<ModInfo> processedDependencies;
     con::ItemLib<Mod> modLib;
     std::vector<ModHandle> modHandles;

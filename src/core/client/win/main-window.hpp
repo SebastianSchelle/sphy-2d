@@ -1,6 +1,8 @@
 #ifndef MAIN_WINDOW_HPP
 #define MAIN_WINDOW_HPP
 
+#include "localisation.hpp"
+#include "ptr-handle.hpp"
 #include "std-inc.hpp"
 #include <GLFW/glfw3.h>
 #include <bgfx/bgfx.h>
@@ -24,6 +26,7 @@
 #include <vector>
 #include <version.hpp>
 #include <control-def.hpp>
+#include <widgets.hpp>
 
 namespace ui
 {
@@ -270,6 +273,7 @@ class MainWindow
     modding::ModdingTools moddingTools;
     AtlasDebugView atlasDebug;
     sphyc::Model model;
+    ui::Localisation locale;
 
     UiDocHandle modLoadingHandle;
 
@@ -296,7 +300,7 @@ class MainWindow
     float dragBoxThickness = 1.0f;
     float maxFps;
     float filteredFps = 60.0f;
-
+    ecs::PtrHandle ptrHandle;
 };
 
 }  // namespace ui

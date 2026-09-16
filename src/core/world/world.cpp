@@ -48,12 +48,20 @@ bool World::initSectors(bool fromSave, ecs::PtrHandle* ptrHandle)
                     neighbors[k] = getNeighboringSector(
                         i, j, static_cast<def::Direction>(k));
                 }
+#ifdef SERVER
                 sectors.at(i, j)->init({i, j},
                                        worldShape.sectorSize,
                                        sectorId,
                                        neighbors,
                                        ptrHandle ? ptrHandle->registryMapping
                                                  : nullptr);
+#else
+                sectors.at(i, j)->init({i, j},
+                                       worldShape.sectorSize,
+                                       sectorId,
+                                       neighbors,
+                                       nullptr);
+#endif
             }
         }
     }

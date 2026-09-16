@@ -4,6 +4,8 @@
 #include "client-def.hpp"
 #include "control-def.hpp"
 #include "logging.hpp"
+#include "ptr-handle.hpp"
+#include "rmlui-systeminterface.hpp"
 #include "std-inc.hpp"
 #include "world-def.hpp"
 #include <bgfx/platform.h>
@@ -81,17 +83,22 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
     : options(options),
       config(options.workingdir + "/modules/core/config/client.yaml"),
       renderEngine(config), rmlUiRenderInterface(&renderEngine),
-      client(config, model.sendQueue, model.receiveQueue), modManager(),
+      client(config, model.sendQueue, model.receiveQueue), modManager(config),
       modLoadingHandle(UiDocHandle::Invalid()),
       userInterface(std::bind(&MainWindow::onCmd, this, std::placeholders::_1)),
       model(&userInterface,
             config,
             &modManager,
             &renderEngine,
-            std::bind(&MainWindow::onAfterLoadWorld, this))
+            std::bind(&MainWindow::onAfterLoadWorld, this),
+            &ptrHandle),
+      rmlUiSystemInterface(&ptrHandle)
 {
     auto path(options.workingdir);
     std::filesystem::current_path(path);
+
+    ptrHandle.modManager = &modManager;
+    ptrHandle.locale = &locale;
 
     uint8_t logLevel = CFG_UINT(config, 1.0f, "loglevel");
     debug::createLogger("logs/logClient.txt", logLevel);
@@ -413,7 +420,7 @@ void MainWindow::renderGame()
         case gfx::GameViewMode::ThirdPerson:
             processMouseThirdPerson(zoom);
             model.drawThirdPerson(renderEngine);
-            //renderEngine.panWorld(panX, panY);
+            // renderEngine.panWorld(panX, panY);
             break;
         default:
             break;
@@ -596,6 +603,7 @@ void MainWindow::startLoading()
             mod::PtrHandles ptrHandles{
                 .renderEngine = &renderEngine,
                 .userInterface = &userInterface,
+                .locale = &locale,
                 .runUiBool = [this](std::function<bool()> fn) -> bool
                 {
                     auto p = std::make_shared<std::promise<bool>>();

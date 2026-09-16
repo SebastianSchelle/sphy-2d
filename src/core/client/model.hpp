@@ -3,6 +3,7 @@
 
 #include "comp-ident.hpp"
 #include "glm/common.hpp"
+#include "ptr-handle.hpp"
 #include "render-engine.hpp"
 #include "sector.hpp"
 #include "world-def.hpp"
@@ -112,7 +113,8 @@ class Model
           cfg::ConfigManager& config,
           mod::ModManager* modManager,
           gfx::RenderEngine* renderer,
-          std::function<void(void)> afterLoadWorldClb);
+          std::function<void(void)> afterLoadWorldClb,
+          ecs::PtrHandle* ptrHandle);
     ~Model();
     void modelLoop(float dt);
 
@@ -345,6 +347,8 @@ class Model
     vector<uint32_t> activeSectors;
     long frametime;
     long rendertime;
+
+    ecs::PtrHandle* ptrHandle;
 };
 
 }  // namespace sphyc

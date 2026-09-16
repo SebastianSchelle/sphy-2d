@@ -4,6 +4,7 @@
 #include "RmlUi/Core/EventListener.h"
 #include "RmlUi/Core/ID.h"
 #include "RmlUi/Core/Input.h"
+#include "main-menu.hpp"
 #include <GLFW/glfw3.h>
 #include <climits>
 #include <iomanip>
@@ -110,6 +111,7 @@ bool UserInterface::init(glm::ivec2 windowSize)
         return false;
     }
 
+    setupDataModels();
     setupChatDataModel();
     tabPanelStrategic.init();
     tabPanelTactical.init();
@@ -414,12 +416,24 @@ Rml::DataModelConstructor UserInterface::getDataModel(const std::string& name)
     }
 }
 
+con::ItemLib<Rml::ElementDocument*>::Handle
+UserInterface::getHandle(const string& name)
+{
+    auto handle = rmlDocLib.getHandle(name);
+    if (!handle.isValid())
+    {
+        LG_E("Could not find ui document {}", name);
+    }
+    return handle;
+}
+
 void UserInterface::showMenu()
 {
     if (!menuOpen)
     {
-        currentMenuPage = "menu";
-        showDocument(rmlDocLib.getHandle(currentMenuPage));
+        LG_D("Show main window");
+        currentMenuPage = "main-menu";
+        showDocument(getHandle(currentMenuPage));
         menuOpen = true;
     }
 }
@@ -671,6 +685,15 @@ void UserInterface::scrollChatToBottom()
             chatElement->SetScrollTop(std::numeric_limits<float>::max());
         }
     }
+}
+
+void UserInterface::setupDataModels()
+{
+    auto constMainMenu = getDataModel("main-menu");
+    DmMainMenu::RegisterType(constMainMenu);
+    constMainMenu.Bind("menu", &dmMainMenu);
+    dmMainMenu.init(constMainMenu);
+    dmhMainMenu = constMainMenu.GetModelHandle();
 }
 
 void UserInterface::setupChatDataModel()

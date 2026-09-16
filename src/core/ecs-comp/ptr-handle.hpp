@@ -19,6 +19,7 @@ class CollisionLayerMat;
 class ComponentFactory;
 }  // namespace ecs
 #elif CLIENT
+#include <localisation.hpp>
 namespace sphyc
 {
 class Client;
@@ -62,10 +63,10 @@ struct PtrHandle
     // Shared fields must precede SERVER/CLIENT-only members (see
     // cmake/SphyTargetKind.cmake).
     uint32_t frameCnt;
-    RegistryMapping* registryMapping;
+#ifdef SERVER
     sthread::WorkDistributor* workDistributor;
     con::ItemLib<gobj::Collider>* colliderLib = nullptr;
-#ifdef SERVER
+    RegistryMapping* registryMapping;
     Systems* systems;
     sphys::Engine* engine;
     float kpThrust;
@@ -81,6 +82,7 @@ struct PtrHandle
     ecs::ComponentFactory* componentFactory;
 #elif CLIENT
     sphyc::Client* client;
+    ui::Localisation* locale;
 #endif
 };
 

@@ -1,12 +1,26 @@
 #include "rmlui-systeminterface.hpp"
 #include "logging.hpp"
+#include "ptr-handle.hpp"
 
 namespace ui
 {
 
-bool RmlUiSystemInterface::LogMessage(Rml::Log::Type type, const Rml::String& message)
+RmlUiSystemInterface::RmlUiSystemInterface(ecs::PtrHandle* ptrHandle)
+    : ptrHandle(ptrHandle)
 {
-    switch(type)
+}
+
+int RmlUiSystemInterface::TranslateString(Rml::String& translated,
+                                          const Rml::String& input)
+{
+    ptrHandle->locale->translateTokenString(translated, input);
+    return 0;
+}
+
+bool RmlUiSystemInterface::LogMessage(Rml::Log::Type type,
+                                      const Rml::String& message)
+{
+    switch (type)
     {
         case Rml::Log::Type::LT_ERROR:
             LG_E(message);

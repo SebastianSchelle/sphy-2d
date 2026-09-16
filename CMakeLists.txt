@@ -36,6 +36,7 @@ set(GAME_NAME "sphy2d" CACHE STRING "Game name used for save files and binaries"
 
 find_package(Boost REQUIRED COMPONENTS regex thread chrono program_options)
 find_package(GTest REQUIRED)
+find_package(ICU REQUIRED COMPONENTS uc i18n)
 
 # add third party libraries
 add_subdirectory(thirdparty/yaml-cpp yaml-cpp)

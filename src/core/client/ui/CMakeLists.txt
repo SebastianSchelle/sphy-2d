@@ -6,6 +6,7 @@ target_sources(sphy_client_ui INTERFACE
     user-interface.cpp
     ui-tab-panel.cpp
     user-input.cpp
+    localisation.cpp
 )
 
 target_include_directories(sphy_client_ui
@@ -16,4 +17,7 @@ target_include_directories(sphy_client_ui
 target_link_libraries(sphy_client_ui
     INTERFACE
     sphy_client_render
+    sphy_client_ui_models
 )
+
+add_subdirectory(models)

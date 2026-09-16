@@ -42,6 +42,7 @@ set(LIBS_PUB
     sphy_misc_runtime
     sphy_client_render
     sphy_client_ui
+    sphy_client_ui_models
     sphy_core_opool_client
 )
 
@@ -65,6 +66,8 @@ set(LIBS_PRIV
     freetype
     RmlUi::RmlUi
     rectpack2D
+    ICU::uc
+    ICU::i18n
 )
 
 file(GLOB SHADER_SRC CONFIGURE_DEPENDS

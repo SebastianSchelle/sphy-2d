@@ -3,19 +3,20 @@
 
 #include "RmlUi/Core/Core.h"
 #include "RmlUi/Core/DataModelHandle.h"
+#include "ui-tab-panel.hpp"
+#include "user-input.hpp"
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <functional>
 #include <item-lib.hpp>
+#include <main-menu.hpp>
 #include <memory>
-#include "ui-tab-panel.hpp"
-#include "user-input.hpp"
 
 using UiDocHandle = con::ItemLib<Rml::ElementDocument*>::Handle;
 
 namespace gfx
 {
-    enum class GameViewMode : uint8_t;
+enum class GameViewMode : uint8_t;
 }
 
 namespace ui
@@ -32,7 +33,8 @@ struct ChatMessage
 {
     string sender;
     string message;
-    // todo: instead of message, add vector<ChatChunk> where ChatChunk can be plain text or a hyperlink/reference or whatever
+    // todo: instead of message, add vector<ChatChunk> where ChatChunk can be
+    // plain text or a hyperlink/reference or whatever
     string target;
     tim::Timepoint timestamp;
     string timestampText;
@@ -106,14 +108,31 @@ class UserInterface
                  const Rml::VariantList& args);
     void toggleChat();
     void toggleDebug();
-    bool isDebugOpen() const { return debugOpen; }
-    bool isMenuOpen() const { return menuOpen; }
-    UserInput& getUserInput() { return userInput; }
-    InputEvent::Environment getUiEnvironment() const { return uiEnvironment; }
-    void setUiEnvironment(InputEvent::Environment environment) { uiEnvironment = environment; }
+    bool isDebugOpen() const
+    {
+        return debugOpen;
+    }
+    bool isMenuOpen() const
+    {
+        return menuOpen;
+    }
+    UserInput& getUserInput()
+    {
+        return userInput;
+    }
+    InputEvent::Environment getUiEnvironment() const
+    {
+        return uiEnvironment;
+    }
+    void setUiEnvironment(InputEvent::Environment environment)
+    {
+        uiEnvironment = environment;
+    }
 
   private:
+    con::ItemLib<Rml::ElementDocument*>::Handle getHandle(const string& name);
     void onMenuBackPriv();
+    void setupDataModels();
     void setupChatDataModel();
     void scrollChatToBottom();
     void onChatSendMsg(Rml::DataModelHandle handle,
@@ -177,6 +196,11 @@ class UserInterface
     UserInput userInput;
 
     InputEvent::Environment uiEnvironment = InputEvent::Environment::General;
+
+    // Data models
+    DmMainMenu dmMainMenu;
+    // Rml models
+    Rml::DataModelHandle dmhMainMenu;
 };
 
 }  // namespace ui

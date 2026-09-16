@@ -1,3 +1,4 @@
+#include "config-manager.hpp"
 #include <filesystem>
 #include <functional>
 #include <logging.hpp>
@@ -6,6 +7,7 @@
 #include <string>
 #include <ui/user-interface.hpp>
 #include <yaml-cpp/yaml.h>
+#include <localisation.hpp>
 
 namespace mod
 {
@@ -97,6 +99,55 @@ bool ModManager::loadFonts(PtrHandles& ptrHandles, const ModInfo& modInfo)
     return true;
 }
 
+
+bool ModManager::loadLocalisationTables(PtrHandles& ptrHandles,
+                                        const ModInfo& modInfo)
+{
+    const std::string localeDir = modInfo.modDir + "/assets/locale";
+    if (!std::filesystem::exists(localeDir))
+    {
+        LG_I("Locale directory not found: {}", localeDir);
+        return true;
+    }
+    const string locale = CFG_STRING(config, "en", "locale");
+    for (const auto& fileEntry : std::filesystem::directory_iterator(localeDir))
+    {
+        if (fileEntry.is_regular_file()
+            && fileEntry.path().extension() == ".loc"
+            && fileEntry.path().filename().string().starts_with(locale + "-"))
+        {
+            try
+            {
+                const std::string localePath = fileEntry.path().string();
+                if (!dispatchUiBool(
+                        ptrHandles,
+                        [&]()
+                        {
+                            LG_I("Loading locale file: {}", localePath);
+                            return ptrHandles.locale->loadLocaleFile(localePath,
+                                                                     locale);
+                        }))
+                {
+                    return false;
+                }
+            }
+            catch (const YAML::Exception& e)
+            {
+                LG_E("Failed to parse uiDoc node: {}", e.what());
+                return false;
+            }
+            catch (const std::exception& e)
+            {
+                LG_E("Failed to load uiDoc '{}': {}",
+                     fileEntry.path().string(),
+                     e.what());
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 gfx::TextureHandle ModManager::loadTextureClient(PtrHandles& ptrHandles,
                                                  const string& texName,
                                                  const string& texType,
@@ -117,6 +168,7 @@ bool ModManager::loadUiDocs(PtrHandles& ptrHandles,
         LG_E("Failed to load uiDocs: invalid node; expected a map");
         return false;
     }
+    // todo: remove this crap!!!
     for (YAML::const_iterator it = uiDocs.begin(); it != uiDocs.end(); ++it)
     {
         if (it->first.IsScalar() && it->second.IsMap())
@@ -160,6 +212,50 @@ bool ModManager::loadUiDocs(PtrHandles& ptrHandles,
             return false;
         }
     }
+
+    // automatic loading
+    std::string uiPath = modInfo.modDir + "/assets/ui";
+    for (const auto& fileEntry :
+         std::filesystem::recursive_directory_iterator(uiPath))
+    {
+        if (fileEntry.is_regular_file()
+            && fileEntry.path().extension() == ".rml"
+            && fileEntry.path().filename().string().starts_with("ui-"))
+        {
+            try
+            {
+                const std::string uiDocName =
+                    fileEntry.path().stem().string().replace(0, 3, "");
+                const std::string uiDocPath = fileEntry.path().string();
+                if (!dispatchUiBool(ptrHandles,
+                                    [&]()
+                                    {
+                                        LG_I("Loading uiDoc: [{}]: {}",
+                                             uiDocName,
+                                             uiDocPath);
+                                        ptrHandles.userInterface->loadDocument(
+                                            uiDocName, uiDocPath);
+                                        return true;
+                                    }))
+                {
+                    return false;
+                }
+            }
+            catch (const YAML::Exception& e)
+            {
+                LG_E("Failed to parse uiDoc node: {}", e.what());
+                return false;
+            }
+            catch (const std::exception& e)
+            {
+                LG_E("Failed to load uiDoc '{}': {}",
+                     fileEntry.path().string(),
+                     e.what());
+                return false;
+            }
+        }
+    }
+
     return true;
 }
 

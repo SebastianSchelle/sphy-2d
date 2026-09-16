@@ -6,6 +6,7 @@
 #include "lib-projectile.hpp"
 #include "lib-textures.hpp"
 #include "logging.hpp"
+#include "ptr-handle.hpp"
 #include "render-engine.hpp"
 #include "sector.hpp"
 #include "std-inc.hpp"
@@ -48,13 +49,16 @@ Model::Model(ui::UserInterface* userInterface,
              cfg::ConfigManager& config,
              mod::ModManager* modManager,
              gfx::RenderEngine* renderer,
-             std::function<void(void)> afterLoadWorldClb)
+             std::function<void(void)> afterLoadWorldClb,
+             ecs::PtrHandle* ptrHandle)
     : userInterface(userInterface), config(config), modManager(modManager),
       renderer(renderer), afterLoadWorldClb(afterLoadWorldClb),
-      clientRegistry(sendQueue)
+      clientRegistry(sendQueue), ptrHandle(ptrHandle)
 {
     assetFactory.componentFactory.registerAllComponents();
     lastGetAabbTree = tim::nowU();
+
+    ptrHandle->world = &world;
 
     intFastCliServ =
         CFG_UINT(config, 100.0f, "net", "dump-int", "fast-cli-serv");
