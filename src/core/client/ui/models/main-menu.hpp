@@ -10,7 +10,7 @@ namespace ui
 
 struct DmMainMenu : public DataModel
 {
-    string title = "Main Menu";
+    string title = "[menu.main.title]";
     widget::Button testButton = widget::Button{.id = "test",
                                                .label = "Test",
                                                .tooltip = "Test tooltip"};
