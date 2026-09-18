@@ -3,6 +3,8 @@
 
 #include "RmlUi/Core/Core.h"
 #include "RmlUi/Core/DataModelHandle.h"
+#include "config-manager.hpp"
+#include "config-node.hpp"
 #include "ui-tab-panel.hpp"
 #include "user-input.hpp"
 #include <RmlUi/Core/Context.h>
@@ -58,7 +60,7 @@ class ChatInputChangeListener;
 class UserInterface
 {
   public:
-    UserInterface(CmdCallback cmdCallback);
+    UserInterface(cfg::ConfigManager& config, CmdCallback cmdCallback);
     ~UserInterface();
     bool init(glm::ivec2 windowSize);
     void update();
@@ -175,6 +177,7 @@ class UserInterface
     vector<string> menuStack;
     string currentMenuPage;
 
+    cfg::ConfigManager& config;
     ChatData chatData;
     std::string chatInputText;
     Rml::DataModelHandle rmlModelChat;

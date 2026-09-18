@@ -4,6 +4,7 @@
 #include "client-def.hpp"
 #include "control-def.hpp"
 #include "logging.hpp"
+#include "magic_enum/magic_enum.hpp"
 #include "ptr-handle.hpp"
 #include "rmlui-systeminterface.hpp"
 #include "std-inc.hpp"
@@ -85,7 +86,8 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
       renderEngine(config), rmlUiRenderInterface(&renderEngine),
       client(config, model.sendQueue, model.receiveQueue), modManager(config),
       modLoadingHandle(UiDocHandle::Invalid()),
-      userInterface(std::bind(&MainWindow::onCmd, this, std::placeholders::_1)),
+      userInterface(config,
+                    std::bind(&MainWindow::onCmd, this, std::placeholders::_1)),
       model(&userInterface,
             config,
             &modManager,
@@ -199,11 +201,55 @@ bool MainWindow::initPost()
 
 bool MainWindow::createWindow()
 {
-    uint32_t wWidth = CFG_UINT(config, 1200.0f, "win", "width");
-    uint32_t wHeight = CFG_UINT(config, 800.0f, "win", "height");
+    uint32_t wWidth = CFG_UINT(config, 0.0f, "win", "width");
+    uint32_t wHeight = CFG_UINT(config, 0.0f, "win", "height");
+    string wModeStr = CFG_STRING(config, "Borderless", "win", "win-mode");
+    WindowMode winMode = magic_enum::enum_cast<WindowMode>(wModeStr).value_or(
+        WindowMode::Borderless);
+
+    GLFWmonitor* monitor = nullptr;
+    switch (winMode)
+    {
+        case WindowMode::Windowed:
+        {
+            if (wWidth == 0 || wHeight == 0)
+            {
+                wWidth = 800;
+                wHeight = 600;
+            }
+        }
+        break;
+        case WindowMode::Borderless:
+        {
+            monitor = glfwGetPrimaryMonitor();
+            const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+            glfwWindowHint(GLFW_RED_BITS, mode->redBits);
+            glfwWindowHint(GLFW_GREEN_BITS, mode->greenBits);
+            glfwWindowHint(GLFW_BLUE_BITS, mode->blueBits);
+            glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
+            if (wWidth == 0 || wHeight == 0)
+            {
+                wWidth = mode->width;
+                wHeight = mode->height;
+            }
+            break;
+        }
+        case WindowMode::Fullscreen:
+        {
+            monitor = glfwGetPrimaryMonitor();
+            if (wWidth == 0 || wHeight == 0)
+            {
+                const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+                wWidth = mode->width;
+                wHeight = mode->height;
+            }
+            break;
+        }
+    }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    window = glfwCreateWindow(wWidth, wHeight, "window", nullptr, nullptr);
+    window = glfwCreateWindow(
+        wWidth, wHeight, "window", monitor, nullptr);
     if (!window)
     {
         LG_E("Could not create GLFW window");

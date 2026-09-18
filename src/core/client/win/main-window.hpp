@@ -31,6 +31,13 @@
 namespace ui
 {
 
+enum class WindowMode
+{
+    Windowed,
+    Fullscreen,
+    Borderless
+};
+
 struct MouseState
 {
     glm::vec2 mousePos;

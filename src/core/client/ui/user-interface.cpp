@@ -4,6 +4,7 @@
 #include "RmlUi/Core/EventListener.h"
 #include "RmlUi/Core/ID.h"
 #include "RmlUi/Core/Input.h"
+#include "config-manager.hpp"
 #include "main-menu.hpp"
 #include <GLFW/glfw3.h>
 #include <climits>
@@ -56,8 +57,10 @@ void ChatData::addMessage(const ChatMessage& message)
     messages.back().timestampText = timeStream.str();
 }
 
-UserInterface::UserInterface(CmdCallback cmdCallback)
-    : cmdCallback(cmdCallback), tabPanelStrategic(this, "tab-panel-strategic"),
+UserInterface::UserInterface(cfg::ConfigManager& config,
+                             CmdCallback cmdCallback)
+    : config(config), cmdCallback(cmdCallback),
+      tabPanelStrategic(this, "tab-panel-strategic"),
       tabPanelTactical(this, "tab-panel-tactical")
 {
     chatData.currMsgTarget = "all";
@@ -110,6 +113,9 @@ bool UserInterface::init(glm::ivec2 windowSize)
         LG_E("Failed to load mod loading ui");
         return false;
     }
+
+    float uiScale = CFG_FLOAT(config, 1.0f, "ui", "scale");
+    rmlContext->SetDensityIndependentPixelRatio(uiScale);
 
     setupDataModels();
     setupChatDataModel();
@@ -432,6 +438,7 @@ void UserInterface::showMenu()
     if (!menuOpen)
     {
         LG_D("Show main window");
+        // currentMenuPage = "main-menu";
         currentMenuPage = "main-menu";
         showDocument(getHandle(currentMenuPage));
         menuOpen = true;
@@ -691,9 +698,9 @@ void UserInterface::setupDataModels()
 {
     auto constMainMenu = getDataModel("main-menu");
     DmMainMenu::RegisterType(constMainMenu);
-    constMainMenu.Bind("menu", &dmMainMenu);
-    dmMainMenu.init(constMainMenu);
+    constMainMenu.Bind("win", &dmMainMenu);
     dmhMainMenu = constMainMenu.GetModelHandle();
+    dmMainMenu.init(constMainMenu, dmhMainMenu);
 }
 
 void UserInterface::setupChatDataModel()
