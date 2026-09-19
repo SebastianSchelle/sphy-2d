@@ -352,7 +352,8 @@ void MainWindow::winLoop()
         }
 
         if (!mouseOverUi && !mouseWheelInteract
-            && model.getGameState() != ClientGameState::AtlasDebug)
+            && (model.getGameState() == ClientGameState::GameLoop
+                || model.getGameState() == ClientGameState::ModdingTools))
         {
             if (mouseState.mz != 0)
             {
@@ -424,10 +425,6 @@ void MainWindow::winLoop()
                 break;
         }
 
-        if (model.getGameState() == ClientGameState::GameLoop)
-        {
-        }
-
         userInterface.render();
         renderEngine.endFrame();
     }
@@ -458,8 +455,8 @@ void MainWindow::renderUniverse()
     renderEngine.getViewportRect(viewportRect);
     renderEngine.drawFullScreenTriangles(
         0, renderEngine.getShaderHandle("distantstars"));
-    renderEngine.drawDebugCheckerboard(
-        0, renderEngine.getShaderHandle("debuggrid"), 50.0f, 0.02f);
+    // renderEngine.drawDebugCheckerboard(
+    //     0, renderEngine.getShaderHandle("debuggrid"), 50.0f, 0.02f);
     switch (renderEngine.getViewMode())
     {
         case gfx::GameViewMode::Map:
@@ -710,8 +707,8 @@ void MainWindow::loadingLoop()
             {
                 loadingThread.join();
             }
-            initPost();
 
+            initPost();
             startLocalServer(options.bindir + "/data/menu-server");
             connectToServer(net::ConnectDataMenu,
                             sphyc::AfterConnectState::Menu);

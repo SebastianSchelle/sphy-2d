@@ -1188,7 +1188,7 @@ void RenderEngine::allocateForTexRects()
     bgfx::allocInstanceDataBuffer(&idbTex, n, stride);
 }
 
-void RenderEngine::zoom(float amount)
+void RenderEngine::zoom(float amount, bool instant)
 {
     float zoomStep = camMoveCfg[static_cast<size_t>(viewMode)].zoomStep;
     float maxZoom = camMoveCfg[static_cast<size_t>(viewMode)].maxZoom;
@@ -1218,6 +1218,10 @@ void RenderEngine::zoom(float amount)
         {
             worldZoomDes = minZoom;
         }
+    }
+    if(instant)
+    {
+        worldZoom = worldZoomDes;
     }
     persistentCamPos[static_cast<size_t>(viewMode)].zoom = worldZoomDes;
 }

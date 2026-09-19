@@ -120,7 +120,10 @@ void Model::modelLoop(float dt)
             break;
         case ClientGameState::Authenticated:
             loadWorldSequence.start(sendQueue);
-            userInterface->setupViewModeUi(gfx::GameViewMode::Connecting);
+            if (afterConnectState == AfterConnectState::Game)
+            {
+                userInterface->setupViewModeUi(gfx::GameViewMode::Connecting);
+            }
             gameState = ClientGameState::LoadWorld;
             break;
         case ClientGameState::LoadWorld:
@@ -130,7 +133,12 @@ void Model::modelLoop(float dt)
                 LG_I("Exchanging world info with server done");
                 afterLoadWorldClb();
                 notifyReady();
-                userInterface->setupViewModeUi(gfx::GameViewMode::ThirdPerson);
+                renderer->zoom(3.0f, true);
+                if (afterConnectState == AfterConnectState::Game)
+                {
+                    userInterface->setupViewModeUi(
+                        gfx::GameViewMode::ThirdPerson);
+                }
             }
             else
             {
@@ -1493,7 +1501,7 @@ void Model::sendCmdToServer(const std::string& command)
 }
 
 void Model::checkVersion(const net::ConnectData& connectData,
-    AfterConnectState after)
+                         AfterConnectState after)
 {
     prepareForConnect();
     afterConnectState = after;
@@ -1685,12 +1693,6 @@ void Model::gotoAtlasDebug()
 {
     userInterface->setupViewModeUi(gfx::GameViewMode::AtlasDebug);
     gameState = ClientGameState::AtlasDebug;
-}
-
-void Model::gotoMenu()
-{
-    userInterface->setupViewModeUi(gfx::GameViewMode::Menu);
-    gameState = ClientGameState::MainMenu;
 }
 
 void Model::reqAllComponents(ecs::EntityId entityId)

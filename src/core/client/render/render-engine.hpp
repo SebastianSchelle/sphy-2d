@@ -144,7 +144,7 @@ class RenderEngine
     void setScissorRegionEnabled(bool enabled);
     void setTransform(const glm::mat4& transform);
 
-    void zoom(float amount);
+    void zoom(float amount, bool instant=false);
     void panWorld(PanDirection dirX, PanDirection dirY);
     void panWorld(const glm::vec2& delta);
     void panWorldTo(const def::SectorCoords& sectorCoords);

@@ -90,7 +90,7 @@ void AtlasDebugView::closeUi(ui::UserInterface& userInterface,
 {
     userInterface.hideDocument(
         userInterface.getDocumentHandle("atlas-debug-menu"));
-    model.gotoMenu();
+    //model.gotoMenu();
     userInterface.hideMenu();
     userInterface.showMenu();
 }

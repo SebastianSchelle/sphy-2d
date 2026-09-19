@@ -1886,7 +1886,7 @@ void Engine::populateMenuWorld()
     for (int i = 0; i < asteroids; ++i)
     {
         vec2 pos = randPos();
-        float rot = randWorldGen.float_range(0, 2.0f * M_PIf);
+        float rot = randWorldGen.float_range(-0.5f, 0.5f);
         auto sector = world.getSector(0);
 
         objb::AsteroidRecipe rec(

@@ -148,7 +148,6 @@ class Model
     void selectedEntitiesMoveCmd(def::SectorCoords& sectorCoords, bool queue);
     void gotoModdingTools();
     void gotoAtlasDebug();
-    void gotoMenu();
     void setClientViewRect(const def::ClientViewRect& cvr)
     {
         clientInfo.clientViewRect = cvr;
