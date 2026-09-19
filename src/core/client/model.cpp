@@ -234,9 +234,23 @@ void Model::modelLoopGame(float dt)
                 }
                 else
                 {
+                    def::SectorPos old{(uint32_t)renderer->getSectorOffsetX(),
+                                       (uint32_t)renderer->getSectorOffsetY()};
+                    vec2 oldPos = renderer->getWorldCameraPosition();
+
+                    // todo: make dt independent and implement smooth panning in render engine
+                    const vec2 prevPosTr = world.translateCoords(
+                        oldPos,
+                        world.sectorCoordsToId(old),
+                        world.sectorCoordsToId(sectorCoords));
+                    const vec2 moveVec = tr.tr.pos - prevPosTr;
+                    const vec2 interPos = oldPos + 0.02f * moveVec;
+                    const def::SectorPos prevSectorXY = old;
+                    const def::SectorCoords coordsTr = world.translateOOBCoords(
+                        {.pos = prevSectorXY, .sectorPos = interPos});
                     renderer->panWorldTo(def::SectorCoords{
-                        .pos = sectorCoords,
-                        .sectorPos = tr.tr.pos,
+                        .pos = coordsTr.pos,
+                        .sectorPos = coordsTr.sectorPos,
                     });
                 }
             }
