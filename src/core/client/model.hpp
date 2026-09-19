@@ -88,8 +88,6 @@ struct ClientTransform
         // uint32_t newSector = other.sectorId;
         if (sectorId != other.sectorId && extra.world)
         {
-            // make it more sofisticated: set correct sectorId to not extend
-            // sector bounds, maybe this fucks with drawing and world pos
             const vec2 prevPosTr =
                 extra.world->translateCoords(tr.pos, sectorId, other.sectorId);
             const vec2 moveVec = other.tr.pos - prevPosTr;
