@@ -7,6 +7,7 @@ target_sources(sphy_client_ui INTERFACE
     ui-tab-panel.cpp
     user-input.cpp
     localisation.cpp
+    document-stack.cpp
 )
 
 target_include_directories(sphy_client_ui

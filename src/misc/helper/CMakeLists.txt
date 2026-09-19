@@ -14,6 +14,8 @@ set(HELPER_SOURCES
     config-manager/config-manager.cpp
     config-manager/config-node.cpp
     command-node.cpp
+    process-posix.cpp
+    process-win.cpp
 )
 
 set(LIBS_PUB

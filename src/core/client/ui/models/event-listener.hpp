@@ -11,14 +11,30 @@
 namespace ui
 {
 
-typedef std::function<void()> onClickClb;
-typedef std::function<void()> onChangeClb;
+typedef std::function<void()> OnClickClb;
+typedef std::function<void()> OnChangeClb;
+typedef std::function<void()> OnCloseClb;
+
+struct EventFunctions
+{
+    OnCloseClb onClose = nullptr;
+};
 
 class EventListener
 {
   public:
-    void init(Rml::DataModelConstructor& constructor)
+    void init(Rml::DataModelConstructor& constructor,
+              const EventFunctions& eventFunctions)
     {
+        if (eventFunctions.onClose)
+        {
+            constructor.BindEventCallback(
+                "onCloseDocument",
+                [this, eventFunctions](Rml::DataModelHandle,
+                                       Rml::Event&,
+                                       const Rml::VariantList& args)
+                { eventFunctions.onClose(); });
+        }
         constructor.BindEventCallback(
             "onClick",
             [this](
@@ -45,13 +61,13 @@ class EventListener
             });
     }
     template <class T> void registerOnclick(const T& model);
-    template <class T> void createOnclick(T& model, onClickClb clb);
+    template <class T> void createOnclick(T& model, OnClickClb clb);
     template <class T> void registerOnchange(const T& model);
-    template <class T> void createOnchange(T& model, onChangeClb clb);
+    template <class T> void createOnchange(T& model, OnChangeClb clb);
 
   private:
-    std::unordered_map<string, onClickClb> onClickClbs;
-    std::unordered_map<string, onChangeClb> onChangeClbs;
+    std::unordered_map<string, OnClickClb> onClickClbs;
+    std::unordered_map<string, OnChangeClb> onChangeClbs;
 };
 
 template <class T> void EventListener::registerOnclick(const T& model)
@@ -71,7 +87,7 @@ template <class T> void EventListener::registerOnclick(const T& model)
     onClickClbs[model.id] = model.onClick;
 }
 
-template <class T> void EventListener::createOnclick(T& model, onClickClb clb)
+template <class T> void EventListener::createOnclick(T& model, OnClickClb clb)
 {
     model.onClick = clb;
     registerOnclick(model);
@@ -94,7 +110,7 @@ template <class T> void EventListener::registerOnchange(const T& model)
     onChangeClbs[model.id] = model.onChange;
 }
 
-template <class T> void EventListener::createOnchange(T& model, onChangeClb clb)
+template <class T> void EventListener::createOnchange(T& model, OnChangeClb clb)
 {
     model.onChange = clb;
     registerOnchange(model);
@@ -105,7 +121,13 @@ struct DataModel
   protected:
     EventListener eventListener;
     Rml::DataModelHandle rmlHandle;
-
+    void init(Rml::DataModelConstructor& constructor,
+              Rml::DataModelHandle rmlHdl,
+              const EventFunctions& eventFunctions)
+    {
+        this->rmlHandle = rmlHdl;
+        eventListener.init(constructor, eventFunctions);
+    }
 };
 
 }  // namespace ui

@@ -700,7 +700,8 @@ void UserInterface::setupDataModels()
     DmMainMenu::RegisterType(constMainMenu);
     constMainMenu.Bind("win", &dmMainMenu);
     dmhMainMenu = constMainMenu.GetModelHandle();
-    dmMainMenu.init(constMainMenu, dmhMainMenu);
+    dmMainMenu.init(
+        constMainMenu, dmhMainMenu, {.onClose = [this]() { hideMenu(); }});
 }
 
 void UserInterface::setupChatDataModel()
