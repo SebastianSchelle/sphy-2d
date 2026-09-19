@@ -239,6 +239,8 @@ void Model::modelLoopGame(float dt)
                     vec2 oldPos = renderer->getWorldCameraPosition();
 
                     // todo: make dt independent and implement smooth panning in render engine
+                    // todo: this + model.hpp. shared function for sector pos interpolation
+                    // todo: only do complex interpolation when id != newId
                     const vec2 prevPosTr = world.translateCoords(
                         oldPos,
                         world.sectorCoordsToId(old),
