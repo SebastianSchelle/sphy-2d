@@ -8,6 +8,7 @@
 #include "lib-modules.hpp"
 #include "lib-projectile.hpp"
 #include "registry-mapping.hpp"
+#include "std-inc.hpp"
 #include "systems.hpp"
 #include "world-def.hpp"
 #include <asset-factory.hpp>
@@ -42,10 +43,10 @@ struct PtrHandle;
 namespace sphys
 {
 
-typedef std::function<void(const net::ClientInfo* clientInfo,
+typedef std::function<void(const net::ConnectData* connectData,
                            ecs::PtrHandle* ptrHandle)>
     ClientDumpFunction;
-typedef std::function<void(const net::ClientInfo* clientInfo,
+typedef std::function<void(const net::ConnectData* connectData,
                            uint32_t sectorId,
                            ecs::PtrHandle* ptrHandle)>
     ActiveSectorUpdateFunction;
@@ -159,7 +160,8 @@ class Engine
                            ecs::EntityId entityId,
                            entt::entity entity,
                            net::TcpConnection* conn);
-    void testSpawn();
+    void populateWorld();
+    void populateMenuWorld();
     void handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn);
     void handleThirdPersonControl(def::ClientInfo* clientInfo,
                                   net::TcpConnection* conn);
@@ -206,12 +208,12 @@ class Engine
     ecs::Systems systems;
     cfg::ConfigManager saveConfig;
     cfg::ConfigManager& config;
-    std::string saveFolder;
     ecs::ComponentFactory componentFactory;
     vector<ecs::EntityId> globalEntityIds;
     vector<entt::entity> globalEntities;
     ecs::PtrHandle* ptrHandle;
     cmd::CommandManager commandManager;
+    SaveType saveType;
 
     vector<CompClientDump> slowDumpComponents;
     vector<CompActiveSectorUpdate> activeSectorUpdates;
@@ -227,8 +229,6 @@ class Engine
     float itemLifetime;
     ai::TaskSystem taskSystem;
     def::ClientViewRect lastClientViewRect;
-
-    def::ClientInfoHandle testclient;
 
     misc::RandGen randWorldGen;
     misc::RandGen randTest;

@@ -35,6 +35,10 @@ class World
     {
         return worldShape;
     }
+    float getHalfSectorSize() const
+    {
+        return halfSectorSize;
+    }
 #ifdef CLIENT
     void drawDebug(gfx::RenderEngine& renderer, float zoom);
     void drawTacticalMap(gfx::RenderEngine& renderer,

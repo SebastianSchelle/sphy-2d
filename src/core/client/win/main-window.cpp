@@ -5,12 +5,16 @@
 #include "control-def.hpp"
 #include "logging.hpp"
 #include "magic_enum/magic_enum.hpp"
+#include "model.hpp"
+#include "net-shared.hpp"
+#include "process.hpp"
 #include "ptr-handle.hpp"
 #include "rmlui-systeminterface.hpp"
 #include "std-inc.hpp"
 #include "world-def.hpp"
 #include <bgfx/platform.h>
 #include <bx/bx.h>
+#include <chrono>
 #include <comp-ident.hpp>
 #include <main-window.hpp>
 #include <memory>
@@ -84,8 +88,8 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
     : options(options),
       config(options.workingdir + "/modules/core/config/client.yaml"),
       renderEngine(config), rmlUiRenderInterface(&renderEngine),
-      client(config, model.sendQueue, model.receiveQueue), modManager(config),
-      modLoadingHandle(UiDocHandle::Invalid()),
+      client(config, model.sendQueue, model.receiveQueue),
+      modManager(config, options), modLoadingHandle(UiDocHandle::Invalid()),
       userInterface(config,
                     std::bind(&MainWindow::onCmd, this, std::placeholders::_1)),
       model(&userInterface,
@@ -248,8 +252,7 @@ bool MainWindow::createWindow()
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    window = glfwCreateWindow(
-        wWidth, wHeight, "window", monitor, nullptr);
+    window = glfwCreateWindow(wWidth, wHeight, "window", monitor, nullptr);
     if (!window)
     {
         LG_E("Could not create GLFW window");
@@ -397,20 +400,19 @@ void MainWindow::winLoop()
         {
             case ClientGameState::Init:
                 startLoading();
-                processUiTasks();
                 break;
             case ClientGameState::LoadingMods:
                 loadingLoop();
                 break;
             case ClientGameState::MainMenu:
-                renderMenu();
+                renderUniverse();
                 break;
             case ClientGameState::Authenticated:
                 break;
             case ClientGameState::LoadWorld:
                 break;
             case ClientGameState::GameLoop:
-                renderGame();
+                renderUniverse();
                 break;
             case ClientGameState::ModdingTools:
                 renderModdingTools(mouseOverUi);
@@ -449,13 +451,15 @@ void MainWindow::renderMenu()
         0, renderEngine.getShaderHandle("distantstars"));
 }
 
-void MainWindow::renderGame()
+void MainWindow::renderUniverse()
 {
     float zoom = renderEngine.getWorldZoom();
     smath::Rect viewportRect;
     renderEngine.getViewportRect(viewportRect);
     renderEngine.drawFullScreenTriangles(
         0, renderEngine.getShaderHandle("distantstars"));
+    renderEngine.drawDebugCheckerboard(
+        0, renderEngine.getShaderHandle("debuggrid"), 50.0f, 0.02f);
     switch (renderEngine.getViewMode())
     {
         case gfx::GameViewMode::Map:
@@ -466,14 +470,11 @@ void MainWindow::renderGame()
         case gfx::GameViewMode::ThirdPerson:
             processMouseThirdPerson(zoom);
             model.drawThirdPerson(renderEngine);
-            // renderEngine.panWorld(panX, panY);
             break;
         default:
             break;
     }
     renderEngine.flushQueuedTexRects();
-    renderEngine.drawDebugCheckerboard(
-        0, renderEngine.getShaderHandle("debuggrid"), 50.0f, 0.02f);
 }
 
 void MainWindow::renderAtlasDebug(bool /*mouseOverUi*/)
@@ -634,7 +635,8 @@ void MainWindow::startLoading()
         [this](std::promise<bool> succ)
         {
             std::vector<std::string> modList;
-            if (!modManager.parseModList("modules/modlist.txt", modList))
+            if (!modManager.parseModList(options.moddir + "/modlist.txt",
+                                         modList))
             {
                 LG_E("Failed to parse mod list");
                 succ.set_value(false);
@@ -709,7 +711,10 @@ void MainWindow::loadingLoop()
                 loadingThread.join();
             }
             initPost();
-            model.startModel();
+
+            startLocalServer(options.bindir + "/data/menu-server");
+            connectToServer(net::ConnectDataMenu,
+                            sphyc::AfterConnectState::Menu);
         }
         else
         {
@@ -717,6 +722,17 @@ void MainWindow::loadingLoop()
             exit(1);
         }
     }
+}
+
+void MainWindow::startLocalServer(const string& savedir)
+{
+    if (localServerProc.IsRunning())
+    {
+        LG_E("Local server process is already running");
+    }
+    // todo: Abstract file names for apple and windows cross compatibility
+    localServerProc.Start(options.bindir + "/game-server", {"-s", savedir});
+    // localServerProc.Wait();
 }
 
 void MainWindow::setupMouseState()
@@ -1324,19 +1340,28 @@ void MainWindow::onConnectToServer(Rml::DataModelHandle handle,
     (void)handle;
     (void)event;
     (void)args;
+    // connectToServer(menuData.connectData.ipAddress,
+    //                 menuData.connectData.udpPortServ,
+    //                 menuData.connectData.tcpPortServ,
+    //                 menuData.connectData.udpPortCli,
+    //                 menuData.connectData.token,
+    //                 sphyc::AfterConnectState::Game);
+}
+
+void MainWindow::connectToServer(const net::ConnectData& connectData,
+                                 sphyc::AfterConnectState after)
+{
     model.prepareForConnect();
-    client.connectToServer(menuData.connectData.ipAddress,
-                           menuData.connectData.udpPortServ,
-                           menuData.connectData.tcpPortServ,
-                           menuData.connectData.udpPortCli,
-                           menuData.connectData.token);
-    model.checkVersion(net::ModelClientInfo{
-        .token = menuData.connectData.token,
-        .ipAddress = menuData.connectData.ipAddress,
-        .udpPortServ = menuData.connectData.udpPortServ,
-        .tcpPortServ = menuData.connectData.tcpPortServ,
-        .udpPortCli = menuData.connectData.udpPortCli,
-    });
+    for (int i = 0; i < 10; ++i)
+    {
+        if (client.connectToServer(connectData))
+        {
+            break;
+        }
+        onClientShutdown();
+        SLEEP_MS(100);
+    }
+    model.checkVersion(connectData, after);
 }
 
 void MainWindow::onCmd(const std::string& cmd)

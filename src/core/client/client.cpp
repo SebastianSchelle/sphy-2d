@@ -1,3 +1,4 @@
+#include "net-shared.hpp"
 #include <client.hpp>
 #include <version.hpp>
 
@@ -76,14 +77,11 @@ void Client::wait()
     }
 }
 
-void Client::connectToServer(const std::string& ipAddress,
-                             int udpPortServ,
-                             int tcpPortServ,
-                             int udpPortCli,
-                             const std::string& token)
+bool Client::connectToServer(const net::ConnectData& connectdata)
 {
     const uint32_t generation = ++connectGeneration;
-    // Tear down old transport without notifying model — reconnect is intentional.
+    // Tear down old transport without notifying model — reconnect is
+    // intentional.
     shutdown(/*notifyModel=*/false);
     if (ioThread.joinable())
     {
@@ -103,40 +101,44 @@ void Client::connectToServer(const std::string& ipAddress,
     {
         udpClient = std::make_unique<net::UdpClient>(
             ioContext,
-            udpPortCli,
-            udp::endpoint(boost::asio::ip::make_address(ipAddress), udpPortServ),
+            connectdata.udpPortCli,
+            udp::endpoint(boost::asio::ip::make_address(connectdata.ipAddress),
+                          connectdata.udpPortServ),
             std::bind(&Client::udpReceive,
                       this,
                       std::placeholders::_2,
                       std::placeholders::_3));
         LG_D("Setup udp socket to server at {}:{} on port {}",
-             ipAddress.c_str(),
-             udpPortServ,
-             udpPortCli);
+             connectdata.ipAddress.c_str(),
+             connectdata.udpPortServ,
+             connectdata.udpPortCli);
 
         tcpClient = std::make_unique<net::TcpClient>(
             ioContext,
-            tcp::endpoint(boost::asio::ip::make_address(ipAddress), tcpPortServ),
+            tcp::endpoint(boost::asio::ip::make_address(connectdata.ipAddress),
+                          connectdata.tcpPortServ),
             std::bind(&Client::tcpReceive, this, std::placeholders::_1),
-            [this, generation]()
-            { connectionClosedClb(generation); });
+            [this, generation]() { connectionClosedClb(generation); });
         LG_D("Setup tcp socket to server at {}:{} on port {}",
-             ipAddress,
-             tcpPortServ,
-             udpPortCli);
+             connectdata.ipAddress,
+             connectdata.tcpPortServ,
+             connectdata.udpPortCli);
     }
     catch (const std::exception& e)
     {
         LG_E("Failed to connect to server at {}:{} — {}",
-             ipAddress,
-             tcpPortServ,
+             connectdata.ipAddress,
+             connectdata.tcpPortServ,
              e.what());
         shuttingDown = true;
-        return;
+        return false;
     }
 
-    boost::asio::post(ioContext, [this, token]() { scheduleSend(token); });
+    boost::asio::post(ioContext,
+                      [this, connectdata]()
+                      { scheduleSend(connectdata.token); });
     ioThread = std::thread([this]() { ioContext.run(); });
+    return true;
 }
 
 void Client::scheduleSend(const std::string& token)

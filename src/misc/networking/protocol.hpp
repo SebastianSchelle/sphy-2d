@@ -154,6 +154,7 @@ const uint16_t UPD_ECS_REALTIME = 0x0015;
 const uint16_t REALTIME_DATA_ACT_ENT = 0x0016;
 const uint16_t UPD_ECS_MAP = 0x0017;
 const uint16_t UPD_GEN_INFO = 0x0018;
+const uint16_t HANDSHAKE = 0x0019;
 
 
 const uint16_t SEND_DATA_PROJ = 0x1000;

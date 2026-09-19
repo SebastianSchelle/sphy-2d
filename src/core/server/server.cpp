@@ -7,7 +7,7 @@ namespace sphys
 
 Server::Server(sphy::CmdLinOptionsServer& options)
     : options(options),
-      config(options.workingdir + "/modules/core/config/server.yaml"),
+      config(options.configdir + "/server.yaml"),
       sendTimer(ioContext), signals(ioContext, SIGINT, SIGTERM),
       engine(options, config)
 {

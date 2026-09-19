@@ -6,6 +6,7 @@
 #include "lib-projectile.hpp"
 #include "lib-textures.hpp"
 #include "logging.hpp"
+#include "net-shared.hpp"
 #include "ptr-handle.hpp"
 #include "render-engine.hpp"
 #include "sector.hpp"
@@ -113,7 +114,7 @@ void Model::modelLoop(float dt)
         case ClientGameState::Init:
             break;
         case ClientGameState::MainMenu:
-            modelLoopMenu(dt);
+            modelLoopGame(dt);
             break;
         case ClientGameState::VersionCheck:
             break;
@@ -157,11 +158,6 @@ void Model::modelLoop(float dt)
 void Model::startLoadingMods()
 {
     gameState = ClientGameState::LoadingMods;
-}
-
-void Model::startModel()
-{
-    gameState = ClientGameState::MainMenu;
 }
 
 void Model::timeSync()
@@ -483,7 +479,18 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
             if (flags & CMD_FLAG_RESP && sendType == net::SendType::TCP)
             {
                 LG_I("Server accepted client readyness");
-                gameState = ClientGameState::GameLoop;
+                switch (afterConnectState)
+                {
+                    case AfterConnectState::Menu:
+                        gameState = ClientGameState::MainMenu;
+                        break;
+                    case AfterConnectState::Game:
+                        gameState = ClientGameState::GameLoop;
+                        break;
+                    default:
+                        LG_E("Not implemented");
+                        break;
+                }
                 renderer->startGame();
             }
             break;
@@ -1485,10 +1492,12 @@ void Model::sendCmdToServer(const std::string& command)
     mcomp.execute(sendQueue);
 }
 
-void Model::checkVersion(const net::ModelClientInfo& clientInfo)
+void Model::checkVersion(const net::ConnectData& connectData,
+    AfterConnectState after)
 {
     prepareForConnect();
-    this->clientInfo = def::ClientInfo("", clientInfo, 0);
+    afterConnectState = after;
+    this->clientInfo = def::ClientInfo("", connectData, 0);
     prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
     mcomp.startCommand(prot::cmd::VERSION_CHECK, 0);
     mcomp.ser->value2b(version::MAJOR);
@@ -1507,8 +1516,8 @@ void Model::authenticate()
     mcomp.ser->value2b(version::MAJOR);
     mcomp.ser->value2b(version::MINOR);
     mcomp.ser->value2b(version::PATCH);
-    mcomp.ser->text1b(clientInfo.modelClientInfo.token, 16);
-    mcomp.ser->value2b((uint16_t)clientInfo.modelClientInfo.udpPortCli);
+    mcomp.ser->text1b(clientInfo.connectData.token, 16);
+    mcomp.ser->value2b((uint16_t)clientInfo.connectData.udpPortCli);
     mcomp.execute(sendQueue);
     gameState = ClientGameState::Authenticating;
 }

@@ -75,6 +75,9 @@ using InputAdapter = bitsery::InputBufferAdapter<Buffer>;
     long now = tim::nowU();                                                    \
     DO_PERIODIC_EXTNOW(timekeeper_, interval_, now, callback_)
 
+#define SLEEP_S(sec) std::this_thread::sleep_for(std::chrono::seconds(sec))
+#define SLEEP_MS(millis) std::this_thread::sleep_for(std::chrono::milliseconds(millis))
+
 #define TIM_1MS 1000
 #define TIM_10MS 10000
 #define TIM_100MS 100000
@@ -184,6 +187,12 @@ enum class ClientGameState
     GameLoop,
     ModdingTools,
     AtlasDebug,
+};
+
+enum class SaveType
+{
+    Menu,
+    Normal
 };
 
 namespace tim

@@ -1,7 +1,9 @@
 #ifndef CMD_OPTIONS_HPP
 #define CMD_OPTIONS_HPP
 
+#include "os-helper.hpp"
 #include <boost/program_options.hpp>
+#include <functional>
 #include <iostream>
 
 namespace po = boost::program_options;
@@ -14,21 +16,54 @@ class CmdLineOptions
     CmdLineOptions() {}
     bool parse(po::variables_map& vm)
     {
+        if (vm.count("moddir"))
+        {
+            modDirSet = true;
+            moddir = vm["moddir"].as<std::string>();
+        }
+        else
+        {
+            moddir = ".";
+        }
+        if (vm.count("configdir"))
+        {
+            configdir = vm["configdir"].as<std::string>();
+            configDirSet = true;
+        }
+        else
+        {
+            configdir = ".";
+        }
         if (vm.count("workingdir"))
         {
             workingdir = vm["workingdir"].as<std::string>();
+            workingDirSet = true;
         }
         else
         {
             workingdir = ".";
         }
-        if (vm.count("savedir"))
+        if (vm.count("bindir"))
         {
-            savedir = vm["savedir"].as<std::string>();
+            bindir = vm["bindir"].as<std::string>();
         }
         else
         {
-            savedir = ".";
+            bindir = osh::executablePath().parent_path();
+        }
+
+
+        if (!configDirSet)
+        {
+            configdir = bindir;
+        }
+        if (!workingDirSet)
+        {
+            workingdir = bindir;
+        }
+        if (!modDirSet)
+        {
+            moddir = bindir + "/modules";
         }
         return true;
     }
@@ -36,8 +71,10 @@ class CmdLineOptions
     static void createCmdLineOptions(po::options_description& desc)
     {
         desc.add_options()("help,h", "Print help message")(
-            "workingdir,w", po::value<std::string>(), "Working directory")(
-            "savedir,s", po::value<std::string>(), "Save directory");
+            "moddir,m", po::value<std::string>(), "Mod directory")(
+            "configdir,c", po::value<std::string>(), "Config directory")(
+            "bindir,b", po::value<std::string>(), "Binary directory")(
+            "workingdir,w", po::value<std::string>(), "Working directory");
     }
 
 
@@ -62,8 +99,13 @@ class CmdLineOptions
         return false;
     }
 
+    bool workingDirSet = false;
+    bool configDirSet = false;
+    bool modDirSet = false;
+    std::string moddir;
+    std::string configdir;
     std::string workingdir;
-    std::string savedir;
+    std::string bindir;
 };
 
 
@@ -77,9 +119,21 @@ class CmdLinOptionsServer : public CmdLineOptions
         {
             return false;
         }
-        if (vm.count("rerun"))
+        if (vm.count("savedir"))
         {
-            enableRerun = vm["rerun"].as<bool>();
+            savedir = vm["savedir"].as<std::string>();
+            if (!workingDirSet)
+            {
+                workingdir = savedir;
+            }
+            if (!configDirSet)
+            {
+                configdir = savedir;
+            }
+        }
+        else
+        {
+            savedir = ".";
         }
         return true;
     }
@@ -87,9 +141,7 @@ class CmdLinOptionsServer : public CmdLineOptions
     {
         CmdLineOptions::createCmdLineOptions(desc);
         desc.add_options()(
-            "rerun,R",
-            po::bool_switch()->default_value(false),
-            "Enable rerun streaming from server");
+            "savedir,s", po::value<std::string>(), "Save directory");
     }
     static bool handleDefaultCmdLineOptions(int argc,
                                             char* argv[],
@@ -112,7 +164,7 @@ class CmdLinOptionsServer : public CmdLineOptions
         return false;
     }
 
-    bool enableRerun = false;
+    std::string savedir;
 };
 
 

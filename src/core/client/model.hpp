@@ -64,6 +64,12 @@ struct RealtimeDrawBounds
     con::AABB aabb;
 };
 
+enum class AfterConnectState
+{
+    Menu,
+    Game
+};
+
 struct ClientTransform
 {
     ecs::Transform tr;
@@ -119,7 +125,6 @@ class Model
     void modelLoop(float dt);
 
     void startLoadingMods();
-    void startModel();
     void
     drawMap(gfx::RenderEngine& renderer, const glm::vec4& viewRect, float zoom);
     void drawMap(gfx::RenderEngine& renderer);
@@ -127,7 +132,8 @@ class Model
     void setOverlayEnabled(const std::string& overlay, bool enabled);
     bool isAabbTreeOverlayEnabled() const;
     void sendCmdToServer(const std::string& command);
-    void checkVersion(const net::ModelClientInfo& clientInfo);
+    void checkVersion(const net::ConnectData& connectData,
+        AfterConnectState after);
     void prepareForConnect();
     void disconnectFromServer();
     ConcurrentQueue<net::CmdQueueData> sendQueue;
@@ -312,6 +318,7 @@ class Model
     cfg::ConfigManager& config;
     net::TimeSync timeSyncData;
     ClientGameState gameState = ClientGameState::Init;
+    AfterConnectState afterConnectState = AfterConnectState::Menu;
     net::ExchangeSequence loadWorldSequence;
     world::World world;
     ui::UserInterface* userInterface;

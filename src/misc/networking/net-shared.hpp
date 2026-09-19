@@ -6,6 +6,27 @@
 namespace net
 {
 
+class TcpConnection;
+
+struct ConnectData
+{
+    std::string token = "1234abcd1234abcd";
+    std::string ipAddress = "127.0.0.1";
+    int udpPortServ = 29201;
+    int tcpPortServ = 29200;
+    int udpPortCli = 29202;
+#ifdef SERVER
+    udp::endpoint udpEndpoint;
+    asio::ip::address address;
+    TcpConnection* connection = nullptr;
+#endif
+};
+
+const ConnectData ConnectDataMenu = ConnectData{.token = "1234abcd1234abcd",
+                                                .ipAddress = "127.0.0.1",
+                                                .udpPortServ = 29201,
+                                                .tcpPortServ = 29200,
+                                                .udpPortCli = 29202};
 
 typedef std::function<
     void(udp::endpoint endpoint, const char* data, size_t length)>
@@ -13,12 +34,10 @@ typedef std::function<
 typedef std::function<void(const char* data, size_t length)> TcpReceiveCallback;
 
 class TcpConnection;
-typedef std::function<void(const char* data,
-                           size_t length,
-                           TcpConnection* connection)>
+typedef std::function<
+    void(const char* data, size_t length, TcpConnection* connection)>
     ReceiveCallbackConn;
-typedef std::function<void(TcpConnection* connection)>
-    TcpDisconnectCallback;
+typedef std::function<void(TcpConnection* connection)> TcpDisconnectCallback;
 typedef std::function<void()> ConnectionClosedCallback;
 
 enum class SendType
@@ -39,24 +58,6 @@ struct CmdQueueData
 
 typedef std::function<void(const net::CmdQueueData&)> TcpReceiveClb;
 
-struct ClientInfo
-{
-    std::string token;
-    int portUdp;
-    asio::ip::address address;
-    udp::endpoint udpEndpoint;
-    TcpConnection* connection = nullptr;
-};
-
-struct ModelClientInfo
-{
-    std::string token;
-    std::string ipAddress;
-    int udpPortServ;
-    int tcpPortServ;
-    int udpPortCli;
-};
-
 // EXT_SER(ClientInfo, s.text1b(o.token, 16); s.text1b(o.name, o.name.size());
 //         s.value2b(o.portUdp);
 //         s.text1b(o.address, o.address.size());)
@@ -76,14 +77,14 @@ struct TimeSync
 
 enum class RcvCmdState
 {
-  ParseCmd0,
-  ParseCmd1,
-  ParseFlags,
-  ParseLen0,
-  ParseLen1,
-  ParseLen2,
-  ParseLen3,
-  ParseData,
+    ParseCmd0,
+    ParseCmd1,
+    ParseFlags,
+    ParseLen0,
+    ParseLen1,
+    ParseLen2,
+    ParseLen3,
+    ParseData,
 };
 
 

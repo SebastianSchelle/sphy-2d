@@ -22,6 +22,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Source module directories
 MODULES="$PROJECT_ROOT/data/modules"
+DATA="$PROJECT_ROOT/data/data"
 DASLIB_SRC="$PROJECT_ROOT/thirdparty/dascript/daslib"
 
 # Executable names
@@ -44,6 +45,7 @@ fi
 
 # Destination modules directory
 DEPLOY_MODULES="$DEPLOY_DIR/modules"
+DEPLOY_DATA="$DEPLOY_DIR"
 DEPLOY_DAS_ROOT="$DEPLOY_DIR/daslib"
 DEPLOY_DASLIB="$DEPLOY_DAS_ROOT/daslib"
 
@@ -56,6 +58,7 @@ fi
 mkdir -p "$DEPLOY_DIR"
 mkdir -p "$DEPLOY_MODULES"
 mkdir -p "$DEPLOY_DASLIB"
+mkdir -p "$DEPLOY_DATA"
 
 # Array to track synced modules
 SYNCED_MODULES=()
@@ -86,6 +89,9 @@ if [ -d "$MODULES" ]; then
         fi
     done
 fi
+
+# Sync data folder
+rsync -av --delete "$DATA" "$DEPLOY_DATA"
 
 # Create modlist.txt with all synced modules
 MODLIST_FILE="$DEPLOY_MODULES/modlist.txt"

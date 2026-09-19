@@ -9,6 +9,7 @@ namespace osh
 
 std::filesystem::path getExecutablePath();
 std::filesystem::path getExecutableDir();
+std::filesystem::path executablePath();
 
 }
 

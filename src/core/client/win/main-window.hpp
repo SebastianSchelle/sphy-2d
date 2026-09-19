@@ -1,7 +1,9 @@
 #ifndef MAIN_WINDOW_HPP
 #define MAIN_WINDOW_HPP
 
+#include "atlas-debug-view.hpp"
 #include "localisation.hpp"
+#include "process.hpp"
 #include "ptr-handle.hpp"
 #include "std-inc.hpp"
 #include <GLFW/glfw3.h>
@@ -11,11 +13,11 @@
 #include <client.hpp>
 #include <cmd-options.hpp>
 #include <config-manager/config-manager.hpp>
+#include <control-def.hpp>
 #include <functional>
 #include <future>
 #include <mod-manager.hpp>
 #include <modding-tools.hpp>
-#include "atlas-debug-view.hpp"
 #include <model.hpp>
 #include <mutex>
 #include <render/render-engine.hpp>
@@ -25,7 +27,6 @@
 #include <ui/user-interface.hpp>
 #include <vector>
 #include <version.hpp>
-#include <control-def.hpp>
 #include <widgets.hpp>
 
 namespace ui
@@ -250,6 +251,8 @@ class MainWindow
 
     void onAfterLoadWorld();
 
+    void connectToServer(const net::ConnectData& connectData,
+                         sphyc::AfterConnectState after);
     void drawWorldRectangle(const def::SectorCoords& start,
                             const def::SectorCoords& end,
                             uint32_t colorABGR,
@@ -258,7 +261,7 @@ class MainWindow
 
     static Rml::Input::KeyIdentifier glfwToRmlKey(int key);
     void renderMenu();
-    void renderGame();
+    void renderUniverse();
     void renderModdingTools(bool mouseOverUi);
     void renderAtlasDebug(bool mouseOverUi);
     void processMouseMap(float zoom);
@@ -266,6 +269,7 @@ class MainWindow
     void setupThirdPersonCtrl();
     void setupMapCtrl();
     void determineUiEnvironment();
+    void startLocalServer(const string& savedir);
 
     GLFWwindow* window;
     WindowInfo wInfo;
@@ -308,6 +312,7 @@ class MainWindow
     float maxFps;
     float filteredFps = 60.0f;
     ecs::PtrHandle ptrHandle;
+    osh::Process localServerProc;
 };
 
 }  // namespace ui

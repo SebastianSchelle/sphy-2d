@@ -87,14 +87,14 @@ add_custom_target(deploy
 
 add_custom_target(
     run-server
-    COMMAND ${DEPLOY_DIR}/game-server -w ${DEPLOY_DIR} -s "${RUN_SERVER_SAVE_DIR}/test"
+    COMMAND ${DEPLOY_DIR}/game-server -s "${RUN_SERVER_SAVE_DIR}/test"
     DEPENDS deploy
     COMMENT "Running server (save: ${RUN_SERVER_SAVE_DIR})"
 )
 
 add_custom_target(
     run-client
-    COMMAND ${DEPLOY_DIR}/game-client -w ${DEPLOY_DIR}
+    COMMAND ${DEPLOY_DIR}/game-client
     DEPENDS deploy
     COMMENT "Running client"
 )

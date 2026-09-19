@@ -1,11 +1,14 @@
+#include "engine.hpp"
 #include "aabb-tree.hpp"
 #include "bitsery/serializer.h"
 #include "client-def.hpp"
 #include "comp-ai.hpp"
+#include "config-manager.hpp"
 #include "entt/entity/fwd.hpp"
 #include "free-vector.hpp"
 #include "lib-projectile.hpp"
 #include "logging.hpp"
+#include "magic_enum/magic_enum.hpp"
 #include "mod-manager.hpp"
 #include "rand-gen.hpp"
 #include "sector-registry.hpp"
@@ -14,6 +17,7 @@
 #include "sys-specsys.hpp"
 #include "task-basic.hpp"
 #include "task-system.hpp"
+#include <cmath>
 #include <comp-gfx.hpp>
 #include <comp-ident.hpp>
 #include <comp-phy.hpp>
@@ -46,8 +50,8 @@ namespace sphys
 Engine::Engine(const sphy::CmdLinOptionsServer& options,
                cfg::ConfigManager& config)
     : options(options), config(config), state(EngineState::Init), saveConfig(),
-      saveFolder(options.savedir), commandManager(), randWorldGen(0),
-      randTest(0), modManager(config)
+      commandManager(), randWorldGen(0), randTest(0),
+      modManager(config, options)
 {
     ptrHandle = new ecs::PtrHandle();
     ptrHandle->engine = this;
@@ -133,17 +137,6 @@ void Engine::start()
     registerSlowDumpComponent<ecs::Transform>();
     registerActiveSectorDumpComponent<ecs::Transform>();
     registerActiveSectorDumpComponent<ecs::Turret>();
-
-    testclient = registerClient(
-        def::ClientInfo("Based Laser King",
-                        net::ClientInfo{
-                            .token = "1234abcd1234abcd",
-                            .portUdp = 0,
-                            .address = asio::ip::make_address("0.0.0.0"),
-                        },
-                        def::Dbg::enConsole | def::Dbg::enCollAvoidInfo));
-
-    // engineThread = std::thread([this]() { engineLoop(); });
     engineLoop();
 }
 
@@ -206,7 +199,6 @@ void Engine::engineLoop()
             case EngineState::LoadWorld:
                 if (loadFromFolder())
                 {
-                    testSpawn();
                     state = EngineState::Running;
                 }
                 else
@@ -217,7 +209,7 @@ void Engine::engineLoop()
             case EngineState::CreateWorld:
                 if (createFromConfig())
                 {
-                    testSpawn();
+                    populateWorld();
                     state = EngineState::Running;
                 }
                 else
@@ -230,7 +222,11 @@ void Engine::engineLoop()
                 update(dt);
                 runConnectedClientWorkSequencers();
                 clientUpd(nowU);
-                DO_PERIODIC_U_EXTNOW(lastSaveTime, intAutosave, nowU, saveGame)
+                if (intAutosave != 0)
+                {
+                    DO_PERIODIC_U_EXTNOW(
+                        lastSaveTime, intAutosave, nowU, saveGame)
+                }
             }
             break;
             case EngineState::Paused:
@@ -254,7 +250,7 @@ void Engine::engineLoop()
     if (state == EngineState::Running || state == EngineState::Paused)
     {
         LG_I("Shutdown requested, saving game...");
-        // saveGame();
+        saveGame();
     }
 }
 
@@ -355,7 +351,7 @@ void Engine::runConnectedClientWorkSequencers()
 
 void Engine::startFromFolder()
 {
-    std::string saveFld = saveFolder + "/save-data";
+    std::string saveFld = options.savedir + "/save-data";
     if (fs::exists(saveFld))
     {
         state = EngineState::LoadWorld;
@@ -368,7 +364,7 @@ void Engine::startFromFolder()
 
 bool Engine::loadFromFolder()
 {
-    if (!world.createFromSave(saveConfig, saveFolder, ptrHandle))
+    if (!world.createFromSave(saveConfig, options.savedir, ptrHandle))
     {
         LG_E("Failed to load world from save");
         return false;
@@ -378,7 +374,7 @@ bool Engine::loadFromFolder()
 
 bool Engine::createFromConfig()
 {
-    std::string configPath = saveFolder + "/config.yaml";
+    std::string configPath = options.savedir + "/config.yaml";
     if (fs::exists(configPath))
     {
         saveConfig.clear();
@@ -393,10 +389,11 @@ bool Engine::createFromConfig()
             LG_E("Failed to create world from config");
             return false;
         }
+        populateWorld();
     }
     else
     {
-        LG_E("Config file not found");
+        LG_E("Config file not found: {}", configPath);
         return false;
     }
     LG_I("Creating from config: {}", configPath);
@@ -406,7 +403,7 @@ bool Engine::createFromConfig()
 bool Engine::loadMods()
 {
     LG_I("Loading mods");
-    std::string modListPath = saveFolder + "/modlist.txt";
+    std::string modListPath = options.moddir + "/modlist.txt";
 
     std::vector<std::string> modList;
     if (!modManager.parseModList(modListPath, modList))
@@ -414,7 +411,7 @@ bool Engine::loadMods()
         LG_E("Failed to parse mod list");
         return false;
     }
-    if (!modManager.checkDependencies(modList, "modules"))
+    if (!modManager.checkDependencies(modList, options.moddir))
     {
         LG_E("Failed to check dependencies");
         return false;
@@ -429,12 +426,15 @@ bool Engine::loadMods()
 
 void Engine::saveGame()
 {
-    world.saveWorld(saveFolder);
+    if (saveType != SaveType::Menu)
+    {
+        world.saveWorld(options.savedir);
+    }
 }
 
 def::ClientInfoHandle Engine::registerClient(const def::ClientInfo& clientInfo)
 {
-    return clientLib.addItem(clientInfo.clientInfo.token, clientInfo);
+    return clientLib.addItem(clientInfo.connectData.token, clientInfo);
 }
 
 void Engine::parseCommandData(const net::CmdQueueData& cmdData)
@@ -625,21 +625,21 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                     if (handle.isValid())
                     {
                         def::ClientInfo* clientInfo = clientLib.getItem(handle);
-                        if (clientInfo->clientInfo.connection != nullptr
-                            && clientInfo->clientInfo.connection
+                        if (clientInfo->connectData.connection != nullptr
+                            && clientInfo->connectData.connection
                                    != tcpConnection)
                         {
-                            clientInfo->clientInfo.connection->close();
+                            clientInfo->connectData.connection->close();
                         }
                         clientInfo->clearWorkSequencer();
                         auto address =
                             tcpConnection->socket().remote_endpoint().address();
-                        clientInfo->clientInfo.portUdp = portUdp;
-                        clientInfo->clientInfo.address = address;
-                        clientInfo->clientInfo.udpEndpoint =
+                        clientInfo->connectData.udpPortCli = portUdp;
+                        clientInfo->connectData.address = address;
+                        clientInfo->connectData.udpEndpoint =
                             udp::endpoint(address, portUdp);
-                        clientInfo->clientInfo.connection = tcpConnection;
-                        clientInfo->clientInfo.connection->setClientInfoHandle(
+                        clientInfo->connectData.connection = tcpConnection;
+                        clientInfo->connectData.connection->setClientInfoHandle(
                             *((net::TcpClientInfoHandle*)&handle));
                         bool alreadyConnected = false;
                         for (const auto& connected : connectedClientHandles)
@@ -1166,7 +1166,7 @@ void Engine::clientUpdRealtimeNewOpoolObjs(def::ClientInfo* clientInfo,
                     (secX == br.pos.x) ? br.sectorPos.x + 100.0f : halfSize,
                     (secY == br.pos.y) ? br.sectorPos.y + 100.0f : halfSize);
                 const con::AABB aabb{.lower = lower, .upper = upper};
-                const auto& udpEnd = clientInfo->clientInfo.udpEndpoint;
+                const auto& udpEnd = clientInfo->connectData.udpEndpoint;
 
                 prot::MsgComposer mc(net::SendType::UDP, udpEnd);
                 mc.startCommand(prot::cmd::SEND_DATA_PROJ, 0);
@@ -1222,7 +1222,7 @@ void Engine::clientUpdRealtimeDestroyedOpoolObjs(def::ClientInfo* clientInfo,
                     (secX == br.pos.x) ? br.sectorPos.x + 100.0f : halfSize,
                     (secY == br.pos.y) ? br.sectorPos.y + 100.0f : halfSize);
                 const con::AABB aabb{.lower = lower, .upper = upper};
-                const auto& udpEnd = clientInfo->clientInfo.udpEndpoint;
+                const auto& udpEnd = clientInfo->connectData.udpEndpoint;
 
                 prot::MsgComposer mc(net::SendType::UDP, udpEnd);
                 mc.startCommand(prot::cmd::SEND_DATA_PROJ, 0);
@@ -1329,7 +1329,7 @@ void Engine::clientUpdRealtime(def::ClientInfo* clientInfo, long frametime)
                     (secX == br.pos.x) ? br.sectorPos.x + 100.0f : halfSize,
                     (secY == br.pos.y) ? br.sectorPos.y + 100.0f : halfSize);
                 const con::AABB aabb{.lower = lower, .upper = upper};
-                const auto& udpEnd = clientInfo->clientInfo.udpEndpoint;
+                const auto& udpEnd = clientInfo->connectData.udpEndpoint;
 
                 sendOpoolData<opool::Projectile>(
                     clientInfo,
@@ -1557,11 +1557,11 @@ void Engine::clientUpdMapAddObjectdata(prot::MsgComposer& mc,
 void Engine::clientUpdGeneral(def::ClientInfo* clientInfo, long frametime)
 {
     prot::MsgComposer mc(net::SendType::UDP,
-                         clientInfo->clientInfo.udpEndpoint);
+                         clientInfo->connectData.udpEndpoint);
     mc.startCommand(prot::cmd::UPD_GEN_INFO, 0);
     uint16_t actCnt = playerSectors.size();
     mc.ser->value2b(actCnt);
-    for(auto sec : playerSectors)
+    for (auto sec : playerSectors)
     {
         mc.ser->value4b(sec);
     }
@@ -1588,7 +1588,7 @@ void Engine::clientUpdMap(def::ClientInfo* clientInfo, long frametime)
                     (secX == br.pos.x) ? br.sectorPos.x + 100.0f : halfSize,
                     (secY == br.pos.y) ? br.sectorPos.y + 100.0f : halfSize);
                 const con::AABB aabb{.lower = lower, .upper = upper};
-                const auto& udpEnd = clientInfo->clientInfo.udpEndpoint;
+                const auto& udpEnd = clientInfo->connectData.udpEndpoint;
 
                 prot::MsgComposer mcEcs(net::SendType::UDP, udpEnd);
                 mcEcs.startCommand(prot::cmd::UPD_ECS_MAP, 0);
@@ -1662,7 +1662,7 @@ void Engine::handleTcpDisconnect(net::TcpConnection* conn,
     {
         ci->clearWorkSequencer();
         ci->clearActiveSectors();
-        ci->clientInfo.connection = nullptr;
+        ci->connectData.connection = nullptr;
     }
     LG_I("TCP client disconnected (handle value={})", hv);
 }
@@ -1749,7 +1749,7 @@ void Engine::broadcastEntityToClients(ecs::EntityId entityId)
             {
                 return;
             }
-            sendAllComponents(entityId, clientInfo->clientInfo.connection);
+            sendAllComponents(entityId, clientInfo->connectData.connection);
         });
 }
 
@@ -1759,7 +1759,7 @@ void Engine::broadcastEntityDestructionToClients(ecs::EntityId entityId)
         [this, entityId](def::ClientInfo* clientInfo)
         {
             prot::MsgComposer mcomp(net::SendType::TCP,
-                                    clientInfo->clientInfo.connection);
+                                    clientInfo->connectData.connection);
             mcomp.startCommand(prot::cmd::DESTROY_ENTITY, 0);
             mcomp.ser->object(entityId);
             mcomp.execute(sendQueue);
@@ -1847,7 +1847,58 @@ ecs::EntityId Engine::spawnAsteroid(world::Sector* sector,
         });
 }
 
-void Engine::testSpawn()
+void Engine::populateMenuWorld()
+{
+    int ships = CFG_INT(saveConfig, 10.0f, "populate", "ships");
+    int asteroids = CFG_INT(saveConfig, 10.0f, "populate", "asteroids");
+    bool first = true;
+
+    auto menuClient = registerClient(
+        def::ClientInfo("Based Menu Chad",
+                        net::ConnectDataMenu,
+                        def::Dbg::enConsole | def::Dbg::enCollAvoidInfo));
+
+    auto randPos = [this]()
+    {
+        return vec2{randWorldGen.float_range(-world.getHalfSectorSize() * 0.8f,
+                                             world.getHalfSectorSize() * 0.8f),
+                    randWorldGen.float_range(-world.getHalfSectorSize() * 0.8f,
+                                             world.getHalfSectorSize() * 0.8f)};
+    };
+
+    for (int i = 0; i < ships; ++i)
+    {
+        vec2 pos = randPos();
+        float rot = randWorldGen.float_range(0, 2.0f * M_PIf);
+        auto sector = world.getSector(0);
+        auto ent = objb::ShipRecipe::spawn(
+            modManager.getShipRecipeLib().randomHandle(randWorldGen),
+            {.ptrHandle = ptrHandle, .sector = sector, .pos = pos, .rot = rot});
+
+        if (first)
+        {
+            first = false;
+            auto clientInfo = clientLib.getItem(menuClient);
+            clientInfo->activeEntity = ent;
+        }
+    }
+
+    for (int i = 0; i < asteroids; ++i)
+    {
+        vec2 pos = randPos();
+        float rot = randWorldGen.float_range(0, 2.0f * M_PIf);
+        auto sector = world.getSector(0);
+
+        objb::AsteroidRecipe rec(
+            modManager.getAsteroidLib().randomHandle(randWorldGen));
+        rec.spawn({.ptrHandle = ptrHandle,
+                   .sector = sector,
+                   .pos = pos,
+                   .naturalRot = rot});
+    }
+}
+
+void Engine::populateWorld()
 {
     static constexpr const char* kAssets[] = {
         "test1", "test2", "test3", "test4"};
@@ -1862,26 +1913,16 @@ void Engine::testSpawn()
     std::uniform_int_distribution<int> sectorPick(0,
                                                   world.getSectorCount() - 1);
 
-    gobj::ShipRecipe mosquito{
-        .hullHandle = modManager.getHullLib().getHandle("Mosquito"),
-        .modSlot = {
-            {0, modManager.getModuleLib().getHandle("Breeze")},
-            {1, modManager.getModuleLib().getHandle("Breeze Maneuver")},
-            {2, modManager.getModuleLib().getHandle("Breeze Maneuver")},
-            {3, modManager.getModuleLib().getHandle("Small Mining Turret")},
-            {4, modManager.getModuleLib().getHandle("Small Mining Turret")},
-            {5, modManager.getModuleLib().getHandle("Small Mining Turret")}}};
+    string saveTypeStr = CFG_STRING(saveConfig, "Normal", "type");
+    saveType =
+        magic_enum::enum_cast<SaveType>(saveTypeStr).value_or(SaveType::Normal);
 
-    gobj::ShipRecipe bumblebee{
-        .hullHandle = modManager.getHullLib().getHandle("Bumblebee"),
-        .modSlot = {
-            {0, modManager.getModuleLib().getHandle("Cargo Container S")},
-            {1, modManager.getModuleLib().getHandle("Cargo Container S")},
-            {2, modManager.getModuleLib().getHandle("Cargo Container S")},
-            {3, modManager.getModuleLib().getHandle("Cargo Container S")},
-            {4, modManager.getModuleLib().getHandle("Breeze")},
-            {5, modManager.getModuleLib().getHandle("Breeze Maneuver")}}};
+    if (saveType == SaveType::Menu)
+    {
+        populateMenuWorld();
+    }
 
+    /*;
     bool first = true;
 
     for (int i = 0; i < 10000; ++i)
@@ -1898,11 +1939,10 @@ void Engine::testSpawn()
         if (first)
         {
             first = false;
-            auto clientInfo = clientLib.getItem(testclient);
+            auto clientInfo = clientLib.getItem(menuClient);
             clientInfo->activeEntity = ent;
         }
     }
-    /*
     static constexpr const char* kStationParts[] = {
         "ter-strut-4", "ter-strut-3", "ter-habitat-1"};
     static constexpr const char* kStationParts2[] = {"ter-solar-s",
@@ -1984,28 +2024,6 @@ void Engine::testSpawn()
         //                    0);
     }
     */
-    for (int i = 0; i < 10000; ++i)
-    {
-        vec2 pos1 = vec2{posDist(gen), posDist(gen)};
-        vec2 pos2 = vec2{posDist(gen), posDist(gen)};
-        uint32_t sectorId = sectorPick(gen);
-        auto sector = world.getSector(sectorId);
-        float rot1 = (rotDist(gen) - M_PIf) / 10.0f;
-        float rot2 = (rotDist(gen) - M_PIf) / 10.0f;
-
-        objb::AsteroidRecipe rec(
-            modManager.getAsteroidLib().getHandle("Small Asteroid 1"));
-        rec.spawn({.ptrHandle = ptrHandle,
-                   .sector = sector,
-                   .pos = pos1,
-                   .naturalRot = rot1});
-        objb::AsteroidRecipe rec2(
-            modManager.getAsteroidLib().getHandle("Small Asteroid 2"));
-        rec2.spawn({.ptrHandle = ptrHandle,
-                    .sector = sector,
-                    .pos = pos2,
-                    .naturalRot = rot2});
-    }
 }
 
 void Engine::handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn)
@@ -2036,7 +2054,7 @@ void Engine::debugSendCollAvoidInfo(ecs::EntityId entId,
             if (clientInfo->activeEntity == entId)
             {
                 prot::MsgComposer mcomp(net::SendType::TCP,
-                                        clientInfo->clientInfo.connection);
+                                        clientInfo->connectData.connection);
                 mcomp.startCommand(prot::cmd::DBG_COLLAVOID_INFO_OLD, 0);
                 for (auto quad : bpQuads)
                 {
@@ -2247,4 +2265,4 @@ void Engine::forActiveClients(
 
 }  // namespace sphys
 
-template class con::ItemLib<net::ClientInfo>;
+// template class con::ItemLib<net::ClientInfo>;

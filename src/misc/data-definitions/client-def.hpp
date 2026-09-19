@@ -31,7 +31,8 @@ struct ClientViewRect
 
     bool operator==(const ClientViewRect& other) const
     {
-        return viewMode == other.viewMode && tl == other.tl && br == other.br && zoom == other.zoom;
+        return viewMode == other.viewMode && tl == other.tl && br == other.br
+               && zoom == other.zoom;
     }
     bool operator!=(const ClientViewRect& other) const
     {
@@ -52,12 +53,12 @@ class ClientInfo
   public:
 #ifdef SERVER
     ClientInfo(const std::string& name,
-               const net::ClientInfo& clientInfo,
+               const net::ConnectData& connectData,
                Dbg::Flags flags)
         : workSequencer(10000)
     {
         this->name = name;
-        this->clientInfo = clientInfo;
+        this->connectData = connectData;
         this->dbgFlags = flags;
         thirdPersonControl.flags = 0;
         lastClientUpdMap = tim::nowU();
@@ -68,17 +69,16 @@ class ClientInfo
 #ifdef CLIENT
     ClientInfo() {}
     ClientInfo(const std::string& name,
-               const net::ModelClientInfo& modelClientInfo,
+               const net::ConnectData& connectData,
                Dbg::Flags flags)
     {
         this->name = name;
-        this->modelClientInfo = modelClientInfo;
+        this->connectData = connectData;
         this->dbgFlags = flags;
     }
 #endif
     ~ClientInfo() {}
 #ifdef SERVER
-    net::ClientInfo clientInfo;
     long lastClientUpdFast3rd;
     long lastClientUpdMap;
     long lastClientUpdGeneral;
@@ -113,10 +113,7 @@ class ClientInfo
         activeSectors.insert(sectorId);
     }
 #endif
-#ifdef CLIENT
-    net::ModelClientInfo modelClientInfo;
-#endif
-
+    net::ConnectData connectData;
     ecs::EntityId activeEntity;
     uint32_t currentSector = 0;
     Dbg::Flags dbgFlags;

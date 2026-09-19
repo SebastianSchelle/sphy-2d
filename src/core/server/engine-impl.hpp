@@ -4,6 +4,7 @@
 #include "comp-tag.hpp"
 #include "engine.hpp"
 #include "free-vector.hpp"
+#include "net-shared.hpp"
 #include "protocol.hpp"
 #include "sector.hpp"
 
@@ -23,11 +24,11 @@ template <typename Component> void Engine::registerSlowDumpComponent()
 
     slowDumpComponents.push_back(CompClientDump(
         name,
-        [this, name](const net::ClientInfo* clientInfo,
+        [this, name](const net::ConnectData* connectData,
                      ecs::PtrHandle* ptrHandle)
         {
             prot::MsgComposer mcomp(net::SendType::UDP,
-                                    clientInfo->udpEndpoint);
+                                    connectData->udpEndpoint);
             mcomp.startCommand(prot::cmd::SLOW_DUMP, 0);
             mcomp.ser->value4b(hashConst(name.c_str()));
 
@@ -124,12 +125,12 @@ void Engine::registerActiveSectorDumpComponent(DumpFilter filter)
 
     activeSectorUpdates.push_back(CompActiveSectorUpdate(
         name,
-        [this, name, filter](const net::ClientInfo* clientInfo,
+        [this, name, filter](const net::ConnectData* connectData,
                              uint32_t sectorId,
                              ecs::PtrHandle* ptrHandle)
         {
             prot::MsgComposer mcomp(net::SendType::UDP,
-                                    clientInfo->udpEndpoint);
+                                    connectData->udpEndpoint);
             mcomp.startCommand(prot::cmd::ACTIVE_SECTOR_UPDATE, 0);
             mcomp.ser->value4b(hashConst(name.c_str()));
 
@@ -221,7 +222,7 @@ void Engine::sendOpoolData(
                        typename con::FreeVec<T>::Handle handle)> serClb,
     uint16_t clearCmd)
 {
-    prot::MsgComposer mcomp(net::SendType::UDP, client->clientInfo.udpEndpoint);
+    prot::MsgComposer mcomp(net::SendType::UDP, client->connectData.udpEndpoint);
     if (sector)
     {
         if (clearCmd)

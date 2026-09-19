@@ -22,11 +22,7 @@ class Client
            ConcurrentQueue<net::CmdQueueData>& modelSendQueue,
            ConcurrentQueue<net::CmdQueueData>& modelReceiveQueue);
     ~Client();
-    void connectToServer(const std::string& ipAddress,
-                         int udpPortServ,
-                         int tcpPortServ,
-                         int udpPortCli,
-                         const std::string& token);
+    bool connectToServer(const net::ConnectData& connectdata);
     void setShutdownCallback(std::function<void()> cb)
     {
         shutdownCallback = std::move(cb);

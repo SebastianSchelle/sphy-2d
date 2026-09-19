@@ -93,7 +93,7 @@ class DasLoggingContext : public das::Context
     }
 };
 
-void ensureDasRuntimeForCurrentThread()
+void ensureDasRuntimeForCurrentThread(const string& daslibpath)
 {
     if (gDasThreadRuntimeReady)
     {
@@ -105,11 +105,11 @@ void ensureDasRuntimeForCurrentThread()
 
     // Global module setup must happen exactly once process-wide.
     std::call_once(gDasGlobalRuntimeInitOnce,
-                   []()
+                   [daslibpath]()
                    {
                        // "daslib" = deploy/daslib; stdlib is
                        // getDasRoot()+"/daslib/" (…/daslib/daslib/)
-                       das::setDasRoot("daslib");
+                       das::setDasRoot(daslibpath);
                        // Same set as the daslang console (incl. UriParser,
                        // JobQue, …).
                        das::register_builtin_modules();
@@ -124,7 +124,19 @@ void ensureDasRuntimeForCurrentThread()
 
 }  // namespace
 
-ModManager::ModManager(cfg::ConfigManager& config) : config(config) {}
+#ifdef SERVER
+ModManager::ModManager(cfg::ConfigManager& config,
+                       const sphy::CmdLinOptionsServer& options)
+    : config(config), options(options)
+{
+}
+#else
+ModManager::ModManager(cfg::ConfigManager& config,
+                       const sphy::CmdLinOptionsClient& options)
+    : config(config), options(options)
+{
+}
+#endif
 
 ModManager::~ModManager() {}
 
@@ -359,7 +371,7 @@ bool ModManager::loadScripts(PtrHandles& ptrHandles,
     // With DAS_FREE_LIST enabled, each worker thread that compiles scripts
     // should hold a cache guard for the duration of that compilation scope.
     das::ReuseCacheGuard reuseCacheGuard;
-    ensureDasRuntimeForCurrentThread();
+    ensureDasRuntimeForCurrentThread(options.bindir + "/daslib");
     for (YAML::const_iterator it = scripts.begin(); it != scripts.end(); ++it)
     {
         if (it->first.IsScalar() && it->second.IsScalar())

@@ -1,6 +1,7 @@
 #ifndef MOD_MANAGER_HPP
 #define MOD_MANAGER_HPP
 
+#include "cmd-options.hpp"
 #include "config-manager.hpp"
 #include "lib-recipes.hpp"
 #ifdef CLIENT
@@ -20,16 +21,16 @@ class UserInterface;
 #include <asset-factory.hpp>
 #include <functional>
 #include <item-lib.hpp>
-#include <std-inc.hpp>
-#include <lib-hull.hpp>
-#include <lib-modules.hpp>
-#include <lib-textures.hpp>
-#include <lib-collider.hpp>
-#include <lib-station-part.hpp>
-#include <lib-projectile.hpp>
-#include <lib-item.hpp>
 #include <lib-asteroid.hpp>
+#include <lib-collider.hpp>
+#include <lib-hull.hpp>
+#include <lib-item.hpp>
+#include <lib-modules.hpp>
+#include <lib-projectile.hpp>
 #include <lib-recipes.hpp>
+#include <lib-station-part.hpp>
+#include <lib-textures.hpp>
+#include <std-inc.hpp>
 
 #ifdef FMT_THROW
 #pragma push_macro("FMT_THROW")
@@ -154,7 +155,11 @@ class ResourceMap
 class ModManager
 {
   public:
-    ModManager(cfg::ConfigManager& config);
+#ifdef SERVER
+    ModManager(cfg::ConfigManager& config, const sphy::CmdLinOptionsServer& options);
+#else
+    ModManager(cfg::ConfigManager& config, const sphy::CmdLinOptionsClient& options);
+#endif
     ~ModManager();
     bool parseModList(const std::string& modList,
                       std::vector<std::string>& modListVec);
@@ -221,6 +226,7 @@ class ModManager
     {
         return shipRecipeLib;
     }
+
   private:
     bool checkDependency(const std::string& modId,
                          std::vector<std::string>& modList,
@@ -245,7 +251,8 @@ class ModManager
 #endif
     bool runInitScript(PtrHandles& ptrHandles, const ModInfo& modInfo);
     bool loadGameLibs(PtrHandles& ptrHandles, const ModInfo& modInfo);
-    /** Load one YAML game-objects file. Dependencies pass must run before GameObjects for the same mod. */
+    /** Load one YAML game-objects file. Dependencies pass must run before
+     * GameObjects for the same mod. */
     enum class GameLibLoadPhase : uint8_t
     {
         Dependencies,
@@ -265,6 +272,11 @@ class ModManager
     con::ItemLib<Mod> modLib;
     std::vector<ModHandle> modHandles;
     ResourceMap resourceMap;
+#ifdef SERVER
+    const sphy::CmdLinOptionsServer& options;
+#else
+    const sphy::CmdLinOptionsClient& options;
+#endif
 
     con::ItemLib<gobj::Hull> hullLib;
     con::ItemLib<gobj::ModuleSlot> moduleSlotLib;
