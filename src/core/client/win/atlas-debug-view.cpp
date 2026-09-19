@@ -91,8 +91,8 @@ void AtlasDebugView::closeUi(ui::UserInterface& userInterface,
     userInterface.hideDocument(
         userInterface.getDocumentHandle("atlas-debug-menu"));
     //model.gotoMenu();
-    userInterface.hideMenu();
-    userInterface.showMenu();
+    userInterface.menuHide();
+    userInterface.menuShow();
 }
 
 void AtlasDebugView::dirtyModel()

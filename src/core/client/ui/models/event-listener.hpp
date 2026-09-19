@@ -121,7 +121,7 @@ struct DataModel
   protected:
     EventListener eventListener;
     Rml::DataModelHandle rmlHandle;
-    void init(Rml::DataModelConstructor& constructor,
+    void setup(Rml::DataModelConstructor& constructor,
               Rml::DataModelHandle rmlHdl,
               const EventFunctions& eventFunctions)
     {

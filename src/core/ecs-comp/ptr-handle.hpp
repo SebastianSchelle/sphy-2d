@@ -24,6 +24,10 @@ namespace sphyc
 {
 class Client;
 }
+namespace ui
+{
+class UserInterface;
+}
 #endif
 
 namespace sthread
@@ -83,6 +87,7 @@ struct PtrHandle
 #elif CLIENT
     sphyc::Client* client;
     ui::Localisation* locale;
+    ui::UserInterface* userInterface;
 #endif
 };
 

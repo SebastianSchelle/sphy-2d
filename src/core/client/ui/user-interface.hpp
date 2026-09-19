@@ -5,13 +5,15 @@
 #include "RmlUi/Core/DataModelHandle.h"
 #include "config-manager.hpp"
 #include "config-node.hpp"
+#include "document-stack.hpp"
+#include "ptr-handle.hpp"
 #include "ui-tab-panel.hpp"
 #include "user-input.hpp"
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <functional>
 #include <item-lib.hpp>
-#include <main-menu.hpp>
+#include <dm-window.hpp>
 #include <memory>
 
 using UiDocHandle = con::ItemLib<Rml::ElementDocument*>::Handle;
@@ -60,7 +62,7 @@ class ChatInputChangeListener;
 class UserInterface
 {
   public:
-    UserInterface(cfg::ConfigManager& config, CmdCallback cmdCallback);
+    UserInterface(cfg::ConfigManager& config, ecs::PtrHandle* ptrHandle);
     ~UserInterface();
     bool init(glm::ivec2 windowSize);
     void update();
@@ -78,15 +80,18 @@ class UserInterface
     void showDocument(const string& documentId);
     void hideDocument(UiDocHandle handle);
     void hideDocument(const string& documentId);
+    bool docVisible(UiDocHandle handle);
+    bool docVisible(const string& documentId);
     void hideAllDocuments();
     UiDocHandle getDocumentHandle(const std::string& name);
-    void showMenu();
-    void hideMenu();
+    void menuShow();
+    void menuHide();
+    void menuPush(const string& id, const string& title);
     void showConnecting();
     void hideConnecting();
     void hideTabListMap();
     void showTabListMap();
-    void processEsc(bool keepMenuOpen = false);
+    void processEsc(bool allowClose = true);
     void addSystemMessage(const string& message);
     void addChatMessage(const ChatMessage& message);
     void setChatCmdHistoryMax(unsigned maxHistoryEntries);
@@ -98,10 +103,6 @@ class UserInterface
 
     Rml::DataModelConstructor getDataModel(const std::string& name);
 
-
-    void onMenuNavigate(Rml::DataModelHandle handle,
-                        Rml::Event& event,
-                        const Rml::VariantList& args);
     void onMenuBack(Rml::DataModelHandle handle,
                     Rml::Event& event,
                     const Rml::VariantList& args);
@@ -116,7 +117,7 @@ class UserInterface
     }
     bool isMenuOpen() const
     {
-        return menuOpen;
+        return menuStack.isOpen();
     }
     UserInput& getUserInput()
     {
@@ -163,19 +164,18 @@ class UserInterface
 
     con::ItemLib<Rml::ElementDocument*> rmlDocLib;
     Rml::Context* rmlContext;
+    ecs::PtrHandle* ptrHandle;
 
     bool mouseOverUi;
     bool mouseDownInteract[3];
     bool mouseUpInteract[3];
     bool mouseWheelInteract;
-    bool menuOpen = false;
     bool chatOpen = false;
     bool debugOpen = false;
     bool tabListStrategicOpen = false;
     bool tabListMap = false;
 
-    vector<string> menuStack;
-    string currentMenuPage;
+    DocumentStack<string> menuStack;
 
     cfg::ConfigManager& config;
     ChatData chatData;
@@ -187,7 +187,6 @@ class UserInterface
 
     std::unique_ptr<ChatInputChangeListener> chatInputChangeListener;
 
-    CmdCallback cmdCallback;
     unsigned maxCmdHistoryEntries = 50;
     std::vector<std::string> cmdHistory;
     int cmdHistoryBrowseIndex = -1;
@@ -201,9 +200,9 @@ class UserInterface
     InputEvent::Environment uiEnvironment = InputEvent::Environment::General;
 
     // Data models
-    DmMainMenu dmMainMenu;
+    DmWindow dmMenu;
     // Rml models
-    Rml::DataModelHandle dmhMainMenu;
+    Rml::DataModelHandle dmhMenu;
 };
 
 }  // namespace ui

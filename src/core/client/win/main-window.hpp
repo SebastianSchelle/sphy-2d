@@ -70,21 +70,21 @@ struct WindowInfo
     glm::ivec2 size;
 };
 
-struct UiMenuConnectData
-{
-    std::string token = "1234abcd1234abcd";
-    std::string ipAddress = "127.0.0.1";
-    int udpPortServ = 29201;
-    int tcpPortServ = 29200;
-    int udpPortCli = 29202;
-};
+// struct UiMenuConnectData
+// {
+//     std::string token = "1234abcd1234abcd";
+//     std::string ipAddress = "127.0.0.1";
+//     int udpPortServ = 29201;
+//     int tcpPortServ = 29200;
+//     int udpPortCli = 29202;
+// };
 
-struct UiMenuData
-{
-    vector<mod::MenuDataMod> mods;
-    UiMenuConnectData connectData;
-    bool inGame = false;
-};
+// struct UiMenuData
+// {
+//     vector<mod::MenuDataMod> mods;
+//     UiMenuConnectData connectData;
+//     bool inGame = false;
+// };
 
 struct UiDebugGameObject
 {
@@ -218,7 +218,6 @@ class MainWindow
     void setupDataModelDebug();
     void updateDebugDataModel(float deltaTimeSec, bool ptrOverUi);
     void setupDataModelMenu();
-    void updateMenuDataModel();
 
     void stopServer();
 
@@ -298,7 +297,6 @@ class MainWindow
     Rml::DataModelHandle rmlModelMenu;
     Rml::DataModelHandle rmlModelHud;
 
-    UiMenuData menuData;
     UiDebugData debugData;
 
     boost::process::v1::child* serverProcess = nullptr;

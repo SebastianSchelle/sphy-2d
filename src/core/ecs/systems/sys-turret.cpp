@@ -11,6 +11,7 @@
 #include "ptr-handle.hpp"
 #include "std-inc.hpp"
 #include "turret-def.hpp"
+#include <cmath>
 #include <engine.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/norm.hpp>
@@ -357,6 +358,22 @@ void sysCollectorImpl(world::Sector* sector,
                     {
                         gobj::mdata::Collector collectorData =
                             std::get<gobj::mdata::Collector>(moduleItem->data);
+                        gobj::Beam* collBeam =
+                            ptrHandle->modManager->getBeamLib().getItem(
+                                collectorData.beam);
+
+                        const float range = collBeam->range;
+                        float dist2loc =
+                            glm::length2(item->transform.pos - transform.pos);
+                        if (dist2loc > range * range)
+                        {
+                            LG_D("{} of {}", std::sqrtf(dist2loc), range);
+                            sector->beamPool.destroyObject(
+                                collector.beamHandle);
+                            collector.currTarget = GenericHandle32::Invalid();
+                            return;
+                        }
+
                         auto beam =
                             sector->beamPool.getObject(collector.beamHandle);
                         if (beam)

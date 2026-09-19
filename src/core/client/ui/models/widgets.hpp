@@ -120,26 +120,6 @@ template <class T> struct RadioButtons
     }
 };
 
-
-struct Window
-{
-    string title;
-    bool movable;
-    bool closable;
-
-    static void RegisterType(Rml::DataModelConstructor& constructor)
-    {
-        if (auto handle = constructor.RegisterStruct<Window>())
-        {
-            handle.RegisterMember("title", &Window::title);
-            handle.RegisterMember("movable", &Window::movable);
-            handle.RegisterMember("closable", &Window::closable);
-        }
-    }
-
-};
-
-
 }  // namespace widget
 }  // namespace ui
 

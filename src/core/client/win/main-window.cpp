@@ -90,8 +90,7 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
       renderEngine(config), rmlUiRenderInterface(&renderEngine),
       client(config, model.sendQueue, model.receiveQueue),
       modManager(config, options), modLoadingHandle(UiDocHandle::Invalid()),
-      userInterface(config,
-                    std::bind(&MainWindow::onCmd, this, std::placeholders::_1)),
+      userInterface(config, &ptrHandle),
       model(&userInterface,
             config,
             &modManager,
@@ -105,6 +104,7 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
 
     ptrHandle.modManager = &modManager;
     ptrHandle.locale = &locale;
+    ptrHandle.userInterface = &userInterface;
 
     uint8_t logLevel = CFG_UINT(config, 1.0f, "loglevel");
     debug::createLogger("logs/logClient.txt", logLevel);
@@ -197,9 +197,9 @@ bool MainWindow::initPre()
 
 bool MainWindow::initPost()
 {
-    modManager.populateMenuData(menuData.mods);
-    rmlModelMenu.DirtyVariable("mods");
-    userInterface.showMenu();
+    // todo: populate mod data in menu
+    // modManager.populateMenuData(menuData.mods);
+    userInterface.menuShow();
     return true;
 }
 
@@ -218,8 +218,8 @@ bool MainWindow::createWindow()
         {
             if (wWidth == 0 || wHeight == 0)
             {
-                wWidth = 800;
-                wHeight = 600;
+                wWidth = 1080;
+                wHeight = 720;
             }
         }
         break;
@@ -385,12 +385,6 @@ void MainWindow::winLoop()
         {
             updateDebugDataModel(dt, mouseOverUi);
             rmlModelDebug.DirtyAllVariables();
-        }
-
-        if (userInterface.isMenuOpen())
-        {
-            updateMenuDataModel();
-            rmlModelMenu.DirtyAllVariables();
         }
 
         userInterface.update();
@@ -871,7 +865,7 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
     if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE)
     {
         userInterface.processEsc(model.getGameState()
-                                 == ClientGameState::MainMenu);
+                                 != ClientGameState::MainMenu);
         return;
     }
 
@@ -969,11 +963,6 @@ Rml::Input::KeyIdentifier MainWindow::glfwToRmlKey(int key)
     }
 
     return KI_UNKNOWN;
-}
-
-void MainWindow::updateMenuDataModel()
-{
-    menuData.inGame = model.getGameState() == ClientGameState::GameLoop;
 }
 
 void MainWindow::updateDebugDataModel(float deltaTimeSec, bool ptrOverUi)
@@ -1229,57 +1218,57 @@ void MainWindow::setupDataModelDebug()
 
 void MainWindow::setupDataModelMenu()
 {
-    auto menuConstructor = userInterface.getDataModel("menu");
-    if (menuConstructor)
-    {
-        LG_D("Data model 'menu' created");
-        menuConstructor.BindEventCallback(
-            "onNavigate", &UserInterface::onMenuNavigate, &userInterface);
-        menuConstructor.BindEventCallback("onQuit", &MainWindow::onQuit, this);
-        menuConstructor.BindEventCallback(
-            "onBack", &UserInterface::onMenuBack, &userInterface);
-        menuConstructor.BindEventCallback(
-            "onExitToMenu", &MainWindow::onExitToMenu, this);
-        menuConstructor.BindEventCallback(
-            "onNewGame", &MainWindow::onNewGame, this);
-        menuConstructor.BindEventCallback(
-            "onStartModdingTools", &MainWindow::onStartModdingTools, this);
-        menuConstructor.BindEventCallback(
-            "onStartAtlasDebug", &MainWindow::onStartAtlasDebug, this);
-        menuConstructor.BindEventCallback(
-            "connectToServer", &MainWindow::onConnectToServer, this);
+    // auto menuConstructor = userInterface.getDataModel("menu");
+    // if (menuConstructor)
+    // {
+    //     LG_D("Data model 'menu' created");
+    //     menuConstructor.BindEventCallback(
+    //         "onNavigate", &UserInterface::onMenuNavigate, &userInterface);
+    //     menuConstructor.BindEventCallback("onQuit", &MainWindow::onQuit, this);
+    //     menuConstructor.BindEventCallback(
+    //         "onBack", &UserInterface::onMenuBack, &userInterface);
+    //     menuConstructor.BindEventCallback(
+    //         "onExitToMenu", &MainWindow::onExitToMenu, this);
+    //     menuConstructor.BindEventCallback(
+    //         "onNewGame", &MainWindow::onNewGame, this);
+    //     menuConstructor.BindEventCallback(
+    //         "onStartModdingTools", &MainWindow::onStartModdingTools, this);
+    //     menuConstructor.BindEventCallback(
+    //         "onStartAtlasDebug", &MainWindow::onStartAtlasDebug, this);
+    //     menuConstructor.BindEventCallback(
+    //         "connectToServer", &MainWindow::onConnectToServer, this);
 
-        if (auto md_handle = menuConstructor.RegisterStruct<mod::MenuDataMod>())
-        {
-            md_handle.RegisterMember("id", &mod::MenuDataMod::id);
-            md_handle.RegisterMember("name", &mod::MenuDataMod::name);
-            md_handle.RegisterMember("description",
-                                     &mod::MenuDataMod::description);
-            md_handle.RegisterMember("hasModOptions",
-                                     &mod::MenuDataMod::hasModOptions);
-        }
-        menuConstructor.RegisterArray<std::vector<mod::MenuDataMod>>();
-        menuConstructor.Bind("mods", &menuData.mods);
+    //     if (auto md_handle = menuConstructor.RegisterStruct<mod::MenuDataMod>())
+    //     {
+    //         md_handle.RegisterMember("id", &mod::MenuDataMod::id);
+    //         md_handle.RegisterMember("name", &mod::MenuDataMod::name);
+    //         md_handle.RegisterMember("description",
+    //                                  &mod::MenuDataMod::description);
+    //         md_handle.RegisterMember("hasModOptions",
+    //                                  &mod::MenuDataMod::hasModOptions);
+    //     }
+    //     menuConstructor.RegisterArray<std::vector<mod::MenuDataMod>>();
+    //     menuConstructor.Bind("mods", &menuData.mods);
 
-        if (auto md_handle =
-                menuConstructor.RegisterStruct<UiMenuConnectData>())
-        {
-            md_handle.RegisterMember("token", &UiMenuConnectData::token);
-            md_handle.RegisterMember("ipAddress",
-                                     &UiMenuConnectData::ipAddress);
-            md_handle.RegisterMember("udpPortServ",
-                                     &UiMenuConnectData::udpPortServ);
-            md_handle.RegisterMember("tcpPortServ",
-                                     &UiMenuConnectData::tcpPortServ);
-            md_handle.RegisterMember("udpPortCli",
-                                     &UiMenuConnectData::udpPortCli);
-        }
-        menuConstructor.Bind("connectData", &menuData.connectData);
+    //     if (auto md_handle =
+    //             menuConstructor.RegisterStruct<UiMenuConnectData>())
+    //     {
+    //         md_handle.RegisterMember("token", &UiMenuConnectData::token);
+    //         md_handle.RegisterMember("ipAddress",
+    //                                  &UiMenuConnectData::ipAddress);
+    //         md_handle.RegisterMember("udpPortServ",
+    //                                  &UiMenuConnectData::udpPortServ);
+    //         md_handle.RegisterMember("tcpPortServ",
+    //                                  &UiMenuConnectData::tcpPortServ);
+    //         md_handle.RegisterMember("udpPortCli",
+    //                                  &UiMenuConnectData::udpPortCli);
+    //     }
+    //     menuConstructor.Bind("connectData", &menuData.connectData);
 
-        menuConstructor.Bind("inGame", &menuData.inGame);
+    //     menuConstructor.Bind("inGame", &menuData.inGame);
 
-        rmlModelMenu = menuConstructor.GetModelHandle();
-    }
+    //     rmlModelMenu = menuConstructor.GetModelHandle();
+    // }
 }
 
 void MainWindow::onNewGame(Rml::DataModelHandle handle,
@@ -1376,7 +1365,7 @@ void MainWindow::onQuit(Rml::DataModelHandle handle,
                         Rml::Event& event,
                         const Rml::VariantList& args)
 {
-    userInterface.hideMenu();
+    userInterface.menuHide();
     client.shutdown();
     stopServer();
     glfwSetWindowShouldClose(window, GLFW_TRUE);

@@ -1,15 +1,58 @@
-#ifndef MAIN_MENU_HPP
-#define MAIN_MENU_HPP
+#ifndef DM_WINDOW_HPP
+#define DM_WINDOW_HPP
 
-#include "logging.hpp"
-#include "process.hpp"
 #include "widgets.hpp"
+#include <client.hpp>
 #include <event-listener.hpp>
 
 namespace ui
 {
 
-struct DmMainMenu : public DataModel
+struct DmWindow : public DataModel
+{
+    string title;
+    bool movable;
+    bool closable;
+    std::vector<widget::Button> buttons;
+
+    static void RegisterType(Rml::DataModelConstructor& constructor)
+    {
+        widget::Button::RegisterType(constructor);
+        widget::Checkbox::RegisterType(constructor);
+        widget::RadioButtons<int>::RegisterType(constructor);
+
+        if (auto handle = constructor.RegisterStruct<DmWindow>())
+        {
+            handle.RegisterMember("title", &DmWindow::title);
+            handle.RegisterMember("movable", &DmWindow::movable);
+            handle.RegisterMember("closable", &DmWindow::closable);
+        }
+    }
+
+    void setup(Rml::DataModelConstructor& constructor,
+              Rml::DataModelHandle rmlHdl,
+              const EventFunctions& eventFunctions)
+    {
+        constructor.Bind("win", this);
+        for (auto& b : buttons)
+        {
+            constructor.Bind(b.id, &b);
+        }
+        DataModel::setup(constructor, rmlHdl, eventFunctions);
+    }
+
+    void addButton(Rml::DataModelConstructor& constructor,
+                   const widget::Button& button,
+                   OnClickClb onClick)
+    {
+        buttons.push_back(button);
+        auto& b = buttons.back();
+        eventListener.createOnclick(b, onClick);
+    }
+};
+
+/*
+struct DmTest : public DataModel
 {
     widget::Button testButton = widget::Button{.id = "test",
                                                .label = "Test",
@@ -47,7 +90,7 @@ struct DmMainMenu : public DataModel
 
     widget::Window win{.title = "[menu.main.title]",
                        .movable = false,
-                       .closable = true};
+                       .closable = false};
 
     static void RegisterType(Rml::DataModelConstructor& constructor)
     {
@@ -56,14 +99,14 @@ struct DmMainMenu : public DataModel
         widget::RadioButtons<int>::RegisterType(constructor);
         widget::Window::RegisterType(constructor);
 
-        if (auto handle = constructor.RegisterStruct<DmMainMenu>())
+        if (auto handle = constructor.RegisterStruct<DmTest>())
         {
-            handle.RegisterMember("testButton", &DmMainMenu::testButton);
-            handle.RegisterMember("testButton2", &DmMainMenu::testButton2);
-            handle.RegisterMember("testCheckbox", &DmMainMenu::testCheckbox);
-            handle.RegisterMember("testCheckbox2", &DmMainMenu::testCheckbox2);
-            handle.RegisterMember("radio", &DmMainMenu::radioButtons);
-            handle.RegisterMember("win", &DmMainMenu::win);
+            handle.RegisterMember("testButton", &DmTest::testButton);
+            handle.RegisterMember("testButton2", &DmTest::testButton2);
+            handle.RegisterMember("testCheckbox", &DmTest::testCheckbox);
+            handle.RegisterMember("testCheckbox2", &DmTest::testCheckbox2);
+            handle.RegisterMember("radio", &DmTest::radioButtons);
+            handle.RegisterMember("win", &DmTest::win);
         }
     }
 
@@ -78,13 +121,13 @@ struct DmMainMenu : public DataModel
                                     {
                                         LG_D("Start Process");
                                         osh::Process process;
-                                        if(!process.Start("ls", {}))
+                                        if (!process.Start("ls", {}))
                                         {
                                             LG_E("ls could not be run");
                                             return;
                                         }
                                         int exitCode = process.Wait();
-                                        if(exitCode != 0)
+                                        if (exitCode != 0)
                                         {
                                             LG_E("ls failed");
                                         }
@@ -111,6 +154,7 @@ struct DmMainMenu : public DataModel
                                      });
     }
 };
+*/
 
 }  // namespace ui
 

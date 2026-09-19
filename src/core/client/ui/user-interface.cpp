@@ -1,13 +1,13 @@
 #include "user-interface.hpp"
 #include "RmlUi/Core/DataModelHandle.h"
-#include "RmlUi/Core/Elements/ElementFormControlInput.h"
 #include "RmlUi/Core/EventListener.h"
 #include "RmlUi/Core/ID.h"
 #include "RmlUi/Core/Input.h"
 #include "config-manager.hpp"
-#include "main-menu.hpp"
+#include "dm-window.hpp"
+#include "document-stack.hpp"
+#include "ptr-handle.hpp"
 #include <GLFW/glfw3.h>
-#include <climits>
 #include <iomanip>
 #include <limits>
 #include <render-engine.hpp>
@@ -58,10 +58,13 @@ void ChatData::addMessage(const ChatMessage& message)
 }
 
 UserInterface::UserInterface(cfg::ConfigManager& config,
-                             CmdCallback cmdCallback)
-    : config(config), cmdCallback(cmdCallback),
-      tabPanelStrategic(this, "tab-panel-strategic"),
-      tabPanelTactical(this, "tab-panel-tactical")
+                             ecs::PtrHandle* ptrHandle)
+    : config(config), tabPanelStrategic(this, "tab-panel-strategic"),
+      tabPanelTactical(this, "tab-panel-tactical"),
+      menuStack([this](const string& id) { showDocument(id); },
+                [this](const string& id) { hideDocument(id); },
+                [this](const string& id) { return docVisible(id); }),
+      ptrHandle(ptrHandle)
 {
     chatData.currMsgTarget = "all";
 }
@@ -341,7 +344,7 @@ bool UserInterface::loadFont(const std::string& fontPath)
 void UserInterface::showDocument(UiDocHandle handle)
 {
     auto doc = rmlDocLib.getItem(handle);
-    if (doc)
+    if (doc && !(*doc)->IsVisible())
     {
         LG_D("Showing document: {}", (*doc)->GetTitle());
         (*doc)->Show(Rml::ModalFlag::None, Rml::FocusFlag::Auto);
@@ -364,7 +367,7 @@ void UserInterface::showDocument(const string& documentId)
 void UserInterface::hideDocument(UiDocHandle handle)
 {
     auto doc = rmlDocLib.getItem(handle);
-    if (doc)
+    if (doc && (*doc)->IsVisible())
     {
         LG_D("Hiding document: {}", (*doc)->GetTitle());
         (*doc)->Hide();
@@ -384,6 +387,28 @@ void UserInterface::hideDocument(const string& documentId)
     }
 }
 
+
+bool UserInterface::docVisible(UiDocHandle handle)
+{
+    auto doc = rmlDocLib.getItem(handle);
+    return doc && (*doc)->IsVisible();
+}
+
+bool UserInterface::docVisible(const string& documentId)
+{
+    auto doc = rmlDocLib.getHandle(documentId);
+    if (doc.isValid())
+    {
+        return docVisible(doc);
+    }
+    else
+    {
+        LG_W("Document not found: {}", documentId);
+        return false;
+    }
+}
+
+
 void UserInterface::hideAllDocuments()
 {
     for (auto& doc : rmlDocLib.getItems())
@@ -391,7 +416,6 @@ void UserInterface::hideAllDocuments()
         (*doc)->Hide();
     }
     menuStack.clear();
-    menuOpen = false;
     chatOpen = false;
     debugOpen = false;
     tabListStrategicOpen = false;
@@ -433,23 +457,28 @@ UserInterface::getHandle(const string& name)
     return handle;
 }
 
-void UserInterface::showMenu()
+void UserInterface::menuShow()
 {
-    if (!menuOpen)
+    if (menuStack.size())
     {
-        LG_D("Show main window");
-        // currentMenuPage = "main-menu";
-        currentMenuPage = "main-menu";
-        showDocument(getHandle(currentMenuPage));
-        menuOpen = true;
+        menuStack.show();
+    }
+    else
+    {
+        menuStack.pushDocument("menu-root");
     }
 }
 
-void UserInterface::hideMenu()
+void UserInterface::menuHide()
 {
-    hideDocument(rmlDocLib.getHandle(currentMenuPage));
-    menuStack.clear();
-    menuOpen = false;
+    menuStack.hide();
+}
+
+void UserInterface::menuPush(const string& id, const string& title)
+{
+    menuStack.pushDocument(id, title);
+    dmMenu.title = menuStack.extra();
+    dmhMenu.DirtyAllVariables();
 }
 
 void UserInterface::hideTabListMap()
@@ -489,7 +518,7 @@ void UserInterface::setupViewModeUi(gfx::GameViewMode viewMode)
         break;
         case gfx::GameViewMode::Menu:
         {
-            showMenu();
+            menuShow();
         }
         break;
         case gfx::GameViewMode::AtlasDebug:
@@ -513,52 +542,15 @@ void UserInterface::setupViewModeUi(gfx::GameViewMode viewMode)
     }
 }
 
-void UserInterface::processEsc(bool keepMenuOpen)
+void UserInterface::processEsc(bool allowClose)
 {
-    if (menuStack.empty())
+    if (menuStack.isOpen())
     {
-        if (menuOpen)
-        {
-            if (!keepMenuOpen)
-            {
-                hideMenu();
-            }
-        }
-        else
-        {
-            showMenu();
-        }
+        menuStack.popDocument(allowClose);
     }
     else
     {
-        onMenuBackPriv();
-    }
-}
-
-
-void UserInterface::onMenuNavigate(Rml::DataModelHandle handle,
-                                   Rml::Event& event,
-                                   const Rml::VariantList& args)
-{
-    if (args.size() > 0)
-    {
-        std::string target = args[0].Get<std::string>();
-        UiDocHandle doc = rmlDocLib.getHandle(target);
-        if (doc.isValid())
-        {
-            menuStack.push_back(currentMenuPage);
-            hideDocument(rmlDocLib.getHandle(currentMenuPage));
-            currentMenuPage = target;
-            showDocument(doc);
-        }
-        else
-        {
-            LG_W("Document not found: {}", target);
-        }
-    }
-    else
-    {
-        LG_W("No target provided");
+        menuStack.show();
     }
 }
 
@@ -566,24 +558,12 @@ void UserInterface::onMenuBack(Rml::DataModelHandle handle,
                                Rml::Event& event,
                                const Rml::VariantList& args)
 {
-    onMenuBackPriv();
-}
-
-void UserInterface::onMenuBackPriv()
-{
-    if (!menuStack.empty())
+    menuStack.popDocument();
+    if (menuStack.size())
     {
-        UiDocHandle doc = rmlDocLib.getHandle(menuStack.back());
-        if (doc.isValid())
-        {
-            hideDocument(rmlDocLib.getHandle(currentMenuPage));
-            currentMenuPage = menuStack.back();
-            menuStack.pop_back();
-            showDocument(doc);
-            return;
-        }
+        dmMenu.title = menuStack.extra();
+        dmhMenu.DirtyAllVariables();
     }
-    hideMenu();
 }
 
 void UserInterface::onPrint(Rml::DataModelHandle handle,
@@ -696,12 +676,34 @@ void UserInterface::scrollChatToBottom()
 
 void UserInterface::setupDataModels()
 {
-    auto constMainMenu = getDataModel("main-menu");
-    DmMainMenu::RegisterType(constMainMenu);
-    constMainMenu.Bind("win", &dmMainMenu);
-    dmhMainMenu = constMainMenu.GetModelHandle();
-    dmMainMenu.init(
-        constMainMenu, dmhMainMenu, {.onClose = [this]() { hideMenu(); }});
+    auto constMenu = getDataModel("menu");
+    DmWindow::RegisterType(constMenu);
+    dmMenu = DmWindow{
+        .title = "[menu.title]",
+        .movable = true,
+        .closable = true,
+    };
+    dmhMenu = constMenu.GetModelHandle();
+    dmMenu.addButton(
+        constMenu,
+        {.id = "btnExit", .label = "[btn.exit]", .tooltip = "btn.exit.tooltip"},
+        [this]() { ptrHandle->client->shutdown(); });
+    dmMenu.addButton(constMenu,
+                         {.id = "btnOptions",
+                          .label = "[btn.options]",
+                          .tooltip = "btn.options.tooltip"},
+                         [this]()
+                         { menuPush("menu-options", "[btn.options]"); });
+    dmMenu.addButton(constMenu,
+                         {.id = "btnNewGame",
+                          .label = "[btn.newgame]",
+                          .tooltip = "btn.newgame.tooltip"},
+                         [this]()
+                         { menuPush("menu-new-game", "[btn.newgame]"); });
+    // todo: script hook (modding) for registering menu elements in the data
+    // model
+    dmMenu.setup(
+        constMenu, dmhMenu, {.onClose = [this]() { menuHide(); }});
 }
 
 void UserInterface::setupChatDataModel()
@@ -889,7 +891,8 @@ bool UserInterface::parseSendMsg(const string& message,
     {
         LG_D("Command: {}", message);
         parseData.message = remaining;
-        cmdCallback(parseData.message);
+        // todo: fix commands
+        // cmdCallback(parseData.message);
         return true;
     }
     else

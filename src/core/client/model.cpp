@@ -133,7 +133,7 @@ void Model::modelLoop(float dt)
                 LG_I("Exchanging world info with server done");
                 afterLoadWorldClb();
                 notifyReady();
-                renderer->zoom(3.0f, true);
+                renderer->zoom(0.5f, true);
                 if (afterConnectState == AfterConnectState::Game)
                 {
                     userInterface->setupViewModeUi(
