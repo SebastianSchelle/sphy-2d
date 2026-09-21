@@ -13,8 +13,7 @@
     std::get<float>(cfg_.get({__VA_ARGS__}, def_))
 #define CFG_STRING(cfg_, def_, ...)                                            \
     std::get<string>(cfg_.get({__VA_ARGS__}, def_))
-#define CFG_BOOL(cfg_, def_, ...)                                              \
-    std::get<float>(cfg_.get({__VA_ARGS__}, def_) > 0.0f)
+#define CFG_BOOL(cfg_, def_, ...) CFG_FLOAT(cfg_, def_, __VA_ARGS__) > 0.1f
 
 namespace cfg
 {

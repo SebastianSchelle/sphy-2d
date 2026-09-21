@@ -20,6 +20,7 @@ class ComponentFactory;
 }  // namespace ecs
 #elif CLIENT
 #include <localisation.hpp>
+#include <safe-manager.hpp>
 namespace sphyc
 {
 class Client;
@@ -86,6 +87,7 @@ struct PtrHandle
     ecs::ComponentFactory* componentFactory;
 #elif CLIENT
     sphyc::Client* client;
+    sphyc::SafeManager* safeManager;
     ui::Localisation* locale;
     ui::UserInterface* userInterface;
 #endif

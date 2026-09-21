@@ -198,11 +198,18 @@ class CmdLinOptionsClient : public CmdLineOptions
                                             char* argv[],
                                             po::options_description& desc,
                                             po::variables_map& vm,
-                                            CmdLineOptions& options)
+                                            CmdLinOptionsClient& options)
     {
-        if (CmdLineOptions::handleDefaultCmdLineOptions(
-                argc, argv, desc, vm, options))
+        po::store(po::parse_command_line(argc, argv, desc), vm);
+        po::notify(vm);
+        if (vm.count("help"))
         {
+            std::cout << desc << std::endl;
+            return true;
+        }
+        if (!options.parse(vm))
+        {
+            std::cout << "Could not parse command line options" << std::endl;
             return true;
         }
         return false;

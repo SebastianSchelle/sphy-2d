@@ -2,6 +2,7 @@
 #define EVENT_LISTENER_HPP
 
 #include "RmlUi/Core/DataModelHandle.h"
+#include "RmlUi/Core/EventListener.h"
 #include "logging.hpp"
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
@@ -116,14 +117,35 @@ template <class T> void EventListener::createOnchange(T& model, OnChangeClb clb)
     registerOnchange(model);
 }
 
+class PageEventListener : public Rml::EventListener
+{
+  public:
+    typedef std::function<void()> OnShow;
+    struct EventClbs
+    {
+        OnShow onShow = nullptr;
+    };
+    PageEventListener(EventClbs clbs) : clbs(clbs) {}
+
+    void ProcessEvent(Rml::Event& event) override
+    {
+        if (event.GetType() == "show")
+            if (clbs.onShow)
+                clbs.onShow();
+    }
+
+  private:
+    EventClbs clbs;
+};
+
 struct DataModel
 {
   protected:
     EventListener eventListener;
     Rml::DataModelHandle rmlHandle;
     void setup(Rml::DataModelConstructor& constructor,
-              Rml::DataModelHandle rmlHdl,
-              const EventFunctions& eventFunctions)
+               Rml::DataModelHandle rmlHdl,
+               const EventFunctions& eventFunctions)
     {
         this->rmlHandle = rmlHdl;
         eventListener.init(constructor, eventFunctions);

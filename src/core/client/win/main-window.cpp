@@ -1,6 +1,5 @@
 #include "GLFW/glfw3.h"
 #include "RmlUi/Core/Core.h"
-#include <RmlUi/Debugger.h>
 #include "bgfx/defines.h"
 #include "client-def.hpp"
 #include "control-def.hpp"
@@ -11,8 +10,10 @@
 #include "process.hpp"
 #include "ptr-handle.hpp"
 #include "rmlui-systeminterface.hpp"
+#include "safe-manager.hpp"
 #include "std-inc.hpp"
 #include "world-def.hpp"
+#include <RmlUi/Debugger.h>
 #include <bgfx/platform.h>
 #include <bx/bx.h>
 #include <chrono>
@@ -98,7 +99,7 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
             &renderEngine,
             std::bind(&MainWindow::onAfterLoadWorld, this),
             &ptrHandle),
-      rmlUiSystemInterface(&ptrHandle)
+      rmlUiSystemInterface(&ptrHandle), safeManager(config, options)
 {
     auto path(options.workingdir);
     std::filesystem::current_path(path);
@@ -106,6 +107,7 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
     ptrHandle.modManager = &modManager;
     ptrHandle.locale = &locale;
     ptrHandle.userInterface = &userInterface;
+    ptrHandle.safeManager = &safeManager;
 
     uint8_t logLevel = CFG_UINT(config, 1.0f, "loglevel");
     debug::createLogger("logs/logClient.txt", logLevel);
@@ -1226,8 +1228,8 @@ void MainWindow::setupDataModelMenu()
     //     LG_D("Data model 'menu' created");
     //     menuConstructor.BindEventCallback(
     //         "onNavigate", &UserInterface::onMenuNavigate, &userInterface);
-    //     menuConstructor.BindEventCallback("onQuit", &MainWindow::onQuit, this);
-    //     menuConstructor.BindEventCallback(
+    //     menuConstructor.BindEventCallback("onQuit", &MainWindow::onQuit,
+    //     this); menuConstructor.BindEventCallback(
     //         "onBack", &UserInterface::onMenuBack, &userInterface);
     //     menuConstructor.BindEventCallback(
     //         "onExitToMenu", &MainWindow::onExitToMenu, this);
@@ -1240,7 +1242,8 @@ void MainWindow::setupDataModelMenu()
     //     menuConstructor.BindEventCallback(
     //         "connectToServer", &MainWindow::onConnectToServer, this);
 
-    //     if (auto md_handle = menuConstructor.RegisterStruct<mod::MenuDataMod>())
+    //     if (auto md_handle =
+    //     menuConstructor.RegisterStruct<mod::MenuDataMod>())
     //     {
     //         md_handle.RegisterMember("id", &mod::MenuDataMod::id);
     //         md_handle.RegisterMember("name", &mod::MenuDataMod::name);

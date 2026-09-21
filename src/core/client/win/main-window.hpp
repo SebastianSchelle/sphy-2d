@@ -5,6 +5,7 @@
 #include "localisation.hpp"
 #include "process.hpp"
 #include "ptr-handle.hpp"
+#include "safe-manager.hpp"
 #include "std-inc.hpp"
 #include <GLFW/glfw3.h>
 #include <bgfx/bgfx.h>
@@ -284,6 +285,7 @@ class MainWindow
     AtlasDebugView atlasDebug;
     sphyc::Model model;
     ui::Localisation locale;
+    sphyc::SafeManager safeManager;
 
     UiDocHandle modLoadingHandle;
 

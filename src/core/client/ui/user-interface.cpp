@@ -1,12 +1,15 @@
 #include "user-interface.hpp"
 #include "RmlUi/Core/DataModelHandle.h"
+#include "RmlUi/Core/ElementDocument.h"
 #include "RmlUi/Core/EventListener.h"
 #include "RmlUi/Core/ID.h"
 #include "RmlUi/Core/Input.h"
 #include "config-manager.hpp"
 #include "dm-window.hpp"
 #include "document-stack.hpp"
+#include "event-listener.hpp"
 #include "ptr-handle.hpp"
+#include "safe-manager.hpp"
 #include <GLFW/glfw3.h>
 #include <RmlUi/Debugger.h>
 #include <iomanip>
@@ -88,11 +91,13 @@ bool UserInterface::init(glm::ivec2 windowSize)
         return false;
     }
 
-    // Init debugger
-    Rml::Debugger::Initialise(rmlContext);
-    Rml::Debugger::SetContext(rmlContext);
-    Rml::Debugger::SetVisible(true);
-
+    // Init Rml debugger
+    if (CFG_BOOL(config, 0.0f, "debug", "rml-debug"))
+    {
+        Rml::Debugger::Initialise(rmlContext);
+        Rml::Debugger::SetContext(rmlContext);
+        Rml::Debugger::SetVisible(true);
+    }
     // Load default font
     if (!Rml::LoadFontFace("modules/engine/assets/ui/Roboto-Regular.ttf"))
     {
@@ -720,7 +725,15 @@ void UserInterface::setupDataModels()
                      {.id = "btnContinueGame",
                       .label = "[btn.continuegame]",
                       .tooltip = "btn.continuegame.tooltip"},
-                     [this]() { LG_D("continue last saved"); });
+                     [this]()
+                     {
+                         vector<sphyc::SafeInfo> safes;
+                         ptrHandle->safeManager->listSaveInfos(safes);
+                         for (auto safe : safes)
+                         {
+                             LG_D("safe: {}", safe.name);
+                         }
+                     });
     dmMenu.addButton(constMenu,
                      {.id = "btnLoadGame",
                       .label = "[btn.loadgame]",
@@ -740,6 +753,17 @@ void UserInterface::setupDataModels()
                               .data = {.tip = "[lorem400]"}};
     dmhTips = constTips.GetModelHandle();
     dmTips.setup(constTips, dmhTips, {});
+
+
+    // todo: put in nice function
+    auto handle = rmlDocLib.getHandle("load-game");
+    Rml::ElementDocument** doc = rmlDocLib.getItem(handle);
+    if (doc)
+    {
+        PageEventListener listener(
+            {.onShow = []() { LG_D("Showed load game"); }});
+        (*doc)->AddEventListener(Rml::EventId::Show, &listener, true);
+    }
 }
 
 void UserInterface::setupChatDataModel()
