@@ -23,7 +23,7 @@ set(CLIENT_SOURCES
     client.cpp
     model.cpp
     main.cpp
-    safe-manager.cpp
+    save-manager.cpp
     win/main-window.cpp
     win/atlas-debug-view.cpp
     ${MISC_DIR}/networking/exchange-sequence.cpp

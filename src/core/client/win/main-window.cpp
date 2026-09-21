@@ -10,7 +10,7 @@
 #include "process.hpp"
 #include "ptr-handle.hpp"
 #include "rmlui-systeminterface.hpp"
-#include "safe-manager.hpp"
+#include "save-manager.hpp"
 #include "std-inc.hpp"
 #include "world-def.hpp"
 #include <RmlUi/Debugger.h>
@@ -99,7 +99,7 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
             &renderEngine,
             std::bind(&MainWindow::onAfterLoadWorld, this),
             &ptrHandle),
-      rmlUiSystemInterface(&ptrHandle), safeManager(config, options)
+      rmlUiSystemInterface(&ptrHandle), saveManager(config, options)
 {
     auto path(options.workingdir);
     std::filesystem::current_path(path);
@@ -107,7 +107,7 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
     ptrHandle.modManager = &modManager;
     ptrHandle.locale = &locale;
     ptrHandle.userInterface = &userInterface;
-    ptrHandle.safeManager = &safeManager;
+    ptrHandle.saveManager = &saveManager;
 
     uint8_t logLevel = CFG_UINT(config, 1.0f, "loglevel");
     debug::createLogger("logs/logClient.txt", logLevel);
@@ -202,6 +202,7 @@ bool MainWindow::initPost()
 {
     // todo: populate mod data in menu
     // modManager.populateMenuData(menuData.mods);
+    userInterface.postInit();
     userInterface.menuShow();
     userInterface.tipsShow();
     return true;

@@ -5,11 +5,11 @@
 #include "RmlUi/Core/ID.h"
 #include "RmlUi/Core/Input.h"
 #include "config-manager.hpp"
+#include "dm-if.hpp"
 #include "dm-window.hpp"
 #include "document-stack.hpp"
 #include "event-listener.hpp"
 #include "ptr-handle.hpp"
-#include "safe-manager.hpp"
 #include <GLFW/glfw3.h>
 #include <RmlUi/Debugger.h>
 #include <iomanip>
@@ -68,7 +68,7 @@ UserInterface::UserInterface(cfg::ConfigManager& config,
       menuStack([this](const string& id) { showDocument(id); },
                 [this](const string& id) { hideDocument(id); },
                 [this](const string& id) { return docVisible(id); }),
-      ptrHandle(ptrHandle)
+      ptrHandle(ptrHandle), dmIf(ptrHandle)
 {
     chatData.currMsgTarget = "all";
 }
@@ -82,7 +82,6 @@ void UserInterface::setChatCmdHistoryMax(unsigned maxHistoryEntries)
 
 bool UserInterface::init(glm::ivec2 windowSize)
 {
-    // Create context (this will use the render interface)
     rmlContext = Rml::CreateContext("default",
                                     Rml::Vector2i(windowSize.x, windowSize.y));
     if (!rmlContext)
@@ -90,6 +89,7 @@ bool UserInterface::init(glm::ivec2 windowSize)
         LG_E("Failed to create RmlUI context");
         return false;
     }
+    dmIf.init(rmlContext);
 
     // Init Rml debugger
     if (CFG_BOOL(config, 0.0f, "debug", "rml-debug"))
@@ -132,7 +132,7 @@ bool UserInterface::init(glm::ivec2 windowSize)
     float uiScale = CFG_FLOAT(config, 1.0f, "ui", "scale");
     rmlContext->SetDensityIndependentPixelRatio(uiScale);
 
-    setupDataModels();
+    dmIf.setupDataModels();
     setupChatDataModel();
     tabPanelStrategic.init();
     tabPanelTactical.init();
@@ -173,6 +173,12 @@ bool UserInterface::init(glm::ivec2 windowSize)
                            },
                        });
 
+    return true;
+}
+
+bool UserInterface::postInit()
+{
+    dmIf.postInit();
     return true;
 }
 
@@ -489,8 +495,8 @@ void UserInterface::menuHide()
 void UserInterface::menuPush(const string& id, const string& title)
 {
     menuStack.pushDocument(id, title);
-    dmMenu.title = menuStack.extra();
-    dmhMenu.DirtyAllVariables();
+    dmIf.menu.title = menuStack.extra();
+    dmIf.hMenu.DirtyAllVariables();
 }
 
 void UserInterface::tipsShow()
@@ -583,8 +589,8 @@ void UserInterface::onMenuBack(Rml::DataModelHandle handle,
     menuStack.popDocument();
     if (menuStack.size())
     {
-        dmMenu.title = menuStack.extra();
-        dmhMenu.DirtyAllVariables();
+        dmIf.menu.title = menuStack.extra();
+        dmIf.hMenu.DirtyAllVariables();
     }
 }
 
@@ -696,77 +702,21 @@ void UserInterface::scrollChatToBottom()
     }
 }
 
-void UserInterface::setupDataModels()
-{
-    auto constMenu = getDataModel("menu");
-    DmWindow<DmNone>::RegisterType(constMenu);
-    dmMenu = DmWindow<DmNone>{
-        .title = "[menu.title]",
-        .movable = false,
-        .closable = false,
-    };
-    dmhMenu = constMenu.GetModelHandle();
-    dmMenu.addButton(
-        constMenu,
-        {.id = "btnExit", .label = "[btn.exit]", .tooltip = "btn.exit.tooltip"},
-        [this]() { ptrHandle->client->shutdown(); });
-    dmMenu.addButton(constMenu,
-                     {.id = "btnOptions",
-                      .label = "[btn.options]",
-                      .tooltip = "btn.options.tooltip",
-                      .disabled = true},
-                     [this]() { menuPush("menu-options", "[btn.options]"); });
-    dmMenu.addButton(constMenu,
-                     {.id = "btnNewGame",
-                      .label = "[btn.newgame]",
-                      .tooltip = "btn.newgame.tooltip"},
-                     [this]() { menuPush("menu-new-game", "[btn.newgame]"); });
-    dmMenu.addButton(constMenu,
-                     {.id = "btnContinueGame",
-                      .label = "[btn.continuegame]",
-                      .tooltip = "btn.continuegame.tooltip"},
-                     [this]()
-                     {
-                         vector<sphyc::SafeInfo> safes;
-                         ptrHandle->safeManager->listSaveInfos(safes);
-                         for (auto safe : safes)
-                         {
-                             LG_D("safe: {}", safe.name);
-                         }
-                     });
-    dmMenu.addButton(constMenu,
-                     {.id = "btnLoadGame",
-                      .label = "[btn.loadgame]",
-                      .tooltip = "btn.loadgame.tooltip"},
-                     [this]()
-                     { menuPush("menu-load-game", "[btn.loadgame]"); });
-    // todo: script hook (modding) for registering menu elements in the data
-    // model
-    dmMenu.setup(constMenu, dmhMenu, {.onClose = [this]() { menuHide(); }});
-
-
-    auto constTips = getDataModel("tips");
-    DmWindow<DmTips>::RegisterType(constTips);
-    dmTips = DmWindow<DmTips>{.title = "[tips.title]",
-                              .movable = false,
-                              .closable = false,
-                              .data = {.tip = "[lorem400]"}};
-    dmhTips = constTips.GetModelHandle();
-    dmTips.setup(constTips, dmhTips, {});
-
-    addPageEvents("load-game", {.onShow = []() { LG_D("Showed load game"); }});
-}
-
 void UserInterface::addPageEvents(const string& id,
-                                  const PageEventListener::EventClbs& clbs)
+                                  PageEventListener& listener)
 {
     auto handle = rmlDocLib.getHandle(id);
     if (!handle.isValid())
+    {
+        LG_E("Failed to add page events. Document not found {}", id);
         return;
+    }
     Rml::ElementDocument** doc = rmlDocLib.getItem(handle);
     if (!doc)
+    {
+        LG_E("Failed to add page events. Document not found {}", id);
         return;
-    PageEventListener listener(clbs);
+    }
     (*doc)->AddEventListener(Rml::EventId::Show, &listener, true);
 }
 

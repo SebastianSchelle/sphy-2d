@@ -1,12 +1,11 @@
 #ifndef EVENT_LISTENER_HPP
 #define EVENT_LISTENER_HPP
 
-#include "RmlUi/Core/DataModelHandle.h"
-#include "RmlUi/Core/EventListener.h"
-#include "logging.hpp"
+#include <std-inc.hpp>
+#include <RmlUi/Core/DataModelHandle.h>
+#include <RmlUi/Core/EventListener.h>
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
-#include <std-inc.hpp>
 #include <unordered_map>
 
 namespace ui
@@ -125,6 +124,7 @@ class PageEventListener : public Rml::EventListener
     {
         OnShow onShow = nullptr;
     };
+    PageEventListener() {}
     PageEventListener(EventClbs clbs) : clbs(clbs) {}
 
     void ProcessEvent(Rml::Event& event) override

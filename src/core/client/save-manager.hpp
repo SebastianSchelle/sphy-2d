@@ -1,13 +1,14 @@
 #ifndef SAVE_MANAGER_HPP
 #define SAVE_MANAGER_HPP
 
+#include "std-inc.hpp"
 #include "cmd-options.hpp"
 #include "config-manager.hpp"
-#include "std-inc.hpp"
+
 namespace sphyc
 {
 
-struct SafeInfo
+struct SaveInfo
 {
     string name;
     string path;
@@ -15,16 +16,16 @@ struct SafeInfo
     tim::Duration playtime;
 };
 
-class SafeManager
+class SaveManager
 {
   public:
-    SafeManager(cfg::ConfigManager& config, sphy::CmdLinOptionsClient& options)
+    SaveManager(cfg::ConfigManager& config, sphy::CmdLinOptionsClient& options)
         : config(config), options(options)
     {
     }
-    ~SafeManager() {}
+    ~SaveManager() {}
 
-    void listSaveInfos(std::vector<SafeInfo>& safes);
+    void listSaveInfos(std::vector<SaveInfo>& safes);
 
   private:
     sphy::CmdLinOptionsClient& options;

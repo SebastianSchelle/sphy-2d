@@ -1,6 +1,7 @@
 add_library(sphy_client_ui_models INTERFACE)
 
 target_sources(sphy_client_ui_models INTERFACE
+    dm-if.cpp
 )
 
 target_include_directories(sphy_client_ui_models

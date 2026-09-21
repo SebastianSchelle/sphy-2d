@@ -1,10 +1,10 @@
 #include <exception>
-#include <safe-manager.hpp>
+#include <save-manager.hpp>
 
 namespace sphyc
 {
 
-void SafeManager::listSaveInfos(std::vector<SafeInfo>& safes)
+void SaveManager::listSaveInfos(std::vector<SaveInfo>& safes)
 {
     try
     {
@@ -21,7 +21,7 @@ void SafeManager::listSaveInfos(std::vector<SafeInfo>& safes)
                     try
                     {
                         string name = info["name"].as<string>();
-                        safes.push_back(SafeInfo{
+                        safes.push_back(SaveInfo{
                             .name = name,
                         });
                     }

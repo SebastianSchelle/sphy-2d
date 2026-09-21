@@ -11,8 +11,7 @@
 #include "user-input.hpp"
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
-#include <dm-general.hpp>
-#include <dm-window.hpp>
+#include <dm-if.hpp>
 #include <functional>
 #include <item-lib.hpp>
 #include <memory>
@@ -66,6 +65,7 @@ class UserInterface
     UserInterface(cfg::ConfigManager& config, ecs::PtrHandle* ptrHandle);
     ~UserInterface();
     bool init(glm::ivec2 windowSize);
+    bool postInit();
     void update();
     void setDimensions(glm::ivec2 windowSize);
     bool processMouseMove(glm::ivec2 mousePos, int keyMod);
@@ -134,13 +134,11 @@ class UserInterface
     {
         uiEnvironment = environment;
     }
-    void addPageEvents(const string& id,
-                       const PageEventListener::EventClbs& clbs);
+    void addPageEvents(const string& id, PageEventListener& listener);
 
   private:
     con::ItemLib<Rml::ElementDocument*>::Handle getHandle(const string& name);
     void onMenuBackPriv();
-    void setupDataModels();
     void setupChatDataModel();
     void scrollChatToBottom();
     void onChatSendMsg(Rml::DataModelHandle handle,
@@ -166,6 +164,8 @@ class UserInterface
     void resetCmdHistoryBrowse();
 
     friend class ChatInputChangeListener;
+
+    DmIf dmIf;
 
     con::ItemLib<Rml::ElementDocument*> rmlDocLib;
     Rml::Context* rmlContext;
@@ -203,13 +203,6 @@ class UserInterface
     UserInput userInput;
 
     InputEvent::Environment uiEnvironment = InputEvent::Environment::General;
-
-    // Data models
-    DmWindow<DmNone> dmMenu;
-    DmWindow<DmTips> dmTips;
-    // Rml models
-    Rml::DataModelHandle dmhMenu;
-    Rml::DataModelHandle dmhTips;
 };
 
 }  // namespace ui
