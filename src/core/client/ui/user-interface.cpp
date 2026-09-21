@@ -754,16 +754,20 @@ void UserInterface::setupDataModels()
     dmhTips = constTips.GetModelHandle();
     dmTips.setup(constTips, dmhTips, {});
 
+    addPageEvents("load-game", {.onShow = []() { LG_D("Showed load game"); }});
+}
 
-    // todo: put in nice function
-    auto handle = rmlDocLib.getHandle("load-game");
+void UserInterface::addPageEvents(const string& id,
+                                  const PageEventListener::EventClbs& clbs)
+{
+    auto handle = rmlDocLib.getHandle(id);
+    if (!handle.isValid())
+        return;
     Rml::ElementDocument** doc = rmlDocLib.getItem(handle);
-    if (doc)
-    {
-        PageEventListener listener(
-            {.onShow = []() { LG_D("Showed load game"); }});
-        (*doc)->AddEventListener(Rml::EventId::Show, &listener, true);
-    }
+    if (!doc)
+        return;
+    PageEventListener listener(clbs);
+    (*doc)->AddEventListener(Rml::EventId::Show, &listener, true);
 }
 
 void UserInterface::setupChatDataModel()

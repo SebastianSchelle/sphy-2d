@@ -5,13 +5,14 @@
 #include "RmlUi/Core/DataModelHandle.h"
 #include "config-manager.hpp"
 #include "document-stack.hpp"
+#include "event-listener.hpp"
 #include "ptr-handle.hpp"
 #include "ui-tab-panel.hpp"
 #include "user-input.hpp"
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
-#include <dm-window.hpp>
 #include <dm-general.hpp>
+#include <dm-window.hpp>
 #include <functional>
 #include <item-lib.hpp>
 #include <memory>
@@ -133,6 +134,8 @@ class UserInterface
     {
         uiEnvironment = environment;
     }
+    void addPageEvents(const string& id,
+                       const PageEventListener::EventClbs& clbs);
 
   private:
     con::ItemLib<Rml::ElementDocument*>::Handle getHandle(const string& name);
