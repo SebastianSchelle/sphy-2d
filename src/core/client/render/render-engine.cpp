@@ -340,6 +340,18 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle geometryHandle,
     bgfx::setVertexBuffer(0, geometry->getVertexBufferHandle());
     bgfx::setIndexBuffer(geometry->getIndexBufferHandle());
 
+    if (scissorRegionEnabled)
+    {
+        bgfx::setScissor(scissorRegionPosition.x,
+                         scissorRegionPosition.y,
+                         scissorRegionSize.x,
+                         scissorRegionSize.y);
+    }
+    else
+    {
+        bgfx::setScissor(0, 0, winWidth, winHeight);
+    }
+
     // Submit to the specified view
     bgfx::submit(viewId,
                  compiledShaderLib.getItem(shaderHandleRml)->getHandle());
@@ -474,33 +486,11 @@ void RenderEngine::setScissorRegion(const glm::vec2& position,
 {
     scissorRegionPosition = position;
     scissorRegionSize = size;
-    if (scissorRegionEnabled)
-    {
-        bgfx::setScissor(scissorRegionPosition.x,
-                         scissorRegionPosition.y,
-                         scissorRegionSize.x,
-                         scissorRegionSize.y);
-    }
-    else
-    {
-        bgfx::setScissor(0, 0, winWidth, winHeight);
-    }
 }
 
 void RenderEngine::setScissorRegionEnabled(bool enable)
 {
     scissorRegionEnabled = enable;
-    if (scissorRegionEnabled)
-    {
-        bgfx::setScissor(scissorRegionPosition.x,
-                         scissorRegionPosition.y,
-                         scissorRegionSize.x,
-                         scissorRegionSize.y);
-    }
-    else
-    {
-        bgfx::setScissor(0, 0, winWidth, winHeight);
-    }
 }
 
 void RenderEngine::setTransform(const glm::mat4& transform)
@@ -1219,7 +1209,7 @@ void RenderEngine::zoom(float amount, bool instant)
             worldZoomDes = minZoom;
         }
     }
-    if(instant)
+    if (instant)
     {
         worldZoom = worldZoomDes;
     }

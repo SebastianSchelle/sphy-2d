@@ -8,6 +8,7 @@
 #include "document-stack.hpp"
 #include "ptr-handle.hpp"
 #include <GLFW/glfw3.h>
+#include <RmlUi/Debugger.h>
 #include <iomanip>
 #include <limits>
 #include <render-engine.hpp>
@@ -86,6 +87,12 @@ bool UserInterface::init(glm::ivec2 windowSize)
         LG_E("Failed to create RmlUI context");
         return false;
     }
+
+    // Init debugger
+    Rml::Debugger::Initialise(rmlContext);
+    Rml::Debugger::SetContext(rmlContext);
+    Rml::Debugger::SetVisible(true);
+
     // Load default font
     if (!Rml::LoadFontFace("modules/engine/assets/ui/Roboto-Regular.ttf"))
     {
@@ -481,6 +488,16 @@ void UserInterface::menuPush(const string& id, const string& title)
     dmhMenu.DirtyAllVariables();
 }
 
+void UserInterface::tipsShow()
+{
+    showDocument("tips");
+}
+
+void UserInterface::tipsHide()
+{
+    hideDocument("tips");
+}
+
 void UserInterface::hideTabListMap()
 {
     hideDocument(rmlDocLib.getHandle("tab-list-map"));
@@ -677,11 +694,11 @@ void UserInterface::scrollChatToBottom()
 void UserInterface::setupDataModels()
 {
     auto constMenu = getDataModel("menu");
-    DmWindow::RegisterType(constMenu);
-    dmMenu = DmWindow{
+    DmWindow<DmNone>::RegisterType(constMenu);
+    dmMenu = DmWindow<DmNone>{
         .title = "[menu.title]",
-        .movable = true,
-        .closable = true,
+        .movable = false,
+        .closable = false,
     };
     dmhMenu = constMenu.GetModelHandle();
     dmMenu.addButton(
@@ -689,21 +706,40 @@ void UserInterface::setupDataModels()
         {.id = "btnExit", .label = "[btn.exit]", .tooltip = "btn.exit.tooltip"},
         [this]() { ptrHandle->client->shutdown(); });
     dmMenu.addButton(constMenu,
-                         {.id = "btnOptions",
-                          .label = "[btn.options]",
-                          .tooltip = "btn.options.tooltip"},
-                         [this]()
-                         { menuPush("menu-options", "[btn.options]"); });
+                     {.id = "btnOptions",
+                      .label = "[btn.options]",
+                      .tooltip = "btn.options.tooltip",
+                      .disabled = true},
+                     [this]() { menuPush("menu-options", "[btn.options]"); });
     dmMenu.addButton(constMenu,
-                         {.id = "btnNewGame",
-                          .label = "[btn.newgame]",
-                          .tooltip = "btn.newgame.tooltip"},
-                         [this]()
-                         { menuPush("menu-new-game", "[btn.newgame]"); });
+                     {.id = "btnNewGame",
+                      .label = "[btn.newgame]",
+                      .tooltip = "btn.newgame.tooltip"},
+                     [this]() { menuPush("menu-new-game", "[btn.newgame]"); });
+    dmMenu.addButton(constMenu,
+                     {.id = "btnContinueGame",
+                      .label = "[btn.continuegame]",
+                      .tooltip = "btn.continuegame.tooltip"},
+                     [this]() { LG_D("continue last saved"); });
+    dmMenu.addButton(constMenu,
+                     {.id = "btnLoadGame",
+                      .label = "[btn.loadgame]",
+                      .tooltip = "btn.loadgame.tooltip"},
+                     [this]()
+                     { menuPush("menu-load-game", "[btn.loadgame]"); });
     // todo: script hook (modding) for registering menu elements in the data
     // model
-    dmMenu.setup(
-        constMenu, dmhMenu, {.onClose = [this]() { menuHide(); }});
+    dmMenu.setup(constMenu, dmhMenu, {.onClose = [this]() { menuHide(); }});
+
+
+    auto constTips = getDataModel("tips");
+    DmWindow<DmTips>::RegisterType(constTips);
+    dmTips = DmWindow<DmTips>{.title = "[tips.title]",
+                              .movable = false,
+                              .closable = false,
+                              .data = {.tip = "[lorem400]"}};
+    dmhTips = constTips.GetModelHandle();
+    dmTips.setup(constTips, dmhTips, {});
 }
 
 void UserInterface::setupChatDataModel()

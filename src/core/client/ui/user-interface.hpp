@@ -4,16 +4,16 @@
 #include "RmlUi/Core/Core.h"
 #include "RmlUi/Core/DataModelHandle.h"
 #include "config-manager.hpp"
-#include "config-node.hpp"
 #include "document-stack.hpp"
 #include "ptr-handle.hpp"
 #include "ui-tab-panel.hpp"
 #include "user-input.hpp"
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
+#include <dm-window.hpp>
+#include <dm-general.hpp>
 #include <functional>
 #include <item-lib.hpp>
-#include <dm-window.hpp>
 #include <memory>
 
 using UiDocHandle = con::ItemLib<Rml::ElementDocument*>::Handle;
@@ -87,6 +87,8 @@ class UserInterface
     void menuShow();
     void menuHide();
     void menuPush(const string& id, const string& title);
+    void tipsShow();
+    void tipsHide();
     void showConnecting();
     void hideConnecting();
     void hideTabListMap();
@@ -200,9 +202,11 @@ class UserInterface
     InputEvent::Environment uiEnvironment = InputEvent::Environment::General;
 
     // Data models
-    DmWindow dmMenu;
+    DmWindow<DmNone> dmMenu;
+    DmWindow<DmTips> dmTips;
     // Rml models
     Rml::DataModelHandle dmhMenu;
+    Rml::DataModelHandle dmhTips;
 };
 
 }  // namespace ui

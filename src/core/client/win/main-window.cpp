@@ -1,5 +1,6 @@
 #include "GLFW/glfw3.h"
 #include "RmlUi/Core/Core.h"
+#include <RmlUi/Debugger.h>
 #include "bgfx/defines.h"
 #include "client-def.hpp"
 #include "control-def.hpp"
@@ -200,6 +201,7 @@ bool MainWindow::initPost()
     // todo: populate mod data in menu
     // modManager.populateMenuData(menuData.mods);
     userInterface.menuShow();
+    userInterface.tipsShow();
     return true;
 }
 

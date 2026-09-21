@@ -8,30 +8,33 @@
 namespace ui
 {
 
-struct DmWindow : public DataModel
+template <class T> struct DmWindow : public DataModel
 {
     string title;
     bool movable;
     bool closable;
+    T data;
     std::vector<widget::Button> buttons;
 
     static void RegisterType(Rml::DataModelConstructor& constructor)
     {
+        T::RegisterType(constructor);
         widget::Button::RegisterType(constructor);
         widget::Checkbox::RegisterType(constructor);
         widget::RadioButtons<int>::RegisterType(constructor);
 
         if (auto handle = constructor.RegisterStruct<DmWindow>())
         {
-            handle.RegisterMember("title", &DmWindow::title);
-            handle.RegisterMember("movable", &DmWindow::movable);
-            handle.RegisterMember("closable", &DmWindow::closable);
+            handle.RegisterMember("title", &DmWindow<T>::title);
+            handle.RegisterMember("movable", &DmWindow<T>::movable);
+            handle.RegisterMember("closable", &DmWindow<T>::closable);
+            handle.RegisterMember("data", &DmWindow<T>::data);
         }
     }
 
     void setup(Rml::DataModelConstructor& constructor,
-              Rml::DataModelHandle rmlHdl,
-              const EventFunctions& eventFunctions)
+               Rml::DataModelHandle rmlHdl,
+               const EventFunctions& eventFunctions)
     {
         constructor.Bind("win", this);
         for (auto& b : buttons)
@@ -49,6 +52,11 @@ struct DmWindow : public DataModel
         auto& b = buttons.back();
         eventListener.createOnclick(b, onClick);
     }
+};
+
+struct DmNone
+{
+    static void RegisterType(Rml::DataModelConstructor& constructor) {}
 };
 
 /*

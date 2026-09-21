@@ -367,7 +367,6 @@ void sysCollectorImpl(world::Sector* sector,
                             glm::length2(item->transform.pos - transform.pos);
                         if (dist2loc > range * range)
                         {
-                            LG_D("{} of {}", std::sqrtf(dist2loc), range);
                             sector->beamPool.destroyObject(
                                 collector.beamHandle);
                             collector.currTarget = GenericHandle32::Invalid();

@@ -178,11 +178,21 @@ class CmdLinOptionsClient : public CmdLineOptions
         {
             return false;
         }
+        if (vm.count("savedir"))
+        {
+            localSaveDir = vm["savedir"].as<std::string>();
+        }
+        else
+        {
+            localSaveDir = bindir + "/saves";
+        }
         return true;
     }
     static void createCmdLineOptions(po::options_description& desc)
     {
         CmdLineOptions::createCmdLineOptions(desc);
+        desc.add_options()(
+            "savedir,s", po::value<std::string>(), "Local save directory");
     }
     static bool handleDefaultCmdLineOptions(int argc,
                                             char* argv[],
@@ -197,6 +207,8 @@ class CmdLinOptionsClient : public CmdLineOptions
         }
         return false;
     }
+
+    std::string localSaveDir; 
 };
 
 }  // namespace sphy
