@@ -3,6 +3,7 @@
 
 #include "RmlUi/Core/DataModelHandle.h"
 #include "save-manager.hpp"
+#include "widgets.hpp"
 #include <RmlUi/Core/Context.h>
 #include <RmlUi/Core/ElementDocument.h>
 #include <std-inc.hpp>
@@ -23,19 +24,29 @@ struct DmTips
     }
 };
 
-struct DmLoadGame
+struct DmSaveInfo
 {
-    vector<sphyc::SaveInfo> saves;
+    widget::Button button;
+    string path;
 
     static void RegisterType(Rml::DataModelConstructor& constructor)
     {
-        if (auto handle = constructor.RegisterStruct<sphyc::SaveInfo>())
+        widget::Button::RegisterType(constructor);
+        if (auto handle = constructor.RegisterStruct<DmSaveInfo>())
         {
-            handle.RegisterMember("name", &sphyc::SaveInfo::name);
-            handle.RegisterMember("path", &sphyc::SaveInfo::path);
+            handle.RegisterMember("button", &DmSaveInfo::button);
         }
-        constructor.RegisterArray<vector<sphyc::SaveInfo>>();
+    }
+};
 
+struct DmLoadGame
+{
+    vector<DmSaveInfo> saves;
+
+    static void RegisterType(Rml::DataModelConstructor& constructor)
+    {
+        DmSaveInfo::RegisterType(constructor);
+        constructor.RegisterArray<vector<DmSaveInfo>>();
         if (auto handle = constructor.RegisterStruct<DmLoadGame>())
         {
             handle.RegisterMember("saves", &DmLoadGame::saves);

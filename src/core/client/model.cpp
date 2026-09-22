@@ -922,6 +922,13 @@ void Model::createDrawBounds(vector<RealtimeDrawBounds>& bounds, bool realtime)
     }
 }
 
+void Model::shutdownLocalServer()
+{
+    prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
+    mcomp.startCommand(prot::cmd::SHUTDOWN, 0);
+    mcomp.execute(sendQueue);
+}
+
 void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
                               const vector<RealtimeDrawBounds>& drawBounds)
 {

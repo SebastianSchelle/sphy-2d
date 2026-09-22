@@ -154,6 +154,7 @@ class Model
     void centerViewOnPlayer();
     void setupDataModelConnecting();
     void setCurrentTime(gfx::RenderEngine& renderer, long frametime);
+    void shutdownLocalServer();
 
     def::ThirdPersonControl& getThirdPersonControl()
     {

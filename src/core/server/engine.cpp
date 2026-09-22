@@ -882,6 +882,9 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                 clientInfo->dbgFlags, def::Dbg::enCollAvoidInfo, en);
             break;
         }
+        case prot::cmd::SHUTDOWN:
+            stopRequested = true;
+            break;
         default:
             break;
     }
@@ -1900,24 +1903,7 @@ void Engine::populateMenuWorld()
 
 void Engine::populateWorld()
 {
-    static constexpr const char* kAssets[] = {
-        "test1", "test2", "test3", "test4"};
-    static constexpr float kTwoPi = 6.2831855f;
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> posDist(
-        -world.getWorldShape().sectorSize / 2,
-        world.getWorldShape().sectorSize / 2);
-    std::uniform_real_distribution<float> rotDist(0.0f, kTwoPi);
-    std::uniform_int_distribution<int> assetPick(0, 3);
-    std::uniform_int_distribution<int> sectorPick(0,
-                                                  world.getSectorCount() - 1);
-
-    string saveTypeStr = CFG_STRING(saveConfig, "Normal", "type");
-    saveType =
-        magic_enum::enum_cast<SaveType>(saveTypeStr).value_or(SaveType::Normal);
-
-    if (saveType == SaveType::Menu)
+    //if (saveType == SaveType::Menu)
     {
         populateMenuWorld();
     }

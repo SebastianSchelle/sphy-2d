@@ -104,6 +104,7 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
     auto path(options.workingdir);
     std::filesystem::current_path(path);
 
+    ptrHandle.mainWin = this;
     ptrHandle.modManager = &modManager;
     ptrHandle.locale = &locale;
     ptrHandle.userInterface = &userInterface;
@@ -708,9 +709,8 @@ void MainWindow::loadingLoop()
             }
 
             initPost();
-            startLocalServer(options.bindir + "/data/menu-server");
-            connectToServer(net::ConnectDataMenu,
-                            sphyc::AfterConnectState::Menu);
+            startLocalGame(options.bindir + "/data/menu-server",
+                           sphyc::AfterConnectState::Menu);
         }
         else
         {
@@ -720,15 +720,23 @@ void MainWindow::loadingLoop()
     }
 }
 
+void MainWindow::startLocalGame(const string& path,
+                                sphyc::AfterConnectState after)
+{
+    startLocalServer(path);
+    connectToServer(net::ConnectDataMenu, after);
+}
+
 void MainWindow::startLocalServer(const string& savedir)
 {
     if (localServerProc.IsRunning())
     {
         LG_E("Local server process is already running");
+        model.shutdownLocalServer();
+        localServerProc.Wait();
     }
     // todo: Abstract file names for apple and windows cross compatibility
-    localServerProc.Start(options.bindir + "/game-server", {"-s", savedir});
-    // localServerProc.Wait();
+    //localServerProc.Start(options.bindir + "/game-server", {"-s", savedir});
 }
 
 void MainWindow::setupMouseState()
@@ -1343,6 +1351,7 @@ void MainWindow::onConnectToServer(Rml::DataModelHandle handle,
 void MainWindow::connectToServer(const net::ConnectData& connectData,
                                  sphyc::AfterConnectState after)
 {
+    client.shutdown();
     model.prepareForConnect();
     for (int i = 0; i < 10; ++i)
     {

@@ -1,17 +1,17 @@
 #ifndef EVENT_LISTENER_HPP
 #define EVENT_LISTENER_HPP
 
-#include <std-inc.hpp>
-#include <RmlUi/Core/DataModelHandle.h>
-#include <RmlUi/Core/EventListener.h>
 #include <RmlUi/Core/Context.h>
+#include <RmlUi/Core/DataModelHandle.h>
 #include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/EventListener.h>
+#include <std-inc.hpp>
 #include <unordered_map>
 
 namespace ui
 {
 
-typedef std::function<void()> OnClickClb;
+typedef std::function<void(const vector<string>& args)> OnClickClb;
 typedef std::function<void()> OnChangeClb;
 typedef std::function<void()> OnCloseClb;
 
@@ -42,10 +42,21 @@ class EventListener
             {
                 if (args.empty())
                     return;
+                const auto& id = args[0].Get<string>();
 
-                const auto& id = args[0].Get<Rml::String>();
                 if (auto it = onClickClbs.find(id); it != onClickClbs.end())
-                    it->second();
+                {
+                    if (args.size() > 1)
+                    {
+                        string argStr = args[1].Get<string>();
+                        vector<string> argsInt = split(argStr, true);
+                        it->second(argsInt);
+                    }
+                    else
+                    {
+                        it->second({});
+                    }
+                }
             });
         constructor.BindEventCallback(
             "onChange",
@@ -59,6 +70,13 @@ class EventListener
                 if (auto it = onChangeClbs.find(id); it != onChangeClbs.end())
                     it->second();
             });
+    }
+    void registerOnclickFun(const string& id, OnClickClb clb)
+    {
+        if (clb)
+        {
+            onClickClbs.emplace(id, clb);
+        }
     }
     template <class T> void registerOnclick(const T& model);
     template <class T> void createOnclick(T& model, OnClickClb clb);
@@ -140,8 +158,10 @@ class PageEventListener : public Rml::EventListener
 
 struct DataModel
 {
-  protected:
+  public:
     EventListener eventListener;
+
+  protected:
     Rml::DataModelHandle rmlHandle;
     void setup(Rml::DataModelConstructor& constructor,
                Rml::DataModelHandle rmlHdl,

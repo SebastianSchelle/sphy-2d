@@ -4,13 +4,12 @@
 namespace sphyc
 {
 
-void SaveManager::listSaveInfos(std::vector<SaveInfo>& safes)
+void SaveManager::listSaveInfos(std::vector<SaveInfo>& saves)
 {
     try
     {
         for (const auto& fileEntry :
-             std::filesystem::recursive_directory_iterator(
-                 options.localSaveDir))
+             std::filesystem::directory_iterator(options.localSaveDir))
         {
             if (fileEntry.is_directory())
             {
@@ -21,9 +20,10 @@ void SaveManager::listSaveInfos(std::vector<SaveInfo>& safes)
                     try
                     {
                         string name = info["name"].as<string>();
-                        safes.push_back(SaveInfo{
-                            .name = name,
-                        });
+                        saves.push_back(
+                            SaveInfo{.id = name,
+                                     .name = name,
+                                     .path = fileEntry.path().string()});
                     }
                     catch (YAML::Exception e)
                     {
@@ -39,8 +39,21 @@ void SaveManager::listSaveInfos(std::vector<SaveInfo>& safes)
     }
     catch (std::exception e)
     {
-        LG_E("Failed to iterate over save game folder {}", options.localSaveDir);
+        LG_E("Failed to iterate over save game folder {}",
+             options.localSaveDir);
     }
+}
+
+bool SaveManager::getLastSaved(SaveInfo& lastSave)
+{
+    vector<SaveInfo> saves;
+    listSaveInfos(saves);
+    if (!saves.size())
+    {
+        return false;
+    }
+    lastSave = saves.back();
+    return true;
 }
 
 }  // namespace sphyc

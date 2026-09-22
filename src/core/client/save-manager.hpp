@@ -1,15 +1,16 @@
 #ifndef SAVE_MANAGER_HPP
 #define SAVE_MANAGER_HPP
 
-#include "std-inc.hpp"
 #include "cmd-options.hpp"
 #include "config-manager.hpp"
+#include "std-inc.hpp"
 
 namespace sphyc
 {
 
 struct SaveInfo
 {
+    string id;
     string name;
     string path;
     tim::Timepoint safetime;
@@ -26,6 +27,7 @@ class SaveManager
     ~SaveManager() {}
 
     void listSaveInfos(std::vector<SaveInfo>& safes);
+    bool getLastSaved(SaveInfo& lastSave);
 
   private:
     sphy::CmdLinOptionsClient& options;

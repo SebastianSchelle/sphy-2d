@@ -190,6 +190,9 @@ class MainWindow
     bool setupRenderEngine();
     bool setupRmlUi();
     void winLoop();
+    void startLocalGame(
+        const string& path,
+        sphyc::AfterConnectState after = sphyc::AfterConnectState::Game);
 
   protected:
     sphyc::Client client;

@@ -18,6 +18,7 @@ UdpServer::~UdpServer()
 
 void UdpServer::close()
 {
+    LG_I("Closing UDP server");
     boost::asio::dispatch(
         socket_.get_executor(),
         [this]()

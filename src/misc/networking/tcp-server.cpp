@@ -176,6 +176,7 @@ TcpServer::~TcpServer()
 
 void TcpServer::close()
 {
+    LG_I("Closing TCP server");
     boost::asio::dispatch(
         io_context_,
         [this]()

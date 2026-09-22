@@ -76,7 +76,8 @@ using InputAdapter = bitsery::InputBufferAdapter<Buffer>;
     DO_PERIODIC_EXTNOW(timekeeper_, interval_, now, callback_)
 
 #define SLEEP_S(sec) std::this_thread::sleep_for(std::chrono::seconds(sec))
-#define SLEEP_MS(millis) std::this_thread::sleep_for(std::chrono::milliseconds(millis))
+#define SLEEP_MS(millis)                                                       \
+    std::this_thread::sleep_for(std::chrono::milliseconds(millis))
 
 #define TIM_1MS 1000
 #define TIM_10MS 10000
@@ -1022,6 +1023,39 @@ struct GenericHandle32
     }
 };
 
+using Predicate = std::function<int(int)>;
+
+static inline void ltrim(std::string& str, Predicate const& pred = isspace)
+{
+    str.erase(str.begin(), std::find_if_not(str.begin(), str.end(), pred));
+}
+
+static inline void rtrim(std::string& str, Predicate const& pred = isspace)
+{
+    str.erase((std::find_if_not(str.rbegin(), str.rend(), pred)).base(),
+              str.end());
+}
+
+static inline void trim(std::string& str, Predicate const& pred = isspace)
+{
+    ltrim(str, pred);
+    rtrim(str, pred);
+}
+
+inline std::vector<std::string> split(const std::string& s, bool tr = false)
+{
+    std::vector<std::string> result;
+    std::stringstream ss(s);
+    std::string item;
+    while (std::getline(ss, item, ','))
+    {
+        if (tr)
+            trim(item);
+        result.push_back(item);
+    }
+    return result;
+}
+
 bool tryParseFloat(const string& text, float& outValue);
 bool tryParseInt(const string& text, int& outValue);
 void floatToString(float value, string& outText, int precision = 2);
@@ -1255,25 +1289,6 @@ template <class T> class InterpolData
     T history[INTERPOL_DEPTH];
     uint8_t newest = 0;
 };
-
-using Predicate = std::function<int(int)>;
-
-static inline void ltrim(std::string& str, Predicate const& pred = isspace)
-{
-    str.erase(str.begin(), std::find_if_not(str.begin(), str.end(), pred));
-}
-
-static inline void rtrim(std::string& str, Predicate const& pred = isspace)
-{
-    str.erase((std::find_if_not(str.rbegin(), str.rend(), pred)).base(),
-              str.end());
-}
-
-static inline void trim(std::string& str, Predicate const& pred = isspace)
-{
-    ltrim(str, pred);
-    rtrim(str, pred);
-}
 
 // Do not `using smath::Rect` at file scope: macOS SDK (MacTypes.h) defines a
 // global `struct Rect`; a using-declaration would collide with Carbon's type.

@@ -16,17 +16,19 @@ namespace widget
 
 struct Button
 {
-    string id;
-    string label;
-    string tooltip;
+    string id = "btn0";
+    string args = "";
+    string label = "Btn0";
+    string tooltip = "";
     bool disabled = false;
-    OnClickClb onClick;
+    OnClickClb onClick = nullptr;
 
     static void RegisterType(Rml::DataModelConstructor& constructor)
     {
         if (auto handle = constructor.RegisterStruct<Button>())
         {
             handle.RegisterMember("id", &Button::id);
+            handle.RegisterMember("args", &Button::args);
             handle.RegisterMember("label", &Button::label);
             handle.RegisterMember("tooltip", &Button::tooltip);
             handle.RegisterMember("disabled", &Button::disabled);
@@ -107,7 +109,7 @@ template <class T> struct RadioButtons
     static void RegisterType(Rml::DataModelConstructor& constructor)
     {
         RadioOption<T>::RegisterType(constructor);
-        constructor.RegisterArray<std::vector<RadioOption<T>>>();
+        constructor.RegisterArray<vector<RadioOption<T>>>();
         if (auto handle = constructor.RegisterStruct<RadioButtons>())
         {
             handle.RegisterMember("id", &RadioButtons::id);

@@ -27,8 +27,9 @@ class Client;
 }
 namespace ui
 {
+class MainWindow;
 class UserInterface;
-}
+}  // namespace ui
 #endif
 
 namespace sthread
@@ -86,6 +87,7 @@ struct PtrHandle
     ecs::CollisionLayerMat* collisionLayerMat;
     ecs::ComponentFactory* componentFactory;
 #elif CLIENT
+    ui::MainWindow* mainWin;
     sphyc::Client* client;
     sphyc::SaveManager* saveManager;
     ui::Localisation* locale;
