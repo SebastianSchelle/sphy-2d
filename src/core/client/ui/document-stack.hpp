@@ -76,7 +76,10 @@ template <class T> class DocumentStack
 
     void clear()
     {
-        hideDoc(stack.back().first);
+        if (stack.size())
+        {
+            hideDoc(stack.back().first);
+        }
         stack.clear();
     }
 

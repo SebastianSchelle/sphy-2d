@@ -121,6 +121,7 @@ class Model
           ecs::PtrHandle* ptrHandle);
     ~Model();
     void modelLoop(float dt);
+    void reset();
 
     void startLoadingMods();
     void
@@ -132,8 +133,6 @@ class Model
     void sendCmdToServer(const std::string& command);
     void checkVersion(const net::ConnectData& connectData,
         AfterConnectState after);
-    void prepareForConnect();
-    void disconnectFromServer();
     ConcurrentQueue<net::CmdQueueData> sendQueue;
     ConcurrentQueue<net::CmdQueueData> receiveQueue;
 

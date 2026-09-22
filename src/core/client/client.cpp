@@ -20,70 +20,19 @@ Client::~Client()
     {
         ioThread.join();
     }
-    {
-        std::lock_guard<std::mutex> lock(lifecycleMutex);
-        udpClient.reset();
-        tcpClient.reset();
-    }
-    if (!spdlogShutdown.exchange(true))
-    {
-        spdlog::shutdown();
-    }
 }
 
-void Client::shutdown(bool notifyModel)
+void Client::shutdown()
 {
-    if (notifyModel)
-    {
-        if (!shutdownNotified.exchange(true) && shutdownCallback)
-        {
-            shutdownCallback();
-        }
-    }
-    if (shuttingDown.exchange(true))
-    {
-        return;
-    }
-    LG_I("Shutting down client...");
-
-    std::lock_guard<std::mutex> lock(lifecycleMutex);
-    sendTimer.cancel();
-    if (udpClient)
-    {
-        udpClient->close();
-    }
-    if (tcpClient)
-    {
-        tcpClient->close();
-    }
-    ioContext.stop();
-}
-
-void Client::wait()
-{
-    shutdown();
-    if (ioThread.joinable())
-    {
-        ioThread.join();
-    }
-    {
-        std::lock_guard<std::mutex> lock(lifecycleMutex);
-        udpClient.reset();
-        tcpClient.reset();
-    }
-    if (!spdlogShutdown.exchange(true))
-    {
-        spdlog::shutdown();
-    }
+    shuttingDown.store(true);
 }
 
 bool Client::connectToServer(const net::ConnectData& connectdata)
 {
     const uint32_t generation = ++connectGeneration;
-    // Tear down old transport without notifying model — reconnect is
-    // intentional.
-    shutdown(/*notifyModel=*/false);
-    if (ioThread.joinable())
+    shutdown();
+
+    if(ioThread.joinable())
     {
         ioThread.join();
     }
@@ -94,8 +43,7 @@ bool Client::connectToServer(const net::ConnectData& connectdata)
         ioContext.restart();
     }
 
-    shuttingDown = false;
-    shutdownNotified = false;
+    shuttingDown.store(false);
 
     try
     {
@@ -130,13 +78,12 @@ bool Client::connectToServer(const net::ConnectData& connectdata)
              connectdata.ipAddress,
              connectdata.tcpPortServ,
              e.what());
-        shuttingDown = true;
+        shuttingDown.store(true);
         return false;
     }
 
-    boost::asio::post(ioContext,
-                      [this, connectdata]()
-                      { scheduleSend(connectdata.token); });
+    boost::asio::post(
+        ioContext, [this, connectdata]() { scheduleSend(connectdata.token); });
     ioThread = std::thread([this]() { ioContext.run(); });
     return true;
 }
@@ -150,7 +97,7 @@ void Client::scheduleSend(const std::string& token)
             if (!ec)
             {
                 net::CmdQueueData sendData;
-                while (modelSendQueue.try_dequeue(sendData))
+                while (!shuttingDown && modelSendQueue.try_dequeue(sendData))
                 {
                     if (sendData.sendType == net::SendType::UDP)
                     {
@@ -170,7 +117,19 @@ void Client::scheduleSend(const std::string& token)
                         }
                     }
                 }
-                if (!shuttingDown.load())
+                if (shuttingDown.load())
+                {
+                    if (udpClient)
+                    {
+                        udpClient->close();
+                    }
+                    if (tcpClient)
+                    {
+                        tcpClient->close();
+                    }
+                    ioContext.stop();
+                }
+                else
                 {
                     scheduleSend(token);  // schedule next check
                 }
@@ -186,6 +145,15 @@ void Client::scheduleSend(const std::string& token)
                 {
                     LG_E("Send timer aborted: {}", ec.message());
                 }
+                if (udpClient)
+                {
+                    udpClient->close();
+                }
+                if (tcpClient)
+                {
+                    tcpClient->close();
+                }
+                ioContext.stop();
             }
         });
 }
@@ -227,7 +195,7 @@ void Client::connectionClosedClb(uint32_t generation)
             "Server TCP connection lost/closed, shutting down client "
             "networking");
     }
-    shutdown(/*notifyModel=*/true);
+    shutdown();
 }
 
 }  // namespace sphyc

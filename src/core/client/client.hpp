@@ -23,12 +23,7 @@ class Client
            ConcurrentQueue<net::CmdQueueData>& modelReceiveQueue);
     ~Client();
     bool connectToServer(const net::ConnectData& connectdata);
-    void setShutdownCallback(std::function<void()> cb)
-    {
-        shutdownCallback = std::move(cb);
-    }
-    void shutdown(bool notifyModel = true);
-    void wait();  // Wait for model thread to finish
+    void shutdown();
 
   private:
     void scheduleSend(const std::string& token);
@@ -43,10 +38,7 @@ class Client
     cfg::ConfigManager& config;
     boost::asio::steady_timer sendTimer;
     std::atomic<bool> shuttingDown{false};
-    std::atomic<bool> spdlogShutdown{false};
-    std::atomic<bool> shutdownNotified{false};
     std::atomic<uint32_t> connectGeneration{0};
-    std::function<void()> shutdownCallback;
     std::mutex lifecycleMutex;
     ConcurrentQueue<net::CmdQueueData>& modelSendQueue;
     ConcurrentQueue<net::CmdQueueData>& modelReceiveQueue;

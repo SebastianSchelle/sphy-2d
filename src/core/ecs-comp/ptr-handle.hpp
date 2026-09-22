@@ -24,6 +24,7 @@ class ComponentFactory;
 namespace sphyc
 {
 class Client;
+class Model;
 }
 namespace ui
 {
@@ -88,6 +89,7 @@ struct PtrHandle
     ecs::ComponentFactory* componentFactory;
 #elif CLIENT
     ui::MainWindow* mainWin;
+    sphyc::Model* model;
     sphyc::Client* client;
     sphyc::SaveManager* saveManager;
     ui::Localisation* locale;

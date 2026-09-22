@@ -193,11 +193,14 @@ class MainWindow
     void startLocalGame(
         const string& path,
         sphyc::AfterConnectState after = sphyc::AfterConnectState::Game);
+    void shutdown();
+    void shutdownLocalServer();
 
   protected:
     sphyc::Client client;
 
   private:
+    void disconnect(); 
     static void errorCallback(int error, const char* description);
     void onKey(int key, int scancode, int action, int mods);
     void onChar(unsigned int codepoint);
@@ -226,32 +229,10 @@ class MainWindow
     void onNewGame(Rml::DataModelHandle handle,
                    Rml::Event& event,
                    const Rml::VariantList& args);
-
-    void onStartModdingTools(Rml::DataModelHandle handle,
-                             Rml::Event& event,
-                             const Rml::VariantList& args);
-
-    void onStartAtlasDebug(Rml::DataModelHandle handle,
-                           Rml::Event& event,
-                           const Rml::VariantList& args);
-
-    void onConnectToServer(Rml::DataModelHandle handle,
-                           Rml::Event& event,
-                           const Rml::VariantList& args);
     void onCmd(const std::string& cmd);
 
     void onClientShutdown();
-
-    void onQuit(Rml::DataModelHandle handle,
-                Rml::Event& event,
-                const Rml::VariantList& args);
-
-    void onExitToMenu(Rml::DataModelHandle handle,
-                      Rml::Event& event,
-                      const Rml::VariantList& args);
-
     void onAfterLoadWorld();
-
     void connectToServer(const net::ConnectData& connectData,
                          sphyc::AfterConnectState after);
     void drawWorldRectangle(const def::SectorCoords& start,

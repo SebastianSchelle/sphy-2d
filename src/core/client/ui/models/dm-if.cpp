@@ -5,6 +5,7 @@
 #include "widgets.hpp"
 #include <dm-if.hpp>
 #include <main-window.hpp>
+#include <model.hpp>
 #include <user-interface.hpp>
 
 namespace ui
@@ -55,14 +56,18 @@ void DmIf::setupMenu()
     menu.addButton(
         constMenu,
         {.id = "btnExit", .label = "[btn.exit]", .tooltip = "btn.exit.tooltip"},
-        [this](const vector<string>& args) { ptrHandle->client->shutdown(); });
+        [this](const vector<string>& args) { ptrHandle->mainWin->shutdown(); });
     menu.addButton(constMenu,
                    {.id = "btnOptions",
                     .label = "[btn.options]",
                     .tooltip = "btn.options.tooltip",
-                    .disabled = true},
+                    .disabled = false},
                    [this](const vector<string>& args)
-                   { ui->menuPush("menu-options", "[btn.options]"); });
+                   {
+                       ptrHandle->mainWin->shutdownLocalServer();
+                       ptrHandle->client->shutdown();
+                       // ui->menuPush("menu-options", "[btn.options]");
+                   });
     menu.addButton(constMenu,
                    {.id = "btnNewGame",
                     .label = "[btn.newgame]",
@@ -106,7 +111,8 @@ void DmIf::setupMenu()
                     if (save.button.args.contains(id))
                     {
                         LG_D("Load save from {}", save.path);
-                        ptrHandle->mainWin->startLocalGame(save.path);
+                        ptrHandle->mainWin->startLocalGame(
+                            save.path, sphyc::AfterConnectState::Game);
                         break;
                     }
                 }

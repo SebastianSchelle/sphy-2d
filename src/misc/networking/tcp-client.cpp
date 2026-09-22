@@ -21,6 +21,7 @@ TcpClient::TcpClient(boost::asio::io_context& io_context,
       connectionClosedCallback(connectionClosedCallback)
 {
     socket.connect(devServerEndpoint);
+    running.store(true);
     startReceive();
 }
 
@@ -30,6 +31,7 @@ void TcpClient::close()
     {
         return;
     }
+    LG_I("Shutting down Tcp client");
     resetParser();
     boost::system::error_code ec;
     [[maybe_unused]] const auto cancelled = socket.cancel(ec);
@@ -132,8 +134,7 @@ void TcpClient::handleReceive(const boost::system::error_code& error,
     }
     else
     {
-        running = false;
-        resetParser();
+        close();
         if (error == boost::asio::error::operation_aborted)
         {
             return;

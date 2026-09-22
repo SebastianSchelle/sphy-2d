@@ -98,8 +98,8 @@ game_entity ClientRegistry::getEntity(EntityId entityId, bool reqIfNone)
 
 void ClientRegistry::clearSession()
 {
-    registry.clear();
     idMap.clear();
+    registry.clear();
 }
 
 void ClientRegistry::destroyServerEntity(EntityId entityId)

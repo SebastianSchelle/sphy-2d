@@ -109,6 +109,7 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
     ptrHandle.locale = &locale;
     ptrHandle.userInterface = &userInterface;
     ptrHandle.saveManager = &saveManager;
+    ptrHandle.client = &client;
 
     uint8_t logLevel = CFG_UINT(config, 1.0f, "loglevel");
     debug::createLogger("logs/logClient.txt", logLevel);
@@ -126,12 +127,6 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
     LG_I("drag threshold: 0x{:x}", dragBoxColor);
 
     glfwSetErrorCallback(errorCallback);
-    client.setShutdownCallback(
-        [this]()
-        {
-            std::lock_guard<std::mutex> lock(uiTaskMutex);
-            uiTasks.push_back([this]() { onClientShutdown(); });
-        });
 }
 
 MainWindow::~MainWindow()
@@ -726,14 +721,19 @@ void MainWindow::startLocalGame(const string& path,
     connectToServer(net::ConnectDataMenu, after);
 }
 
-void MainWindow::startLocalServer(const string& savedir)
+void MainWindow::shutdownLocalServer()
 {
-    if (localServerProc.IsRunning())
+    //if (localServerProc.IsRunning())
     {
-        LG_E("Local server process is already running");
         model.shutdownLocalServer();
         localServerProc.Wait();
+        LG_E("Server process shut down successfully");
     }
+}
+
+void MainWindow::startLocalServer(const string& savedir)
+{
+    shutdownLocalServer();
     // todo: Abstract file names for apple and windows cross compatibility
     localServerProc.Start(options.bindir + "/game-server", {"-s", savedir});
 }
@@ -1228,6 +1228,11 @@ void MainWindow::setupDataModelDebug()
     }
 }
 
+void MainWindow::disconnect()
+{
+    client.shutdown();
+}
+
 void MainWindow::setupDataModelMenu()
 {
     // auto menuConstructor = userInterface.getDataModel("menu");
@@ -1297,52 +1302,38 @@ void MainWindow::onNewGame(Rml::DataModelHandle handle,
 #endif
 }
 
-void MainWindow::onStartModdingTools(Rml::DataModelHandle handle,
-                                     Rml::Event& event,
-                                     const Rml::VariantList& args)
-{
-    model.gotoModdingTools();
-}
+// void MainWindow::onStartModdingTools(Rml::DataModelHandle handle,
+//                                      Rml::Event& event,
+//                                      const Rml::VariantList& args)
+// {
+//     model.gotoModdingTools();
+// }
 
-void MainWindow::onStartAtlasDebug(Rml::DataModelHandle handle,
-                                   Rml::Event& event,
-                                   const Rml::VariantList& args)
-{
-    (void)handle;
-    (void)event;
-    (void)args;
-    model.gotoAtlasDebug();
-    atlasDebug.refreshAfterGpuArraysChange();
-}
-
-void MainWindow::onConnectToServer(Rml::DataModelHandle handle,
-                                   Rml::Event& event,
-                                   const Rml::VariantList& args)
-{
-    (void)handle;
-    (void)event;
-    (void)args;
-    // connectToServer(menuData.connectData.ipAddress,
-    //                 menuData.connectData.udpPortServ,
-    //                 menuData.connectData.tcpPortServ,
-    //                 menuData.connectData.udpPortCli,
-    //                 menuData.connectData.token,
-    //                 sphyc::AfterConnectState::Game);
-}
+// void MainWindow::onStartAtlasDebug(Rml::DataModelHandle handle,
+//                                    Rml::Event& event,
+//                                    const Rml::VariantList& args)
+// {
+//     (void)handle;
+//     (void)event;
+//     (void)args;
+//     model.gotoAtlasDebug();
+//     atlasDebug.refreshAfterGpuArraysChange();
+// }
 
 void MainWindow::connectToServer(const net::ConnectData& connectData,
                                  sphyc::AfterConnectState after)
 {
-    // todo: remove all the AI bullshit and do the connect/reconnect logic myself. It's all garbage.
-    // Monke AI, fucking scam
-    onClientShutdown();
+    // todo: remove all the AI bullshit and do the connect/reconnect logic
+    // myself. It's all garbage. Monke AI, fucking scam
+
+    disconnect();
     for (int i = 0; i < 10; ++i)
     {
         if (client.connectToServer(connectData))
         {
             break;
         }
-        onClientShutdown();
+        disconnect();
         SLEEP_MS(100);
     }
     model.checkVersion(connectData, after);
@@ -1353,26 +1344,12 @@ void MainWindow::onCmd(const std::string& cmd)
     model.sendCmdToServer(cmd);
 }
 
-void MainWindow::onClientShutdown()
+void MainWindow::shutdown()
 {
-    LG_W("Client disconnected from server");
-    model.disconnectFromServer();
-}
-
-void MainWindow::onQuit(Rml::DataModelHandle handle,
-                        Rml::Event& event,
-                        const Rml::VariantList& args)
-{
+    model.shutdownLocalServer();
     userInterface.menuHide();
     client.shutdown();
     glfwSetWindowShouldClose(window, GLFW_TRUE);
-}
-
-void MainWindow::onExitToMenu(Rml::DataModelHandle handle,
-                              Rml::Event& event,
-                              const Rml::VariantList& args)
-{
-    client.shutdown();
 }
 
 void MainWindow::onAfterLoadWorld()

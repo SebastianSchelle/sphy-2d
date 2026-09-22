@@ -59,6 +59,7 @@ Model::Model(ui::UserInterface* userInterface,
     assetFactory.componentFactory.registerAllComponents();
     lastGetAabbTree = tim::nowU();
 
+    ptrHandle->model = this;
     ptrHandle->world = &world;
 
     intFastCliServ =
@@ -88,19 +89,6 @@ void drainQueue(moodycamel::ConcurrentQueue<net::CmdQueueData>& queue)
 }
 
 }  // namespace
-
-void Model::prepareForConnect()
-{
-    drainQueue(sendQueue);
-    drainQueue(receiveQueue);
-    loadWorldSequence.reset();
-    timeSyncData.waiting = false;
-    timeSyncData.cnt = 0;
-    clientRegistry.clearSession();
-    selectedEntities.clear();
-    aabbs.clear();
-    thirdPersonControl = def::ThirdPersonControl{};
-}
 
 void Model::modelLoop(float dt)
 {
@@ -238,9 +226,10 @@ void Model::modelLoopGame(float dt)
                                        (uint32_t)renderer->getSectorOffsetY()};
                     vec2 oldPos = renderer->getWorldCameraPosition();
 
-                    // todo: make dt independent and implement smooth panning in render engine
-                    // todo: this + model.hpp. shared function for sector pos interpolation
-                    // todo: only do complex interpolation when id != newId
+                    // todo: make dt independent and implement smooth panning in
+                    // render engine todo: this + model.hpp. shared function for
+                    // sector pos interpolation todo: only do complex
+                    // interpolation when id != newId
                     const vec2 prevPosTr = world.translateCoords(
                         oldPos,
                         world.sectorCoordsToId(old),
@@ -929,6 +918,27 @@ void Model::shutdownLocalServer()
     mcomp.execute(sendQueue);
 }
 
+void Model::reset()
+{
+    clientRegistry.clearSession();
+    dbgCollAvoidBp.clear();
+    activeSectors.clear();
+    loadWorldSequence.reset();
+    net::CmdQueueData sendData;
+    while (sendQueue.try_dequeue(sendData))
+    {
+    }
+    frametime = 0U;
+    rendertime = 0U;
+    lastTSync = 0U;
+    lastFastCliServ = 0U;
+    lastReqAllComponents = 0U;
+    lastGetAabbTree = 0U;
+    aabbs.clear();
+    timeSyncData.serverLatency = 0U;
+    timeSyncData.serverOffset = 0U;
+}
+
 void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
                               const vector<RealtimeDrawBounds>& drawBounds)
 {
@@ -1526,7 +1536,7 @@ void Model::sendCmdToServer(const std::string& command)
 void Model::checkVersion(const net::ConnectData& connectData,
                          AfterConnectState after)
 {
-    prepareForConnect();
+    reset();
     afterConnectState = after;
     this->clientInfo = def::ClientInfo("", connectData, 0);
     prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
@@ -1560,27 +1570,6 @@ void Model::notifyReady()
     mcomp.execute(sendQueue);
     gameState = ClientGameState::NotifyServerReady;
     LG_I("Notifying server ready");
-}
-
-void Model::disconnectFromServer()
-{
-    switch (gameState)
-    {
-        case ClientGameState::Authenticating:
-            LG_W("Authentication refused");
-            gameState = ClientGameState::MainMenu;
-            break;
-        case ClientGameState::GameLoop:
-        case ClientGameState::LoadWorld:
-        case ClientGameState::NotifyServerReady:
-        case ClientGameState::Authenticated:
-        case ClientGameState::VersionCheck:
-            LG_W("Disconnected from server");
-            gameState = ClientGameState::MainMenu;
-            break;
-        default:
-            break;
-    }
 }
 
 void Model::handleSlowDump(bitsery::Deserializer<InputAdapter>& cmddes,
