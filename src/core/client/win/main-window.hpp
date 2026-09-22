@@ -223,8 +223,6 @@ class MainWindow
     void updateDebugDataModel(float deltaTimeSec, bool ptrOverUi);
     void setupDataModelMenu();
 
-    void stopServer();
-
     void onNewGame(Rml::DataModelHandle handle,
                    Rml::Event& event,
                    const Rml::VariantList& args);
@@ -303,8 +301,6 @@ class MainWindow
     Rml::DataModelHandle rmlModelHud;
 
     UiDebugData debugData;
-
-    boost::process::v1::child* serverProcess = nullptr;
 
     gfx::PanDirection panX = gfx::PanDirection::Stop;
     gfx::PanDirection panY = gfx::PanDirection::Stop;

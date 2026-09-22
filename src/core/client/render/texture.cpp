@@ -788,24 +788,24 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
     Texture texture(
         name, path, texIdent, storagePtr, atlasHandle, relBounds, fontGlyph);
     TextureHandle handle = textureLib.addItem(name, texture);
-    LG_I("Texture has been added to GPU storage");
-    LG_I("GPU Texture handle: {}, Layer: {}",
-         texture.getTexIdent().texHandle.idx,
-         texture.getTexIdent().layerIdx);
-    LG_I("Texture name: {}, Lib idx: {}, Lib size: {}",
-         name,
-         handle.getIdx(),
-         textureLib.size());
-    LG_I("Atlas ID: {}, Pos: ({},{}) - {}x{}",
-         atlasHandle.value(),
-         texture.getStoragePtr().rect.x,
-         texture.getStoragePtr().rect.y,
-         texture.getStoragePtr().rect.width,
-         texture.getStoragePtr().rect.height);
-    LG_I("Wrapped texture handle: {} (idx: {}, gen: {})",
-         handle.value(),
-         handle.getIdx(),
-         handle.getGeneration());
+    // LG_I("Texture has been added to GPU storage");
+    // LG_I("GPU Texture handle: {}, Layer: {}",
+    //      texture.getTexIdent().texHandle.idx,
+    //      texture.getTexIdent().layerIdx);
+    // LG_I("Texture name: {}, Lib idx: {}, Lib size: {}",
+    //      name,
+    //      handle.getIdx(),
+    //      textureLib.size());
+    // LG_I("Atlas ID: {}, Pos: ({},{}) - {}x{}",
+    //      atlasHandle.value(),
+    //      texture.getStoragePtr().rect.x,
+    //      texture.getStoragePtr().rect.y,
+    //      texture.getStoragePtr().rect.width,
+    //      texture.getStoragePtr().rect.height);
+    // LG_I("Wrapped texture handle: {} (idx: {}, gen: {})",
+    //      handle.value(),
+    //      handle.getIdx(),
+    //      handle.getGeneration());
     return handle;
 }
 

@@ -1564,7 +1564,6 @@ void Model::notifyReady()
 
 void Model::disconnectFromServer()
 {
-    prepareForConnect();
     switch (gameState)
     {
         case ClientGameState::Authenticating:

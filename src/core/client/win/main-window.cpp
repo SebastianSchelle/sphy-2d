@@ -142,7 +142,6 @@ MainWindow::~MainWindow()
         drainUiTasksForShutdown();
         loadingThread.join();
     }
-    stopServer();
     renderEngine.shutdown();
     Rml::Shutdown();
     bgfx::shutdown();
@@ -736,7 +735,7 @@ void MainWindow::startLocalServer(const string& savedir)
         localServerProc.Wait();
     }
     // todo: Abstract file names for apple and windows cross compatibility
-    //localServerProc.Start(options.bindir + "/game-server", {"-s", savedir});
+    localServerProc.Start(options.bindir + "/game-server", {"-s", savedir});
 }
 
 void MainWindow::setupMouseState()
@@ -1296,12 +1295,6 @@ void MainWindow::onNewGame(Rml::DataModelHandle handle,
 #else
     fs::path serverExe = exeDir / "limes-server";
 #endif
-
-    if (serverProcess)
-    {
-        stopServer();
-    }
-    serverProcess = new boost::process::v1::child(serverExe.string());
 }
 
 void MainWindow::onStartModdingTools(Rml::DataModelHandle handle,
@@ -1322,17 +1315,6 @@ void MainWindow::onStartAtlasDebug(Rml::DataModelHandle handle,
     atlasDebug.refreshAfterGpuArraysChange();
 }
 
-void MainWindow::stopServer()
-{
-    if (serverProcess)
-    {
-        serverProcess->terminate();
-        serverProcess->wait();
-        delete serverProcess;
-        serverProcess = nullptr;
-    }
-}
-
 void MainWindow::onConnectToServer(Rml::DataModelHandle handle,
                                    Rml::Event& event,
                                    const Rml::VariantList& args)
@@ -1351,8 +1333,9 @@ void MainWindow::onConnectToServer(Rml::DataModelHandle handle,
 void MainWindow::connectToServer(const net::ConnectData& connectData,
                                  sphyc::AfterConnectState after)
 {
-    client.shutdown();
-    model.prepareForConnect();
+    // todo: remove all the AI bullshit and do the connect/reconnect logic myself. It's all garbage.
+    // Monke AI, fucking scam
+    onClientShutdown();
     for (int i = 0; i < 10; ++i)
     {
         if (client.connectToServer(connectData))
@@ -1382,7 +1365,6 @@ void MainWindow::onQuit(Rml::DataModelHandle handle,
 {
     userInterface.menuHide();
     client.shutdown();
-    stopServer();
     glfwSetWindowShouldClose(window, GLFW_TRUE);
 }
 
