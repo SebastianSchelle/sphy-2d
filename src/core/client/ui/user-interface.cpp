@@ -570,7 +570,7 @@ void UserInterface::setupViewModeUi(gfx::GameViewMode viewMode)
     }
 }
 
-void UserInterface::processEsc(bool allowClose)
+void UserInterface::processMenuKey(bool allowClose)
 {
     if (menuStack.isOpen())
     {
@@ -578,7 +578,7 @@ void UserInterface::processEsc(bool allowClose)
     }
     else
     {
-        menuStack.show();
+        menuShow();
     }
 }
 
@@ -702,8 +702,7 @@ void UserInterface::scrollChatToBottom()
     }
 }
 
-void UserInterface::addPageEvents(const string& id,
-                                  PageEventListener& listener)
+void UserInterface::addPageEvents(const string& id, PageEventListener& listener)
 {
     auto handle = rmlDocLib.getHandle(id);
     if (!handle.isValid())

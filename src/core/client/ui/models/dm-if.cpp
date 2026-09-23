@@ -58,6 +58,12 @@ void DmIf::setupMenu()
         {.id = "btnExit", .label = "[btn.exit]", .tooltip = "btn.exit.tooltip"},
         [this](const vector<string>& args) { ptrHandle->mainWin->shutdown(); });
     menu.addButton(constMenu,
+                   {.id = "btnMainmenu",
+                    .label = "[btn.mainmenu]",
+                    .tooltip = "btn.mainmenu.tooltip"},
+                   [this](const vector<string>& args)
+                   { ptrHandle->mainWin->shutdown(); });
+    menu.addButton(constMenu,
                    {.id = "btnOptions",
                     .label = "[btn.options]",
                     .tooltip = "btn.options.tooltip",

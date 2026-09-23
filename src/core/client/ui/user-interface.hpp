@@ -94,7 +94,7 @@ class UserInterface
     void hideConnecting();
     void hideTabListMap();
     void showTabListMap();
-    void processEsc(bool allowClose = true);
+    void processMenuKey(bool allowClose = true);
     void addSystemMessage(const string& message);
     void addChatMessage(const ChatMessage& message);
     void setChatCmdHistoryMax(unsigned maxHistoryEntries);

@@ -12,6 +12,7 @@
 #include "rmlui-systeminterface.hpp"
 #include "save-manager.hpp"
 #include "std-inc.hpp"
+#include "user-input.hpp"
 #include "world-def.hpp"
 #include <RmlUi/Debugger.h>
 #include <bgfx/platform.h>
@@ -188,6 +189,7 @@ bool MainWindow::initPre()
     atlasDebug.bind(&userInterface, &model, &renderEngine);
     atlasDebug.setupDataModel(userInterface);
 
+    setupGeneralCtrl();
     setupThirdPersonCtrl();
     setupMapCtrl();
 
@@ -724,7 +726,7 @@ void MainWindow::startLocalGame(const string& path,
 
 void MainWindow::shutdownLocalServer()
 {
-    //if (localServerProc.IsRunning())
+    // if (localServerProc.IsRunning())
     {
         model.shutdownLocalServer();
         localServerProc.Wait();
@@ -818,11 +820,6 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
 
     if (model.getGameState() == ClientGameState::AtlasDebug)
     {
-        if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE)
-        {
-            atlasDebug.closeUi(userInterface, model);
-            return;
-        }
         if ((action == GLFW_PRESS || action == GLFW_REPEAT)
             && key == GLFW_KEY_LEFT)
         {
@@ -873,13 +870,6 @@ void MainWindow::onKey(int key, int scancode, int action, int mods)
         {
             return;
         }
-    }
-
-    if (action == GLFW_PRESS && key == GLFW_KEY_ESCAPE)
-    {
-        userInterface.processEsc(model.getGameState()
-                                 != ClientGameState::MainMenu);
-        return;
     }
 
     if (action == GLFW_PRESS && key == GLFW_KEY_M)
@@ -1347,7 +1337,7 @@ void MainWindow::onCmd(const std::string& cmd)
 
 void MainWindow::shutdown()
 {
-    model.shutdownLocalServer();
+    shutdownLocalServer();
     userInterface.menuHide();
     client.shutdown();
     glfwSetWindowShouldClose(window, GLFW_TRUE);
@@ -1356,6 +1346,25 @@ void MainWindow::shutdown()
 void MainWindow::onAfterLoadWorld()
 {
     renderEngine.setWorldShape(&model.getWorldShape());
+}
+
+void MainWindow::setupGeneralCtrl()
+{
+    UserInput& userInput = userInterface.getUserInput();
+    userInput.addEvents(
+        {InputEvent::Environment::General},
+        "Menu",
+        "Open Menu and close windows",
+        InputEvent::Key{.key = GLFW_KEY_ESCAPE,
+                        .modifiers = 0,
+                        .action = GLFW_PRESS,
+                        .callback = [this](const ui::InputEvent::EventData&)
+                        {
+                            userInterface.processMenuKey(
+                                model.getGameState()
+                                != ClientGameState::MainMenu);
+                            return true;
+                        }});
 }
 
 void MainWindow::setupThirdPersonCtrl()

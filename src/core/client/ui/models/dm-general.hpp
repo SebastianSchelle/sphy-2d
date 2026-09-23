@@ -56,6 +56,7 @@ struct DmLoadGame
 
 struct DmMenu
 {
+    bool inGame = false;
     DmLoadGame load;
 
     static void RegisterType(Rml::DataModelConstructor& constructor)
@@ -64,6 +65,7 @@ struct DmMenu
         if (auto handle = constructor.RegisterStruct<DmMenu>())
         {
             handle.RegisterMember("load", &DmMenu::load);
+            handle.RegisterMember("ingame", &DmMenu::inGame);
         }
     }
 };

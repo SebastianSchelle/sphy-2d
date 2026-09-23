@@ -250,6 +250,7 @@ class MainWindow
     void processMouseThirdPerson(float zoom);
     void setupThirdPersonCtrl();
     void setupMapCtrl();
+    void setupGeneralCtrl();
     void determineUiEnvironment();
     void startLocalServer(const string& savedir);
 
