@@ -11,6 +11,7 @@ UdpClient::UdpClient(boost::asio::io_context& io_context,
       receiveCallback(receiveCallback)
 {
     socket.open(udp::v4());
+    socket.set_option(boost::asio::socket_base::reuse_address(true));
     socket.bind(udp::endpoint(udp::v4(), port));
     running.store(true);
     startReceive();
@@ -25,8 +26,6 @@ void UdpClient::close()
     LG_I("Shutting down Udp client");
     boost::system::error_code ec;
     [[maybe_unused]] const auto cancelled = socket.cancel(ec);
-    [[maybe_unused]] const auto shut =
-        socket.shutdown(tcp::socket::shutdown_both, ec);
     [[maybe_unused]] const auto closed = socket.close(ec);
 }
 
@@ -93,15 +92,15 @@ void UdpClient::handleReceive(const boost::system::error_code& error,
             startReceive();
         }
     }
-    else if(error)
+    else if (error)
     {
-        close();
         if (error == boost::asio::error::operation_aborted)
         {
             return;
         }
         else
         {
+            // close();
             LG_E("UDP receive failed: {}", error.message());
         }
     }

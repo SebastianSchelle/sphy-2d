@@ -62,7 +62,7 @@ class ClientInfo
         this->dbgFlags = flags;
         thirdPersonControl.flags = 0;
         lastClientUpdMap = tim::nowU();
-        lastClientUpdFast3rd = tim::nowU();
+        lastClientUpdRealtime = tim::nowU();
         lastClientUpdGeneral = tim::nowU();
     }
 #endif
@@ -79,7 +79,7 @@ class ClientInfo
 #endif
     ~ClientInfo() {}
 #ifdef SERVER
-    long lastClientUpdFast3rd;
+    long lastClientUpdRealtime;
     long lastClientUpdMap;
     long lastClientUpdGeneral;
     ThirdPersonControl thirdPersonControl;

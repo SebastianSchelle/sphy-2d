@@ -132,6 +132,7 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
 MainWindow::~MainWindow()
 {
     // Wait for loading thread to finish before destroying resources
+    shutdownLocalServer();
     if (loadingThread.joinable())
     {
         drainUiTasksForShutdown();

@@ -199,6 +199,8 @@ void Engine::engineLoop()
             case EngineState::LoadWorld:
                 if (loadFromFolder())
                 {
+                    // todo: remove, just as long as there is no proper saving
+                    populateWorld();
                     state = EngineState::Running;
                 }
                 else
@@ -209,7 +211,6 @@ void Engine::engineLoop()
             case EngineState::CreateWorld:
                 if (createFromConfig())
                 {
-                    populateWorld();
                     state = EngineState::Running;
                 }
                 else
@@ -871,7 +872,6 @@ void Engine::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
         case prot::cmd::CLIENT_VIEW_RECT:
         {
             cmddes.object(clientInfo->clientViewRect);
-            auto& t = clientInfo->clientViewRect;
             break;
         }
         case prot::cmd::DBG_EN_COLLAVOID_INFO:
@@ -1083,7 +1083,7 @@ void Engine::clientUpd(long frametime)
                 clientUpdRealtimeNewOpoolObjs(clientInfo, frametime);
                 clientUpdRealtimeDestroyedOpoolObjs(clientInfo, frametime);
                 DO_PERIODIC_U_EXTNOW(
-                    clientInfo->lastClientUpdFast3rd,
+                    clientInfo->lastClientUpdRealtime,
                     intRealtime,
                     frametime,
                     [&]() { clientUpdRealtime(clientInfo, frametime); });
@@ -1901,11 +1901,73 @@ void Engine::populateMenuWorld()
     }
 }
 
+void Engine::populateTestWorld()
+{
+    int ships = CFG_INT(saveConfig, 10.0f, "populate", "ships");
+    int asteroids = CFG_INT(saveConfig, 10.0f, "populate", "asteroids");
+    LG_D("Spawn Ships: {}", ships);
+    bool first = true;
+
+    auto menuClient = registerClient(
+        def::ClientInfo("Based Menu Chad",
+                        net::ConnectDataMenu,
+                        def::Dbg::enConsole | def::Dbg::enCollAvoidInfo));
+
+    auto randPos = [this]()
+    {
+        return vec2{randWorldGen.float_range(-world.getHalfSectorSize() * 0.8f,
+                                             world.getHalfSectorSize() * 0.8f),
+                    randWorldGen.float_range(-world.getHalfSectorSize() * 0.8f,
+                                             world.getHalfSectorSize() * 0.8f)};
+    };
+
+    for (int i = 0; i < ships; ++i)
+    {
+        vec2 pos = randPos();
+        float rot = randWorldGen.float_range(0, 2.0f * M_PIf);
+        auto sector = world.getSector(
+            randWorldGen.int_range(0, world.getSectorCount() - 1));
+        auto ent = objb::ShipRecipe::spawn(
+            modManager.getShipRecipeLib().randomHandle(randWorldGen),
+            {.ptrHandle = ptrHandle, .sector = sector, .pos = pos, .rot = rot});
+
+        if (first)
+        {
+            first = false;
+            auto clientInfo = clientLib.getItem(menuClient);
+            clientInfo->activeEntity = ent;
+        }
+    }
+
+    for (int i = 0; i < asteroids; ++i)
+    {
+        vec2 pos = randPos();
+        float rot = randWorldGen.float_range(-0.5f, 0.5f);
+        auto sector = world.getSector(
+            randWorldGen.int_range(0, world.getSectorCount() - 1));
+
+        objb::AsteroidRecipe rec(
+            modManager.getAsteroidLib().randomHandle(randWorldGen));
+        rec.spawn({.ptrHandle = ptrHandle,
+                   .sector = sector,
+                   .pos = pos,
+                   .naturalRot = rot});
+    }
+}
+
 void Engine::populateWorld()
 {
-    //if (saveType == SaveType::Menu)
+    switch (saveType)
     {
-        populateMenuWorld();
+        case SaveType::Menu:
+            populateMenuWorld();
+            break;
+        case SaveType::Test:
+            populateTestWorld();
+            break;
+        default:
+            populateTestWorld();
+            break;
     }
 
     /*;

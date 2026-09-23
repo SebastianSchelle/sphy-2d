@@ -162,6 +162,7 @@ class Engine
                            net::TcpConnection* conn);
     void populateWorld();
     void populateMenuWorld();
+    void populateTestWorld();
     void handleGetAabbTree(uint32_t sectorId, net::TcpConnection* conn);
     void handleThirdPersonControl(def::ClientInfo* clientInfo,
                                   net::TcpConnection* conn);

@@ -192,8 +192,9 @@ enum class ClientGameState
 
 enum class SaveType
 {
+    Normal,
     Menu,
-    Normal
+    Test,
 };
 
 namespace tim
