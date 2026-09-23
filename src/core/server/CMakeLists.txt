@@ -33,6 +33,7 @@ set(LIBS_PUB
     sphy_misc_ai
     sphy_core_game_objects_objb
     sphy_core_obj_pool
+    sphy_core_faction
 )
 
 set(LIBS_PRIV

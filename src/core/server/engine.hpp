@@ -34,6 +34,7 @@
 #include <task-system.hpp>
 #include <work-distributor.hpp>
 #include <world.hpp>
+#include <faction.hpp>
 
 namespace ecs
 {
@@ -202,6 +203,7 @@ class Engine
     std::vector<def::ClientInfoHandle> activeClientHandles;
     mod::ModManager modManager;
     sthread::WorkDistributor workDistributor;
+    con::ItemLib<dipl::Faction> factions;
 
     EngineState state;
     world::World world;
