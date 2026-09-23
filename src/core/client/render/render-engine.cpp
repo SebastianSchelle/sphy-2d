@@ -490,20 +490,6 @@ void RenderEngine::updateWorldView(float dt)
     bx::mtxInverse(invWvp, worldViewProj);
 }
 
-
-void RenderEngine::updateWorldViewFakeZoom()
-{
-    float scaleMtx[16];
-    float transMtx[16];
-    float trX = -worldCameraX + (winWidth * 0.5f) / worldZoomDes;
-    float trY = -worldCameraY + (winHeight * 0.5f) / worldZoomDes;
-    bx::mtxScale(scaleMtx, worldZoomDes, worldZoomDes, 1.0f);
-    bx::mtxTranslate(transMtx, trX, trY, 0.0f);
-    bx::mtxMul(worldView, transMtx, scaleMtx);
-    bx::mtxMul(worldViewProj, worldView, ortho);
-    bx::mtxInverse(invWvp, worldViewProj);
-}
-
 TextureHandle RenderEngine::loadTexture(const std::string& name,
                                         const std::string& type,
                                         const std::string& path)

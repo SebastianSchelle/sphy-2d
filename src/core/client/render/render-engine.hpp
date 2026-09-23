@@ -156,7 +156,6 @@ class RenderEngine
 
     void setWorldShape(const def::WorldShape* worldShape);
     void updateWorldView(float dt);
-    void updateWorldViewFakeZoom();
 
     GameViewMode getViewMode() const
     {
