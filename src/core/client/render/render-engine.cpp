@@ -402,6 +402,29 @@ vec2 RenderEngine::screenToWorldRel(const vec2& screenPosRel) const
     return {worldH[0], worldH[1]};
 }
 
+
+vec2 RenderEngine::worldToScreenPixel(const vec2& worldPos) const
+{
+    const vec2 ndc = worldToScreenRel(worldPos);
+    const float wf = float(winWidth);
+    const float hf = float(winHeight);
+    return {(ndc.x + 1.0f) * 0.5f * wf, (1.0f - ndc.y) * 0.5f * hf};
+}
+
+vec2 RenderEngine::worldToScreenRel(const vec2& worldPos) const
+{
+    float worldH[4] = {worldPos.x, worldPos.y, 0.0f, 1.0f};
+    float clip[4];
+    bx::vec4MulMtx(clip, worldH, worldViewProj);
+
+    const float outW = clip[3];
+    if (bx::abs(outW) > 1e-6f)
+    {
+        return {clip[0] / outW, clip[1] / outW};
+    }
+    return {clip[0], clip[1]};
+}
+
 void RenderEngine::updateOrtho()
 {
     bx::mtxOrtho(ortho,
@@ -418,17 +441,42 @@ void RenderEngine::updateOrtho()
 void RenderEngine::updateWorldView(float dt)
 {
     // Smooth zoom
+    zoomSmoothing = false;
     if (worldZoom < worldZoomDes)
     {
-        float zoomStep = camMoveCfg[static_cast<size_t>(viewMode)].zoomStep;
-        float fact = 1.0f + (zoomStep - 1.0f) * dt * 20.0f;
-        worldZoom = std::min(worldZoomDes, worldZoom * fact);
+        if (dt > 1.0e-6f)
+        {
+            float zoomStep = camMoveCfg[static_cast<size_t>(viewMode)].zoomStep;
+            float fact = 1.0f + (zoomStep - 1.0f) * dt * 15.0f;
+            worldZoom = std::min(worldZoomDes, worldZoom * fact);
+        }
+        zoomSmoothing = true;
     }
     else if (worldZoom > worldZoomDes)
     {
-        float zoomStep = camMoveCfg[static_cast<size_t>(viewMode)].zoomStep;
-        float fact = 1.0f + (zoomStep - 1.0f) * dt * 20.0f;
-        worldZoom = std::max(worldZoomDes, worldZoom / fact);
+        if (dt > 1.0e-6f)
+        {
+            float zoomStep = camMoveCfg[static_cast<size_t>(viewMode)].zoomStep;
+            float fact = 1.0f + (zoomStep - 1.0f) * dt * 15.0f;
+            worldZoom = std::max(worldZoomDes, worldZoom / fact);
+        }
+        zoomSmoothing = true;
+    }
+
+    // Keep zoomWorldPos under zoomPxPos for this zoom. Must run before the
+    // view matrix is built — panning afterwards left the drawn frame one
+    // zoom step behind (error grows with distance from screen center).
+    if (zoomSmoothing)
+    {
+        worldCameraX =
+            zoomWorldPos.x - (zoomPxPos.x - winWidth * 0.5f) / worldZoom;
+        worldCameraY =
+            zoomWorldPos.y - (zoomPxPos.y - winHeight * 0.5f) / worldZoom;
+        const float camXBefore = worldCameraX;
+        const float camYBefore = worldCameraY;
+        applyCameraSectorRebase();
+        zoomWorldPos.x += worldCameraX - camXBefore;
+        zoomWorldPos.y += worldCameraY - camYBefore;
     }
 
     float scaleMtx[16];
@@ -1178,11 +1226,15 @@ void RenderEngine::allocateForTexRects()
     bgfx::allocInstanceDataBuffer(&idbTex, n, stride);
 }
 
-void RenderEngine::zoom(float amount, bool instant)
+void RenderEngine::zoom(float amount, const vec2& curserPx, bool instant)
 {
+    updateWorldView(0.0f);
     float zoomStep = camMoveCfg[static_cast<size_t>(viewMode)].zoomStep;
     float maxZoom = camMoveCfg[static_cast<size_t>(viewMode)].maxZoom;
     float minZoom = camMoveCfg[static_cast<size_t>(viewMode)].minZoom;
+
+    zoomPxPos = curserPx;
+    zoomWorldPos = screenToWorldPixel(curserPx);
 
     for (int i = 0; i < abs(amount); i++)
     {
@@ -1228,6 +1280,12 @@ void RenderEngine::panWorld(const glm::vec2& delta)
 {
     worldCameraX += delta.x;
     worldCameraY += delta.y;
+    // todo: rebase guard missing. This leads to weird artifacts with sector jumps
+    // not too critical right now, this enables pan during smooth zoom
+    // if(zoomSmoothing)
+    // {
+    //     zoomWorldPos += delta;
+    // }
     applyCameraSectorRebase();
 }
 

@@ -360,23 +360,7 @@ void MainWindow::winLoop()
         {
             if (mouseState.mz != 0)
             {
-                glm::vec2 mousePosWorldBefore;
-                if (renderEngine.getViewMode()
-                    != gfx::GameViewMode::ThirdPerson)
-                {
-                    mousePosWorldBefore =
-                        renderEngine.screenToWorldPixel(mouseState.mousePos);
-                }
-                renderEngine.zoom(mouseState.mz);
-                if (renderEngine.getViewMode()
-                    != gfx::GameViewMode::ThirdPerson)
-                {
-                    renderEngine.updateWorldViewFakeZoom();
-                    glm::vec2 mousePosWorldAfter =
-                        renderEngine.screenToWorldPixel(mouseState.mousePos);
-                    renderEngine.panWorld(mousePosWorldBefore
-                                          - mousePosWorldAfter);
-                }
+                renderEngine.zoom(mouseState.mz, mouseState.mousePos);
             }
         }
         model.setCurrentTime(renderEngine, nowU);

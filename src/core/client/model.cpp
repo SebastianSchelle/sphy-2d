@@ -121,7 +121,7 @@ void Model::modelLoop(float dt)
                 LG_I("Exchanging world info with server done");
                 afterLoadWorldClb();
                 notifyReady();
-                renderer->zoom(0.5f, true);
+                renderer->zoom(0.5f, {0.0, 0.0}, true);
                 if (afterConnectState == AfterConnectState::Game)
                 {
                     userInterface->setupViewModeUi(
@@ -454,6 +454,8 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                             version::PATCH);
                     }
                     LG_I("Version check successful");
+                    // todo: give the server some time to init the clients otherwise auth fails. Do this properly
+                    SLEEP_S(1);
                     authenticate();
                 }
             }

@@ -365,11 +365,13 @@ void Engine::startFromFolder()
 
 bool Engine::loadFromFolder()
 {
-    if (!world.createFromSave(saveConfig, options.savedir, ptrHandle))
-    {
-        LG_E("Failed to load world from save");
-        return false;
-    }
+    // if (!world.createFromSave(saveConfig, options.savedir, ptrHandle))
+    // {
+    //     LG_E("Failed to load world from save");
+    //     return false;
+    // }
+    // todo: replace when save/load is implemented
+    createFromConfig();
     return true;
 }
 

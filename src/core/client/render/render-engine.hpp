@@ -144,7 +144,7 @@ class RenderEngine
     void setScissorRegionEnabled(bool enabled);
     void setTransform(const glm::mat4& transform);
 
-    void zoom(float amount, bool instant=false);
+    void zoom(float amount, const vec2& curserPx, bool instant = false);
     void panWorld(PanDirection dirX, PanDirection dirY);
     void panWorld(const glm::vec2& delta);
     void panWorldTo(const def::SectorCoords& sectorCoords);
@@ -181,6 +181,9 @@ class RenderEngine
 
     vec2 screenToWorldPixel(const vec2& screenPx) const;
     vec2 screenToWorldRel(const vec2& screenPosRel) const;
+
+    vec2 worldToScreenPixel(const vec2& worldPos) const;
+    vec2 worldToScreenRel(const vec2& worldPos) const;
     void screenToSectorCoords(const glm::vec2& screenPx,
                               def::SectorCoords& sectorCoords) const;
     void screenToSectorCoordsRel(const vec2& screenRel,
@@ -362,6 +365,9 @@ class RenderEngine
     float worldCameraY = 0.0f;
     float worldZoom = 1.0f;
     float worldZoomDes = 1.0f;
+    bool zoomSmoothing = false;
+    vec2 zoomPxPos;
+    vec2 zoomWorldPos;
     float worldView[16];
     float worldViewProj[16];
     float invWvp[16];
