@@ -1,20 +1,21 @@
 #include "texture.hpp"
 #include <algorithm>
 #include <bgfx/bgfx.h>
-#include <cstring>
-#include <glm/glm.hpp>
-#include <bimg/bimg.h>
+#include <bimg/decode.h>
 #include <bx/bx.h>
 #include <bx/readerwriter.h>
+#include <cstring>
+#include <glm/glm.hpp>
 #include <vector>
 
 namespace gfx
 {
 
 constexpr uint16_t kTexturePadding = 8;
-/// Extra clamp-replicated band beyond `kTexturePadding` (still edge-colored, not empty
-/// atlas). Gives bilinear more same-colored texels before silhouette / neighbor tiles.
-/// Slightly wider so coarse mips still carry replicated edge after 2× downsampling.
+/// Extra clamp-replicated band beyond `kTexturePadding` (still edge-colored,
+/// not empty atlas). Gives bilinear more same-colored texels before silhouette
+/// / neighbor tiles. Slightly wider so coarse mips still carry replicated edge
+/// after 2× downsampling.
 constexpr uint16_t kAtlasEdgeReplicaGutterPx = 6;
 
 /// Per-slot right/bottom gutter (mip 0), filled by edge extrusion each mip so
@@ -53,10 +54,10 @@ std::vector<uint8_t> makePaddedImage(const uint8_t* rgbaData,
 
     for (uint16_t y = 0; y < paddedHeight; ++y)
     {
-        const uint16_t srcY = (y < padding)
-                                  ? 0
-                                  : (y >= padding + srcHeight ? srcHeight - 1
-                                                              : y - padding);
+        const uint16_t srcY =
+            (y < padding)
+                ? 0
+                : (y >= padding + srcHeight ? srcHeight - 1 : y - padding);
         for (uint16_t x = 0; x < paddedWidth; ++x)
         {
             const uint16_t srcX =
@@ -77,7 +78,8 @@ std::vector<uint8_t> makePaddedImage(const uint8_t* rgbaData,
 }
 
 /// CPU mip chain is RGBA8; atlas storage is BGRA8.
-static const bgfx::Memory* copyRgba8AsBgra8(const uint8_t* rgba, uint32_t byteCount)
+static const bgfx::Memory* copyRgba8AsBgra8(const uint8_t* rgba,
+                                            uint32_t byteCount)
 {
     std::vector<uint8_t> bgra(byteCount);
     for (uint32_t i = 0; i < byteCount; i += 4)
@@ -96,21 +98,27 @@ static void premultiplyRgba8InPlace(std::vector<uint8_t>& rgba)
     for (size_t i = 0; i < rgba.size(); i += 4)
     {
         const uint32_t a = rgba[i + 3];
-        rgba[i + 0] = static_cast<uint8_t>((uint32_t(rgba[i + 0]) * a + 127u) / 255u);
-        rgba[i + 1] = static_cast<uint8_t>((uint32_t(rgba[i + 1]) * a + 127u) / 255u);
-        rgba[i + 2] = static_cast<uint8_t>((uint32_t(rgba[i + 2]) * a + 127u) / 255u);
+        rgba[i + 0] =
+            static_cast<uint8_t>((uint32_t(rgba[i + 0]) * a + 127u) / 255u);
+        rgba[i + 1] =
+            static_cast<uint8_t>((uint32_t(rgba[i + 1]) * a + 127u) / 255u);
+        rgba[i + 2] =
+            static_cast<uint8_t>((uint32_t(rgba[i + 2]) * a + 127u) / 255u);
     }
 }
 
-/// Build mip chain in straight RGBA (alpha-weighted 2×2), then caller premultiplies.
-static std::vector<MipLevelData> buildMipChainStraightAlphaAware(const uint8_t* rgbaData,
-                                                                 uint16_t width,
-                                                                 uint16_t height)
+/// Build mip chain in straight RGBA (alpha-weighted 2×2), then caller
+/// premultiplies.
+static std::vector<MipLevelData>
+buildMipChainStraightAlphaAware(const uint8_t* rgbaData,
+                                uint16_t width,
+                                uint16_t height)
 {
     std::vector<MipLevelData> chain;
-    chain.push_back({std::vector<uint8_t>(rgbaData, rgbaData + width * height * 4),
-                     width,
-                     height});
+    chain.push_back(
+        {std::vector<uint8_t>(rgbaData, rgbaData + width * height * 4),
+         width,
+         height});
 
     while (chain.back().width > 1 || chain.back().height > 1)
     {
@@ -123,7 +131,8 @@ static std::vector<MipLevelData> buildMipChainStraightAlphaAware(const uint8_t* 
         {
             for (uint16_t x = 0; x < dstWidth; ++x)
             {
-                const uint16_t sx0 = std::min<uint16_t>(src.width - 1, uint16_t(x * 2));
+                const uint16_t sx0 =
+                    std::min<uint16_t>(src.width - 1, uint16_t(x * 2));
                 const uint16_t sy0 =
                     std::min<uint16_t>(src.height - 1, uint16_t(y * 2));
                 const uint16_t sx1 =
@@ -165,13 +174,19 @@ static std::vector<MipLevelData> buildMipChainStraightAlphaAware(const uint8_t* 
                 const uint32_t g11 = src.pixels[i11 + 1];
                 const uint32_t b11 = src.pixels[i11 + 2];
 
-                const uint32_t numR = r00 * a00 + r10 * a10 + r01 * a01 + r11 * a11;
-                const uint32_t numG = g00 * a00 + g10 * a10 + g01 * a01 + g11 * a11;
-                const uint32_t numB = b00 * a00 + b10 * a10 + b01 * a01 + b11 * a11;
+                const uint32_t numR =
+                    r00 * a00 + r10 * a10 + r01 * a01 + r11 * a11;
+                const uint32_t numG =
+                    g00 * a00 + g10 * a10 + g01 * a01 + g11 * a11;
+                const uint32_t numB =
+                    b00 * a00 + b10 * a10 + b01 * a01 + b11 * a11;
 
-                dstPixels[di + 0] = static_cast<uint8_t>((numR + asum / 2) / asum);
-                dstPixels[di + 1] = static_cast<uint8_t>((numG + asum / 2) / asum);
-                dstPixels[di + 2] = static_cast<uint8_t>((numB + asum / 2) / asum);
+                dstPixels[di + 0] =
+                    static_cast<uint8_t>((numR + asum / 2) / asum);
+                dstPixels[di + 1] =
+                    static_cast<uint8_t>((numG + asum / 2) / asum);
+                dstPixels[di + 2] =
+                    static_cast<uint8_t>((numB + asum / 2) / asum);
                 dstPixels[di + 3] = static_cast<uint8_t>((asum + 2) / 4);
             }
         }
@@ -197,7 +212,8 @@ static uint16_t mipExtrusionTexels(uint8_t mip, int baseTexels)
     return n > 65535u ? 0 : static_cast<uint16_t>(n);
 }
 
-/// Right-edge extrusion strip; returns column count actually uploaded (0 if none).
+/// Right-edge extrusion strip; returns column count actually uploaded (0 if
+/// none).
 static uint16_t uploadMipRightExtrusion(bgfx::TextureHandle texHandle,
                                         uint8_t layer,
                                         uint8_t mip,
@@ -229,15 +245,16 @@ static uint16_t uploadMipRightExtrusion(bgfx::TextureHandle texHandle,
     const uint16_t col = std::min<uint16_t>(edgeColX, uint16_t(lw - 1u));
     const uint16_t h = std::min<uint16_t>(stripHeight, lh);
 
-    const size_t bytes = static_cast<size_t>(gapCols) * static_cast<size_t>(h) * 4u;
+    const size_t bytes =
+        static_cast<size_t>(gapCols) * static_cast<size_t>(h) * 4u;
     std::vector<uint8_t> gapPixels(bytes);
     for (uint16_t y = 0; y < h; ++y)
     {
-        const uint32_t srcIdx = (uint32_t(y) * uint32_t(lw) + uint32_t(col)) * 4u;
+        const uint32_t srcIdx =
+            (uint32_t(y) * uint32_t(lw) + uint32_t(col)) * 4u;
         for (uint32_t x = 0; x < uint32_t(gapCols); ++x)
         {
-            const uint32_t dstIdx =
-                (uint32_t(y) * uint32_t(gapCols) + x) * 4u;
+            const uint32_t dstIdx = (uint32_t(y) * uint32_t(gapCols) + x) * 4u;
             gapPixels[dstIdx + 0] = level.pixels[srcIdx + 0];
             gapPixels[dstIdx + 1] = level.pixels[srcIdx + 1];
             gapPixels[dstIdx + 2] = level.pixels[srcIdx + 2];
@@ -245,7 +262,8 @@ static uint16_t uploadMipRightExtrusion(bgfx::TextureHandle texHandle,
         }
     }
 
-    const bgfx::Memory* mem = copyRgba8AsBgra8(gapPixels.data(), uint32_t(bytes));
+    const bgfx::Memory* mem =
+        copyRgba8AsBgra8(gapPixels.data(), uint32_t(bytes));
     bgfx::updateTexture2D(texHandle,
                           layer,
                           mip,
@@ -287,9 +305,8 @@ static void uploadMipBottomExtrusion(bgfx::TextureHandle texHandle,
     if (gapRows == 0)
         return;
 
-    const uint32_t rowTexels =
-        std::min<uint32_t>(uint32_t(lw) + uint32_t(rightGapCols),
-                           texMipW - uint32_t(dstX));
+    const uint32_t rowTexels = std::min<uint32_t>(
+        uint32_t(lw) + uint32_t(rightGapCols), texMipW - uint32_t(dstX));
     if (rowTexels == 0)
         return;
 
@@ -303,8 +320,8 @@ static void uploadMipBottomExtrusion(bgfx::TextureHandle texHandle,
         uint8_t* dstRow = gapPixels.data() + static_cast<size_t>(r) * rowBytes;
         for (uint32_t x = 0; x < rowTexels; ++x)
         {
-            const uint16_t sx = static_cast<uint16_t>(
-                std::min<uint32_t>(x, uint32_t(lw) - 1u));
+            const uint16_t sx =
+                static_cast<uint16_t>(std::min<uint32_t>(x, uint32_t(lw) - 1u));
             const uint32_t srcIdx =
                 (uint32_t(rowY) * uint32_t(lw) + uint32_t(sx)) * 4u;
             const uint32_t dstIdx = x * 4u;
@@ -315,7 +332,8 @@ static void uploadMipBottomExtrusion(bgfx::TextureHandle texHandle,
         }
     }
 
-    const bgfx::Memory* mem = copyRgba8AsBgra8(gapPixels.data(), uint32_t(bytes));
+    const bgfx::Memory* mem =
+        copyRgba8AsBgra8(gapPixels.data(), uint32_t(bytes));
     bgfx::updateTexture2D(texHandle,
                           layer,
                           mip,
@@ -327,8 +345,9 @@ static void uploadMipBottomExtrusion(bgfx::TextureHandle texHandle,
                           static_cast<uint16_t>(rowTexels * 4u));
 }
 
-/// UV origin + span for `atlasUv = origin + quad01 * span` (vs_texrect / fs_geom).
-/// Half-texel inset keeps linear sampling off atlas neighbors outside the slot (black fringe).
+/// UV origin + span for `atlasUv = origin + quad01 * span` (vs_texrect /
+/// fs_geom). Half-texel inset keeps linear sampling off atlas neighbors outside
+/// the slot (black fringe).
 static glm::vec4 atlasUvOriginSpan(int innerX,
                                    int innerY,
                                    int innerW,
@@ -340,10 +359,8 @@ static glm::vec4 atlasUvOriginSpan(int innerX,
     const float ah = float(std::max(1, atlasH));
     const float minU = (float(innerX) + 0.5f) / aw;
     const float minV = (float(innerY) + 0.5f) / ah;
-    const float spanU =
-        innerW > 1 ? (float(innerW) - 1.f) / aw : 1.f / aw;
-    const float spanV =
-        innerH > 1 ? (float(innerH) - 1.f) / ah : 1.f / ah;
+    const float spanU = innerW > 1 ? (float(innerW) - 1.f) / aw : 1.f / aw;
+    const float spanV = innerH > 1 ? (float(innerH) - 1.f) / ah : 1.f / ah;
     return glm::vec4(minU, minV, spanU, spanV);
 }
 }  // namespace
@@ -355,13 +372,8 @@ Texture::Texture(const std::string& name,
                  TextureAtlasHandle atlasHandle,
                  glm::vec4 relBounds,
                  bool pointSample)
-    : name(name),
-      path(path),
-      texIdent(texIdent),
-      storagePtr(storagePtr),
-      atlasHandle(atlasHandle),
-      relBounds(relBounds),
-      pointSample(pointSample)
+    : name(name), path(path), texIdent(texIdent), storagePtr(storagePtr),
+      atlasHandle(atlasHandle), relBounds(relBounds), pointSample(pointSample)
 {
 }
 
@@ -474,74 +486,65 @@ TextureHandle TextureLoader::loadTexture(const std::string& name,
                                          glm::vec2& dimensions)
 {
     bx::Error err;
-    // Load image file
+
     std::ifstream file(path, std::ios::binary | std::ios::ate);
-    if (!file.is_open())
+    if (!file)
     {
         LG_E("Failed to open file: {}", path);
         return TextureHandle::Invalid();
     }
 
-    auto sizef = static_cast<uint32_t>(file.tellg());
+    const auto fileSize = file.tellg();
+    if (fileSize <= 0)
+    {
+        LG_E("Invalid/empty image file: {}", path);
+        return TextureHandle::Invalid();
+    }
+
     file.seekg(0, std::ios::beg);
 
-    // Read file into buffer
-    std::vector<uint8_t> buffer(sizef);
-    if (!file.read(reinterpret_cast<char*>(buffer.data()), sizef))
+    std::vector<uint8_t> buffer(static_cast<size_t>(fileSize));
+
+    if (!file.read(reinterpret_cast<char*>(buffer.data()),
+                   static_cast<std::streamsize>(buffer.size())))
     {
-        LG_E("Failed to read file {}", path);
-        return TextureHandle::Invalid();
-    }
-    bx::DefaultAllocator alloc;
-    bimg::ImageContainer* parsed =
-        bimg::imageParseDds(&alloc, buffer.data(), sizef, &err);
-    if (!parsed || !err.isOk() || parsed->m_data == nullptr)
-    {
-        LG_E("Failed to parse image: {}", path);
-        if (parsed)
-        {
-            bimg::imageFree(parsed);
-        }
+        LG_E("Failed to read file: {}", path);
         return TextureHandle::Invalid();
     }
 
-    const bimg::TextureFormat::Enum srcFormat = parsed->m_format;
-    bimg::ImageContainer* rgbaImage = parsed;
-    if (srcFormat != bimg::TextureFormat::RGBA8)
+    bx::DefaultAllocator alloc;
+    bimg::ImageContainer* rgbaImage =
+        bimg::imageParse(&alloc,
+                         buffer.data(),
+                         static_cast<uint32_t>(buffer.size()),
+                         bimg::TextureFormat::RGBA8,
+                         &err);
+    if (!rgbaImage || !err.isOk() || rgbaImage->m_data == nullptr)
     {
-        rgbaImage = bimg::imageConvert(
-            &alloc, bimg::TextureFormat::RGBA8, *parsed, true);
-        bimg::imageFree(parsed);
-        if (!rgbaImage || rgbaImage->m_data == nullptr)
-        {
-            LG_E("Failed to decode {} to RGBA8 (source format {})",
-                 path,
-                 static_cast<int>(srcFormat));
-            if (rgbaImage)
-            {
-                bimg::imageFree(rgbaImage);
-            }
-            return TextureHandle::Invalid();
-        }
+        LG_E("Failed to parse image {} Error: {}", path, err.get().code);
+
+        uint32_t x = err.get().code;
+
+        printf("0x%08x\n", x);
+        printf("%c%c%c%c\n",
+               (char)(x & 0xff),
+               (char)((x >> 8) & 0xff),
+               (char)((x >> 16) & 0xff),
+               (char)((x >> 24) & 0xff));
+        return TextureHandle::Invalid();
     }
 
     dimensions.x = static_cast<float>(rgbaImage->m_width);
     dimensions.y = static_cast<float>(rgbaImage->m_height);
 
-    // LG_D("Read image file {} successfully", path);
-    // LG_D("alpha {}", rgbaImage->m_hasAlpha);
-    // LG_D("width {}", rgbaImage->m_width);
-    // LG_D("height {}", rgbaImage->m_height);
-    // LG_D("format {}", static_cast<int>(rgbaImage->m_format));
-    // LG_D("size {}", rgbaImage->m_size);
+    const TextureHandle handle =
+        generateTexture(name,
+                        type,
+                        rgbaImage->m_data,
+                        static_cast<int>(rgbaImage->m_width),
+                        static_cast<int>(rgbaImage->m_height),
+                        path);
 
-    const TextureHandle handle = generateTexture(name,
-                                                 type,
-                                                 rgbaImage->m_data,
-                                                 static_cast<int>(rgbaImage->m_width),
-                                                 static_cast<int>(rgbaImage->m_height),
-                                                 path);
-    bimg::imageFree(rgbaImage);
     return handle;
 }
 
@@ -567,7 +570,8 @@ TextureHandle TextureLoader::generateTexture(const std::string& name,
 {
     StoragePtr storagePtr;
     const bool fontGlyph = isFontAtlasType(type);
-    const int ring = fontGlyph ? fontAtlasReplicaRing() : atlasEdgeReplicaRing();
+    const int ring =
+        fontGlyph ? fontAtlasReplicaRing() : atlasEdgeReplicaRing();
     storagePtr.rect.width =
         uint16_t(width + ring * 2 + (fontGlyph ? 0 : kAtlasMipExtrusionPx));
     storagePtr.rect.height =
@@ -626,7 +630,7 @@ TextureHandle TextureLoader::insertIntoAtlas(const std::string& name,
                 {
                     TextureAtlasHandle atlasHandle =
                         textureAtlasLib.getHandle(entry);
-                    
+
                     return makeTexture(name,
                                        path,
                                        storagePtr,
@@ -661,10 +665,14 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
     storagePtr.rect.height -= ring * 2 + gutter;
 
     const uint8_t* srcPixels = static_cast<const uint8_t*>(rgbaData);
-    std::vector<uint8_t> paddedPixels = makePaddedImage(
-        srcPixels, storagePtr.rect.width, storagePtr.rect.height, uint16_t(ring));
-    const uint16_t tileW = static_cast<uint16_t>(storagePtr.rect.width + ring * 2);
-    const uint16_t tileH = static_cast<uint16_t>(storagePtr.rect.height + ring * 2);
+    std::vector<uint8_t> paddedPixels = makePaddedImage(srcPixels,
+                                                        storagePtr.rect.width,
+                                                        storagePtr.rect.height,
+                                                        uint16_t(ring));
+    const uint16_t tileW =
+        static_cast<uint16_t>(storagePtr.rect.width + ring * 2);
+    const uint16_t tileH =
+        static_cast<uint16_t>(storagePtr.rect.height + ring * 2);
     if (size_t(tileW) * size_t(tileH) * 4u != paddedPixels.size())
     {
         LG_E("makeTexture: padded size mismatch ({}x{} vs {} bytes)",
@@ -688,7 +696,8 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
         premultiplyRgba8InPlace(level.pixels);
     }
 
-    const uint8_t mipCount = fontGlyph ? 1u : static_cast<uint8_t>(mipChain.size());
+    const uint8_t mipCount =
+        fontGlyph ? 1u : static_cast<uint8_t>(mipChain.size());
     for (uint8_t mip = 0; mip < mipCount; ++mip)
     {
         const MipLevelData& level = mipChain[mip];
@@ -749,17 +758,17 @@ TextureHandle TextureLoader::makeTexture(const std::string& name,
                 static_cast<uint16_t>(dstX + static_cast<uint16_t>(upW));
             const uint16_t edgeCol =
                 static_cast<uint16_t>(upW >= 1u ? upW - 1u : 0u);
-            const uint16_t rightWritten = uploadMipRightExtrusion(
-                texIdent.texHandle,
-                texIdent.layerIdx,
-                mip,
-                gapX,
-                dstY,
-                level,
-                edgeCol,
-                static_cast<uint16_t>(upH),
-                kAtlasMipExtrusionPx,
-                mipW);
+            const uint16_t rightWritten =
+                uploadMipRightExtrusion(texIdent.texHandle,
+                                        texIdent.layerIdx,
+                                        mip,
+                                        gapX,
+                                        dstY,
+                                        level,
+                                        edgeCol,
+                                        static_cast<uint16_t>(upH),
+                                        kAtlasMipExtrusionPx,
+                                        mipW);
 
             const uint16_t gapY =
                 static_cast<uint16_t>(dstY + static_cast<uint16_t>(upH));
@@ -1009,8 +1018,8 @@ void TextureLoader::fillAtlasDebugMipOptions(
         const uint32_t dh = std::max(1u, mh >> mip);
         AtlasDebugSelectOption o;
         o.value = mip;
-        o.label = "Mip " + std::to_string(mip) + " (" + std::to_string(dw)
-                  + "×" + std::to_string(dh) + ")";
+        o.label = "Mip " + std::to_string(mip) + " (" + std::to_string(dw) + "×"
+                  + std::to_string(dh) + ")";
         out.push_back(o);
         if (dw <= 1u && dh <= 1u)
         {

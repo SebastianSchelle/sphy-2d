@@ -747,7 +747,7 @@ bool ModManager::loadTextures(PtrHandles& ptrHandles, const ModInfo& modInfo)
                  std::filesystem::directory_iterator(path))
             {
                 if (fileEntry.is_regular_file()
-                    && fileEntry.path().extension() == ".dds")
+                    && fileEntry.path().extension() == ".png")
                 {
                     const std::string texName =
                         fileEntry.path().stem().string();

@@ -61,9 +61,9 @@ set(LIBS_PRIV
     "${BGFX_BUILD}/bgfx/libglslang.a"
     "${BGFX_BUILD}/bgfx/libspirv-cross.a"
     "${BGFX_BUILD}/bgfx/libspirv-opt.a"
-    "${BGFX_BUILD}/bimg/libbimg.a"
     "${BGFX_BUILD}/bimg/libbimg_encode.a"
     "${BGFX_BUILD}/bimg/libbimg_decode.a"
+    "${BGFX_BUILD}/bimg/libbimg.a"
     "${BGFX_BUILD}/bx/libbx.a"
     Boost::thread
     Boost::program_options
