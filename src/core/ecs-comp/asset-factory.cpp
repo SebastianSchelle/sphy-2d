@@ -109,6 +109,7 @@ void ComponentFactory::registerAllComponents()
     registerComponent<ecs::Collector>();
     registerComponent<ecs::Flags>();
     registerComponent<ecs::CollAvoid>();
+    registerComponent<ecs::FactionId>();
 }
 
 AssetFactory::AssetFactory() {}

@@ -38,6 +38,21 @@ find_package(Boost REQUIRED COMPONENTS regex thread chrono program_options)
 find_package(GTest REQUIRED)
 find_package(ICU REQUIRED COMPONENTS uc i18n)
 
+include(FetchContent)
+FetchContent_Declare(
+   spine-cpp
+   GIT_REPOSITORY https://github.com/esotericsoftware/spine-runtimes.git
+   GIT_TAG 4.3
+   SOURCE_SUBDIR spine-cpp
+)
+FetchContent_MakeAvailable(spine-cpp)
+
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(spine-cpp PRIVATE -frtti)
+elseif (MSVC)
+    target_compile_options(spine-cpp PRIVATE /GR)
+endif()
+
 # add third party libraries
 add_subdirectory(thirdparty/yaml-cpp yaml-cpp)
 add_subdirectory(thirdparty/spdlog spdlog)

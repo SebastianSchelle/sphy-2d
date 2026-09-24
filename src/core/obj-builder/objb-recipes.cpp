@@ -1,28 +1,31 @@
-#include <objb-recipes.hpp>
 #include "comp-ident.hpp"
+#include "faction.hpp"
 #include "logging.hpp"
 #include "objb-general.hpp"
 #include "objb-ship.hpp"
 #include "ptr-handle.hpp"
 #include <engine.hpp>
 #include <mod-manager.hpp>
+#include <objb-recipes.hpp>
 
 namespace objb
 {
 namespace ShipRecipe
 {
-ecs::EntityId spawn(const gobj::ShipRecipeHandle handle, const RecipeSpawnParams& params)
+ecs::EntityId spawn(const gobj::ShipRecipeHandle handle,
+                    const RecipeSpawnParams& params)
 {
     auto ptr = params.ptrHandle;
     auto recipe = ptr->modManager->getShipRecipeLib().getItem(handle);
-    if(!recipe)
+    if (!recipe)
     {
         LG_W("Ship recipe from handle {} not found", handle.toGenericHandle());
         return ecs::EntityId::Invalid();
     }
 
     // Spawn ship + modules
-    auto shipHull = ptr->engine->spawnShipHull(params.sector, recipe->hullHandle);
+    auto shipHull =
+        ptr->engine->spawnShipHull(params.sector, recipe->hullHandle);
     for (auto ms : recipe->modSlot)
     {
         auto mod = ptr->engine->spawnModule(
@@ -43,6 +46,13 @@ ecs::EntityId spawn(const gobj::ShipRecipeHandle handle, const RecipeSpawnParams
     Transform::position(reg, slot->entity, params.pos, params.rot);
     params.sector->objectInitBroadphase(ptr, slot->entity);
     ptr->engine->broadcastEntityToClients(shipHull);
+
+    if (params.hFaction.isValid())
+    {
+        auto& fid = reg->get<ecs::FactionId>(slot->entity);
+        fid.faction = params.hFaction.toGenericHandle();
+    }
+
     return shipHull;
 }
 }  // namespace ShipRecipe

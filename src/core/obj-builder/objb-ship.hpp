@@ -4,6 +4,7 @@
 #include "comp-phy.hpp"
 #include "comp-storage.hpp"
 #include "entt/entity/fwd.hpp"
+#include "faction.hpp"
 #include "task-basic.hpp"
 #include <comp-struct.hpp>
 #include <lib-hull.hpp>
@@ -80,20 +81,23 @@ struct ShipHull
                    "ShipHull: Failed to build textures")
         OBJB_GUARD(Storage::build(ptrHandle, params, ecs::Storage{.cargo = {}}),
                    "")
-        OBJB_GUARD(ThrusterMoveCtrl::build(
-                       ptrHandle,
-                       params,
-                       ecs::PhyThrust{.maxTorque = 1000.0f,
-                                      .maxRotVel = 5.0f,
-                                      .thrustMainMax = 10000.0f,
-                                      .thrustManeuverMax = 1000.0f,
-                                      .maxSpd = 1000.0f}, // todo: implement max speed and max rotVel from hull or thrusters
-                       ecs::MoveCtrl{.moveMode = ecs::MoveCtrl::MoveMode::None,
-                                     .spPos = {},
-                                     .allowedPosError = 100.0f,
-                                     .turnMode = ecs::MoveCtrl::TurnMode::None,
-                                     .allowedRotError = M_PIf}),
-                   "")
+        OBJB_GUARD(
+            ThrusterMoveCtrl::build(
+                ptrHandle,
+                params,
+                ecs::PhyThrust{
+                    .maxTorque = 1000.0f,
+                    .maxRotVel = 5.0f,
+                    .thrustMainMax = 10000.0f,
+                    .thrustManeuverMax = 1000.0f,
+                    .maxSpd = 1000.0f},  // todo: implement max speed and max
+                                         // rotVel from hull or thrusters
+                ecs::MoveCtrl{.moveMode = ecs::MoveCtrl::MoveMode::None,
+                              .spPos = {},
+                              .allowedPosError = 100.0f,
+                              .turnMode = ecs::MoveCtrl::TurnMode::None,
+                              .allowedRotError = M_PIf}),
+            "")
         OBJB_GUARD(CollAvoid::build(ptrHandle, params), "");
         OBJB_GUARD(MapIcon::build(ptrHandle,
                                   params,
@@ -101,6 +105,9 @@ struct ShipHull
                    "ShipHull: Failed to build map icon")
         OBJB_GUARD(Ai::build(ptrHandle, params, ai::taskdata::SectorPatrol()),
                    "ShipHull: Failed to build Ai")
+        OBJB_GUARD(
+            Faction::build(ptrHandle, params, dipl::FactionHandle::Invalid()),
+            "");
         return true;
     }
 

@@ -9,6 +9,7 @@
 #include "comp-storage.hpp"
 #include "entt/entity/entity.hpp"
 #include "entt/entity/fwd.hpp"
+#include "faction.hpp"
 #include "lib-textures.hpp"
 #include "ship-def.hpp"
 #include "task-system.hpp"
@@ -66,6 +67,18 @@ struct AnchorFixed
                       ecs::AnchorFixed anchor)
     {
         params.reg.emplace_or_replace<ecs::AnchorFixed>(params.entity, anchor);
+        return true;
+    }
+};
+
+struct Faction
+{
+    static bool build(ecs::PtrHandle* ptrHandle,
+                      ecs::SpawnCallbackParams& params,
+                      dipl::FactionHandle hFaction)
+    {
+        params.reg.emplace_or_replace<ecs::FactionId>(
+            params.entity, hFaction.toGenericHandle());
         return true;
     }
 };
@@ -171,8 +184,7 @@ struct SimpleTexture
             ptrHandle->modManager->getTexturesLib().getItem(texHandle);
         OBJB_GUARD(tex, "Could not find textures entry for {}", texHandle)
         params.reg.emplace_or_replace<ecs::SimpleTexture>(
-            params.entity,
-            ecs::SimpleTexture{.textureHandle = texHandle});
+            params.entity, ecs::SimpleTexture{.textureHandle = texHandle});
         return true;
     }
 };
@@ -249,7 +261,8 @@ struct CollAvoid
     static bool build(ecs::PtrHandle* ptrHandle,
                       ecs::SpawnCallbackParams& params)
     {
-        params.reg.emplace_or_replace<ecs::CollAvoid>(params.entity, ecs::CollAvoid{.active=true});
+        params.reg.emplace_or_replace<ecs::CollAvoid>(
+            params.entity, ecs::CollAvoid{.active = true});
         return true;
     }
 };

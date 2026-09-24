@@ -5,6 +5,8 @@ set(BGFX_DIR ${THIRPARTY_DIR}/bgfx)
 set(MISC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../misc)
 add_subdirectory(render)
 add_subdirectory(ui)
+add_subdirectory(spine)
+
 
 set(CLIENT_INC_PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -45,6 +47,8 @@ set(LIBS_PUB
     sphy_client_ui
     sphy_client_ui_models
     sphy_core_opool_client
+    sphy_core_faction
+    sphy_client_spine
 )
 
 set(BGFX_BUILD ${BGFX_DIR}/build/cmake)
@@ -69,6 +73,7 @@ set(LIBS_PRIV
     rectpack2D
     ICU::uc
     ICU::i18n
+    spine-cpp
 )
 
 file(GLOB SHADER_SRC CONFIGURE_DEPENDS
@@ -87,10 +92,12 @@ sphy_add_bgfx_shaders(
 
 add_executable(${EXEC_NAME} ${CLIENT_SOURCES})
 add_dependencies(${EXEC_NAME} shaders)
+
+
 if(MSVC)
-    set(_das_mod_no_rtti /GR-)
+set(_das_mod_no_rtti /GR-)
 else()
-    set(_das_mod_no_rtti -fno-rtti)
+set(_das_mod_no_rtti -fno-rtti)
 endif()
 set_property(
     SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/../mod/mod-manager.cpp

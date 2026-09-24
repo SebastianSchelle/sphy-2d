@@ -5,6 +5,7 @@
 #include "comp-ai.hpp"
 #include "config-manager.hpp"
 #include "entt/entity/fwd.hpp"
+#include "faction.hpp"
 #include "free-vector.hpp"
 #include "lib-projectile.hpp"
 #include "logging.hpp"
@@ -1747,13 +1748,8 @@ void Engine::broadcastEntityToClients(ecs::EntityId entityId)
     forActiveClients(
         [this, entityId, slot, &reg](def::ClientInfo* clientInfo)
         {
-            bool inActiveSector =
-                clientInfo->getActiveSectors().count(slot->sectorId) > 0;
-            if (!inActiveSector || reg->valid(slot->entity)
-                || !reg->all_of<ecs::tag::OOSSync>(slot->entity))
-            {
-                return;
-            }
+            // bool inActiveSector =
+            //     clientInfo->getActiveSectors().count(slot->sectorId) > 0;
             sendAllComponents(entityId, clientInfo->connectData.connection);
         });
 }
@@ -1852,68 +1848,92 @@ ecs::EntityId Engine::spawnAsteroid(world::Sector* sector,
         });
 }
 
-void Engine::populateMenuWorld()
-{
-    int ships = CFG_INT(saveConfig, 10.0f, "populate", "ships");
-    int asteroids = CFG_INT(saveConfig, 10.0f, "populate", "asteroids");
-    bool first = true;
+// void Engine::populateMenuWorld()
+// {
+//     int ships = CFG_INT(saveConfig, 10.0f, "populate", "ships");
+//     int asteroids = CFG_INT(saveConfig, 10.0f, "populate", "asteroids");
+//     bool first = true;
 
-    auto menuClient = registerClient(
-        def::ClientInfo("Based Menu Chad",
-                        net::ConnectDataMenu,
-                        def::Dbg::enConsole | def::Dbg::enCollAvoidInfo));
+//     auto menuClient = registerClient(
+//         def::ClientInfo("Based Menu Chad",
+//                         net::ConnectDataMenu,
+//                         def::Dbg::enConsole | def::Dbg::enCollAvoidInfo));
 
-    auto randPos = [this]()
-    {
-        return vec2{randWorldGen.float_range(-world.getHalfSectorSize() * 0.8f,
-                                             world.getHalfSectorSize() * 0.8f),
-                    randWorldGen.float_range(-world.getHalfSectorSize() * 0.8f,
-                                             world.getHalfSectorSize() * 0.8f)};
-    };
+//     auto randPos = [this]()
+//     {
+//         return vec2{randWorldGen.float_range(-world.getHalfSectorSize() *
+//         0.8f,
+//                                              world.getHalfSectorSize() *
+//                                              0.8f),
+//                     randWorldGen.float_range(-world.getHalfSectorSize() *
+//                     0.8f,
+//                                              world.getHalfSectorSize() *
+//                                              0.8f)};
+//     };
 
-    for (int i = 0; i < ships; ++i)
-    {
-        vec2 pos = randPos();
-        float rot = randWorldGen.float_range(0, 2.0f * M_PIf);
-        auto sector = world.getSector(0);
-        auto ent = objb::ShipRecipe::spawn(
-            modManager.getShipRecipeLib().randomHandle(randWorldGen),
-            {.ptrHandle = ptrHandle, .sector = sector, .pos = pos, .rot = rot});
+//     for (int i = 0; i < ships; ++i)
+//     {
+//         vec2 pos = randPos();
+//         float rot = randWorldGen.float_range(0, 2.0f * M_PIf);
+//         auto sector = world.getSector(0);
+//         auto ent = objb::ShipRecipe::spawn(
+//             modManager.getShipRecipeLib().randomHandle(randWorldGen),
+//             {.ptrHandle = ptrHandle, .sector = sector, .pos = pos, .rot =
+//             rot});
 
-        if (first)
-        {
-            first = false;
-            auto clientInfo = clientLib.getItem(menuClient);
-            clientInfo->activeEntity = ent;
-        }
-    }
+//         if (first)
+//         {
+//             first = false;
+//             auto clientInfo = clientLib.getItem(menuClient);
+//             clientInfo->activeEntity = ent;
+//         }
+//     }
 
-    for (int i = 0; i < asteroids; ++i)
-    {
-        vec2 pos = randPos();
-        float rot = randWorldGen.float_range(-0.5f, 0.5f);
-        auto sector = world.getSector(0);
+//     for (int i = 0; i < asteroids; ++i)
+//     {
+//         vec2 pos = randPos();
+//         float rot = randWorldGen.float_range(-0.5f, 0.5f);
+//         auto sector = world.getSector(0);
 
-        objb::AsteroidRecipe rec(
-            modManager.getAsteroidLib().randomHandle(randWorldGen));
-        rec.spawn({.ptrHandle = ptrHandle,
-                   .sector = sector,
-                   .pos = pos,
-                   .naturalRot = rot});
-    }
-}
+//         objb::AsteroidRecipe rec(
+//             modManager.getAsteroidLib().randomHandle(randWorldGen));
+//         rec.spawn({.ptrHandle = ptrHandle,
+//                    .sector = sector,
+//                    .pos = pos,
+//                    .naturalRot = rot});
+//     }
+// }
 
 void Engine::populateTestWorld()
 {
     int ships = CFG_INT(saveConfig, 10.0f, "populate", "ships");
     int asteroids = CFG_INT(saveConfig, 10.0f, "populate", "asteroids");
-    LG_D("Spawn Ships: {}", ships);
     bool first = true;
+
+
+    factions.addItem(
+        "AsteroidBlasters",
+        dipl::Faction(
+            {.name = "Based Asteroid Blasters",
+             .description =
+                 "Blasting asteroids with nukes like there is no tomorrow"}));
+    auto cliFact = factions.addItem(
+        "SpaceChads",
+        dipl::Faction(
+            {.name = "Space Chads",
+             .description = "Also nuking everything. But mostly aliens"}));
+    factions.addItem(
+        "BetaCucks",
+        dipl::Faction(
+            {.name = "Beta Cucks",
+             .description =
+                 "Cucked by the space tucans, their life is miserable."}));
 
     auto menuClient = registerClient(
         def::ClientInfo("Based Menu Chad",
                         net::ConnectDataMenu,
-                        def::Dbg::enConsole | def::Dbg::enCollAvoidInfo));
+                        def::Dbg::enConsole | def::Dbg::enCollAvoidInfo,
+                        cliFact));
 
     auto randPos = [this]()
     {
@@ -1925,13 +1945,20 @@ void Engine::populateTestWorld()
 
     for (int i = 0; i < ships; ++i)
     {
-        vec2 pos = randPos();
-        float rot = randWorldGen.float_range(0, 2.0f * M_PIf);
-        auto sector = world.getSector(
+        const vec2 pos = randPos();
+        const float rot = randWorldGen.float_range(0, 2.0f * M_PIf);
+        const auto hFaction =
+            first ? cliFact : factions.randomHandle(randWorldGen);
+
+        const auto sector = world.getSector(
             randWorldGen.int_range(0, world.getSectorCount() - 1));
-        auto ent = objb::ShipRecipe::spawn(
+        const auto ent = objb::ShipRecipe::spawn(
             modManager.getShipRecipeLib().randomHandle(randWorldGen),
-            {.ptrHandle = ptrHandle, .sector = sector, .pos = pos, .rot = rot});
+            {.ptrHandle = ptrHandle,
+             .sector = sector,
+             .pos = pos,
+             .rot = rot,
+             .hFaction = hFaction});
 
         if (first)
         {
@@ -1962,7 +1989,7 @@ void Engine::populateWorld()
     switch (saveType)
     {
         case SaveType::Menu:
-            populateMenuWorld();
+            populateTestWorld();
             break;
         case SaveType::Test:
             populateTestWorld();

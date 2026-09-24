@@ -1,6 +1,7 @@
 #ifndef CLIENT_DEF_HPP
 #define CLIENT_DEF_HPP
 
+#include "faction.hpp"
 #include "world-def.hpp"
 #include <comp-ident.hpp>
 #include <control-def.hpp>
@@ -54,7 +55,8 @@ class ClientInfo
 #ifdef SERVER
     ClientInfo(const std::string& name,
                const net::ConnectData& connectData,
-               Dbg::Flags flags)
+               Dbg::Flags flags,
+               dipl::FactionHandle hFaction)
         : workSequencer(10000)
     {
         this->name = name;
@@ -64,17 +66,20 @@ class ClientInfo
         lastClientUpdMap = tim::nowU();
         lastClientUpdRealtime = tim::nowU();
         lastClientUpdGeneral = tim::nowU();
+        this->hFaction = hFaction.toGenericHandle();
     }
 #endif
 #ifdef CLIENT
     ClientInfo() {}
     ClientInfo(const std::string& name,
                const net::ConnectData& connectData,
-               Dbg::Flags flags)
+               Dbg::Flags flags,
+               dipl::FactionHandle hFaction)
     {
         this->name = name;
         this->connectData = connectData;
         this->dbgFlags = flags;
+        this->hFaction = hFaction.toGenericHandle();
     }
 #endif
     ~ClientInfo() {}
@@ -119,6 +124,7 @@ class ClientInfo
     Dbg::Flags dbgFlags;
     std::string name;
     ClientViewRect clientViewRect;
+    GenericHandle hFaction;
 
   private:
     std::set<uint32_t> activeSectors;
@@ -132,6 +138,7 @@ using ClientInfoHandle = typename con::ItemLib<ClientInfo>::Handle;
 #define SER_CLIENT_INFO                                                        \
     SOBJ(o.activeEntity);                                                      \
     S2b(o.dbgFlags);                                                           \
+    SOBJ(o.hFaction);                                                          \
     STXT(o.name, CLIENT_INFO_NAME_MAX);
 EXT_SER(ClientInfo, SER_CLIENT_INFO)
 EXT_DES(ClientInfo, SER_CLIENT_INFO)

@@ -6,6 +6,7 @@
 #include "process.hpp"
 #include "ptr-handle.hpp"
 #include "save-manager.hpp"
+#include "spine-integration.hpp"
 #include "std-inc.hpp"
 #include <GLFW/glfw3.h>
 #include <bgfx/bgfx.h>
@@ -269,6 +270,7 @@ class MainWindow
     sphyc::Model model;
     ui::Localisation locale;
     sphyc::SaveManager saveManager;
+    gfx::SpineIntegration spineIntegration;
 
     UiDocHandle modLoadingHandle;
 

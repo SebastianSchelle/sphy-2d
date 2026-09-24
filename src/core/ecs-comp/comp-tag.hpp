@@ -21,10 +21,10 @@ struct Selectable
     static constexpr string NAME = "ts-selectable";
 };
 
-struct OOSSync
-{
-    static constexpr string NAME = "ts-oossync";
-};
+// struct OOSSync
+// {
+//     static constexpr string NAME = "ts-oossync";
+// };
 
 namespace obj
 {

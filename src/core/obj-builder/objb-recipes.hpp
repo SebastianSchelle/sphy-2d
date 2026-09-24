@@ -1,6 +1,7 @@
 #ifndef OBJB_RECIPES_HPP
 #define OBJB_RECIPES_HPP
 
+#include "faction.hpp"
 #include <comp-ident.hpp>
 #include <comp-struct.hpp>
 #include <lib-hull.hpp>
@@ -22,6 +23,7 @@ struct RecipeSpawnParams
     float rot = 0.0f;
     vec2 vel = vec2(0.0f, 0.0f);
     float naturalRot = 0.0f;
+    dipl::FactionHandle hFaction;
 };
 
 namespace ShipRecipe

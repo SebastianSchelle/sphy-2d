@@ -46,6 +46,19 @@
 namespace sphyc
 {
 
+static uint32_t factionColTest(GenericHandle handle)
+{
+    switch (handle.idx)
+    {
+        case 0:
+            return 0xffff0000;
+        case 1:
+            return 0xff00ff00;
+        default:
+            return 0xff0000ff;
+    }
+}
+
 Model::Model(ui::UserInterface* userInterface,
              cfg::ConfigManager& config,
              mod::ModManager* modManager,
@@ -224,25 +237,60 @@ void Model::modelLoopGame(float dt)
                 {
                     def::SectorPos old{(uint32_t)renderer->getSectorOffsetX(),
                                        (uint32_t)renderer->getSectorOffsetY()};
-                    vec2 oldPos = renderer->getWorldCameraPosition();
-
-                    // todo: make dt independent and implement smooth panning in
-                    // render engine todo: this + model.hpp. shared function for
-                    // sector pos interpolation todo: only do complex
-                    // interpolation when id != newId
-                    const vec2 prevPosTr = world.translateCoords(
-                        oldPos,
-                        world.sectorCoordsToId(old),
-                        world.sectorCoordsToId(sectorCoords));
-                    const vec2 moveVec = tr.tr.pos - prevPosTr;
-                    const vec2 interPos = oldPos + 0.02f * moveVec;
-                    const def::SectorPos prevSectorXY = old;
-                    const def::SectorCoords coordsTr = world.translateOOBCoords(
-                        {.pos = prevSectorXY, .sectorPos = interPos});
-                    renderer->panWorldTo(def::SectorCoords{
-                        .pos = coordsTr.pos,
-                        .sectorPos = coordsTr.sectorPos,
-                    });
+                    const vec2 oldPos = renderer->getWorldCameraPosition();
+                    const auto secFrom = world.sectorCoordsToId(old);
+                    const auto secTo = world.sectorCoordsToId(sectorCoords);
+                    const auto newPos = tr.tr.pos;
+                    if (secFrom == secTo)
+                    {
+                        const vec2 moveVec = newPos - oldPos;
+                        const vec2 interpol = oldPos + 0.05f * moveVec;
+                        if (glm::length2(moveVec) < 500.0f * 500.0f)
+                        {
+                            renderer->panWorldTo(def::SectorCoords{
+                                .pos = old,
+                                .sectorPos = interpol,
+                            });
+                        }
+                        else
+                        {
+                            renderer->panWorldTo(def::SectorCoords{
+                                .pos = sectorCoords,
+                                .sectorPos = newPos,
+                            });
+                        }
+                    }
+                    else
+                    {
+                        // todo: make dt independent and implement smooth
+                        // panning in render engine todo: this + model.hpp.
+                        // shared function for sector pos interpolation
+                        // todo: only do complex interpolation when id !=
+                        // newId
+                        const vec2 prevPosTr =
+                            world.translateCoords(oldPos, secFrom, secTo);
+                        const vec2 moveVec = newPos - prevPosTr;
+                        if (glm::length2(moveVec) < 500.0f * 500.0f)
+                        {
+                            const vec2 interPos = oldPos + 0.05f * moveVec;
+                            const def::SectorPos prevSectorXY = old;
+                            const def::SectorCoords coordsTr =
+                                world.translateOOBCoords(
+                                    {.pos = prevSectorXY,
+                                     .sectorPos = interPos});
+                            renderer->panWorldTo(def::SectorCoords{
+                                .pos = coordsTr.pos,
+                                .sectorPos = coordsTr.sectorPos,
+                            });
+                        }
+                        else
+                        {
+                            renderer->panWorldTo(def::SectorCoords{
+                                .pos = sectorCoords,
+                                .sectorPos = newPos,
+                            });
+                        }
+                    }
                 }
             }
         }
@@ -454,7 +502,8 @@ void Model::parseCommand(bitsery::Deserializer<InputAdapter>& cmddes,
                             version::PATCH);
                     }
                     LG_I("Version check successful");
-                    // todo: give the server some time to init the clients otherwise auth fails. Do this properly
+                    // todo: give the server some time to init the clients
+                    // otherwise auth fails. Do this properly
                     SLEEP_S(1);
                     authenticate();
                 }
@@ -771,11 +820,12 @@ void Model::drawMapIcons(gfx::RenderEngine& renderer,
 {
     float zoom = renderer.getWorldZoom();
     auto& reg = clientRegistry.getRegistry();
-    reg.view<ecs::EntityId, TransformHist, ecs::MapIcon>().each(
+    reg.view<ecs::EntityId, TransformHist, ecs::MapIcon, ecs::FactionId>().each(
         [this, &renderer, &reg, &drawBounds, zoom](game_entity entity,
                                                    ecs::EntityId entityId,
                                                    TransformHist& tr,
-                                                   ecs::MapIcon& mapIcon)
+                                                   ecs::MapIcon& mapIcon,
+                                                   ecs::FactionId& factionId)
         {
             ClientTransform clitr;
             if (!tr.interpolate(rendertime, clitr, {.world = &world})
@@ -819,14 +869,14 @@ void Model::drawMapIcons(gfx::RenderEngine& renderer,
                             texHandle,
                             clitr.tr.rot,
                             gfx::RenderEngine::zIdxMapIconHull,
-                            0xff0010ff);
+                            factionColTest(factionId.faction));
                         if (isSelected(entityId))
                         {
                             renderer.drawShapeRectangle(
                                 worldPos,
                                 glm::vec2((mapIconItem->size.x + 8.0f) / zoom,
                                           (mapIconItem->size.y + 8.0f) / zoom),
-                                0xff00ff00,
+                                factionColTest(factionId.faction),
                                 1.0f / zoom);
                         }
                     }
@@ -1042,7 +1092,8 @@ void Model::drawRealtimeShips(gfx::RenderEngine& renderer,
 //             ecs::SectorId& sectorId,
 //             ecs::Station& station)
 //         {
-//             bool sectorFilter = activeSectorId == world::INVALID_SECTOR_ID
+//             bool sectorFilter = activeSectorId ==
+//             world::INVALID_SECTOR_ID
 //                                 || sectorId.id == activeSectorId;
 //             if (sectorFilter)
 //             {
@@ -1540,7 +1591,8 @@ void Model::checkVersion(const net::ConnectData& connectData,
 {
     reset();
     afterConnectState = after;
-    this->clientInfo = def::ClientInfo("", connectData, 0);
+    this->clientInfo =
+        def::ClientInfo("", connectData, 0, GenericHandle::Invalid());
     prot::MsgComposer mcomp(net::SendType::TCP, nullptr);
     mcomp.startCommand(prot::cmd::VERSION_CHECK, 0);
     mcomp.ser->value2b(version::MAJOR);

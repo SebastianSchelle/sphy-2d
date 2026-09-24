@@ -150,6 +150,29 @@ struct SectorId
 EXT_SER(SectorId, SER_SECTOR_ID)
 EXT_DES(SectorId, SER_SECTOR_ID)
 
+struct FactionId
+{
+    static const uint16_t VERSION = 1;
+    static constexpr string NAME = "faction-id";
+
+    GenericHandle faction;
+
+    static void fromYaml(entt::registry& registry,
+                         entt::entity entity,
+                         const YAML::Node& node,
+                         mod::ResourceMap& resourceMap)
+    {
+        FactionId id;
+        TRY_YAML_DICT(id.faction.idx, node["idx"], 0u);
+        TRY_YAML_DICT(id.faction.gen, node["gen"], 0u);
+        registry.emplace<FactionId>(entity, id);
+    }
+};
+
+#define SER_FACTION_ID SOBJ(o.faction);
+EXT_SER(FactionId, SER_FACTION_ID)
+EXT_DES(FactionId, SER_FACTION_ID)
+
 }  // namespace ecs
 
 EXT_FMT(ecs::EntityId, "{}:{}", o.index, o.generation);
