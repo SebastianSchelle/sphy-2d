@@ -78,6 +78,8 @@ struct SkeletonInstance
     }
     bool update(float delta);
     bool setAnimation(int track, const string& animation, bool loop);
+    bool
+    addAnimation(int track, const string& animation, bool loop, float delay);
     bool render(SpineIntegration& spineIntegration);
 };
 

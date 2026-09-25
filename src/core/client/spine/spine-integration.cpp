@@ -58,6 +58,25 @@ bool SkeletonInstance::setAnimation(int track,
     return true;
 }
 
+bool SkeletonInstance::addAnimation(int track,
+                                    const string& animation,
+                                    bool loop,
+                                    float delay)
+{
+    if (!loaded())
+    {
+        LG_E("Setting animation failed. Invalid pointers.");
+        return false;
+    }
+    if (!skeleton->getData().findAnimation(animation.c_str()))
+    {
+        LG_E("Animation {} does not exist", animation);
+        return false;
+    }
+    animationState->addAnimation(track, animation.c_str(), loop, delay);
+    return true;
+}
+
 bool SkeletonInstance::render(SpineIntegration& spineIntegration)
 {
     if (!loaded())
@@ -162,6 +181,8 @@ SpineIntegration::loadSkeletonJson(spine::Atlas* atlas,
         return AnimationData();
     }
     auto animationStateData = new spine::AnimationStateData(*skeletonData);
+    animationStateData->setDefaultMix(0.1f);
+
     return AnimationData(skeletonData, animationStateData);
 }
 
@@ -187,6 +208,8 @@ SpineIntegration::loadSkeletonBinary(spine::Atlas* atlas,
         return AnimationData();
     }
     auto animationStateData = new spine::AnimationStateData(*skeletonData);
+    animationStateData->setDefaultMix(0.1f);
+
     return AnimationData(skeletonData, animationStateData);
 }
 
@@ -224,34 +247,24 @@ uint64_t SpineIntegration::convertBlendMode(spine::BlendMode blendMode)
     switch (blendMode)
     {
         case spine::BlendMode_Normal:
-            return BGFX_STATE_BLEND_FUNC(
-                BGFX_STATE_BLEND_SRC_ALPHA,
-                BGFX_STATE_BLEND_INV_SRC_ALPHA
-            );
+            return BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
+                                         BGFX_STATE_BLEND_INV_SRC_ALPHA);
 
         case spine::BlendMode_Additive:
-            return BGFX_STATE_BLEND_FUNC(
-                BGFX_STATE_BLEND_SRC_ALPHA,
-                BGFX_STATE_BLEND_ONE
-            );
+            return BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
+                                         BGFX_STATE_BLEND_ONE);
 
         case spine::BlendMode_Multiply:
-            return BGFX_STATE_BLEND_FUNC(
-                BGFX_STATE_BLEND_DST_COLOR,
-                BGFX_STATE_BLEND_INV_SRC_ALPHA
-            );
+            return BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_DST_COLOR,
+                                         BGFX_STATE_BLEND_INV_SRC_ALPHA);
 
         case spine::BlendMode_Screen:
-            return BGFX_STATE_BLEND_FUNC(
-                BGFX_STATE_BLEND_ONE,
-                BGFX_STATE_BLEND_INV_SRC_COLOR
-            );
+            return BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,
+                                         BGFX_STATE_BLEND_INV_SRC_COLOR);
 
         default:
-            return BGFX_STATE_BLEND_FUNC(
-                BGFX_STATE_BLEND_SRC_ALPHA,
-                BGFX_STATE_BLEND_INV_SRC_ALPHA
-            );
+            return BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
+                                         BGFX_STATE_BLEND_INV_SRC_ALPHA);
     }
 }
 

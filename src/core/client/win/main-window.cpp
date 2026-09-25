@@ -411,6 +411,10 @@ void MainWindow::winLoop()
                     {50.0f, 50.0f},
                     0xffffffff,
                     2.0f / renderEngine.getWorldZoom());
+                testSkelly.skeleton->setScale(0.2f, 0.2f);
+                testSkelly.skeleton->setPosition(
+                    mouseState.mouseCoords.sectorPos.x,
+                    mouseState.mouseCoords.sectorPos.y);
                 testSkelly.update(dt);
                 testSkelly.render(spineIntegration);
                 break;
@@ -1373,6 +1377,32 @@ void MainWindow::setupGeneralCtrl()
                             userInterface.processMenuKey(
                                 model.getGameState()
                                 != ClientGameState::MainMenu);
+                            return true;
+                        }});
+
+    userInput.addEvents(
+        {InputEvent::Environment::Menu},
+        "Skelly test",
+        "",
+        InputEvent::Key{.key = GLFW_KEY_8,
+                        .modifiers = 0,
+                        .action = GLFW_PRESS,
+                        .callback = [this](const ui::InputEvent::EventData&)
+                        {
+                            testSkelly.setAnimation(0, "run", true);
+                            return true;
+                        }});
+    userInput.addEvents(
+        {InputEvent::Environment::Menu},
+        "Skelly test 2",
+        "",
+        InputEvent::Key{.key = GLFW_KEY_9,
+                        .modifiers = 0,
+                        .action = GLFW_PRESS,
+                        .callback = [this](const ui::InputEvent::EventData&)
+                        {
+                            testSkelly.setAnimation(0, "jump", false);
+                            testSkelly.addAnimation(0, "run", true, 0.0f);
                             return true;
                         }});
 }
