@@ -38,7 +38,8 @@ struct SpineDrawCommand
 
     TextureHandle texture{};
 
-    SpineBlendMode blendMode = SpineBlendMode::Normal;
+    uint64_t blendMode = BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
+                                               BGFX_STATE_BLEND_INV_SRC_ALPHA);
 };
 
 struct AnimationData
@@ -128,7 +129,7 @@ class SpineIntegration
 
     SkeletonInstance createSkeleton(const AnimationData& animationData);
     void destroySkeleton(const SkeletonInstance& skeleton);
-    static SpineBlendMode convertBlendMode(spine::BlendMode blendMode);
+    static uint64_t convertBlendMode(spine::BlendMode blendMode);
     void engineSubmit(const SpineDrawCommand& command);
 
     spine::SkeletonRenderer skelRenderer;

@@ -2,6 +2,7 @@
 #include "bgfx/bgfx.h"
 #include "config-manager.hpp"
 #include "logging.hpp"
+#include "spine-integration.hpp"
 #include "std-inc.hpp"
 #include "vertex-defines.hpp"
 #include "world-def.hpp"
@@ -30,6 +31,7 @@ bgfx::VertexLayout VertexPosColTex::ms_decl;
 bgfx::VertexLayout PosVertex::ms_decl;
 bgfx::VertexLayout PosColorVertex::ms_decl;
 bgfx::VertexLayout PosColorShapeVertex::ms_decl;
+bgfx::VertexLayout VertexSpine::ms_decl;
 
 static const PosVertex vertRectangle[] = {{-0.5f, -0.5f},
                                           {0.5f, -0.5f},
@@ -174,6 +176,7 @@ bool RenderEngine::initPre()
     PosColorVertex::init();
     PosVertex::init();
     PosColorShapeVertex::init();
+    VertexSpine::init();
 
     vbhRectangle = bgfx::createVertexBuffer(
         bgfx::copy(vertRectangle, sizeof(vertRectangle)), PosVertex::ms_decl);
@@ -973,24 +976,7 @@ void RenderEngine::queueSpine(const SpineDrawCommand& cmd,
     }
     currentViewId = viewId;
 
-    // todo: always reuse the same transient buffers, there is no reason to have
-    // multiple
-    VertexPosColTex* vertices = (VertexPosColTex*)tvbSpine.data;
 
-    for (int i = 0; i < cmd.numVertices; ++i)
-    {
-        LG_D("{}, {}", cmd.positions[i], cmd.positions[i + 1]);
-        vertices[currentSpineVertices++] = VertexPosColTex{cmd.positions[i],
-                                                           cmd.positions[i + 1],
-                                                           cmd.colors[i],
-                                                           cmd.uvs[i],
-                                                           cmd.uvs[i + 1]};
-    }
-    uint16_t* indices = (uint16_t*)tibSpine.data;
-    for (int i = 0; i < cmd.numIndices; ++i)
-    {
-        indices[currentSpineIndices++] = cmd.indices[i];
-    }
     auto& texLib = textureLoader.getTextureLib();
     Texture* texture = texLib.getItem(cmd.texture);
     if (!texture)
@@ -1002,11 +988,39 @@ void RenderEngine::queueSpine(const SpineDrawCommand& cmd,
         }
     }
 
+    const float x = texture->getRelBounds().x;
+    const float y = texture->getRelBounds().y;
+    const float width = texture->getRelBounds().z;
+    const float height = texture->getRelBounds().w;
+
+    // todo: always reuse the same transient buffers, there is no reason to have
+    // multiple
+    VertexSpine* vertices = (VertexSpine*)tvbSpine.data;
+
+    for (int i = 0; i < cmd.numVertices; ++i)
+    {
+        const int j = i * 2;
+        vertices[currentSpineVertices++] =
+            VertexSpine{cmd.positions[j],
+                        cmd.positions[j + 1],
+                        cmd.colors[i],
+                        x + cmd.uvs[j] * width,
+                        y + cmd.uvs[j + 1] * height,
+                        static_cast<float>(texture->getTexIdent().layerIdx)};
+    }
+    uint16_t* indices = (uint16_t*)tibSpine.data;
+    for (int i = 0; i < cmd.numIndices; ++i)
+    {
+        // todo: + vertexbase
+        indices[currentSpineIndices++] = cmd.indices[i];
+    }
+
+    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | cmd.blendMode);
+
     const bgfx::TextureHandle arrayHandle = texture->getTexIdent().texHandle;
     bgfx::setTexture(0, u_texArray, arrayHandle, kTexRectSamplerFlags);
 
     // todo: fix with proper texture management
-    LG_D("submit spine vertices");
     submitSpine();
 }
 
@@ -1110,11 +1124,11 @@ void RenderEngine::submitShapes()
 void RenderEngine::allocateForSpine()
 {
     if (bgfx::getAvailTransientVertexBuffer(MAX_SPINE_VERTICES,
-                                            PosColorShapeVertex::ms_decl)
-        && bgfx::getAvailTransientIndexBuffer(MAX_SPINE_VERTICES, false))
+                                            VertexSpine::ms_decl)
+        && bgfx::getAvailTransientIndexBuffer(MAX_SPINE_INDICES, false))
     {
         bgfx::allocTransientVertexBuffer(
-            &tvbSpine, MAX_SPINE_VERTICES, PosColorShapeVertex::ms_decl);
+            &tvbSpine, MAX_SPINE_VERTICES, VertexSpine::ms_decl);
         bgfx::allocTransientIndexBuffer(&tibSpine, MAX_SHAPE_INDICES, false);
     }
 }
@@ -1123,21 +1137,24 @@ void RenderEngine::submitSpine()
 {
     if (currentSpineIndices > 0)
     {
-        if (!shaderHandleRml.isValid())
+        if (!shaderHandleSpine.isValid())
         {
-            shaderHandleRml = getShaderHandle("geom");
+            shaderHandleSpine = getShaderHandle("spine");
             return;
         }
-        uint64_t state = BGFX_STATE_WRITE_RGB;
+        uint64_t state =
+            BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
+            | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,
+                                    BGFX_STATE_BLEND_INV_SRC_ALPHA);
 
         const float* projForView =
             (currentViewId == kWorldView) ? worldViewProj : ortho;
         bgfx::setUniform(u_proj, projForView);
-        bgfx::setState(state);
+        // bgfx::setState(state);
         bgfx::setVertexBuffer(0, &tvbSpine, 0, currentSpineVertices);
         bgfx::setIndexBuffer(&tibSpine, 0, currentSpineIndices);
         bgfx::submit(currentViewId,
-                     compiledShaderLib.getItem(shaderHandleRml)->getHandle());
+                     compiledShaderLib.getItem(shaderHandleSpine)->getHandle());
         currentSpineVertices = 0;
         currentSpineIndices = 0;
     }

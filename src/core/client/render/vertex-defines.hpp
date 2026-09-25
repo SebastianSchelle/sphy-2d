@@ -8,6 +8,27 @@
 namespace gfx
 {
 
+struct VertexSpine
+{
+    float x;
+    float y;
+    uint32_t rgba;
+    float u;
+    float v;
+    float lay;
+
+    static void init()
+    {
+        ms_decl.begin()
+            .add(bgfx::Attrib::Position, 2, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
+            .add(bgfx::Attrib::TexCoord0, 3, bgfx::AttribType::Float)
+            .end();
+    }
+
+    static bgfx::VertexLayout ms_decl;
+};
+
 struct VertexPosColTex
 {
     float x;
@@ -28,7 +49,8 @@ struct VertexPosColTex
     static bgfx::VertexLayout ms_decl;
 };
 
-struct PosVertex {
+struct PosVertex
+{
     float m_x;
     float m_y;
 
@@ -42,7 +64,8 @@ struct PosVertex {
     static bgfx::VertexLayout ms_decl;
 };
 
-struct PosColorVertex {
+struct PosColorVertex
+{
     float m_x;
     float m_y;
     uint32_t m_abgr;
@@ -64,11 +87,13 @@ struct PosColorShapeVertex
     float u, v;              // Local shape space (-1..1)
     uint32_t rgba;           // Color
     float shapeType;         // 0=tri,1=rect,2=circle,3=line
-    float thicknessX;       // outline thickness for rect X (local), or thickness for circle
-    float thicknessY;        // outline thickness for rect Y (local); separate attr so .z is reliable
+    float thicknessX;  // outline thickness for rect X (local), or thickness for
+                       // circle
+    float thicknessY;  // outline thickness for rect Y (local); separate attr so
+                       // .z is reliable
     float centerX, centerY;  // Shape center (world)
     float rotationRad;       // Rotation in radians (applied on GPU)
-    float zIndex;            // Depth ordering (clip Z, same convention as drawTexRect)
+    float zIndex;  // Depth ordering (clip Z, same convention as drawTexRect)
 
     static void init()
     {
@@ -84,7 +109,6 @@ struct PosColorShapeVertex
 
     static bgfx::VertexLayout ms_decl;
 };
-
 
 
 }  // namespace gfx

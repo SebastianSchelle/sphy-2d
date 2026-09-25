@@ -211,12 +211,13 @@ bool MainWindow::initPost()
     misc::RandGen rand(0);
     auto& animLib = modManager.getAnimationLib();
     auto skellyData = animLib.getItem(animLib.randomHandle(rand));
-    if(!skellyData)
+    if (!skellyData)
     {
         LG_E("NOOOOO, SKELLYDATA IS MISSING");
         return false;
     }
     testSkelly = skellyData->createSkeleton();
+    testSkelly.setAnimation(0, "run", true);
     return true;
 }
 
@@ -405,7 +406,11 @@ void MainWindow::winLoop()
             case ClientGameState::MainMenu:
                 renderUniverse();
                 // spine test
-                renderEngine.drawShapeRectangle({0.0f, 0.0f}, {50.0f, 50.0f}, 0xffffffff, 2.0f/renderEngine.getWorldZoom());
+                renderEngine.drawShapeRectangle(
+                    {0.0f, 0.0f},
+                    {50.0f, 50.0f},
+                    0xffffffff,
+                    2.0f / renderEngine.getWorldZoom());
                 testSkelly.update(dt);
                 testSkelly.render(spineIntegration);
                 break;

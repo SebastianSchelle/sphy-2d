@@ -219,24 +219,39 @@ void SpineIntegration::engineSubmit(const SpineDrawCommand& cmd)
     renderer->queueSpine(cmd, 0.0f, 0);
 }
 
-SpineBlendMode SpineIntegration::convertBlendMode(spine::BlendMode blendMode)
+uint64_t SpineIntegration::convertBlendMode(spine::BlendMode blendMode)
 {
     switch (blendMode)
     {
         case spine::BlendMode_Normal:
-            return SpineBlendMode::Normal;
+            return BGFX_STATE_BLEND_FUNC(
+                BGFX_STATE_BLEND_SRC_ALPHA,
+                BGFX_STATE_BLEND_INV_SRC_ALPHA
+            );
 
         case spine::BlendMode_Additive:
-            return SpineBlendMode::Additive;
+            return BGFX_STATE_BLEND_FUNC(
+                BGFX_STATE_BLEND_SRC_ALPHA,
+                BGFX_STATE_BLEND_ONE
+            );
 
         case spine::BlendMode_Multiply:
-            return SpineBlendMode::Multiply;
+            return BGFX_STATE_BLEND_FUNC(
+                BGFX_STATE_BLEND_DST_COLOR,
+                BGFX_STATE_BLEND_INV_SRC_ALPHA
+            );
 
         case spine::BlendMode_Screen:
-            return SpineBlendMode::Screen;
+            return BGFX_STATE_BLEND_FUNC(
+                BGFX_STATE_BLEND_ONE,
+                BGFX_STATE_BLEND_INV_SRC_COLOR
+            );
 
         default:
-            return SpineBlendMode::Normal;
+            return BGFX_STATE_BLEND_FUNC(
+                BGFX_STATE_BLEND_SRC_ALPHA,
+                BGFX_STATE_BLEND_INV_SRC_ALPHA
+            );
     }
 }
 

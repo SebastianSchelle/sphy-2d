@@ -362,6 +362,7 @@ class RenderEngine
     bgfx::UniformHandle u_grid = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_transform = BGFX_INVALID_HANDLE;
 
+    ShaderHandle shaderHandleSpine = ShaderHandle::Invalid();
     ShaderHandle shaderHandleRml = ShaderHandle::Invalid();
     ShaderHandle shaderHandleShapes = ShaderHandle::Invalid();
     ShaderHandle shaderHandleTexRect = ShaderHandle::Invalid();
