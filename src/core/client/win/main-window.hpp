@@ -296,6 +296,8 @@ class MainWindow
     float filteredFps = 60.0f;
     ecs::PtrHandle ptrHandle;
     osh::Process localServerProc;
+
+    gfx::SkeletonInstance testSkelly;
 };
 
 }  // namespace ui

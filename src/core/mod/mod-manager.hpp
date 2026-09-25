@@ -11,11 +11,13 @@
 namespace gfx
 {
 class RenderEngine;
+class SpineIntegration;
 }
 namespace ui
 {
 class UserInterface;
 }
+#include <spine-integration.hpp>
 #include <texture.hpp>
 #endif
 #include <asset-factory.hpp>
@@ -45,6 +47,16 @@ class UserInterface;
 
 #include <logging.hpp>
 
+#ifdef SERVER
+namespace gfx
+{
+struct AnimationData
+{
+};
+using AnimationDataHandle = typename con::ItemLib<AnimationData>::Handle;
+}  // namespace gfx
+#endif
+
 namespace mod
 {
 
@@ -64,6 +76,7 @@ struct PtrHandles
 {
 #ifdef CLIENT
     gfx::RenderEngine* renderEngine;
+    gfx::SpineIntegration* spineIntegration;
     ui::UserInterface* userInterface;
     ui::Localisation* locale;
     /// When set (e.g. mod load worker thread), RmlUi calls must run through
@@ -156,9 +169,11 @@ class ModManager
 {
   public:
 #ifdef SERVER
-    ModManager(cfg::ConfigManager& config, const sphy::CmdLinOptionsServer& options);
+    ModManager(cfg::ConfigManager& config,
+               const sphy::CmdLinOptionsServer& options);
 #else
-    ModManager(cfg::ConfigManager& config, const sphy::CmdLinOptionsClient& options);
+    ModManager(cfg::ConfigManager& config,
+               const sphy::CmdLinOptionsClient& options);
 #endif
     ~ModManager();
     bool parseModList(const std::string& modList,
@@ -226,6 +241,10 @@ class ModManager
     {
         return shipRecipeLib;
     }
+    con::ItemLib<gfx::AnimationData>& getAnimationLib()
+    {
+        return animationLib;
+    }
 
   private:
     bool checkDependency(const std::string& modId,
@@ -234,6 +253,7 @@ class ModManager
     bool checkIfDependencyProcessed(const std::string& modId);
     bool loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo);
     bool loadTextures(PtrHandles& ptrHandles, const ModInfo& modInfo);
+    bool loadAnimations(PtrHandles& ptrHandles, const ModInfo& modInfo);
 #ifdef CLIENT
     bool loadShaders(PtrHandles& ptrHandles,
                      const ModInfo& modInfo,
@@ -244,6 +264,10 @@ class ModManager
                                          const string& texName,
                                          const string& texType,
                                          const string& texPath);
+    bool loadAnimationClient(PtrHandles& ptrHandles,
+                             const string& name,
+                             const string& atlasPath,
+                             const string& skelPath);
     bool loadUiDocs(PtrHandles& ptrHandles,
                     const ModInfo& modInfo,
                     YAML::Node uiDocs);
@@ -291,6 +315,7 @@ class ModManager
     con::ItemLib<gobj::Asteroid> asteroidLib;
     con::ItemLib<gobj::Beam> beamLib;
     con::ItemLib<gobj::ShipRecipe> shipRecipeLib;
+    con::ItemLib<gfx::AnimationData> animationLib;
 };
 
 }  // namespace mod

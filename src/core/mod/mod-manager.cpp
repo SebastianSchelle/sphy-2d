@@ -3,7 +3,7 @@
 #include <daScript/daScript.h>
 #include <daScript/daScriptModule.h>
 #include <daScript/misc/free_list.h>
-#include <memory>
+#include <filesystem>
 #include <mod-manager.hpp>
 #include <sphy-bindings.hpp>
 #include <yaml-cpp/yaml.h>
@@ -280,6 +280,10 @@ bool ModManager::loadMod(PtrHandles& ptrHandles, const ModInfo& modInfo)
         YAML::Node manifest = YAML::LoadFile(modInfo.manifestPath);
 
         if (!loadTextures(ptrHandles, modInfo))
+        {
+            return false;
+        }
+        if (!loadAnimations(ptrHandles, modInfo))
         {
             return false;
         }
@@ -766,6 +770,43 @@ bool ModManager::loadTextures(PtrHandles& ptrHandles, const ModInfo& modInfo)
     }
     return true;
 }
+
+bool ModManager::loadAnimations(PtrHandles& ptrHandles, const ModInfo& modInfo)
+{
+    const std::string animationsDir = modInfo.modDir + "/assets/animations";
+    if (!std::filesystem::exists(animationsDir))
+    {
+        LG_I("Animations directory not found: {}", animationsDir);
+        return true;
+    }
+    for (const auto& fileEntry :
+         std::filesystem::directory_iterator(animationsDir))
+    {
+        if (fileEntry.is_regular_file()
+            && fileEntry.path().extension() == ".atlas")
+        {
+            string atlasPath = fileEntry.path().string();
+            string skelPath = atlasPath;
+            skelPath.replace(skelPath.size() - 6, skelPath.size(), ".skel");
+            string name = fileEntry.path().filename().stem().string();
+            if (std::filesystem::exists(atlasPath)
+                && std::filesystem::exists(skelPath))
+            {
+#ifdef SERVER
+                animationLib.addItem(name, {});
+#else
+                if (!loadAnimationClient(ptrHandles, name, atlasPath, skelPath))
+                {
+                    LG_E("Failed to load animation data for {}", atlasPath);
+                    return false;
+                }
+#endif
+            }
+        }
+    }
+    return true;
+}
+
 
 ResourceMap::ResourceMap() {}
 ResourceMap::~ResourceMap() {}

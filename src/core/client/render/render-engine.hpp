@@ -9,6 +9,7 @@
 #include <item-lib.hpp>
 #include <magic_enum/magic_enum.hpp>
 #include <shader.hpp>
+#include <spine-integration.hpp>
 #include <texture.hpp>
 #include <vertex-defines.hpp>
 #include <world-def.hpp>
@@ -20,6 +21,11 @@ namespace gfx
 #define MAX_SHAPES 1024
 #define MAX_SHAPE_VERTICES MAX_SHAPES * 4
 #define MAX_SHAPE_INDICES MAX_SHAPES * 6
+
+#define MAX_SPINE 256
+#define MAX_SPINE_VERTICES MAX_SPINE
+#define MAX_SPINE_INDICES MAX_SPINE * 3
+
 
 #define SHAPE_TYPE_RECTANGLE 1.0f
 #define SHAPE_TYPE_CIRCLE 2.0f
@@ -117,6 +123,7 @@ class RenderEngine
         DrawFullScreenTriangles,
         DrawCompiledGeometry,
         DrawShapes,
+        DrawSpine,
     };
 
     RenderEngine(cfg::ConfigManager& config);
@@ -259,6 +266,10 @@ class RenderEngine
                       const glm::vec2& uvOffset = glm::vec2(0.0f),
                       const glm::vec2& uvScale = glm::vec2(1.0f));
     void flushQueuedTexRects();
+
+    void queueSpine(const SpineDrawCommand& cmd,
+                    float zIndex = 0.0f,
+                    bgfx::ViewId viewId = 0);
     void drawShapeRectangle(const glm::vec2& pos,
                             const glm::vec2& size,
                             uint32_t colorABGR,
@@ -312,6 +323,8 @@ class RenderEngine
     void changeRenderState(RenderState newState);
     void allocateForShapes();
     void submitShapes();
+    void allocateForSpine();
+    void submitSpine();
     void allocateForTexRects();
     void submitTexRects();
     void flushQueuedTexRect();
@@ -386,10 +399,14 @@ class RenderEngine
 
     bgfx::TransientVertexBuffer tvbSdf;
     bgfx::TransientIndexBuffer tibSdf;
+    bgfx::TransientVertexBuffer tvbSpine;
+    bgfx::TransientIndexBuffer tibSpine;
     bgfx::ViewId currentViewId = kWorldView;
     uint32_t currentShapeCount = 0;
     uint32_t currentShapeVertices = 0;
     uint32_t currentShapeIndices = 0;
+    uint32_t currentSpineVertices = 0;
+    uint32_t currentSpineIndices = 0;
     bool hasShutdown = false;
     const def::WorldShape* worldShape = nullptr;
     int32_t sectorOffsetX = 0;

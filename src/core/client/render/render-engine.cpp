@@ -766,6 +766,9 @@ void RenderEngine::changeRenderState(RenderState newState)
             case (int)RenderState::DrawShapes:
                 submitShapes();
                 break;
+            case (int)RenderState::DrawSpine:
+                submitSpine();
+                break;
             default:
                 break;
         }
@@ -878,8 +881,7 @@ void RenderEngine::enqueueShape(float shapeType,
                                 bgfx::ViewId viewId)
 {
     changeRenderState(RenderState::DrawShapes);
-    currentViewId = viewId;
-    if (currentShapeCount >= MAX_SHAPES)
+    if (currentViewId != viewId || currentShapeCount >= MAX_SHAPES)
     {
         submitShapes();
     }
@@ -887,6 +889,7 @@ void RenderEngine::enqueueShape(float shapeType,
     {
         allocateForShapes();
     }
+    currentViewId = viewId;
 
     float thicknessX = 2.0f * thickness / size.x;
     float thicknessY = 2.0f * thickness / size.y;
@@ -953,6 +956,60 @@ void RenderEngine::enqueueShape(float shapeType,
     currentShapeCount++;
 }
 
+void RenderEngine::queueSpine(const SpineDrawCommand& cmd,
+                              float zIndex,
+                              bgfx::ViewId viewId)
+{
+    changeRenderState(RenderState::DrawSpine);
+    if (currentViewId != viewId
+        || currentSpineVertices + cmd.numVertices >= MAX_SPINE_VERTICES
+        || currentSpineIndices + cmd.numIndices >= MAX_SPINE_INDICES)
+    {
+        submitSpine();
+    }
+    if (currentSpineIndices == 0)
+    {
+        allocateForSpine();
+    }
+    currentViewId = viewId;
+
+    // todo: always reuse the same transient buffers, there is no reason to have
+    // multiple
+    VertexPosColTex* vertices = (VertexPosColTex*)tvbSpine.data;
+
+    for (int i = 0; i < cmd.numVertices; ++i)
+    {
+        LG_D("{}, {}", cmd.positions[i], cmd.positions[i + 1]);
+        vertices[currentSpineVertices++] = VertexPosColTex{cmd.positions[i],
+                                                           cmd.positions[i + 1],
+                                                           cmd.colors[i],
+                                                           cmd.uvs[i],
+                                                           cmd.uvs[i + 1]};
+    }
+    uint16_t* indices = (uint16_t*)tibSpine.data;
+    for (int i = 0; i < cmd.numIndices; ++i)
+    {
+        indices[currentSpineIndices++] = cmd.indices[i];
+    }
+    auto& texLib = textureLoader.getTextureLib();
+    Texture* texture = texLib.getItem(cmd.texture);
+    if (!texture)
+    {
+        texture = texLib.getItem(textureHandleFallback);
+        if (!texture)
+        {
+            return;
+        }
+    }
+
+    const bgfx::TextureHandle arrayHandle = texture->getTexIdent().texHandle;
+    bgfx::setTexture(0, u_texArray, arrayHandle, kTexRectSamplerFlags);
+
+    // todo: fix with proper texture management
+    LG_D("submit spine vertices");
+    submitSpine();
+}
+
 void RenderEngine::drawEllipse(const glm::vec2& pos,
                                const glm::vec2& size,
                                uint32_t colorRGBA,
@@ -1010,13 +1067,13 @@ tim::Timepoint RenderEngine::getStartTime() const
 
 void RenderEngine::allocateForShapes()
 {
-    if (bgfx::getAvailTransientVertexBuffer(MAX_SHAPES * 4,
+    if (bgfx::getAvailTransientVertexBuffer(MAX_SHAPE_VERTICES,
                                             PosColorShapeVertex::ms_decl)
-        && bgfx::getAvailTransientIndexBuffer(MAX_SHAPES * 6, false))
+        && bgfx::getAvailTransientIndexBuffer(MAX_SHAPE_INDICES, false))
     {
         bgfx::allocTransientVertexBuffer(
-            &tvbSdf, MAX_SHAPES * 4, PosColorShapeVertex::ms_decl);
-        bgfx::allocTransientIndexBuffer(&tibSdf, MAX_SHAPES * 6, false);
+            &tvbSdf, MAX_SHAPE_VERTICES, PosColorShapeVertex::ms_decl);
+        bgfx::allocTransientIndexBuffer(&tibSdf, MAX_SHAPE_INDICES, false);
     }
 }
 
@@ -1046,6 +1103,43 @@ void RenderEngine::submitShapes()
         currentShapeCount = 0;
         currentShapeVertices = 0;
         currentShapeIndices = 0;
+    }
+}
+
+
+void RenderEngine::allocateForSpine()
+{
+    if (bgfx::getAvailTransientVertexBuffer(MAX_SPINE_VERTICES,
+                                            PosColorShapeVertex::ms_decl)
+        && bgfx::getAvailTransientIndexBuffer(MAX_SPINE_VERTICES, false))
+    {
+        bgfx::allocTransientVertexBuffer(
+            &tvbSpine, MAX_SPINE_VERTICES, PosColorShapeVertex::ms_decl);
+        bgfx::allocTransientIndexBuffer(&tibSpine, MAX_SHAPE_INDICES, false);
+    }
+}
+
+void RenderEngine::submitSpine()
+{
+    if (currentSpineIndices > 0)
+    {
+        if (!shaderHandleRml.isValid())
+        {
+            shaderHandleRml = getShaderHandle("geom");
+            return;
+        }
+        uint64_t state = BGFX_STATE_WRITE_RGB;
+
+        const float* projForView =
+            (currentViewId == kWorldView) ? worldViewProj : ortho;
+        bgfx::setUniform(u_proj, projForView);
+        bgfx::setState(state);
+        bgfx::setVertexBuffer(0, &tvbSpine, 0, currentSpineVertices);
+        bgfx::setIndexBuffer(&tibSpine, 0, currentSpineIndices);
+        bgfx::submit(currentViewId,
+                     compiledShaderLib.getItem(shaderHandleRml)->getHandle());
+        currentSpineVertices = 0;
+        currentSpineIndices = 0;
     }
 }
 
@@ -1266,8 +1360,8 @@ void RenderEngine::panWorld(const glm::vec2& delta)
 {
     worldCameraX += delta.x;
     worldCameraY += delta.y;
-    // todo: rebase guard missing. This leads to weird artifacts with sector jumps
-    // not too critical right now, this enables pan during smooth zoom
+    // todo: rebase guard missing. This leads to weird artifacts with sector
+    // jumps not too critical right now, this enables pan during smooth zoom
     // if(zoomSmoothing)
     // {
     //     zoomWorldPos += delta;

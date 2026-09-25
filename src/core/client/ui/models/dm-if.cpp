@@ -49,8 +49,8 @@ void DmIf::setupMenu()
     DmWindow<DmMenu>::RegisterType(constMenu);
     menu = DmWindow<DmMenu>{
         .title = "[menu.title]",
-        .movable = false,
-        .closable = false,
+        .movable = true,
+        .closable = true,
     };
     hMenu = constMenu.GetModelHandle();
     menu.addButton(

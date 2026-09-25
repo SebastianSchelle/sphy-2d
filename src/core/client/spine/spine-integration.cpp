@@ -1,11 +1,88 @@
 #include "spine-integration.hpp"
 #include "spine/AnimationStateData.h"
+#include "spine/Atlas.h"
 #include "texture.hpp"
-
 #include <cstdio>
+#include <render-engine.hpp>
 
 namespace gfx
 {
+
+
+SkeletonInstance AnimationData::createSkeleton()
+{
+    if (!loaded())
+    {
+        LG_E("Invalid animation data. Could not create skeleton");
+        return SkeletonInstance();
+    }
+    auto skeleton = new spine::Skeleton(*skeletonData);
+    auto animationState = new spine::AnimationState(*animationData);
+    if (!skeleton || !animationState)
+    {
+        LG_E("Failed to create skeleton");
+        return SkeletonInstance();
+    }
+    return SkeletonInstance(skeleton, animationState);
+}
+
+bool SkeletonInstance::update(float delta)
+{
+    if (!loaded())
+    {
+        LG_E("Updating skeleton failed. Invalid pointers.");
+        return false;
+    }
+    animationState->update(delta);
+    animationState->apply(*skeleton);
+    skeleton->update(delta);
+    skeleton->updateWorldTransform(spine::Physics_Update);
+    return true;
+}
+
+bool SkeletonInstance::setAnimation(int track,
+                                    const string& animation,
+                                    bool loop)
+{
+    if (!loaded())
+    {
+        LG_E("Setting animation failed. Invalid pointers.");
+        return false;
+    }
+    if (!skeleton->getData().findAnimation(animation.c_str()))
+    {
+        LG_E("Animation {} does not exist", animation);
+        return false;
+    }
+    animationState->setAnimation(track, animation.c_str(), loop);
+    return true;
+}
+
+bool SkeletonInstance::render(SpineIntegration& spineIntegration)
+{
+    if (!loaded())
+    {
+        LG_E("Rendering skeleton failed. Invalid pointers.");
+        return false;
+    }
+    spine::RenderCommand* cmd = spineIntegration.skelRenderer.render(*skeleton);
+    while (cmd)
+    {
+        SpineDrawCommand draw{};
+        draw.positions = cmd->positions;
+        draw.uvs = cmd->uvs;
+        draw.colors = cmd->colors;
+        draw.indices = cmd->indices;
+        draw.numVertices = cmd->numVertices;
+        draw.numIndices = cmd->numIndices;
+        draw.texture = TextureHandle(
+            static_cast<uint32_t>(reinterpret_cast<uintptr_t>(cmd->texture)));
+        draw.blendMode = spineIntegration.convertBlendMode(cmd->blendMode);
+        spineIntegration.engineSubmit(draw);
+        cmd = cmd->next;
+    }
+    return true;
+}
 
 // ============================================================================
 // SpineTextureLoader
@@ -13,38 +90,24 @@ namespace gfx
 
 void SpineTextureLoader::load(spine::AtlasPage& page, const spine::String& path)
 {
-    int width = 0;
-    int height = 0;
+    std::string uuid = sec::uuid();
+    vec2 dim;
+    auto texHandle = renderer->loadTexture(uuid, "spine", path.buffer(), dim);
+    if (!texHandle.isValid())
+    {
+        LG_E("Failed to load texture {} for spine atlas", path.buffer());
+        return;
+    }
+    page.texture =
+        reinterpret_cast<void*>(static_cast<uintptr_t>(texHandle.value()));
+    page.width = dim.x;
+    page.height = dim.y;
 
-    /*
-     * Load the ENTIRE Spine atlas page through the engine.
-     *
-     * Example:
-     *
-     *     character.atlas
-     *     character.png
-     *
-     * character.png may contain many Spine regions.
-     *
-     * We do NOT split those regions here.
-     *
-     * The engine can pack the complete page into its own texture atlas.
-     */
-    // TextureHandle texture =
-    //     SpineIntegration::engineLoadTexture(path.buffer(), width, height);
-
-    /*
-     * Spine expects AtlasPage::texture to contain the texture object
-     * associated with this page.
-     *
-     * This example assumes TextureHandle is safely representable as
-     * a pointer-sized integer. For a real engine, an engine-owned
-     * SpinePageTexture object is preferable.
-     */
-    page.texture = reinterpret_cast<void*>(static_cast<uintptr_t>(0));
-
-    page.width = width;
-    page.height = height;
+    LG_I("Loaded spine texture {} with dimensions ({}, {}); Handle: {}",
+         path.buffer(),
+         page.width,
+         page.height,
+         texHandle.toString());
 }
 
 void SpineTextureLoader::unload(void* texture)
@@ -53,281 +116,107 @@ void SpineTextureLoader::unload(void* texture)
         return;
 
     const auto id = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(texture));
-
-    // SpineIntegration::engineUnloadTexture(TextureHandle{id});
+    // todo: implement unloading
 }
 
 // ============================================================================
 // SpineIntegration
 // ============================================================================
 
-SpineIntegration::~SpineIntegration()
+spine::Atlas* SpineIntegration::loadAtlas(const std::string& atlasPath)
 {
-    unload();
-}
-
-bool SpineIntegration::loadAtlas(const std::string& atlasPath)
-{
-    unload();
-
-    textureLoader_ = std::make_unique<SpineTextureLoader>();
-
-    atlas_ = std::make_unique<spine::Atlas>(spine::String(atlasPath.c_str()),
-                                            textureLoader_.get());
-
-    if (!atlas_)
+    auto textureLoader = new SpineTextureLoader(renderer);
+    spine::Atlas* atlas = new spine::Atlas(atlasPath.c_str(), textureLoader);
+    if (!atlas)
     {
         std::fprintf(
             stderr, "Failed to load Spine atlas: %s\n", atlasPath.c_str());
-
-        return false;
+        return nullptr;
     }
+    auto& pages = atlas->getPages();
 
-    return true;
+    LG_I("Atlas {} has {} pages", atlasPath, pages.size());
+    return atlas;
 }
 
-bool SpineIntegration::loadSkeletonJson(const std::string& skeletonPath,
-                                        float scale)
+AnimationData
+SpineIntegration::loadSkeletonJson(spine::Atlas* atlas,
+                                   const std::string& skeletonPath,
+                                   float scale)
 {
-    if (!atlas_)
+    if (!atlas)
     {
         std::fprintf(stderr,
                      "Spine atlas must be loaded before skeleton data.\n");
 
-        return false;
+        return AnimationData();
     }
-
-    spine::SkeletonJson json(*atlas_);
-
+    spine::SkeletonJson json(*atlas);
     json.setScale(scale);
-
-    skeletonData_ =
-        json.readSkeletonDataFile(spine::String(skeletonPath.c_str()));
-
-    if (!skeletonData_)
+    auto skeletonData = json.readSkeletonDataFile(skeletonPath.c_str());
+    if (!skeletonData)
     {
-        std::fprintf(stderr,
-                     "Failed to load Spine skeleton: %s\nError: %s\n",
-                     skeletonPath.c_str(),
-                     json.getError().buffer());
-
-        return false;
+        LG_E("Failed to load Spine skeleton: {}; Error: {}",
+             skeletonPath.c_str(),
+             json.getError().buffer());
+        return AnimationData();
     }
-    animationStateData_ = new spine::AnimationStateData(*skeletonData_);
-
-    return true;
+    auto animationStateData = new spine::AnimationStateData(*skeletonData);
+    return AnimationData(skeletonData, animationStateData);
 }
 
-bool SpineIntegration::loadSkeletonBinary(const std::string& skeletonPath,
-                                          float scale)
+AnimationData
+SpineIntegration::loadSkeletonBinary(spine::Atlas* atlas,
+                                     const std::string& skeletonPath,
+                                     float scale)
 {
-    if (!atlas_)
+    if (!atlas)
     {
         std::fprintf(stderr,
                      "Spine atlas must be loaded before skeleton data.\n");
-
-        return false;
+        return AnimationData();
     }
-
-    spine::SkeletonBinary binary(*atlas_);
-
+    spine::SkeletonBinary binary(*atlas);
     binary.setScale(scale);
-
-    skeletonData_ =
-        binary.readSkeletonDataFile(spine::String(skeletonPath.c_str()));
-
-    if (!skeletonData_)
+    auto skeletonData = binary.readSkeletonDataFile(skeletonPath.c_str());
+    if (!skeletonData)
     {
-        std::fprintf(stderr,
-                     "Failed to load Spine skeleton: %s\nError: %s\n",
-                     skeletonPath.c_str(),
-                     binary.getError().buffer());
-
-        return false;
+        LG_E("Failed to load Spine skeleton: {}; Error: {}",
+             skeletonPath.c_str(),
+             binary.getError().buffer());
+        return AnimationData();
     }
-
-    animationStateData_ = new spine::AnimationStateData(*skeletonData_);
-
-    return true;
+    auto animationStateData = new spine::AnimationStateData(*skeletonData);
+    return AnimationData(skeletonData, animationStateData);
 }
 
-void SpineIntegration::unload()
+
+AnimationData SpineIntegration::loadAnimationBinary(const string& atlasPath,
+                                                    const string& skeletonPath,
+                                                    float scale)
 {
-    destroySkeleton();
-
-    delete animationStateData_;
-    animationStateData_ = nullptr;
-
-    delete skeletonData_;
-    skeletonData_ = nullptr;
-
-    atlas_.reset();
-    textureLoader_.reset();
-}
-
-bool SpineIntegration::createSkeleton()
-{
-    if (!skeletonData_ || !animationStateData_)
-        return false;
-
-    destroySkeleton();
-
-    skeleton_ = new spine::Skeleton(*skeletonData_);
-
-    animationState_ = new spine::AnimationState(*animationStateData_);
-
-    return true;
-}
-
-void SpineIntegration::destroySkeleton()
-{
-    delete animationState_;
-    animationState_ = nullptr;
-
-    delete skeleton_;
-    skeleton_ = nullptr;
-}
-
-// ============================================================================
-// Animation
-// ============================================================================
-
-void SpineIntegration::update(float deltaTime)
-{
-    if (!skeleton_ || !animationState_)
-        return;
-
-    animationState_->update(deltaTime);
-    animationState_->apply(*skeleton_);
-
-    skeleton_->update(deltaTime);
-    skeleton_->updateWorldTransform(spine::Physics_Update);
-}
-
-bool SpineIntegration::setAnimation(int track,
-                                    const std::string& animation,
-                                    bool loop)
-{
-    if (!animationState_ || !skeletonData_)
-        return false;
-
-    if (!skeletonData_->findAnimation(spine::String(animation.c_str())))
+    if (auto atlas = loadAtlas(atlasPath))
     {
-        return false;
+        return loadSkeletonBinary(atlas, skeletonPath, scale);
     }
-
-    animationState_->setAnimation(
-        track, spine::String(animation.c_str()), loop);
-
-    return true;
+    return AnimationData();
 }
 
-// ============================================================================
-// Rendering
-// ============================================================================
-
-void SpineIntegration::render()
+void SpineIntegration::unload(const AnimationData& animationData)
 {
-    if (!skeleton_)
-        return;
-
-    /*
-     * Spine generates the render commands in the correct draw order.
-     *
-     * Do not sort these commands by texture/material in a way that
-     * changes their ordering.
-     */
-    spine::RenderCommand* command = renderer_.render(*skeleton_);
-
-    while (command)
-    {
-        SpineDrawCommand draw{};
-
-        draw.positions = command->positions;
-        draw.uvs = command->uvs;
-        draw.colors = command->colors;
-        draw.indices = command->indices;
-
-        draw.numVertices = command->numVertices;
-        draw.numIndices = command->numIndices;
-
-        draw.texture =
-            TextureHandle(static_cast<uint32_t>(
-                              reinterpret_cast<uintptr_t>(command->texture)),
-                          0);
-
-        draw.blendMode = convertBlendMode(command->blendMode);
-
-        /*
-         * Spine UVs are relative to the Spine atlas page.
-         *
-         * If the entire page has been packed into your engine atlas,
-         * transform those UVs here before submitting the command.
-         *
-         * transformUVs(
-         *     const_cast<float*>(draw.uvs),
-         *     draw.numVertices,
-         *     draw.texture);
-         */
-
-        engineSubmit(draw);
-
-        command = command->next;
-    }
+    delete animationData.animationData;
+    delete animationData.skeletonData;
 }
 
-// ============================================================================
-// Engine integration
-// ============================================================================
-
-TextureHandle
-SpineIntegration::engineLoadTexture(const char* path, int& width, int& height)
+void SpineIntegration::destroySkeleton(const SkeletonInstance& skeleton)
 {
-    /*
-     * TODO:
-     *
-     * Plug your texture manager in here.
-     *
-     * Example:
-     *
-     *     auto texture = textureManager.load(path);
-     *
-     *     width = textureManager.getWidth(texture);
-     *     height = textureManager.getHeight(texture);
-     *
-     *     return texture;
-     */
-
-    std::printf("[Spine] load texture: %s\n", path);
-
-    width = 0;
-    height = 0;
-
-    return {};
+    delete skeleton.animationState;
+    delete skeleton.skeleton;
 }
 
-void SpineIntegration::engineUnloadTexture(TextureHandle texture)
+void SpineIntegration::engineSubmit(const SpineDrawCommand& cmd)
 {
-    /*
-     * TODO:
-     *
-     * Plug your texture manager release function in here.
-     */
-
-    std::printf("[Spine] unload texture: %u\n", texture.getIdx());
-}
-
-void SpineIntegration::engineSubmit(const SpineDrawCommand& command)
-{
-    /*
-     * TODO:
-     *
-     * Convert this into your engine's RenderCommand.
-     *
-     * Preserve the order in which Spine submits commands.
-     */
-
-    (void)command;
+    renderer->queueSpine(cmd, 0.0f, 0);
 }
 
 SpineBlendMode SpineIntegration::convertBlendMode(spine::BlendMode blendMode)

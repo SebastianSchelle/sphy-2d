@@ -31,6 +31,9 @@ namespace ui
 class MainWindow;
 class UserInterface;
 }  // namespace ui
+namespace gfx
+{
+}
 #endif
 
 namespace sthread

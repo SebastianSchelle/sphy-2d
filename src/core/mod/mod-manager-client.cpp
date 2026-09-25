@@ -1,13 +1,13 @@
 #include "config-manager.hpp"
 #include <filesystem>
 #include <functional>
+#include <localisation.hpp>
 #include <logging.hpp>
 #include <mod-manager.hpp>
 #include <render-engine.hpp>
 #include <string>
 #include <ui/user-interface.hpp>
 #include <yaml-cpp/yaml.h>
-#include <localisation.hpp>
 
 namespace mod
 {
@@ -69,6 +69,23 @@ bool ModManager::loadShaders(PtrHandles& ptrHandles,
             return false;
         }
     }
+    return true;
+}
+
+
+bool ModManager::loadAnimationClient(PtrHandles& ptrHandles,
+                         const string& name,
+                         const string& atlasPath,
+                         const string& skelPath)
+{
+    auto *si = ptrHandles.spineIntegration;
+    auto anim = si->loadAnimationBinary(atlasPath, skelPath);
+    if(!anim.loaded())
+    {
+        LG_E("Failed to load animation from {}, {}", atlasPath, skelPath);
+        return false;
+    }
+    animationLib.addItem(name, anim);
     return true;
 }
 

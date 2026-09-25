@@ -116,6 +116,10 @@ void Model::modelLoop(float dt)
             break;
         case ClientGameState::MainMenu:
             modelLoopGame(dt);
+            renderer->panWorldTo({
+                .pos = {0,0},
+                .sectorPos = {0.0f, 0.0f}
+            });
             break;
         case ClientGameState::VersionCheck:
             break;

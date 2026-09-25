@@ -9,8 +9,10 @@
 #include "net-shared.hpp"
 #include "process.hpp"
 #include "ptr-handle.hpp"
+#include "rand-gen.hpp"
 #include "rmlui-systeminterface.hpp"
 #include "save-manager.hpp"
+#include "spine-integration.hpp"
 #include "std-inc.hpp"
 #include "user-input.hpp"
 #include "world-def.hpp"
@@ -100,7 +102,8 @@ MainWindow::MainWindow(sphy::CmdLinOptionsClient& options)
             &renderEngine,
             std::bind(&MainWindow::onAfterLoadWorld, this),
             &ptrHandle),
-      rmlUiSystemInterface(&ptrHandle), saveManager(config, options)
+      rmlUiSystemInterface(&ptrHandle), saveManager(config, options),
+      spineIntegration(&renderEngine)
 {
     auto path(options.workingdir);
     std::filesystem::current_path(path);
@@ -203,6 +206,17 @@ bool MainWindow::initPost()
     userInterface.postInit();
     userInterface.menuShow();
     userInterface.tipsShow();
+
+    // todo: test
+    misc::RandGen rand(0);
+    auto& animLib = modManager.getAnimationLib();
+    auto skellyData = animLib.getItem(animLib.randomHandle(rand));
+    if(!skellyData)
+    {
+        LG_E("NOOOOO, SKELLYDATA IS MISSING");
+        return false;
+    }
+    testSkelly = skellyData->createSkeleton();
     return true;
 }
 
@@ -313,6 +327,8 @@ void MainWindow::winLoop()
     auto lastFrame = Clock::now();
     auto nextFrame = lastFrame + frameDuration;
 
+    gfx::SkeletonInstance skelly;
+
     while (!glfwWindowShouldClose(window))
     {
         std::this_thread::sleep_until(nextFrame);
@@ -388,6 +404,10 @@ void MainWindow::winLoop()
                 break;
             case ClientGameState::MainMenu:
                 renderUniverse();
+                // spine test
+                renderEngine.drawShapeRectangle({0.0f, 0.0f}, {50.0f, 50.0f}, 0xffffffff, 2.0f/renderEngine.getWorldZoom());
+                testSkelly.update(dt);
+                testSkelly.render(spineIntegration);
                 break;
             case ClientGameState::Authenticated:
                 break;
@@ -628,6 +648,7 @@ void MainWindow::startLoading()
             }
             mod::PtrHandles ptrHandles{
                 .renderEngine = &renderEngine,
+                .spineIntegration = &spineIntegration,
                 .userInterface = &userInterface,
                 .locale = &locale,
                 .runUiBool = [this](std::function<bool()> fn) -> bool
