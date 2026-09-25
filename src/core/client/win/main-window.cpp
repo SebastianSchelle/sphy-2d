@@ -1405,6 +1405,18 @@ void MainWindow::setupGeneralCtrl()
                             testSkelly.addAnimation(0, "run", true, 0.0f);
                             return true;
                         }});
+    userInput.addEvents(
+        {InputEvent::Environment::Menu},
+        "Skelly test 3",
+        "",
+        InputEvent::Key{.key = GLFW_KEY_7,
+                        .modifiers = 0,
+                        .action = GLFW_PRESS,
+                        .callback = [this](const ui::InputEvent::EventData&)
+                        {
+                            testSkelly.setAnimation(0, "death", false);
+                            return true;
+                        }});
 }
 
 void MainWindow::setupThirdPersonCtrl()
