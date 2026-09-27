@@ -96,7 +96,7 @@ class Sector
     void update(float dt, ecs::PtrHandle* ptrHandle);
     bool saveSector(const std::string& savedir);
     template <class T>
-    void foreachOpool(std::function<con::FreeVecForeachRet(
+    inline void foreachOpool(std::function<con::FreeVecForeachRet(
                           T&,
                           typename con::FreeVec<T>::Handle handle)> clb);
 
@@ -117,7 +117,7 @@ class Sector
         return taskSystem;
     }
     template <class T>
-    typename con::FreeVec<T>::Handle spawnOpool(ecs::PtrHandle* ptrHandle,
+    inline typename con::FreeVec<T>::Handle spawnOpool(ecs::PtrHandle* ptrHandle,
                                                 const T& item);
     // template <class T>
     // void removeOpool(typename con::FreeVec<T>::Handle handle);
@@ -209,7 +209,7 @@ class Sector
 #ifdef SERVER
 
 template <>
-void Sector::foreachOpool<opool::Projectile>(
+inline void Sector::foreachOpool<opool::Projectile>(
     std::function<con::FreeVecForeachRet(opool::Projectile&,
                                          opool::ProjectileHandle handle)> clb)
 {
@@ -217,7 +217,7 @@ void Sector::foreachOpool<opool::Projectile>(
 }
 
 template <>
-void Sector::foreachOpool<opool::Item>(
+inline void Sector::foreachOpool<opool::Item>(
     std::function<con::FreeVecForeachRet(opool::Item&,
                                          opool::ItemHandle handle)> clb)
 {
@@ -225,7 +225,7 @@ void Sector::foreachOpool<opool::Item>(
 }
 
 template <>
-void Sector::foreachOpool<opool::Beam>(
+inline void Sector::foreachOpool<opool::Beam>(
     std::function<con::FreeVecForeachRet(opool::Beam&,
                                          opool::BeamHandle handle)> clb)
 {
@@ -233,7 +233,7 @@ void Sector::foreachOpool<opool::Beam>(
 }
 
 template <>
-void Sector::foreachOpool<opool::DbgCollAvoid>(
+inline void Sector::foreachOpool<opool::DbgCollAvoid>(
     std::function<con::FreeVecForeachRet(opool::DbgCollAvoid&,
                                          opool::DbgCollAvoidHandle handle)> clb)
 {
@@ -274,7 +274,7 @@ void Sector::foreachOpool<opool::DbgCollAvoid>(
 // }
 
 template <>
-opool::ItemHandle Sector::spawnOpool<opool::Item>(ecs::PtrHandle* ptrHandle,
+inline opool::ItemHandle Sector::spawnOpool<opool::Item>(ecs::PtrHandle* ptrHandle,
                                                   const opool::Item& item)
 {
     auto handle = itemPool.spawnObject(item);
@@ -287,7 +287,7 @@ opool::ItemHandle Sector::spawnOpool<opool::Item>(ecs::PtrHandle* ptrHandle,
 }
 
 template <>
-opool::ProjectileHandle
+inline opool::ProjectileHandle
 Sector::spawnOpool<opool::Projectile>(ecs::PtrHandle* ptrHandle,
                                       const opool::Projectile& proj)
 {
@@ -295,7 +295,7 @@ Sector::spawnOpool<opool::Projectile>(ecs::PtrHandle* ptrHandle,
 }
 
 template <>
-opool::BeamHandle Sector::spawnOpool<opool::Beam>(ecs::PtrHandle* ptrHandle,
+inline opool::BeamHandle Sector::spawnOpool<opool::Beam>(ecs::PtrHandle* ptrHandle,
                                                   const opool::Beam& beam)
 {
     return beamPool.spawnObject(beam);

@@ -34,6 +34,25 @@ add_compile_definitions($<$<CONFIG:Debug>:DEBUG>)
 
 set(GAME_NAME "sphy2d" CACHE STRING "Game name used for save files and binaries")
 
+if(APPLE AND EXISTS "/opt/homebrew/opt/icu4c")
+    set(ICU_ROOT "/opt/homebrew/opt/icu4c")
+
+    set(ICU_INCLUDE_DIR
+        "${ICU_ROOT}/include"
+        CACHE PATH "ICU include directory"
+    )
+
+    set(ICU_LIBRARY
+        "${ICU_ROOT}/lib/libicuuc.dylib"
+        CACHE FILEPATH "ICU uc library"
+    )
+
+    set(ICU_I18N_LIBRARY
+        "${ICU_ROOT}/lib/libicui18n.dylib"
+        CACHE FILEPATH "ICU i18n library"
+    )
+endif()
+
 find_package(Boost REQUIRED COMPONENTS regex thread chrono program_options)
 find_package(GTest REQUIRED)
 find_package(ICU REQUIRED COMPONENTS uc i18n)

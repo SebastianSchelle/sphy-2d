@@ -6,6 +6,7 @@
 #include <unicode/locid.h>
 #include <unicode/msgfmt.h>
 #include <unicode/unistr.h>
+#include <charconv>
 
 namespace ui
 {

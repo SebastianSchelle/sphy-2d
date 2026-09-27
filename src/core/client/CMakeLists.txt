@@ -93,6 +93,11 @@ sphy_add_bgfx_shaders(
 add_executable(${EXEC_NAME} ${CLIENT_SOURCES})
 add_dependencies(${EXEC_NAME} shaders)
 
+if(APPLE)
+    target_include_directories(${EXEC_NAME} PRIVATE
+        "/opt/homebrew/opt/icu4c/include"
+    )
+endif()
 
 if(MSVC)
 set(_das_mod_no_rtti /GR-)
