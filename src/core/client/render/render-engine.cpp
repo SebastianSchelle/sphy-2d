@@ -980,12 +980,12 @@ void RenderEngine::enqueueShape(float shapeType,
                                                  rotationRad,
                                                  zIndex};
     uint16_t* indices = (uint16_t*)tibGen.data;
-    indices[trsIndCnt++] = vertexOffs - 0;
-    indices[trsIndCnt++] = vertexOffs - 1;
-    indices[trsIndCnt++] = vertexOffs - 2;
-    indices[trsIndCnt++] = vertexOffs - 1;
-    indices[trsIndCnt++] = vertexOffs - 3;
-    indices[trsIndCnt++] = vertexOffs - 2;
+    indices[trsIndCnt++] = vertexOffs + 0;
+    indices[trsIndCnt++] = vertexOffs + 1;
+    indices[trsIndCnt++] = vertexOffs + 2;
+    indices[trsIndCnt++] = vertexOffs + 1;
+    indices[trsIndCnt++] = vertexOffs + 3;
+    indices[trsIndCnt++] = vertexOffs + 2;
 }
 
 void RenderEngine::queueSpine(const SpineDrawCommand& cmd,

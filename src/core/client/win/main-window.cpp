@@ -329,8 +329,6 @@ void MainWindow::winLoop()
     auto lastFrame = Clock::now();
     auto nextFrame = lastFrame + frameDuration;
 
-    gfx::SkeletonInstance skelly;
-
     while (!glfwWindowShouldClose(window))
     {
         std::this_thread::sleep_until(nextFrame);
