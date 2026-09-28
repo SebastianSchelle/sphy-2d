@@ -58,6 +58,14 @@ template <class T> class ItemLib
         {
             return generation;
         }
+        bool operator==(const Handle& other) const
+        {
+            return idx == other.idx && generation == other.generation;
+        }
+        bool operator!=(const Handle& other) const
+        {
+            return !(*this == other);
+        }
 
       private:
         uint16_t idx;

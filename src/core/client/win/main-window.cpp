@@ -203,6 +203,7 @@ bool MainWindow::initPost()
 {
     // todo: populate mod data in menu
     // modManager.populateMenuData(menuData.mods);
+    renderEngine.initPost();
     userInterface.postInit();
     userInterface.menuShow();
     userInterface.tipsShow();

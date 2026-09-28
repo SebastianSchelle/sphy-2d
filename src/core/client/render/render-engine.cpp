@@ -2,8 +2,10 @@
 #include "bgfx/bgfx.h"
 #include "config-manager.hpp"
 #include "logging.hpp"
+#include "shader.hpp"
 #include "spine-integration.hpp"
 #include "std-inc.hpp"
+#include "texture.hpp"
 #include "vertex-defines.hpp"
 #include "world-def.hpp"
 #include <algorithm>
@@ -250,6 +252,30 @@ bool RenderEngine::initPre()
 
 bool RenderEngine::initPost()
 {
+    shaderHandleRml = getShaderHandle("geom");
+    if (!shaderHandleRml.isValid())
+    {
+        LG_E("Could not load geom shader");
+        shutdown();
+    }
+    shaderHandleSpine = getShaderHandle("spine");
+    if (!shaderHandleSpine.isValid())
+    {
+        LG_E("Could not load spine shader");
+        shutdown();
+    }
+    shaderHandleShapes = getShaderHandle("sdf-shapes");
+    if (!shaderHandleShapes.isValid())
+    {
+        LG_E("Could not load sdf-shapes shader");
+        shutdown();
+    }
+    shaderHandleTexRect = getShaderHandle("texrect");
+    if (!shaderHandleTexRect.isValid())
+    {
+        LG_E("Could not load texrect shader");
+        shutdown();
+    }
     return true;
 }
 
@@ -281,13 +307,12 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle geometryHandle,
                                           TextureHandle textureHandle,
                                           bgfx::ViewId viewId)
 {
+    changeRenderState(RenderState::DrawCompiledGeometry);
+
     if (!shaderHandleRml.isValid())
     {
-        shaderHandleRml = getShaderHandle("geom");
         return;
     }
-
-    changeRenderState(RenderState::DrawCompiledGeometry);
 
     const Geometry* geometry = compiledGeometryLib.getItem(geometryHandle);
     if (!geometry)
@@ -751,7 +776,7 @@ void RenderEngine::releaseShader(ShaderHandle handle)
     compiledShaderLib.removeItem(handle);
 }
 
-void RenderEngine::changeRenderState(RenderState newState)
+bool RenderEngine::changeRenderState(RenderState newState)
 {
     if (renderState != newState)
     {
@@ -766,17 +791,16 @@ void RenderEngine::changeRenderState(RenderState newState)
                 break;
             case (int)RenderState::DrawCompiledGeometry:
                 break;
-            case (int)RenderState::DrawShapes:
-                submitShapes();
-                break;
-            case (int)RenderState::DrawSpine:
-                submitSpine();
+            case (int)RenderState::DrawTransient:
+                submitTransient();
                 break;
             default:
                 break;
         }
         renderState = newState;
+        return true;
     }
+    return false;
 }
 
 void RenderEngine::startFrame()
@@ -786,7 +810,11 @@ void RenderEngine::startFrame()
     texRectSorted.clear();
     texRectData.clear();
     currentTexRectCount = 0;
-    texRectBatchArray = BGFX_INVALID_HANDLE;
+    currTex = BGFX_INVALID_HANDLE;
+    trsVertCnt = 0;
+    trsIndCnt = 0;
+    currShader = ShaderHandle::Invalid();
+    currState = 0;
 
     bool showStats = false;
     bgfx::setDebug(showStats ? BGFX_DEBUG_STATS | BGFX_DEBUG_TEXT : 0);
@@ -883,99 +911,88 @@ void RenderEngine::enqueueShape(float shapeType,
                                 float zIndex,
                                 bgfx::ViewId viewId)
 {
-    changeRenderState(RenderState::DrawShapes);
-    if (currentViewId != viewId || currentShapeCount >= MAX_SHAPES)
-    {
-        submitShapes();
-    }
-    if (currentShapeCount == 0)
-    {
-        allocateForShapes();
-    }
-    currentViewId = viewId;
+    uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
+                     | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
+                                             BGFX_STATE_BLEND_INV_SRC_ALPHA);
+    prepareTransient(RenderState::DrawTransient,
+                     viewId,
+                     BGFX_INVALID_HANDLE,
+                     shaderHandleShapes,
+                     PosColorShapeVertex::ms_decl,
+                     state,
+                     6,
+                     4);
 
     float thicknessX = 2.0f * thickness / size.x;
     float thicknessY = 2.0f * thickness / size.y;
 
-    PosColorShapeVertex* vertices = (PosColorShapeVertex*)tvbSdf.data;
+    PosColorShapeVertex* vertices = (PosColorShapeVertex*)tvbGen.data;
     vec2 hs = size / 2.0f;
     const float cx = pos.x, cy = pos.y;
 
-    vertices[currentShapeVertices++] = PosColorShapeVertex{-hs.x,
-                                                           -hs.y,
-                                                           -1.0f,
-                                                           -1.0f,
-                                                           colorRGBA,
-                                                           shapeType,
-                                                           thicknessX,
-                                                           thicknessY,
-                                                           cx,
-                                                           cy,
-                                                           rotationRad,
-                                                           zIndex};
-    vertices[currentShapeVertices++] = PosColorShapeVertex{hs.x,
-                                                           -hs.y,
-                                                           1.0f,
-                                                           -1.0f,
-                                                           colorRGBA,
-                                                           shapeType,
-                                                           thicknessX,
-                                                           thicknessY,
-                                                           cx,
-                                                           cy,
-                                                           rotationRad,
-                                                           zIndex};
-    vertices[currentShapeVertices++] = PosColorShapeVertex{-hs.x,
-                                                           hs.y,
-                                                           -1.0f,
-                                                           1.0f,
-                                                           colorRGBA,
-                                                           shapeType,
-                                                           thicknessX,
-                                                           thicknessY,
-                                                           cx,
-                                                           cy,
-                                                           rotationRad,
-                                                           zIndex};
-    vertices[currentShapeVertices++] = PosColorShapeVertex{hs.x,
-                                                           hs.y,
-                                                           1.0f,
-                                                           1.0f,
-                                                           colorRGBA,
-                                                           shapeType,
-                                                           thicknessX,
-                                                           thicknessY,
-                                                           cx,
-                                                           cy,
-                                                           rotationRad,
-                                                           zIndex};
-    uint16_t* indices = (uint16_t*)tibSdf.data;
-    indices[currentShapeIndices++] = currentShapeVertices - 4;
-    indices[currentShapeIndices++] = currentShapeVertices - 3;
-    indices[currentShapeIndices++] = currentShapeVertices - 2;
-    indices[currentShapeIndices++] = currentShapeVertices - 3;
-    indices[currentShapeIndices++] = currentShapeVertices - 1;
-    indices[currentShapeIndices++] = currentShapeVertices - 2;
-    currentShapeCount++;
+    const uint32_t vertexOffs = trsVertCnt;
+    vertices[trsVertCnt++] = PosColorShapeVertex{-hs.x,
+                                                 -hs.y,
+                                                 -1.0f,
+                                                 -1.0f,
+                                                 colorRGBA,
+                                                 shapeType,
+                                                 thicknessX,
+                                                 thicknessY,
+                                                 cx,
+                                                 cy,
+                                                 rotationRad,
+                                                 zIndex};
+    vertices[trsVertCnt++] = PosColorShapeVertex{hs.x,
+                                                 -hs.y,
+                                                 1.0f,
+                                                 -1.0f,
+                                                 colorRGBA,
+                                                 shapeType,
+                                                 thicknessX,
+                                                 thicknessY,
+                                                 cx,
+                                                 cy,
+                                                 rotationRad,
+                                                 zIndex};
+    vertices[trsVertCnt++] = PosColorShapeVertex{-hs.x,
+                                                 hs.y,
+                                                 -1.0f,
+                                                 1.0f,
+                                                 colorRGBA,
+                                                 shapeType,
+                                                 thicknessX,
+                                                 thicknessY,
+                                                 cx,
+                                                 cy,
+                                                 rotationRad,
+                                                 zIndex};
+    vertices[trsVertCnt++] = PosColorShapeVertex{hs.x,
+                                                 hs.y,
+                                                 1.0f,
+                                                 1.0f,
+                                                 colorRGBA,
+                                                 shapeType,
+                                                 thicknessX,
+                                                 thicknessY,
+                                                 cx,
+                                                 cy,
+                                                 rotationRad,
+                                                 zIndex};
+    uint16_t* indices = (uint16_t*)tibGen.data;
+    indices[trsIndCnt++] = vertexOffs - 0;
+    indices[trsIndCnt++] = vertexOffs - 1;
+    indices[trsIndCnt++] = vertexOffs - 2;
+    indices[trsIndCnt++] = vertexOffs - 1;
+    indices[trsIndCnt++] = vertexOffs - 3;
+    indices[trsIndCnt++] = vertexOffs - 2;
 }
 
 void RenderEngine::queueSpine(const SpineDrawCommand& cmd,
                               float zIndex,
                               bgfx::ViewId viewId)
 {
-    changeRenderState(RenderState::DrawSpine);
-    if (currentViewId != viewId
-        || currentSpineVertices + cmd.numVertices >= MAX_SPINE_VERTICES
-        || currentSpineIndices + cmd.numIndices >= MAX_SPINE_INDICES)
-    {
-        submitSpine();
-    }
-    if (currentSpineIndices == 0)
-    {
-        allocateForSpine();
-    }
-    currentViewId = viewId;
-
+    uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | cmd.blendMode;
 
     auto& texLib = textureLoader.getTextureLib();
     Texture* texture = texLib.getItem(cmd.texture);
@@ -987,20 +1004,27 @@ void RenderEngine::queueSpine(const SpineDrawCommand& cmd,
             return;
         }
     }
+    const bgfx::TextureHandle arrayHandle = texture->getTexIdent().texHandle;
+    prepareTransient(RenderState::DrawTransient,
+                     viewId,
+                     arrayHandle,
+                     shaderHandleSpine,
+                     VertexSpine::ms_decl,
+                     state,
+                     cmd.numIndices,
+                     cmd.numVertices);
 
     const float x = texture->getRelBounds().x;
     const float y = texture->getRelBounds().y;
     const float width = texture->getRelBounds().z;
     const float height = texture->getRelBounds().w;
 
-    // todo: always reuse the same transient buffers, there is no reason to have
-    // multiple
-    VertexSpine* vertices = (VertexSpine*)tvbSpine.data;
-
+    VertexSpine* vertices = (VertexSpine*)tvbGen.data;
+    size_t vertexOffs = trsVertCnt;
     for (int i = 0; i < cmd.numVertices; ++i)
     {
         const int j = i * 2;
-        vertices[currentSpineVertices++] =
+        vertices[trsVertCnt++] =
             VertexSpine{cmd.positions[j],
                         cmd.positions[j + 1],
                         cmd.colors[i],
@@ -1008,20 +1032,12 @@ void RenderEngine::queueSpine(const SpineDrawCommand& cmd,
                         y + cmd.uvs[j + 1] * height,
                         static_cast<float>(texture->getTexIdent().layerIdx)};
     }
-    uint16_t* indices = (uint16_t*)tibSpine.data;
+    uint16_t* indices = (uint16_t*)tibGen.data;
     for (int i = 0; i < cmd.numIndices; ++i)
     {
         // todo: + vertexbase
-        indices[currentSpineIndices++] = cmd.indices[i];
+        indices[trsIndCnt++] = vertexOffs + cmd.indices[i];
     }
-
-    bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | cmd.blendMode);
-
-    const bgfx::TextureHandle arrayHandle = texture->getTexIdent().texHandle;
-    bgfx::setTexture(0, u_texArray, arrayHandle, kTexRectSamplerFlags);
-
-    // todo: fix with proper texture management
-    submitSpine();
 }
 
 void RenderEngine::drawEllipse(const glm::vec2& pos,
@@ -1079,84 +1095,81 @@ tim::Timepoint RenderEngine::getStartTime() const
     return startTime;
 }
 
-void RenderEngine::allocateForShapes()
+void RenderEngine::prepareTransient(const RenderState rstate,
+                                    const bgfx::ViewId viewId,
+                                    const bgfx::TextureHandle hTex,
+                                    const ShaderHandle shader,
+                                    const bgfx::VertexLayout& layout,
+                                    uint64_t state,
+                                    int numIdx,
+                                    int numVert)
 {
-    if (bgfx::getAvailTransientVertexBuffer(MAX_SHAPE_VERTICES,
-                                            PosColorShapeVertex::ms_decl)
-        && bgfx::getAvailTransientIndexBuffer(MAX_SHAPE_INDICES, false))
+    if (changeRenderState(rstate))
     {
-        bgfx::allocTransientVertexBuffer(
-            &tvbSdf, MAX_SHAPE_VERTICES, PosColorShapeVertex::ms_decl);
-        bgfx::allocTransientIndexBuffer(&tibSdf, MAX_SHAPE_INDICES, false);
+        allocateTransient(layout);
     }
-}
-
-void RenderEngine::submitShapes()
-{
-    if (currentShapeCount > 0)
+    else
     {
-        if (!shaderHandleShapes.isValid())
+        bool viewChanged = currViewId != viewId;
+        bool bufferOverflow = trsVertCnt + numVert >= MAX_TRS_VERTICES
+                              || trsIndCnt + numIdx >= MAX_TRS_INDICES;
+        bool texChange = bgfx::isValid(hTex) && (currTex.idx != hTex.idx);
+        bool shaderChanged = currShader != shader;
+        bool stateChanged = currState != state;
+        if (viewChanged || bufferOverflow || texChange || shaderChanged
+            || stateChanged)
         {
-            shaderHandleShapes = getShaderHandle("sdf-shapes");
-            return;
+            submitTransient();
         }
-        uint64_t state =
-            BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
-            | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
-                                    BGFX_STATE_BLEND_INV_SRC_ALPHA);
-
-        const float* projForView =
-            (currentViewId == kWorldView) ? worldViewProj : ortho;
-        bgfx::setUniform(u_proj, projForView);
-        bgfx::setState(state);
-        bgfx::setVertexBuffer(0, &tvbSdf, 0, currentShapeVertices);
-        bgfx::setIndexBuffer(&tibSdf, 0, currentShapeIndices);
-        bgfx::submit(
-            currentViewId,
-            compiledShaderLib.getItem(shaderHandleShapes)->getHandle());
-        currentShapeCount = 0;
-        currentShapeVertices = 0;
-        currentShapeIndices = 0;
-    }
-}
-
-
-void RenderEngine::allocateForSpine()
-{
-    if (bgfx::getAvailTransientVertexBuffer(MAX_SPINE_VERTICES,
-                                            VertexSpine::ms_decl)
-        && bgfx::getAvailTransientIndexBuffer(MAX_SPINE_INDICES, false))
-    {
-        bgfx::allocTransientVertexBuffer(
-            &tvbSpine, MAX_SPINE_VERTICES, VertexSpine::ms_decl);
-        bgfx::allocTransientIndexBuffer(&tibSpine, MAX_SHAPE_INDICES, false);
-    }
-}
-
-void RenderEngine::submitSpine()
-{
-    if (currentSpineIndices > 0)
-    {
-        if (!shaderHandleSpine.isValid())
+        if (trsIndCnt == 0)
         {
-            shaderHandleSpine = getShaderHandle("spine");
-            return;
+            allocateTransient(layout);
         }
-        uint64_t state =
-            BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
-            | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,
-                                    BGFX_STATE_BLEND_INV_SRC_ALPHA);
+    }
+    currViewId = viewId;
+    currTex = hTex;
+    currShader = shader;
+    currState = state;
+}
 
-        const float* projForView =
-            (currentViewId == kWorldView) ? worldViewProj : ortho;
-        bgfx::setUniform(u_proj, projForView);
-        // bgfx::setState(state);
-        bgfx::setVertexBuffer(0, &tvbSpine, 0, currentSpineVertices);
-        bgfx::setIndexBuffer(&tibSpine, 0, currentSpineIndices);
-        bgfx::submit(currentViewId,
-                     compiledShaderLib.getItem(shaderHandleSpine)->getHandle());
-        currentSpineVertices = 0;
-        currentSpineIndices = 0;
+void RenderEngine::allocateTransient(const bgfx::VertexLayout& layout)
+{
+    trsVertCnt = 0;
+    trsIndCnt = 0;
+
+    if (bgfx::getAvailTransientVertexBuffer(MAX_TRS_VERTICES, layout)
+        && bgfx::getAvailTransientIndexBuffer(MAX_TRS_INDICES, false))
+    {
+        bgfx::allocTransientVertexBuffer(&tvbGen, MAX_TRS_VERTICES, layout);
+        bgfx::allocTransientIndexBuffer(&tibGen, MAX_TRS_INDICES, false);
+    }
+}
+
+void RenderEngine::submitTransient()
+{
+    if (trsIndCnt > 0)
+    {
+        if (currShader.isValid())
+        {
+            const float* projForView =
+                (currViewId == kWorldView) ? worldViewProj : ortho;
+            bgfx::setUniform(u_proj, projForView);
+            bgfx::setState(currState);
+            if (bgfx::isValid(currTex))
+            {
+                bgfx::setTexture(0, u_texArray, currTex, kTexRectSamplerFlags);
+            }
+            bgfx::setVertexBuffer(0, &tvbGen, 0, trsVertCnt);
+            bgfx::setIndexBuffer(&tibGen, 0, trsIndCnt);
+            bgfx::submit(currViewId,
+                         compiledShaderLib.getItem(currShader)->getHandle());
+        }
+        else
+        {
+            LG_W("Invalid shader handle");
+        }
+        trsIndCnt = 0;
+        trsVertCnt = 0;
     }
 }
 
@@ -1217,23 +1230,16 @@ void RenderEngine::queueTexRect(const glm::vec2& pos,
 
 void RenderEngine::submitTexRects()
 {
-    if (currentTexRectCount == 0 || !bgfx::isValid(texRectBatchArray)
+    if (currentTexRectCount == 0 || !bgfx::isValid(currTex)
         || idbTex.data == nullptr)
     {
         currentTexRectCount = 0;
-        texRectBatchArray = BGFX_INVALID_HANDLE;
+        currTex = BGFX_INVALID_HANDLE;
         LG_W("Failed to submit texrects");
         return;
     }
 
-    if (!shaderHandleTexRect.isValid())
-    {
-        shaderHandleTexRect = getShaderHandle("texrect");
-        LG_W("Failed to get shader handle for texrect");
-        return;
-    }
-
-    bgfx::setTexture(0, u_texArray, texRectBatchArray, kTexRectSamplerFlags);
+    bgfx::setTexture(0, u_texArray, currTex, kTexRectSamplerFlags);
 
     // Premultiplied fragment output (fs_texrect.sc); same blend as Rml
     // geometry.
@@ -1242,17 +1248,17 @@ void RenderEngine::submitTexRects()
                                              BGFX_STATE_BLEND_INV_SRC_ALPHA);
 
     const float* projForView =
-        (currentViewId == kWorldView) ? worldViewProj : ortho;
+        (currViewId == kWorldView) ? worldViewProj : ortho;
     bgfx::setUniform(u_proj, projForView);
     bgfx::setState(state);
     bgfx::setVertexBuffer(0, vbhRectangle);
     bgfx::setIndexBuffer(ibhRectangle);
     bgfx::setInstanceDataBuffer(&idbTex, 0, (uint32_t)currentTexRectCount);
-    bgfx::submit(currentViewId,
+    bgfx::submit(currViewId,
                  compiledShaderLib.getItem(shaderHandleTexRect)->getHandle());
 
     currentTexRectCount = 0;
-    texRectBatchArray = BGFX_INVALID_HANDLE;
+    currTex = BGFX_INVALID_HANDLE;
 }
 
 void RenderEngine::flushQueuedTexRect()
@@ -1269,9 +1275,8 @@ void RenderEngine::flushQueuedTexRect()
 
     const bgfx::TextureHandle arrayHandle =
         texRectData[entry.vecIdx].arrayHandle;
-    if (currentTexRectCount > 0 && bgfx::isValid(texRectBatchArray)
-        && (texRectBatchArray.idx != arrayHandle.idx
-            || currentViewId != wrapper.viewId))
+    if (currentTexRectCount > 0 && bgfx::isValid(currTex)
+        && (currTex.idx != arrayHandle.idx || currViewId != wrapper.viewId))
     {
         submitTexRects();
     }
@@ -1288,8 +1293,8 @@ void RenderEngine::flushQueuedTexRect()
         {
             return;
         }
-        texRectBatchArray = arrayHandle;
-        currentViewId = wrapper.viewId;
+        currTex = arrayHandle;
+        currViewId = wrapper.viewId;
     }
 
     TexRectData* inst =

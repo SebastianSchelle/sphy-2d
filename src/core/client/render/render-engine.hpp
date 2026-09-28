@@ -18,14 +18,8 @@ namespace gfx
 {
 
 #define INVALID_GEOMETRY_HANDLE 0
-#define MAX_SHAPES 1024
-#define MAX_SHAPE_VERTICES MAX_SHAPES * 4
-#define MAX_SHAPE_INDICES MAX_SHAPES * 6
-
-#define MAX_SPINE 256
-#define MAX_SPINE_VERTICES MAX_SPINE
-#define MAX_SPINE_INDICES MAX_SPINE * 3
-
+#define MAX_TRS_VERTICES 1024 * 4
+#define MAX_TRS_INDICES 1024 * 6
 
 #define SHAPE_TYPE_RECTANGLE 1.0f
 #define SHAPE_TYPE_CIRCLE 2.0f
@@ -122,8 +116,7 @@ class RenderEngine
         DrawTexRects,
         DrawFullScreenTriangles,
         DrawCompiledGeometry,
-        DrawShapes,
-        DrawSpine,
+        DrawTransient,
     };
 
     RenderEngine(cfg::ConfigManager& config);
@@ -320,11 +313,17 @@ class RenderEngine
     void cleanupGeometry();
     void updateOrtho();
 
-    void changeRenderState(RenderState newState);
-    void allocateForShapes();
-    void submitShapes();
-    void allocateForSpine();
-    void submitSpine();
+    bool changeRenderState(RenderState newState);
+    void allocateTransient(const bgfx::VertexLayout& layout);
+    void submitTransient();
+    void prepareTransient(const RenderState rstate,
+                          const bgfx::ViewId viewId,
+                          const bgfx::TextureHandle hTex,
+                          const ShaderHandle shader,
+                          const bgfx::VertexLayout& layout,
+                          uint64_t state,
+                          int numIdx,
+                          int numVert);
     void allocateForTexRects();
     void submitTexRects();
     void flushQueuedTexRect();
@@ -398,16 +397,16 @@ class RenderEngine
     const bgfx::ViewId kUiView = 1;
     glm::mat4 geomTransformMatrix;
 
-    bgfx::TransientVertexBuffer tvbSdf;
-    bgfx::TransientIndexBuffer tibSdf;
-    bgfx::TransientVertexBuffer tvbSpine;
-    bgfx::TransientIndexBuffer tibSpine;
-    bgfx::ViewId currentViewId = kWorldView;
-    uint32_t currentShapeCount = 0;
-    uint32_t currentShapeVertices = 0;
-    uint32_t currentShapeIndices = 0;
-    uint32_t currentSpineVertices = 0;
-    uint32_t currentSpineIndices = 0;
+    bgfx::TransientVertexBuffer tvbGen;
+    bgfx::TransientIndexBuffer tibGen;
+    uint32_t trsIndCnt = 0;
+    uint32_t trsVertCnt = 0;
+
+    bgfx::TextureHandle currTex = BGFX_INVALID_HANDLE;
+    bgfx::ViewId currViewId = kWorldView;
+    ShaderHandle currShader = ShaderHandle::Invalid();
+    uint64_t currState = 0;
+
     bool hasShutdown = false;
     const def::WorldShape* worldShape = nullptr;
     int32_t sectorOffsetX = 0;
@@ -418,7 +417,6 @@ class RenderEngine
     bgfx::InstanceDataBuffer idbTex;
     size_t maxTexPerDrawCall = 1024;
     size_t currentTexRectCount = 0;
-    bgfx::TextureHandle texRectBatchArray = BGFX_INVALID_HANDLE;
     vector<TexRectDataWrapper> texRectData;
     vector<ZSortEntry> texRectSorted;
 
