@@ -16,6 +16,7 @@
 #include <limits>
 #include <render-engine.hpp>
 #include <sstream>
+#include <string>
 #include <work-distributor.hpp>
 
 namespace ui
@@ -92,7 +93,7 @@ bool UserInterface::init(glm::ivec2 windowSize)
     dmIf.init(rmlContext);
 
     // Init Rml debugger
-    if (CFG_BOOL(config, 0.0f, "debug", "rml-debug"))
+    if (CFG_BOOL(config, 0.0f, "debug", "rml-dbg"))
     {
         Rml::Debugger::Initialise(rmlContext);
         Rml::Debugger::SetContext(rmlContext);
@@ -382,6 +383,31 @@ void UserInterface::showDocument(const string& documentId)
     }
 }
 
+
+Rml::ElementDocument* UserInterface::getDocument(UiDocHandle handle)
+{
+    auto doc = rmlDocLib.getItem(handle);
+    if (doc)
+    {
+        return *doc;
+    }
+    return nullptr;
+}
+
+Rml::ElementDocument* UserInterface::getDocument(const string& documentId)
+{
+    auto doc = rmlDocLib.getHandle(documentId);
+    if (doc.isValid())
+    {
+        return getDocument(doc);
+    }
+    else
+    {
+        LG_W("Document not found: {}", documentId);
+        return nullptr;
+    }
+}
+
 void UserInterface::hideDocument(UiDocHandle handle)
 {
     auto doc = rmlDocLib.getItem(handle);
@@ -507,6 +533,27 @@ void UserInterface::tipsShow()
 void UserInterface::tipsHide()
 {
     hideDocument("tips");
+}
+
+void UserInterface::interactShow(const vec2& pos)
+{
+    auto doc = getDocument("interact");
+    if (doc)
+    {
+        auto win = doc->GetElementById("window");
+        if (win)
+        {
+            LG_W("{}", pos);
+            win->SetProperty("left", std::to_string((int)pos.x) + "px");
+            win->SetProperty("top", std::to_string((int)pos.y) + "px");
+        }
+    }
+    showDocument("interact");
+}
+
+void UserInterface::interactHide()
+{
+    hideDocument("interact");
 }
 
 void UserInterface::hideTabListMap()

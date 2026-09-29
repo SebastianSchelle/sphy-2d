@@ -416,6 +416,13 @@ void MainWindow::winLoop()
                     mouseState.mouseCoords.sectorPos.y);
                 testSkelly.update(dt);
                 testSkelly.render(spineIntegration);
+
+
+                if (mouseState.singleClick[1])
+                {
+                    // popup context menu
+                    userInterface.interactShow(mouseState.mousePos);
+                }
                 break;
             case ClientGameState::Authenticated:
                 break;
@@ -551,12 +558,33 @@ void MainWindow::processMouseMap(float zoom)
     {
         model.clickEntityAtWorldPos(renderEngine, mouseState.mouseCoords);
     }
-    if (mouseState.buttons[1] && model.getSelectedEntities().size() > 0)
+
+    if (mouseState.buttonPressed[0])
     {
-        const bool shiftPressed =
-            glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS
-            || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
-        model.selectedEntitiesMoveCmd(mouseState.mouseCoords, shiftPressed);
+        userInterface.interactHide();
+    }
+
+
+    const bool ctrlPressed =
+        glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS
+        || glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS;
+
+    const bool shiftPressed =
+        glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS
+        || glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
+
+    if (mouseState.buttons[1])
+    {
+        if (model.getSelectedEntities().size() > 0 && ctrlPressed)
+        {
+            model.selectedEntitiesMoveCmd(mouseState.mouseCoords, shiftPressed);
+        }
+    }
+
+    if (mouseState.singleClick[1] && !ctrlPressed && !shiftPressed)
+    {
+        // popup context menu
+        userInterface.interactShow(mouseState.mousePos);
     }
 }
 

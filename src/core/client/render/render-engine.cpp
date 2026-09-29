@@ -330,7 +330,7 @@ void RenderEngine::renderCompiledGeometry(GeometryHandle geometryHandle,
         {
             textureHandleFallback =
                 textureLoader.getTextureLib().getHandle("fallback");
-            return;
+            texture = texLib.getItem(textureHandleFallback);
         }
     }
 

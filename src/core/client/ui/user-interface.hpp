@@ -83,6 +83,8 @@ class UserInterface
     void hideDocument(const string& documentId);
     bool docVisible(UiDocHandle handle);
     bool docVisible(const string& documentId);
+    Rml::ElementDocument* getDocument(UiDocHandle handle);
+    Rml::ElementDocument* getDocument(const string& documentId);
     void hideAllDocuments();
     UiDocHandle getDocumentHandle(const std::string& name);
     void menuShow();
@@ -90,6 +92,8 @@ class UserInterface
     void menuPush(const string& id, const string& title);
     void tipsShow();
     void tipsHide();
+    void interactShow(const vec2& pos);
+    void interactHide();
     void showConnecting();
     void hideConnecting();
     void hideTabListMap();
